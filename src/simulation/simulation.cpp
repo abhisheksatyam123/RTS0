@@ -7176,6 +7176,8 @@ void Simulation::order_gather(const uint32_t *unit_ids_in, size_t count_in, uint
 			continue;
 		}
 
+		const bool returning = units_.action_state[uidx] == ACTION_RETURN_DROPSITE;
+		const float pick_x = units_.target_x[uidx], pick_z = units_.target_z[uidx];
 		units_.target_x[uidx] = rx;
 		units_.target_z[uidx] = rz;
 		units_.has_order[uidx] = 1; // Order.Gather keeps the held position where it was
@@ -7185,7 +7187,28 @@ void Simulation::order_gather(const uint32_t *unit_ids_in, size_t count_in, uint
 		if (units_.carry[uidx] <= 0) units_.res_type_carried[uidx] = resources_.type[ridx];
 		units_.target_unit_id[uidx] = 0;
 		units_.target_building_id[uidx] = 0;
-		drop_walk_path((size_t)uidx);
+		// Petra's re-send of a full gatherer on its way back (gather_returning, every 1.6 s): Order.Gather
+		// returns the load first (UnitAI.js:547-551). 0.28 drops the path there and plans a new long path
+		// that goes round the trees (StopMoving, MoveTo: CCmpUnitMotion.h:584-600, 1866-1885); RTS0's
+		// stand-in for it is the path obstructed_short_path laid round them, so it is kept while it leads
+		// to the current pick (move_units' task_path tolerance, 2 units) with waypoints left, and the unit
+		// will take the same load there (tick_gather's full_for_target for the new supply). Any task path to
+		// the pick is kept, move_units' find_path path too, where 0.28 would plan that one again from where
+		// the unit stands: a path keeps no note of what laid it (one would be new saved state). A returner
+		// that stands still on a kept path is held by the re-sends, each keeping the path and resetting its
+		// failed count before MoveFailed, where 0.28's new long path would set it walking (REMAINING_GAPS
+		// G84: one of p2's returners on bahrain seed 3, which dropping the path freed within 10 s). A path
+		// walked to its end is dropped as 0.28 drops it: one that ends short of the goal would read as the
+		// goal out of reach (the guard in obstructed_short_path) for as long as the re-sends come. Should
+		// tick_gather pick another dropsite, move_units takes the path as not its own and
+		// obstructed_short_path as not to its target.
+		const WaypointPath *held = (size_t)uidx < unit_paths_.size() ? &unit_paths_[uidx] : nullptr;
+		const float gdx = held ? held->goal_x - pick_x : 0.0f, gdz = held ? held->goal_z - pick_z : 0.0f;
+		const bool keep = returning && held && held->has_goal && units_.waypoint_cur[uidx] < held->count &&
+				gdx * gdx + gdz * gdz <= 4.0f && units_.carry[uidx] > 0 &&
+				units_.carry[uidx] >= carry_cap((size_t)uidx, units_.res_type_carried[uidx]) &&
+				resources_.type[ridx] == units_.res_type_carried[uidx];
+		if (!keep) drop_walk_path((size_t)uidx);
 		set_order(uidx, ORDER_GATHER, flags, resource_id, rx, rz);
 	}
 	if (!walkers.empty()) order_walk(walkers.data(), walkers.size(), rx, rz);
@@ -14846,6 +14869,8 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 	const uint64_t per_turn = (uint64_t)std::max(1L, std::lround(0.2f / dt)); // 0 A.D. turns last 200 ms
 	const bool turn_ends = (ticks_ + 1) % per_turn == 0;
 	const size_t n = std::min(steps.count, units_.count);
+	thread_local std::vector<uint32_t> beyond; // the turn's far and sub-goal searches (run_beyond_searches)
+	beyond.clear();
 	for (size_t i = 0; i < n; ++i) {
 		MotionTurn &m = units_.motion[i];
 		if (!units_.alive[i] || !units_.has_order[i]) {
@@ -14927,7 +14952,7 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 		} else {
 			if (formations_.empty() || formation_group_[i] == 0) {
 				obstructed_long_path(i, m.failed);
-				obstructed_short_path(i, m.failed);
+				obstructed_short_path(i, m.failed, &beyond);
 			}
 			if (m.failed < OBSTRUCTED_AT) continue;
 		}
@@ -15070,6 +15095,7 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 		units_.waypoint_count[i] = 0;
 		if (i < unit_paths_.size()) unit_paths_[i].clear();
 	}
+	run_beyond_searches(beyond, ticks_ / per_turn);
 }
 
 // 0.28's WALKING and WALKINGANDFIGHTING MovementUpdate: a walk or attack-walk that move_units or
@@ -15247,17 +15273,63 @@ void Simulation::obstructed_long_path(size_t i, uint8_t failed) {
 // RTS0's long path is blind to them (8 m navcells, forest_cell_closed keeps a cell a run crosses
 // open), so on that turn a unit whose goal's centre lies within 56 m gets the same short path as the
 // stand-in for 0.28's long path, kept only when it reaches the goal; otherwise it takes RTS0's long
-// path, which obstructed_long_path plans farther off and this function within 16 m (below). One
-// farther off keeps RTS0's long path, as does one whose long path to the target ends short of the
-// goal (MakeGoalReachable moved it: test_building_steering 40).
+// path, which obstructed_long_path plans farther off and this function within 16 m (below). One whose
+// long path to the target ends short of the goal keeps it (MakeGoalReachable moved it:
+// test_building_steering 40).
+// A goal whose centre lies beyond 56 m is past the search's reach, and RTS0's long path there runs
+// through the wood (a returner in a palm grove 75 m from its storehouse, on the east face of a vineyard
+// 135 m from its farmstead: Stats' soaks, bahrain seed 3 and peloponnese seeds 1 and 3). On the third
+// failed turn such a unit gets the first stretch of a way round the trees, the stand-in for 0.28's long
+// path, from one of two searches among the statics:
+// - one that holds RTS0's long path to its target with a waypoint before its last searches to a circle
+//   round the next waypoint, and the rest of the long path is kept after it (HandleObstructedMove's
+//   short path to the next long waypoint, :1416-1442: radius clamp(skipbeyond / 3, 4 m, 12 m), no
+//   structure left out, :1441, 1862). A unit already inside that circle (obstructed_long_path's re-plan
+//   on this turn can start the path at a tile node within a unit of it) heads for the next waypoint
+//   instead, as HandleObstructedMove pops a long waypoint within skipbeyond (:1421-1426), and past the
+//   last but one takes the far search;
+// - any other searches toward the goal itself with a range of 56 m (the far search). RTS0's vertex
+//   pathfinder shifts the box of a search that range toward a far goal by 3/5 of the range
+//   (vertex_pathfinder.h:719-729, whose 46-navcell threshold counts RTS0's 8 m navcells), so its path can
+//   end about 22 units (89 m) from the unit; 0.28's shifts no box of 46 m or more
+//   (VertexPathfinder.cpp:556-570), and its 56 m search reaches 56 m.
+// A path from either that ends more than the slack short of its goal (a partial path, or one to the
+// point where the vertex pathfinder clamped a far goal into its box, which it counts as reached:
+// vertex_pathfinder.h:720-729, 948-956) gets the way on after it: the held long path's rest, or the
+// target point. 0.28 keeps m_LongPath apart from m_ShortPath and follows the short path first
+// (:1238-1250); RTS0 keeps one WaypointPath, and without the tail the end of such a path would read as
+// a long path's end MakeGoalReachable moved (the guard below, walk_falls_short) and the unit would give
+// up there. A tailed path has waypoints left 16 m or more from its goal, so on a later third failed
+// turn obstructed_long_path plans it again first, from where the unit stands (0.28's RequestLongPath
+// keeps m_ShortPath there, :977-999; RTS0's find_path drops the short path and its tail), and this
+// function searches again from there. RTS0 deviations: both searches run on the third failed turn
+// only, where 0.28 asks the sub-goal path on every other obstructed turn (the search leaves units out,
+// the statics do not change from turn to turn, and it can cover 56 m of trees); they run once every
+// unit's turn has been judged, at most BEYOND_SEARCH_BUDGET trees' worth a turn (run_beyond_searches),
+// where 0.28 computes every path asked for; the sub-goal search's range is 0.28's
+// ShortPathSearchRange (20 m on the third turn) raised to reach the waypoint plus 1 m (at most 56 m),
+// where 0.28 does not raise it: its range grows by 4 m a failed turn, on turns RTS0 does not search,
+// and its long legs are shorter (LongPathfinder.cpp:934-959 splits each at most once, RTS0's never);
+// the sub-goal search is skipped when the line to the circle is clear as far as the search reaches,
+// where 0.28 asks for the path with no straight test (:1437-1441), since a search that leaves units
+// out gives that line back; and the far straight test covers the first 56 m of the line, where
+// TryGoingStraightToTarget makes none beyond 24 m (:1532). The guard below runs before both: a unit
+// whose long path to its target ends more than the slack short of the goal (a point at sea, a region
+// it cannot reach) gets neither search, and a wood on the way stops it until MoveFailed, where 0.28's
+// long path goes round the trees to the shore before it fails.
 // The path becomes the unit's path to its target (unit_paths_, saved), which move_units follows as a
 // task's path while its target stays put, as PerformMove follows m_ShortPath to its end
 // (CCmpUnitMotion.h:1238-1250, 1299-1326) whatever the failed count does next. A path that ends no
-// nearer the goal than the unit stands is dropped (RejectFartherPaths, :904-914), and the unit keeps
-// its way. A unit already within its task's range has nothing to do (PossiblyAtDestination).
+// nearer its goal than the unit stands is dropped, and the unit keeps its way. 0.28 never rejects a
+// short path toward the goal (PathResult, :937-957, keeps a farther path out only while long waypoints
+// remain, and a short one then falls through and is stored), but the vertex pathfinder's partial path
+// ends at the vertex nearest the goal (VertexPathfinder.cpp:753-754, 855-886), so the test only drops
+// a path that gets the unit nowhere. A unit already within its task's range has nothing to do
+// (PossiblyAtDestination).
 // Walks to a moving unit (a chase, a hunt, a heal, boarding), flights and guards keep RTS0's own
 // rules, as do ships and formation members (motion_feedback).
-void Simulation::obstructed_short_path(size_t i, uint8_t failed) {
+void Simulation::obstructed_short_path(size_t i, uint8_t failed, std::vector<uint32_t> *beyond_queue,
+		size_t *searched) {
 	if (i >= unit_paths_.size() || unit_is_ship(units_.unit_type[i]) || units_.target_unit_id[i] != 0) return;
 	const uint8_t st = units_.action_state[i];
 	const bool task = (st == ACTION_GATHER && units_.target_resource_id[i] != 0) ||
@@ -15279,37 +15351,86 @@ void Simulation::obstructed_short_path(size_t i, uint8_t failed) {
 	if (goal_dist <= 0.0f) return;
 	const float centre = (goal.center - pos).length();
 	const bool short_range = goal_dist < LONG_PATH_MIN_DIST;
-	if (!short_range && (failed != ALTERNATE_PATH_TYPE_DELAY || centre + ONE_METRE > SHORT_PATH_MAX_RANGE)) return;
+	// A unit within 16 m of its goal searches toward it as for a nearer goal, even where the goal's centre
+	// lies beyond 56 m (the range round a structure some 70 m across).
+	const bool beyond = !short_range && centre + ONE_METRE > SHORT_PATH_MAX_RANGE;
+	if (!short_range && failed != ALTERNATE_PATH_TYPE_DELAY) return;
 	// The stand-in for the long path goes only where a long path goes: 0.28's ends where
 	// MakeGoalReachable puts the goal, as RTS0's does. A long path to this target that ends more than
-	// a unit short of the goal (walk_falls_short's measure; past the map's edge, up a cliff) means the
-	// goal is out of the unit's reach, and the unit keeps that path. A task's path names its target
-	// (move_units' task_path); a walk's is the unit's path whatever it names (walk_falls_short).
+	// the slack short of the goal (past the map's edge, up a cliff) means the goal is out of the unit's
+	// reach, and the unit keeps that path. The slack is a navcell for a task (TASK_FALLS_SHORT_SLACK) and
+	// a unit for a walk (walk_falls_short's measure). A task's path names its target (move_units'
+	// task_path); a walk's is the unit's path whatever it names (walk_falls_short).
 	const WaypointPath &held = unit_paths_[i];
 	const bool held_to_target = held.count > 0 && units_.waypoint_count[i] == held.count &&
 			(held.has_goal ? (held.goal_x - tx) * (held.goal_x - tx) + (held.goal_z - tz) * (held.goal_z - tz) <= 4.0f : !task);
-	if (!short_range && held_to_target && goal.distance(nav::Vec2(held.xs[held.count - 1], held.zs[held.count - 1])) > 1.0f)
+	const float slack = task ? TASK_FALLS_SHORT_SLACK : 1.0f;
+	if (!short_range && held_to_target && goal.distance(nav::Vec2(held.xs[held.count - 1], held.zs[held.count - 1])) > slack)
 		return;
-	if (direct_walk_clear(i, x, z, at.x, at.y)) return;
+	const int cur = units_.waypoint_cur[i];
+	thread_local std::vector<nav::Vec2> path; // obstructed_search fills it in either search
+	// HandleObstructedMove's short path to a circle round the next long waypoint, the rest of the long
+	// path kept (CCmpUnitMotion.h:1416-1442), searched on the alternate turn only. A sub-goal beyond the
+	// box is clamped into it (VertexPathfinder.cpp:803-806).
+	constexpr float NAVCELL_M = 1.0f / 4.0f; // 0.28's navcell: 1 m
+	const float skip = std::max(short_path_search_range(failed) / 3.0f, 8.0f * NAVCELL_M);
+	nav::ShortPathGoal sub;
+	sub.type = nav::ShortPathGoal::CIRCLE;
+	sub.hw = std::clamp(skip / 3.0f, 4.0f * NAVCELL_M, 12.0f * NAVCELL_M);
+	// The held waypoint the search heads for. A unit that already stands inside the circle round one
+	// before the last takes the one after it, as HandleObstructedMove pops a long waypoint within
+	// skipbeyond (:1421-1426), the circle's radius being at most that: obstructed_long_path's re-plan on
+	// this turn can start the path at a tile node within a unit of the unit, which its pop, made before
+	// the re-plan, never reached. Past the last but one, the far search below takes the unit on.
+	int next_k = cur;
+	const auto inside_circle = [&](int k) {
+		sub.center = nav::Vec2(held.xs[k], held.zs[k]);
+		return sub.distance(pos) <= 0.0f;
+	};
+	if (beyond && held_to_target)
+		while (next_k >= 0 && next_k + 1 < held.count && inside_circle(next_k)) ++next_k;
+	if (beyond && held_to_target && next_k >= 0 && next_k + 1 < held.count) {
+		const nav::Vec2 next(held.xs[next_k], held.zs[next_k]);
+		sub.center = next;
+		const float from = sub.distance(pos);
+		// 0.28's ShortPathSearchRange, raised to reach the waypoint plus 1 m (at most 56 m).
+		const float srange = std::max(short_path_search_range(failed),
+				std::min((next - pos).length() + ONE_METRE, SHORT_PATH_MAX_RANGE));
+		const nav::Vec2 sat = sub.nearest_point(pos), to = sat - pos;
+		const float sl = to.length();
+		const nav::Vec2 send = sl > srange ? pos + to * (srange / sl) : sat; // the part the search covers
+		// RTS0's straight test (0.28 has none here): the search leaves units out, so on a clear line it
+		// would give that line back; avoid_idle_units goes round the units.
+		if (direct_walk_clear(i, x, z, send.x, send.y)) return;
+		if (beyond_queue) {
+			beyond_queue->push_back(static_cast<uint32_t>(i));
+			return;
+		}
+		obstructed_search(i, sub, srange, 0u, path, searched);
+		if (path.empty() || sub.distance(path.back()) >= from) return;
+		take_short_path(i, path, kTailHeld, next_k);
+		return;
+	}
+	// TryGoingStraightToTarget tests the line within DIRECT_PATH_RANGE only (CCmpUnitMotion.h:1532). For a
+	// goal beyond the search, the part of the line the search covers is tested: a clear stretch there means
+	// units, not statics, stop the unit, and avoid_idle_units goes round those.
+	if (beyond && goal_dist > SHORT_PATH_MAX_RANGE) {
+		const nav::Vec2 end = pos + (at - pos) * (SHORT_PATH_MAX_RANGE / goal_dist);
+		if (direct_walk_clear(i, x, z, end.x, end.y)) return;
+	} else if (direct_walk_clear(i, x, z, at.x, at.y)) {
+		return;
+	}
+	if (beyond && beyond_queue) {
+		beyond_queue->push_back(static_cast<uint32_t>(i));
+		return;
+	}
 	float range = short_path_search_range(failed);
 	if (centre >= range - ONE_METRE) range = std::min(centre + ONE_METRE, SHORT_PATH_MAX_RANGE);
-	// The trees within the box the search may shift towards its goal (BUILDING_STEER_CULL).
-	thread_local std::vector<SteerObstacle> near;
-	thread_local std::vector<nav::Vec2> path;
-	near.clear();
-	gaia_obstacles_near(x, z, range * (nav::BUILDING_STEER_CULL / nav::BUILDING_STEER_RANGE), near);
-	const bool reached = nav::search_short_path_to_goal(pos, goal, unit_clearance_at(i), range,
-			nav::ConcatRange<SteerObstacle>{steer_obstacles_, near}, building, nav_grid_, path);
+	const bool reached = obstructed_search(i, goal, range, building, path, searched);
 	WaypointPath &wp = unit_paths_[i];
-	// A new path replaces the short path its steering kept round buildings, trees or steep ground,
-	// and a note that a search from here found none. A path round idle units stays avoid_idle_units'.
-	auto drop_steering_memo = [&] {
-		ShortPathMemo &memo = units_.short_path[i];
-		if (memo.key == short_path_key_ || memo.key == nav::no_short_path_key(short_path_key_) ||
-				memo.key == nav::no_terrain_path_key(short_path_key_) || nav::is_kept_path_key(memo.key, short_path_key_))
-			memo.key = 0;
-	};
-	if (failed == ALTERNATE_PATH_TYPE_DELAY && !reached) {
+	// Beyond 56 m a path that does not reach the goal is installed below, with its tail: RTS0's long path
+	// there is the one through the wood.
+	if (failed == ALTERNATE_PATH_TYPE_DELAY && !reached && !beyond) {
 		// The third turn's long path, within 16 m too (ComputePathToGoal flips shortPath on
 		// ShouldAlternatePathfinder, :1811-1825): farther off obstructed_long_path has planned it, and
 		// within 16 m RTS0's is planned here from where the unit stands (RequestLongPath, :1827-1842),
@@ -15326,7 +15447,7 @@ void Simulation::obstructed_short_path(size_t i, uint8_t failed) {
 		// stands is dropped too (PathResult's RejectFartherPaths, :944-957).
 		if (!short_range ||
 				(held_to_target && units_.waypoint_cur[i] < held.count &&
-				 goal.distance(nav::Vec2(held.xs[held.count - 1], held.zs[held.count - 1])) <= 1.0f))
+				 goal.distance(nav::Vec2(held.xs[held.count - 1], held.zs[held.count - 1])) <= slack))
 			return;
 		thread_local WaypointPath long_path;
 		find_path(x, z, tx, tz, long_path, unit_land_pass(i));
@@ -15339,19 +15460,113 @@ void Simulation::obstructed_short_path(size_t i, uint8_t failed) {
 		wp.goal_z = tz;
 		units_.waypoint_cur[i] = static_cast<int16_t>(wp.cur);
 		units_.waypoint_count[i] = static_cast<int16_t>(wp.count);
-		drop_steering_memo();
+		drop_steering_memo(i);
 		return;
 	}
 	if (path.empty() || goal.distance(path.back()) >= goal_dist) return;
+	// Beyond 56 m, a path that ends more than the slack short of the goal (a partial path, or one to the
+	// point where the search box clamped the goal, which the vertex pathfinder counts as reached) gets the
+	// way on after it, so its end never reads as a long path's MakeGoalReachable end: the held path's last
+	// waypoint when the unit holds one to this target, else the target point. A path that ends in the goal
+	// gets none (a walk stops only at its current waypoint, and would walk back along a held tail); nor does
+	// one within 56 m, which is 0.28's short path, and the unit decides again at its end.
+	const int tail = beyond && goal.distance(path.back()) > slack
+			? (held_to_target && next_k < held.count ? kTailHeld : kTailTarget) : kTailNone;
+	take_short_path(i, path, tail, next_k);
+}
+
+// The trees within the box the search may shift towards its goal (BUILDING_STEER_CULL), and the
+// structures (steer_obstacles_).
+bool Simulation::obstructed_search(size_t i, const nav::ShortPathGoal &goal, float range, uint32_t ignore,
+		std::vector<nav::Vec2> &path, size_t *searched) const {
+	thread_local std::vector<SteerObstacle> near;
+	const float x = units_.pos_x[i], z = units_.pos_z[i];
+	near.clear();
+	gaia_obstacles_near(x, z, range * (nav::BUILDING_STEER_CULL / nav::BUILDING_STEER_RANGE), near);
+	if (searched) *searched += near.size();
+	return nav::search_short_path_to_goal(nav::Vec2(x, z), goal, unit_clearance_at(i), range,
+			nav::ConcatRange<SteerObstacle>{steer_obstacles_, near}, ignore, nav_grid_, path);
+}
+
+// A unit's far or sub-goal search can cover 56 m of trees, 2-4 ms of CPU where a wood fills the box,
+// and Petra re-sends every returner of a base on one turn (gather_returning), whose failed counts then
+// reach the third turn together: 30 women at a wood's face took 100 ms in one tick, every 1.6 s. 0.28
+// computes every path its units ask for, on the pathfinder's worker threads between turns
+// (CCmpPathfinder.cpp:852-870, Simulation2.cpp:588-593); RTS0 runs these searches in the tick. The
+// queue runs in the order of a key mixed from the unit's id and the turn, so no unit waits behind the
+// same others turn after turn, and a search runs while those before it this turn have searched among
+// fewer than BEYOND_SEARCH_BUDGET trees, bushes and treasures. The count is of those in the box round
+// the unit that obstructed_search culls them from (22.4 units each way at 56 m), which takes in trees
+// behind the unit that the search's own box, shifted toward the goal, leaves out, so the budget can bind
+// where the searches cost little; and it measures the cost only roughly (a search among 210 palms in rows
+// 3 units apart took about 6 ms in a review probe, and a turn within the budget 44-73 ms, main's 2 ms).
+// A unit left over keeps its way and searches on its next third failed turn, if its order still stands
+// then: a gatherer's or builder's comes after a re-send, or after MoveFailed when the task goes on, but
+// MoveFailed ends a walk, an attack-move or a patrol, which then never searches. Every search reads the
+// statics and its own unit alone, which nothing in the units' turns changes after the queue was made,
+// so while the budget holds the paths are those the searches would lay in the units' own turns.
+void Simulation::run_beyond_searches(std::vector<uint32_t> &queue, uint64_t turn) {
+	if (queue.empty()) return;
+	const auto key = [turn](uint32_t id) {
+		uint32_t h = id * 0x9E3779B1u ^ static_cast<uint32_t>(turn) * 0x85EBCA77u;
+		h ^= h >> 15;
+		h *= 0x2C1B3C6Du;
+		h ^= h >> 12;
+		return h;
+	};
+	std::sort(queue.begin(), queue.end(), [&](uint32_t a, uint32_t b) {
+		const uint32_t ka = key(units_.id[a]), kb = key(units_.id[b]);
+		return ka != kb ? ka < kb : a < b;
+	});
+	size_t searched = 0;
+	for (const uint32_t i : queue) {
+		if (searched >= BEYOND_SEARCH_BUDGET) break;
+		// A unit whose turn ended its walk after it was queued (a patrol leg's point) has no search due.
+		if (!units_.alive[i] || !units_.has_order[i] || units_.motion[i].failed != ALTERNATE_PATH_TYPE_DELAY) continue;
+		obstructed_short_path(i, ALTERNATE_PATH_TYPE_DELAY, nullptr, &searched);
+	}
+	queue.clear();
+}
+
+void Simulation::take_short_path(size_t i, const std::vector<nav::Vec2> &path, int tail, int from) {
+	WaypointPath &wp = unit_paths_[i];
+	WaypointPath held; // the held path's tail, read after wp is cleared
+	int tail_n = 0;
+	if (tail == kTailHeld) {
+		held = wp;
+		tail_n = std::max(0, held.count - std::max(0, from));
+	} else if (tail == kTailTarget) {
+		tail_n = 1;
+	}
+	// The tail keeps its slots; the short path is cut first, keeping its first waypoint.
+	const size_t room = (size_t)std::max(1, WaypointPath::MAX_WP - tail_n);
 	wp.clear();
-	for (const nav::Vec2 &p : path)
-		if (!wp.push_back(p.x, p.y)) break; // the unit decides again at its end
+	for (size_t k = 0; k < path.size() && (tail_n == 0 || k < room); ++k)
+		if (!wp.push_back(path[k].x, path[k].y)) break;
+	if (tail == kTailHeld) {
+		for (int k = std::max(0, from); k < held.count; ++k) {
+			// The held path's end always takes the last slot.
+			if (wp.count == WaypointPath::MAX_WP - 1 && k + 1 < held.count) continue;
+			wp.push_back(held.xs[k], held.zs[k]);
+		}
+	} else if (tail == kTailTarget) {
+		wp.push_back(units_.target_x[i], units_.target_z[i]);
+	}
 	wp.has_goal = true;
-	wp.goal_x = tx;
-	wp.goal_z = tz;
+	wp.goal_x = units_.target_x[i];
+	wp.goal_z = units_.target_z[i];
 	units_.waypoint_cur[i] = 0;
 	units_.waypoint_count[i] = static_cast<int16_t>(wp.count);
-	drop_steering_memo();
+	drop_steering_memo(i);
+}
+
+// A new path replaces the short path unit i's steering kept round buildings, trees or steep ground,
+// and a note that a search from here found none. A path round idle units stays avoid_idle_units'.
+void Simulation::drop_steering_memo(size_t i) {
+	ShortPathMemo &memo = units_.short_path[i];
+	if (memo.key == short_path_key_ || memo.key == nav::no_short_path_key(short_path_key_) ||
+			memo.key == nav::no_terrain_path_key(short_path_key_) || nav::is_kept_path_key(memo.key, short_path_key_))
+		memo.key = 0;
 }
 
 // A walk, attack-move or patrol leg whose unit has walked all of its long path, which ends short of
