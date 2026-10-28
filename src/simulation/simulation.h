@@ -191,7 +191,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 133; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 134; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_GATHER_CLAIMS = 134; // each unit's place at its supply and when it took it
 	static constexpr uint32_t SAVE_VERSION_PETRA_SHIP_IDLE = 133; // each Petra idle ship's last idle position and stationary turn (moveApart)
 	static constexpr uint32_t SAVE_VERSION_PETRA_TARGET_ORDER = 132; // the targetList in discovery order (no longer sorted)
 	static constexpr uint32_t SAVE_VERSION_ATTACK_MOVE_STRUCTURES = 131; // attack-moves at structures only (attack_move_structures_)
@@ -3412,6 +3413,7 @@ private:
 	// attackPlan.js targetClassesSiege attack ["Structure"]); sorted ids, and an entry counts
 	// only while the unit's order is that attack-move (set_order drops it on any other).
 	std::vector<uint32_t> attack_move_structures_;
+	uint32_t gather_claim_seq_ = 0; // the last place handed out at a supply (UnitSoA::gather_claim)
 	const TurretPointSet *turret_points_of(const Building &b) const;
 	int structure_garrison_cap(const Building &b) const;
 	void occupy_turret(size_t i, Building &b);

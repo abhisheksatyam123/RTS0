@@ -783,6 +783,7 @@ void Simulation::reset() {
 	fauna_strikes_.clear();
 	turret_prev_stance_.clear();
 	attack_move_structures_.clear();
+	gather_claim_seq_ = 0;
 	guard_of_.clear();
 	work_orders_.clear();
 	locked_dropsite_units_.clear();
@@ -15782,13 +15783,31 @@ void Simulation::tick_gather(float dt) {
 			units_.gather_res[i] = 0;
 			units_.gather_rate[i] = 0.0f;
 		}
+		// A place is held from APPROACHING on while the unit stays on that supply; leaving it
+		// (RemoveGatherer) gives it up, and coming back queues up afresh.
+		if (units_.gather_claim_res[i] != 0 && (units_.action_state[i] != ACTION_GATHER || rid != units_.gather_claim_res[i])) {
+			units_.gather_claim_res[i] = 0;
+			units_.gather_claim[i] = 0;
+		}
+		if (units_.action_state[i] == ACTION_GATHER && rid != 0 && units_.gather_claim_res[i] == 0) {
+			units_.gather_claim_res[i] = rid;
+			units_.gather_claim[i] = ++gather_claim_seq_;
+		}
 		if (units_.action_state[i] != ACTION_GATHER || rid == 0 || units_.unit_type[i] == UNIT_FISHING_BOAT) continue;
 		if (!field_bld_by_res_.count(rid)) supply_gatherers_[rid].total++;
 	}
+	// Units approaching a supply, in the order they set out for it (AddGatherer's list order).
+	std::vector<size_t> approaching;
+	for (size_t i = 0; i < n; ++i)
+		if (units_.alive[i] && units_.action_state[i] == ACTION_GATHER && units_.target_resource_id[i] != 0 &&
+				!(units_.gather_res[i] == units_.target_resource_id[i] && units_.gather_rate[i] != 0.0f))
+			approaching.push_back(i);
+	std::stable_sort(approaching.begin(), approaching.end(),
+			[&](size_t a, size_t b) { return units_.gather_claim[a] < units_.gather_claim[b]; });
 	// ResourceSupply.AddGatherer: a unit holds its slot from APPROACHING on, not only once it
 	// arrives, so the ones over MaxGatherers are turned away wherever they are. Units already
-	// gathering keep theirs, then the approaching ones in unit order; a full worker heading
-	// off to a dropsite (RETURNRESOURCE) holds none.
+	// gathering keep theirs, then the approaching ones in the order they set out; a full worker
+	// heading off to a dropsite (RETURNRESOURCE) holds none.
 	// UnitAI Order.Gather returns first only when the unit can't carry more of the type it is
 	// told to gather: a load of another type, full or not, is dropped when work starts.
 	auto full_for_target = [&](size_t i) {
@@ -15799,11 +15818,14 @@ void Simulation::tick_gather(float dt) {
 	};
 	std::vector<uint8_t> supply_slot(n, 0);
 	for (int pass = 0; pass < 2 && !supply_gatherers_.empty(); ++pass) {
-		for (size_t i = 0; i < n; ++i) {
+		for (size_t k = 0; k < (pass == 0 ? n : approaching.size()); ++k) {
+			const size_t i = pass == 0 ? k : approaching[k];
 			const uint32_t rid = units_.target_resource_id[i];
 			if (!units_.alive[i] || units_.action_state[i] != ACTION_GATHER || rid == 0 || supply_slot[i]) continue;
 			if (units_.unit_type[i] == UNIT_FISHING_BOAT || field_bld_by_res_.count(rid)) continue;
-			const bool working = units_.gather_res[i] == rid && units_.gather_rate[i] > 0.0f;
+			// A gatherer pushed out of reach (gather_rate -1) holds its slot too: StopGathering
+			// frees it and the APPROACHING it goes back to takes it again (AddGatherer).
+			const bool working = units_.gather_res[i] == rid && units_.gather_rate[i] != 0.0f;
 			if (pass == 0 && !working) continue;
 			if (full_for_target(i)) continue;
 			auto rit = res_id_to_idx_.find(rid);
@@ -15815,13 +15837,15 @@ void Simulation::tick_gather(float dt) {
 		}
 	}
 	// Fields and fish the same way: farmers and boats already gathering keep their slots
-	// (AddGatherer took them at APPROACHING), so a newcomer to a full one is the one turned
-	// away, whatever the unit order.
+	// (AddGatherer took them at APPROACHING), then the ones on their way in the order they set
+	// out, so a newcomer to a full one is the one turned away, whatever the unit order.
 	std::vector<uint8_t> kept_slot(n, 0);
-	for (size_t i = 0; i < n; ++i) {
+	for (size_t k = 0; k < n + approaching.size(); ++k) {
+		const size_t i = k < n ? k : approaching[k - n];
 		const uint32_t rid = units_.target_resource_id[i];
 		if (!units_.alive[i] || units_.action_state[i] != ACTION_GATHER || rid == 0) continue;
-		if (units_.gather_res[i] != rid || !(units_.gather_rate[i] > 0.0f) || full_for_target(i)) continue;
+		const bool working = units_.gather_res[i] == rid && units_.gather_rate[i] != 0.0f;
+		if (working != (k < n) || full_for_target(i)) continue;
 		auto rit = res_id_to_idx_.find(rid);
 		if (rit == res_id_to_idx_.end()) continue;
 		if (units_.unit_type[i] == UNIT_FISHING_BOAT) {
@@ -16161,6 +16185,16 @@ void Simulation::tick_gather(float dt) {
 						units_.attack_timer[i] = 0.0f;
 						break;
 					}
+				}
+			} else if (units_.gather_res[i] == units_.target_resource_id[i] && units_.gather_rate[i] > 0.0f) {
+				// Pushed out of reach: the PerformGather timer runs on, and at its next unit
+				// IsTargetInRange fails, so StopGathering("OutOfRange") ends the timer and UnitAI
+				// walks back (APPROACHING); StartGathering there sets a fresh timer and rate. Back in
+				// reach before then, the timer gathers on as if nothing happened.
+				units_.attack_timer[i] += dt;
+				if (units_.attack_timer[i] >= 1.0f / units_.gather_rate[i]) {
+					units_.attack_timer[i] = 0.0f;
+					units_.gather_rate[i] = -1.0f;
 				}
 			}
 		}
@@ -38475,6 +38509,11 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		}
 		if (ar.version >= S::SAVE_VERSION_CHASE_TARGET) ar.pod(U.chase_target[i]);
 		else U.chase_target[i] = 0; // a chase under way walks until the next strike
+		if (ar.version >= S::SAVE_VERSION_GATHER_CLAIMS) {
+			ar.pod(U.gather_claim_res[i]); ar.pod(U.gather_claim[i]);
+		} else {
+			U.gather_claim_res[i] = 0; U.gather_claim[i] = 0; // places handed out afresh in unit order
+		}
 		uint8_t has_path = i < s.unit_paths_.size() && s.unit_paths_[i].count > 0;
 		ar.pod(has_path);
 		if (!ar.ok) return;
@@ -39389,6 +39428,10 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 	} else if constexpr (Ar::loading) {
 		s.attack_move_structures_.clear();
 	}
+
+	// v134: the last place handed out at a supply (gather_claim_seq_).
+	if (ar.version >= Simulation::SAVE_VERSION_GATHER_CLAIMS) ar.pod(s.gather_claim_seq_);
+	else if constexpr (Ar::loading) s.gather_claim_seq_ = 0;
 
 	// v86: the attacks each player's AttackDetection is suppressing (OnAttackDetected).
 	if (ar.version >= Simulation::SAVE_VERSION_ATTACK_DETECTION) {
