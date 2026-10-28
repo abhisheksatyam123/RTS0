@@ -37,6 +37,8 @@ void reload();
 bool save();
 // Bumped by every set/reset/reload so readers can cache values.
 uint32_t generation();
+// ConfigDB_HasChanges("user"): a value was changed since the last save() or reload().
+bool has_changes();
 // -nosound or -quickstart on the command line (Config.cpp g_DisableAudio).
 bool audio_disabled();
 // Replaces the command line's values (tests); the real ones are read on first use.
@@ -65,6 +67,7 @@ public:
 	void reload();
 	bool save();
 	int get_generation() const;
+	bool has_changes() const;
 	godot::PackedStringArray get_keys() const;
 	bool is_audio_disabled() const;
 	void set_command_args(const godot::PackedStringArray &args);

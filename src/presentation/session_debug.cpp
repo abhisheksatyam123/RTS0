@@ -447,7 +447,7 @@ Dictionary RtsoMain::debug_selection_state() {
 	}
 	d["units"] = units;
 	d["viewport"] = get_viewport()->get_visible_rect().size;
-	// The resource nearest the first selected unit, and where it is on screen.
+	// The land supply nearest the first selected unit, and where it is on screen.
 	if (cam && !selected_ids.is_empty()) {
 		float ux = 0, uz = 0;
 		for (size_t i = 0; i < uview.count; ++i)
@@ -457,7 +457,9 @@ Dictionary RtsoMain::debug_selection_state() {
 		for (size_t r = 0; r < rv.count; ++r) {
 			// A field's grain is hovered as the field (the supply pick skips it), and a
 			// unit other than the selected ones standing over a supply is picked before it.
-			if (!rv.alive[r] || rv.subtype[r] == rtso::RES_SUB_GRAIN) continue;
+			// Fish are left out: only boats gather them, and template_gaia_fish has no
+			// select sound.
+			if (!rv.alive[r] || rv.subtype[r] == rtso::RES_SUB_GRAIN || rv.subtype[r] == rtso::RES_SUB_FISH) continue;
 			const float dd = (rv.x[r] - ux) * (rv.x[r] - ux) + (rv.z[r] - uz) * (rv.z[r] - uz);
 			if (dd >= best) continue;
 			bool covered = false;

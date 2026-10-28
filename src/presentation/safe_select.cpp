@@ -12,6 +12,7 @@ void RtsoSafeSelect::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("add_item", "text", "id"), &RtsoSafeSelect::add_item, DEFVAL(-1));
 	ClassDB::bind_method(D_METHOD("add_icon_item", "icon", "text", "id"), &RtsoSafeSelect::add_icon_item, DEFVAL(-1));
 	ClassDB::bind_method(D_METHOD("select", "index"), &RtsoSafeSelect::select);
+	ClassDB::bind_method(D_METHOD("deselect"), &RtsoSafeSelect::deselect);
 	ClassDB::bind_method(D_METHOD("set_item_tooltip", "index", "tooltip"), &RtsoSafeSelect::set_item_tooltip);
 	ClassDB::bind_method(D_METHOD("get_item_tooltip", "index"), &RtsoSafeSelect::get_item_tooltip);
 	ClassDB::bind_method(D_METHOD("set_item_color", "index", "color"), &RtsoSafeSelect::set_item_color);
@@ -97,6 +98,12 @@ void RtsoSafeSelect::select(int index) {
 		return;
 	}
 	selected = index;
+	refresh_button();
+}
+
+// Nothing selected (a GUI dropdown's selected = -1): the button reads blank.
+void RtsoSafeSelect::deselect() {
+	selected = -1;
 	refresh_button();
 }
 

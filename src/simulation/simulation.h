@@ -191,7 +191,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 130; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 131; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_ATTACK_MOVE_STRUCTURES = 131; // attack-moves at structures only (attack_move_structures_)
 	static constexpr uint32_t SAVE_VERSION_PETRA_NEXT_PLAN = 130; // a Petra plan preparing beside the one in the slot (petra_next_plan_)
 	static constexpr uint32_t SAVE_VERSION_TRICKLE_TIMER = 128; // each structure's own trickle timer (Building::trickle_tick)
 	static constexpr uint32_t SAVE_VERSION_PETRA_LOST_BASES = 127; // each Petra's bases kept after their civic centre was lost
@@ -467,6 +468,9 @@ public:
 		// Not a switch: cart/s_wall_long (the Low Wall), a palisades_long whose Upgrade/Gate
 		// costs 20 wood and takes 5 s.
 		STRUCT_LOW_WALL = 32,
+		// Not ConquestCritical although its RTS0 type is: the maps' army tents (tent_desert,
+		// tent_arab, ...) are template_structure_special, unlike rome/tent.
+		STRUCT_NOT_CRITICAL = 64,
 	};
 	// Whether `b`'s obstruction blocks movement at all (its type's, unless its template says not).
 	static bool structure_blocks(const Building &b) {
@@ -712,7 +716,8 @@ public:
 		enum EndReason : uint8_t { END_CONQUEST = 0, END_UNITS, END_STRUCTURES, END_CIVIC_CENTRES, END_HERO, END_RESIGNED,
 			END_OBJECTIVE, END_LAST_ALIVE, END_WONDER, END_RELIC, END_GAME_MODE, END_LOST_CIVIC_CENTER,
 			END_TREASURE, END_STRUCTURES_CRITICAL, END_CIVIC_CENTRES_CRITICAL, END_CHEAT,
-			END_TUTORIAL }; // the tutorial's own lines: "Tutorial completed", and none for the defeated
+			END_TUTORIAL, // the tutorial's own lines: "Tutorial completed", and none for the defeated
+			END_UNITS_CRITICAL }; // ConquestUnits.js's second query
 		uint8_t kind;
 		uint8_t player; // who tributed, bartered, advances or changed its stance
 		uint8_t other;  // TRIBUTE: the recipient; BARTER: the resource sold; DIPLOMACY: the target
@@ -986,7 +991,10 @@ public:
 	// on the way, and carry on to (tx, tz) afterwards.
 	// `avoid` holds ORDER_AVOID_* bits: structures the walk does not stop for.
 	void order_attack_move(const uint32_t *unit_ids, size_t count, float tx, float tz,
-			bool queued = false, bool units_only = false, bool allow_capture = false, uint8_t avoid = 0);
+			bool queued = false, bool units_only = false, bool allow_capture = false, uint8_t avoid = 0,
+			bool structures_only = false);
+	// Is unit i's attack-move at structures only (targetClasses attack ["Structure"])?
+	bool attack_move_structures_only(size_t i) const;
 	// targets: ORDER_PATROL_UNITS, or ORDER_PATROL_STRUCTURES / _DEFENSIVE (a trigger script's targetClasses).
 	void order_patrol(const uint32_t *unit_ids, size_t count, float tx, float tz, bool queued = false,
 	                  uint8_t targets = ORDER_PATROL_UNITS);
@@ -3325,6 +3333,10 @@ private:
 	bool beach_goal_ = false; // set by order_walk(..., beach_goal) around its cmd_move
 	// Saved (SAVE_VERSION_TURRET_STANCE).
 	std::unordered_map<uint32_t, uint8_t> turret_prev_stance_;
+	// Units whose attack-move fights structures only (Petra's siege at a structure target,
+	// attackPlan.js targetClassesSiege attack ["Structure"]); sorted ids, and an entry counts
+	// only while the unit's order is that attack-move (set_order drops it on any other).
+	std::vector<uint32_t> attack_move_structures_;
 	const TurretPointSet *turret_points_of(const Building &b) const;
 	int structure_garrison_cap(const Building &b) const;
 	void occupy_turret(size_t i, Building &b);
@@ -3667,6 +3679,10 @@ private:
 	bool capture_enemy(int source, int t) const;
 	void capture_reduce(CapturePools &pts, int to, float amount) const; // Capturable.js Reduce
 	uint8_t participant_mask_ = 0; // save v10
+	// Players that have held a unit (ConquestUnits.js's "Unit+!Animal" list was ever filled).
+	// Not saved: a loaded player with units sets it on the next check, and one without units
+	// that had some was already defeated.
+	uint8_t had_unit_mask_ = 0;
 	uint8_t defeated_mask_ = 0;
 	uint8_t winner_mask_ = 0;
 	float wonder_hold_[MAX_PLAYERS] = {}; // the longest countdown of each player's wonders (Building::wonder_hold)

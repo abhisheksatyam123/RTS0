@@ -746,6 +746,7 @@ void Simulation::reset() {
 	game_over_ = false;
 	victory_ = false;
 	participant_mask_ = defeated_mask_ = winner_mask_ = 0;
+	had_unit_mask_ = 0;
 	relic_countdown_players_ = 0;
 	relic_changed_hands_ = false;
 	for (float &w : wonder_hold_) w = 0.0f;
@@ -781,6 +782,7 @@ void Simulation::reset() {
 	attacked_events_.clear();
 	fauna_strikes_.clear();
 	turret_prev_stance_.clear();
+	attack_move_structures_.clear();
 	guard_of_.clear();
 	work_orders_.clear();
 	locked_dropsite_units_.clear();
@@ -7382,7 +7384,7 @@ void Simulation::order_walk(const uint32_t *unit_ids, size_t count, float tx, fl
 // 0 A.D. UnitAI WalkAndFight. The stance is the player's: attack-move no longer
 // switches it to aggressive (nor patrol to defensive).
 void Simulation::order_attack_move(const uint32_t *unit_ids, size_t count, float tx, float tz,
-		bool queued, bool units_only, bool allow_capture, uint8_t avoid) {
+		bool queued, bool units_only, bool allow_capture, uint8_t avoid, bool structures_only) {
 	AiCommandScope ai_cmd(*this, AiCommandEvent::ATTACK_WALK, unit_ids, count, 0, tx, tz);
 	const uint8_t flags = ORDER_FLAG_FORCE | (units_only ? ORDER_FLAG_UNITS_ONLY : 0) |
 			(allow_capture ? ORDER_FLAG_ALLOW_CAPTURE : 0) | (avoid & (ORDER_AVOID_MASK | ORDER_AVOID_ECONOMY));
@@ -7402,8 +7404,18 @@ void Simulation::order_attack_move(const uint32_t *unit_ids, size_t count, float
 		if (idx >= 0 && (size_t)idx < units_.count && units_.alive[idx]) {
 			units_.action_state[idx] = ACTION_ATTACK_MOVE;
 			set_order(idx, ORDER_WALK_AND_FIGHT, flags, 0, units_.target_x[idx], units_.target_z[idx]);
+			auto &v = attack_move_structures_;
+			const auto at = std::lower_bound(v.begin(), v.end(), uid);
+			const bool has = at != v.end() && *at == uid;
+			if (structures_only && !units_only && !has) v.insert(at, uid);
+			else if (!structures_only && has) v.erase(at);
 		}
 	}
+}
+
+bool Simulation::attack_move_structures_only(size_t i) const {
+	if (attack_move_structures_.empty() || units_.order_kind[i] != ORDER_WALK_AND_FIGHT) return false;
+	return std::binary_search(attack_move_structures_.begin(), attack_move_structures_.end(), units_.id[i]);
 }
 
 // 0 A.D. UnitAI Patrol: walk-and-fight between where the unit stands and (tx, tz), at units only
@@ -16885,7 +16897,11 @@ void Simulation::tick_combat(float dt) {
 			const uint8_t patrol_targets = units_.order_kind[i] == ORDER_PATROL
 					? (uint8_t)((units_.order_flags[i] & ORDER_PATROL_MASK) >> ORDER_PATROL_SHIFT) : (uint8_t)ORDER_PATROL_UNITS;
 
+			// Petra's siege at a structure target attack-moves at structures only
+			// (attackPlan.js targetClassesSiege): no units, no animals.
+			const bool structures_only = walk_and_fight && attack_move_structures_only(i);
 			grid.visit_radius(pxi, pzi, scan_range, [&](int32_t j) {
+				if (structures_only) return;
 				if (!units_.alive[j] || !can_attack(my_team, units_.team[j])) return;
 				if (!unit_can_target(i, (size_t)j)) return; // Attack.js RestrictedClasses
 				if (patrol_targets != ORDER_PATROL_UNITS) {
@@ -16949,7 +16965,7 @@ void Simulation::tick_combat(float dt) {
 			}
 			// Dangerous animals, which match no PreferredClasses here (AttackEntitiesByPreference);
 			// rams and ships can't reach them (Attack RestrictedClasses, land animals).
-			const bool hunts = units_.unit_type[i] != UNIT_SIEGE_RAM && !unit_is_ship(units_.unit_type[i]);
+			const bool hunts = units_.unit_type[i] != UNIT_SIEGE_RAM && !unit_is_ship(units_.unit_type[i]) && !structures_only;
 			for (uint16_t f : wild) {
 				if (!hunts) break;
 				const float dx = fauna_.pos_x[f] - pxi, dz = fauna_.pos_z[f] - pzi;
@@ -18956,6 +18972,7 @@ void Simulation::check_victory_conditions(float dt) {
 	int unit_count[MAX_TEAMS] = {};
 	int structure_count[MAX_TEAMS] = {};
 	int critical_count[MAX_TEAMS] = {}; // ConquestCritical+!Foundation (Conquest.js)
+	int critical_structures[MAX_TEAMS] = {}; // ConquestCritical structures, foundations too
 	int critical_units[MAX_TEAMS] = {}; // ConquestCritical Unit
 	int tc_count[MAX_TEAMS] = {};
 	int built_cc_count[MAX_TEAMS] = {}; // CivilCentre+!Foundation (ConquestCivicCentres.js)
@@ -18965,7 +18982,10 @@ void Simulation::check_victory_conditions(float dt) {
 		// keeps a Conquest Structures player in; the critical and civic-centre counts skip it.
 		if (b.team >= MAX_TEAMS || b.hp <= 0.0f) continue;
 		structure_count[b.team]++;
-		if (is_conquest_critical(b.type) && b.build_progress >= 1.0f) critical_count[b.team]++;
+		if (is_conquest_critical(b.type) && !(b.template_off & STRUCT_NOT_CRITICAL)) {
+			critical_structures[b.team]++;
+			if (b.build_progress >= 1.0f) critical_count[b.team]++;
+		}
 		if (is_civic_centre(b.type)) tc_count[b.team]++;
 		if ((is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY) && b.build_progress >= 1.0f) built_cc_count[b.team]++;
 		if (b.type == BLD_WONDER && b.build_progress >= 1.0f) wonder[b.team] = true;
@@ -18978,6 +18998,7 @@ void Simulation::check_victory_conditions(float dt) {
 	}
 	for (int t = 0; t < MAX_TEAMS; ++t) {
 		if (unit_count[t] || structure_count[t]) participant_mask_ |= (uint8_t)(1u << t);
+		if (unit_count[t]) had_unit_mask_ |= (uint8_t)(1u << t);
 	}
 
 	if (has_victory(VK_WONDER)) {
@@ -19071,12 +19092,18 @@ void Simulation::check_victory_conditions(float dt) {
 		// holds nothing at all.
 		const bool lost_any = stats_[t].units_lost[STAT_UNIT_TOTAL] + stats_[t].buildings_lost[STAT_BLD_TOTAL] > 0;
 		if ((vk & VK_CONQUEST) && ((critical_count[t] == 0 && lost_any) || (no_units && no_structures))) return SN::END_CONQUEST;
-		if ((vk & VK_CONQUEST_UNITS) && no_units) return SN::END_UNITS;
 		const bool gone = lost_any || (no_units && no_structures);
+		// ConquestUnits.js: "Unit+!Animal" fires once the last unit is lost (a player who starts
+		// with none stays in), and "ConquestCritical Unit+!Animal" once the last unit and
+		// critical structure, foundations included, are gone.
+		if ((vk & VK_CONQUEST_UNITS) && no_units && ((had_unit_mask_ >> t) & 1)) return SN::END_UNITS;
+		if ((vk & VK_CONQUEST_UNITS) && no_units && critical_structures[t] == 0 && gone) return SN::END_UNITS_CRITICAL;
 		if ((vk & VK_CONQUEST_STRUCTURES) && no_structures && had_structure) return SN::END_STRUCTURES;
 		if ((vk & VK_CONQUEST_STRUCTURES) && no_structures && critical_units[t] == 0 && gone) return SN::END_STRUCTURES_CRITICAL;
 		if ((vk & VK_CONQUEST_CIVIC_CENTRES) && no_ccs) return SN::END_CIVIC_CENTRES;
-		if ((vk & VK_CONQUEST_CIVIC_CENTRES) && built_cc_count[t] == 0 && critical_count[t] == 0 && gone) return SN::END_CIVIC_CENTRES_CRITICAL;
+		// "ConquestCritical CivilCentre+!Foundation": a critical foundation keeps the player in.
+		if ((vk & VK_CONQUEST_CIVIC_CENTRES) && built_cc_count[t] == 0 && critical_structures[t] + critical_units[t] == 0 && gone)
+			return SN::END_CIVIC_CENTRES_CRITICAL;
 		if ((vk & VK_REGICIDE) && regicide_hero_lost(t)) return SN::END_HERO;
 		return -1;
 	};
@@ -20152,6 +20179,10 @@ void Simulation::order_guard(const uint32_t *unit_ids_in, size_t count_in, uint3
 
 void Simulation::set_order(size_t i, uint8_t kind, uint8_t flags, uint32_t target, float x, float z) {
 	units_.motion[i] = MotionTurn{.pressure = units_.motion[i].pressure}; // UnitMotion MoveTo: a new move starts unobstructed
+	if (kind != ORDER_WALK_AND_FIGHT && !attack_move_structures_.empty()) {
+		auto &v = attack_move_structures_;
+		if (const auto at = std::lower_bound(v.begin(), v.end(), units_.id[i]); at != v.end() && *at == units_.id[i]) v.erase(at);
+	}
 	units_.order_kind[i] = kind;
 	units_.order_flags[i] = flags;
 	units_.order_target[i] = target;
@@ -29786,13 +29817,8 @@ void Simulation::petra_manage_research(float dt) {
 void Simulation::petra_invading_army_centres(std::vector<std::array<float, 2>> &out) const {
 	out.clear();
 	for (const PetraDefenseArmy &a : petra_defense_armies_) {
-		float cx = 0.0f, cz = 0.0f;
-		int n = 0;
-		for (uint32_t f : a.foe_ids) {
-			float fx, fz;
-			if (petra_army_foe_pos(f, fx, fz)) { cx += fx; cz += fz; ++n; }
-		}
-		if (n) out.push_back({cx / n, cz / n});
+		float cx, cz;
+		if (petra_army_position(a, cx, cz)) out.push_back({cx, cz}); // a capturing army's structure too
 	}
 }
 
@@ -30466,6 +30492,9 @@ bool Simulation::petra_allow_capture(const std::vector<uint32_t> &squad, uint32_
 			const_cast<Simulation *>(this)->territory_decay_targets(b, decay_to, decay_gaia);
 	// Always recapture points from our own or an ally's structure, unless it decays.
 	if (b.team < MAX_PLAYERS && (b.team == petra_pid_ || is_ally(petra_pid_, b.team))) return !decaying;
+	// healthLevel() is NaN on a structure with no Health (a Gaia shrine), so the comparison
+	// below never holds: Petra doesn't capture it.
+	if (!structure_has_health(b.type)) return false;
 
 	// GarrisonRegenRate times each garrisoned unit's Capture strength (Capturable.GetRegenRate).
 	float anti = b.capture_regen_rate;
@@ -30722,7 +30751,8 @@ void Simulation::petra_attack_units(AttackPlan &plan) {
 		if (siege(i)) {
 			const int32_t bi = best_structure(i, range2, true);
 			if (bi >= 0) attack_structure(i, (size_t)bi);
-			else order_attack_move(&uid, 1, plan.target_x, plan.target_z, false, false, true, petra_attack_avoid(plan, true));
+			else order_attack_move(&uid, 1, plan.target_x, plan.target_z, false, false, true, petra_attack_avoid(plan, true),
+			                       building_id_to_idx_.count(plan.target_building_id) != 0);
 			continue;
 		}
 		const uint16_t land = petra_land_at(units_.pos_x[i], units_.pos_z[i]);
@@ -35355,15 +35385,15 @@ void Simulation::petra_manage_defense(float dt) {
 			candidates.push_back({best, i});
 		}
 		std::sort(candidates.begin(), candidates.end());
-		// A defender must be able to attack some foe of the army: a capturing army's structure
-		// is captured (ours or an ally's only while allowCapture) or else damaged.
+		// A defender must be able to attack some foe of the army (canAttackTarget): a capturing
+		// army's structure is captured while allowCapture says so, else damaged, which a
+		// structure with no Health (a Gaia shrine) can't be.
 		auto can_take_on = [&](size_t i, const PetraDefenseArmy &a) {
 			if (!petra_army_capturing(a)) return true;
 			const Building &b = buildings_[building_id_to_idx_.at(a.foe_ids[0])];
 			if (petra_allow_capture(a.defender_ids, units_.id[i], b)) return true;
 			if (b.team < MAX_PLAYERS && (b.team == petra_pid_ || is_ally(petra_pid_, b.team))) return false;
-			return (unit_capture_attack(units_.tmpl[i], units_.unit_type[i]) > 0.0f && can_capture_building(petra_pid_, b)) ||
-				(can_attack(petra_pid_, b.team) && unit_can_target_building(i, b.type));
+			return can_attack(petra_pid_, b.team) && unit_can_target_building(i, b.type);
 		};
 		// Each goes to the nearest army still in need, on its own land in the first pass and
 		// any in the second. Helping outside our land, up to 12 units farther than 200 m
@@ -37266,6 +37296,7 @@ bool Simulation::load_state(const char *filepath) {
 	in.read((char *)&game_over_, sizeof(game_over_));
 	in.read((char *)&victory_, sizeof(victory_));
 	participant_mask_ = defeated_mask_ = winner_mask_ = 0;
+	had_unit_mask_ = 0;
 	for (float &w : wonder_hold_) w = 0.0f;
 	if (version >= 10) {
 		in.read((char *)&participant_mask_, sizeof(participant_mask_));
@@ -37745,6 +37776,7 @@ bool Simulation::load_state(const char *filepath) {
 		projectiles_.clear();
 		statuses_.clear();
 		turret_prev_stance_.clear();
+		attack_move_structures_.clear();
 	}
 	relink_field_resources(); // the resources' subtypes came with the tick state (v17)
 
@@ -38922,6 +38954,18 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		}
 	} else if constexpr (Ar::loading) {
 		s.turret_prev_stance_.clear();
+	}
+
+	// v131: the units whose attack-move fights structures only (attackPlan.js targetClassesSiege
+	// attack ["Structure"], kept in UnitAI's order data in 0.28). Sorted ids, each once.
+	if (ar.version >= Simulation::SAVE_VERSION_ATTACK_MOVE_STRUCTURES) {
+		io_vec_pod(ar, s.attack_move_structures_, (uint32_t)S::UNIT_LOAD_LIMIT);
+		if constexpr (Ar::loading)
+			if (std::adjacent_find(s.attack_move_structures_.begin(), s.attack_move_structures_.end(),
+					[](uint32_t x, uint32_t y) { return x >= y; }) != s.attack_move_structures_.end())
+				ar.ok = false;
+	} else if constexpr (Ar::loading) {
+		s.attack_move_structures_.clear();
 	}
 
 	// v86: the attacks each player's AttackDetection is suppressing (OnAttackDetected).
@@ -41001,7 +41045,17 @@ void Simulation::order_collect_treasure(const uint32_t *unit_ids, size_t count, 
 		units_.target_resource_id[u] = 0;
 		units_.target_x[u] = t->x;
 		units_.target_z[u] = t->z;
-		units_.waypoint_cur[u] = units_.waypoint_count[u] = 0;
+		// COLLECTTREASURE.APPROACHING MoveToTargetRange: a long path round trees, structures and
+		// water (move_units steers an ACTION_MOVE only along its path).
+		ensure_unit_paths();
+		WaypointPath &wp = unit_paths_[u];
+		const uint8_t ut = units_.unit_type[u];
+		find_path(units_.pos_x[u], units_.pos_z[u], t->x, t->z, wp, unit_is_ship(ut) ? unit_ship_pass(ut) : unit_land_pass((size_t)u));
+		wp.has_goal = true;
+		wp.goal_x = t->x;
+		wp.goal_z = t->z;
+		units_.waypoint_cur[u] = static_cast<int16_t>(wp.cur);
+		units_.waypoint_count[u] = static_cast<int16_t>(wp.count);
 	}
 }
 
