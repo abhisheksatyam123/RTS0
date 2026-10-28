@@ -30442,7 +30442,7 @@ bool Simulation::petra_squad_centre(const std::vector<uint32_t> &squad, float &c
 bool Simulation::petra_defense_target(const Building &b) const {
 	if (!petra_foe(b.team) || b.hp <= 0.0f || b.wrecked) return false;
 	const auto &ids = petra_defense_targets_.ids;
-	return std::binary_search(ids.begin(), ids.end(), b.id);
+	return std::find(ids.begin(), ids.end(), b.id) != ids.end();
 }
 
 bool Simulation::petra_raid_target_ok(uint32_t bld_id) const {
@@ -32057,21 +32057,17 @@ bool Simulation::petra_unit_reserved(uint32_t uid) const {
 uint32_t Simulation::find_petra_raid_target(float &out_tx, float &out_tz) const {
 	float bx = 36.0f, bz = 36.0f;
 	if (const auto *base = get_primary_petra_base()) { bx = base->x; bz = base->z; }
-	// defenseManager.js targetList (petra_defense_target), nearest to the base first
-	// (attackManager.js raids them with cavalry).
-	uint32_t best = 0;
-	float best_d = 1e18f;
-	for (const auto &b : buildings_) {
-		if (!petra_defense_target(b)) continue;
-		const float dsq = (b.x - bx) * (b.x - bx) + (b.z - bz) * (b.z - bz);
-		if (dsq < best_d) {
-			best_d = dsq;
-			best = b.id;
-			out_tx = b.x;
-			out_tz = b.z;
-		}
+	// attackManager.js:425-433: the first enemy structure of defenseManager.js targetList, in
+	// the order the structures were found.
+	(void)bx; (void)bz;
+	for (const uint32_t id : petra_defense_targets_.ids) {
+		const auto it = building_id_to_idx_.find(id);
+		if (it == building_id_to_idx_.end() || !petra_defense_target(buildings_[it->second])) continue;
+		out_tx = buildings_[it->second].x;
+		out_tz = buildings_[it->second].z;
+		return id;
 	}
-	return best;
+	return 0;
 }
 
 // attackManager.js raidTargetEntity / attackPlan.js "Raid": a few cavalry
@@ -34943,7 +34939,11 @@ void Simulation::petra_manage_defense(float dt) {
 		if (petra_army_capturing(a)) return; // only a "default" army
 		// Sandbox runs no attackManager (headquarters.js:2335): such a plan would never march.
 		if (petra_config_.difficulty == PETRA_SANDBOX) return;
-		for (const Building &b : buildings_) {
+		const std::vector<uint32_t> list = petra_defense_targets_.ids; // targetList, in its order
+		for (const uint32_t tid : list) {
+			const auto tit = building_id_to_idx_.find(tid);
+			if (tit == building_id_to_idx_.end()) continue;
+			const Building &b = buildings_[tit->second];
 			if (!defense_target(b)) continue;
 			const uint16_t land = petra_land_at(b.x, b.z);
 			bool near = false;
@@ -35291,7 +35291,7 @@ void Simulation::petra_manage_defense(float dt) {
 		const int terr = territory_owner_at(units_.pos_x[i], units_.pos_z[i]);
 		if (terr >= 0 && (terr >= MAX_PLAYERS || !is_ally(petra_pid_, (uint8_t)terr))) continue;
 		auto &ids = petra_defense_targets_.ids;
-		bool target = std::binary_search(ids.begin(), ids.end(), b.id);
+		bool target = std::find(ids.begin(), ids.end(), b.id) != ids.end();
 		if (!target && terr == petra_pid_) target = true;
 		else if (!target && (is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY)) {
 			for (const Building &o : buildings_) {
@@ -35301,7 +35301,7 @@ void Simulation::petra_manage_defense(float dt) {
 			}
 		}
 		if (!target) continue;
-		if (!std::binary_search(ids.begin(), ids.end(), b.id)) ids.insert(std::lower_bound(ids.begin(), ids.end(), b.id), b.id);
+		if (std::find(ids.begin(), ids.end(), b.id) == ids.end()) ids.push_back(b.id); // targetList.push
 		make_into_army(units_.id[i]);
 	}
 
@@ -35520,8 +35520,7 @@ void Simulation::petra_manage_defense(float dt) {
 				float fx, fz;
 				petra_army_foe_pos(best_foe, fx, fz);
 				const uint16_t own = petra_land_at(units_.pos_x[idx], units_.pos_z[idx]), there = petra_land_at(fx, fz);
-				if (own && there && own != there) {
-					++against[best_foe];
+				if (own && there && own != there) { // not assigned against it meanwhile (DA:363-370)
 					petra_require_defense_transport(uid, own, there, fx, fz);
 					continue;
 				}
@@ -38606,8 +38605,14 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		} else if constexpr (std::is_same_v<T, S::PetraDefenseTargets>) {
 			if (ar.version >= Simulation::SAVE_VERSION_PETRA_TARGET_LIST) {
 				io_vec(ar, v.ids, 1u << 16, [&](uint32_t &id) { ar.pod(id); });
-				if constexpr (Ar::loading)
-					if (!std::is_sorted(v.ids.begin(), v.ids.end())) ar.ok = false;
+				if constexpr (Ar::loading) {
+					// v132 keeps discovery order, each id once; older saves kept it sorted.
+					std::vector<uint32_t> sorted = v.ids;
+					std::sort(sorted.begin(), sorted.end());
+					if (std::adjacent_find(sorted.begin(), sorted.end()) != sorted.end() ||
+							(ar.version < Simulation::SAVE_VERSION_PETRA_TARGET_ORDER && sorted != v.ids))
+						ar.ok = false;
+				}
 			} else v.ids.clear(); // older saves: structures are seen being built again
 		} else if constexpr (std::is_same_v<T, S::PetraTileBases>) {
 			// The claimed tiles only (index, anchor), in index order.
