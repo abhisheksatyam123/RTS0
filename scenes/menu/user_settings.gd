@@ -19,6 +19,36 @@ const SHADOW_ATLAS := [1024, 2048, 4096, 8192] # shadowquality -1 Low .. 2 Very 
 # shadowscovermap: a cutoff past the largest map's diagonal (Giant, 512 m).
 const SHADOW_COVER_MAP_DISTANCE := 2000.0
 const METRES_PER_UNIT := 4.0 # RTS0's world unit is 4 m
+# 0.28's "hdr" post effect (shaders/glsl/hdr.fs) over the 3D picture under the GUI,
+# with the map's LightEnv Postproc values (world_view_node.cpp apply_biome_environment
+# sets the rtso_pp_* globals; rtso_pp_hdr 0 is the "default" effect, no change).
+# hdr.fs's blurTex2/4/8 are the picture at 1/2, 1/4 and 1/8 size, each box-blurred by
+# bloom.fs over 6 x 6 taps 0.004 UV apart: one such box on the 1/4 mip stands for all three.
+const HDR_SHADER := """
+shader_type canvas_item;
+uniform sampler2D screen: hint_screen_texture, filter_linear_mipmap;
+global uniform float rtso_pp_hdr;
+global uniform float rtso_pp_brightness;
+global uniform float rtso_pp_contrast;
+global uniform float rtso_pp_saturation;
+global uniform float rtso_pp_bloom;
+void fragment() {
+	vec3 color = textureLod(screen, SCREEN_UV, 0.0).rgb;
+	if (rtso_pp_hdr > 0.5) {
+		vec3 blur = vec3(0.0);
+		for (int y = 0; y < 6; y++)
+			for (int x = 0; x < 6; x++)
+				blur += textureLod(screen, SCREEN_UV + vec2(-0.01 + 0.004 * float(x), -0.01 + 0.004 * float(y)), 2.0).rgb;
+		vec3 bloomv = max(blur / 36.0 - rtso_pp_bloom, vec3(0.0));
+		bloomv = mix(bloomv, color, rtso_pp_bloom / 0.2);
+		color = max(bloomv, color);
+		color += vec3(rtso_pp_brightness);
+		color = (color - 0.5) * rtso_pp_contrast + 0.5;
+		color = mix(vec3(dot(color, vec3(0.299, 0.587, 0.114))), color, rtso_pp_saturation);
+	}
+	COLOR = vec4(color, 1.0);
+}
+"""
 # FidelityFX CAS (CASFilter in 0.28's postproc), on the 3D picture under the GUI.
 const CAS_SHADER := """
 shader_type canvas_item;
@@ -74,6 +104,7 @@ var _in_session := false
 var _overlay: CanvasLayer
 ## The water shader's global uniforms as last set (the headless renderer keeps none).
 var water_globals := {}
+var _hdr: CanvasLayer
 var _cas: CanvasLayer
 var _cas_material: ShaderMaterial
 var _overlay_label: Label
@@ -575,7 +606,27 @@ func _apply_viewport() -> void:
 		level += 1
 	ProjectSettings.set_setting("rendering/textures/default_filters/anisotropic_filtering_level", level)
 	vp.texture_mipmap_bias = float(2 - clampi(int(cfg.get_number("textures.quality")), 0, 2)) - 0.0001 * level
+	_apply_hdr()
 	_apply_sharpening()
+
+## postproc: the map's post effect (HDR_SHADER), under the sharpening.
+func _apply_hdr() -> void:
+	var on := cfg.get_bool("postproc") and not is_headless()
+	if on and _hdr == null:
+		_hdr = CanvasLayer.new()
+		_hdr.layer = -101 # over the 3D view, under the sharpening and every GUI layer
+		var rect := ColorRect.new()
+		rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+		rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var sh := Shader.new()
+		sh.code = HDR_SHADER
+		var mat := ShaderMaterial.new()
+		mat.shader = sh
+		rect.material = mat
+		_hdr.add_child(rect)
+		add_child(_hdr)
+	if _hdr:
+		_hdr.visible = on
 
 ## sharpening ("cas") and sharpness, under postproc (options.json dependencies).
 func _apply_sharpening() -> void:
