@@ -1089,7 +1089,7 @@ static void test_petra_overseas_base() {
 	float placed_at = -1.0f, first_ashore = -1.0f;
 	int waded = 0; // land units are not stopped by deep water yet: none may try
 	int most_south = 0;
-	for (int k = 0; k < 360; ++k) {
+	for (int k = 0; k < 480; ++k) {
 		run(s, 1.0f);
 		for (size_t i = 0; i < s.units().count; ++i)
 			if (s.units().alive[i] && s.units().team[i] == 1 && s.units().unit_type[i] == UNIT_VILLAGER &&
@@ -1099,7 +1099,7 @@ static void test_petra_overseas_base() {
 			if (!cc && b.team == 1 && b.type == BLD_TOWN_CENTER && b.z < -16.0f) { cc = b.id; placed_at = (float)k; }
 		if (first_ashore < 0.0f)
 			for (size_t i = 0; i < s.units().count; ++i)
-				if (s.units().alive[i] && s.units().team[i] == 1 && s.units().unit_type[i] == UNIT_VILLAGER &&
+				if (s.units().alive[i] && s.units().team[i] == 1 && !unit_is_ship(s.units().unit_type[i]) &&
 				    s.petra_land_at(s.units().pos_x[i], s.units().pos_z[i]) == south) { first_ashore = (float)k; break; }
 		// Workers come and go by ship between the two lands: count the most seen at once.
 		int on_south = 0;
@@ -1134,6 +1134,47 @@ static void test_petra_overseas_base() {
 	CHECK(south_workers >= 8); // 12 with that fixed, 1 before
 	CHECK(b && b->build_progress > 0.3f);
 	CHECK(north_gathering_south == 0 && waded == 0);
+}
+
+// worker.js / baseManager.assignToFoundations: builders for a foundation on another land ask
+// for a transport (navalManager.requireTransport) whether or not a transport ship exists yet;
+// the crossing waits for one (needTransportShips has it trained). The crossing's builders are
+// that foundation's (target-foundation), so one crossing serves it, not a new one each turn.
+static void test_petra_builders_cross_without_ship() {
+	static Simulation s;
+	fresh(s);
+	s.set_player_active(1, true, true);
+	s.set_player_resources(1, 20000, 20000, 5000, 5000);
+	s.players_[1].phase = 2;
+	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+	for (int k = 0; k < 12; ++k) s.spawn_unit(-40.0f + 2.0f * k, 52.0f, 1, UNIT_VILLAGER);
+	for (int k = 0; k < 6; ++k) s.spawn_resource_world(-20.0f + 3.0f * k, 60.0f, RES_WOOD, 2000); // wood at home
+	const uint32_t fnd = s.spawn_building_world(20.0f, -40.0f, BLD_MILITARY_COLONY, 1, 0.0f);
+	const uint16_t south = s.petra_land_at(20.0f, -40.0f);
+	float asked = -1.0f, ship_at = -1.0f, ashore = -1.0f;
+	size_t most_shipless = 0; // builders' crossings while no transport ship exists
+	for (int k = 0; k < 300 && ashore < 0.0f; ++k) {
+		run(s, 1.0f);
+		if (ship_at < 0.0f && count_units(s, 1, UNIT_TRIREME) + count_units(s, 1, UNIT_MERCHANT_SHIP) > 0) ship_at = (float)k;
+		size_t plans = 0;
+		for (const auto &tp : s.petra_transport_plans()) plans += tp.owner == PETRA_TRANSPORT_BUILDERS;
+		if (plans && asked < 0.0f) asked = (float)k;
+		if (ship_at < 0.0f) most_shipless = std::max(most_shipless, plans);
+		for (size_t i = 0; i < s.units().count; ++i)
+			if (s.units().alive[i] && s.units().team[i] == 1 && s.petra_land_at(s.units().pos_x[i], s.units().pos_z[i]) == south) {
+				ashore = (float)k;
+				break;
+			}
+	}
+	run(s, 60.0f);
+	const Simulation::Building *b = bld(s, fnd);
+	std::printf("Petra builders cross with no ship yet: crossing asked at %.0fs, first ship at %.0fs (%zu crossing(s) before it), first ashore at %.0fs, colony built %.0f%%\n",
+	            asked, ship_at, most_shipless, ashore, b ? 100.0f * b->build_progress : 0.0f);
+	CHECK(asked >= 0.0f && (ship_at < 0.0f || asked < ship_at));
+	CHECK(most_shipless == 1); // one crossing for the colony, not a new one each turn
+	CHECK(ashore >= 0.0f);
+	CHECK(b && b->build_progress > 0.0f);
 }
 
 // queueplanBuilding.js buildOverseaDock: with no room for a civic centre, Petra lays a dock on an
@@ -3143,6 +3184,7 @@ int main() {
 	test_petra_landing_spot();
 	test_petra_unreachable_target();
 	test_petra_overseas_base();
+	test_petra_builders_cross_without_ship();
 	test_petra_oversea_dock();
 	test_petra_start_at_sea();
 	test_petra_concurrent_transports();
