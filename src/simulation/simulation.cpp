@@ -41034,7 +41034,17 @@ void Simulation::order_collect_treasure(const uint32_t *unit_ids, size_t count, 
 		units_.target_resource_id[u] = 0;
 		units_.target_x[u] = t->x;
 		units_.target_z[u] = t->z;
-		units_.waypoint_cur[u] = units_.waypoint_count[u] = 0;
+		// COLLECTTREASURE.APPROACHING MoveToTargetRange: a long path round trees, structures and
+		// water (move_units steers an ACTION_MOVE only along its path).
+		ensure_unit_paths();
+		WaypointPath &wp = unit_paths_[u];
+		const uint8_t ut = units_.unit_type[u];
+		find_path(units_.pos_x[u], units_.pos_z[u], t->x, t->z, wp, unit_is_ship(ut) ? unit_ship_pass(ut) : unit_land_pass((size_t)u));
+		wp.has_goal = true;
+		wp.goal_x = t->x;
+		wp.goal_z = t->z;
+		units_.waypoint_cur[u] = static_cast<int16_t>(wp.cur);
+		units_.waypoint_count[u] = static_cast<int16_t>(wp.count);
 	}
 }
 
