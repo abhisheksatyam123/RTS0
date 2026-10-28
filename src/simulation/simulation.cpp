@@ -16716,8 +16716,10 @@ void Simulation::tick_combat(float dt) {
 		if (!guarding && units_.target_unit_id[i] != 0) {
 			int32_t tidx = lookup_unit(units_.target_unit_id[i]);
 			// Hunting (tick_hunters) or collecting a treasure (tick_treasures) drives it.
+			// A collector that lost the race still waits out its timer on the taken treasure.
 			if (tidx < 0 && (is_fauna_id(units_.target_unit_id[i]) || is_treasure_id(units_.target_unit_id[i]) ||
-					is_scenery_id(units_.target_unit_id[i])))
+					is_scenery_id(units_.target_unit_id[i]) ||
+					(units_.order_kind[i] == ORDER_COLLECT_TREASURE && units_.order_target[i] == units_.target_unit_id[i])))
 				return; // ... and attacking scenery (tick_scenery_attackers)
 			// Capturing a relic (tick_relics drives it).
 			if (is_relic_unit(tidx) && units_.order_kind[i] == ORDER_CAPTURE_RELIC) return;
@@ -18231,6 +18233,7 @@ void Simulation::projectile_hits_fauna(const Projectile &p, size_t f) {
 	if (src >= 0) award_fauna_xp((size_t)src, f, dmg);
 	fauna_.hp[f] -= dmg;
 	fauna_attacked(f, p.source_id); // a unit, or the structure that shot
+	if (fauna_.hp[f] <= 0.0f) collect_fauna_loot(f, p.source_id, p.team);
 	if (fauna_.hp[f] <= 0.0f && src >= 0) fauna_killed(f, (size_t)src);
 	else if (fauna_.hp[f] > 0.0f && p.status_effect != 0)
 		if (const CombatProfile *att = projectile_status_profile(p)) apply_status_fauna(f, *att, p.source_id, p.team);
@@ -18752,6 +18755,7 @@ bool Simulation::status_tick(const StatusInstance &st) {
 	fauna_.hp[f] -= dmg;
 	fauna_attacked(f, st.src);
 	if (fauna_.hp[f] > 0.0f) return true;
+	collect_fauna_loot(f, st.src, st.src_owner);
 	// A unit's kill is its kill (fauna_killed); any other leaves the carcass in tick_fauna.
 	const int32_t src = lookup_unit(st.src);
 	if (src >= 0 && units_.alive[src]) fauna_killed(f, (size_t)src);
@@ -19851,6 +19855,7 @@ void Simulation::cause_damage_over_area(uint8_t splash, uint32_t attacker_id, ui
 		if (killer >= 0) award_fauna_xp((size_t)killer, f, dmg);
 		fauna_.hp[f] -= dmg;
 		fauna_attacked(f, attacker_id, melee);
+		if (fauna_.hp[f] <= 0.0f) collect_fauna_loot(f, attacker_id, attacker_team);
 		if (fauna_.hp[f] <= 0.0f && killer >= 0 && units_.alive[killer]) fauna_killed(f, (size_t)killer);
 	}
 	bool nav_changed = false, territory_changed = false;
@@ -21425,9 +21430,12 @@ void Simulation::tick_unit_ai(float dt) {
 			continue;
 		}
 		// COLLECTTREASURE.COLLECTING: a collector whose walk ended within reach of the treasure stands
-		// there while its CollectTime timer runs (tick_treasures), which ends the order.
+		// there while its CollectTime timer runs (tick_treasures), which ends the order. A running
+		// timer goes on out of reach, or after another collector took the treasure.
 		if (now == ACTION_IDLE && !interrupted && units_.order_kind[i] == ORDER_COLLECT_TREASURE &&
-				treasure_in_reach(i, units_.order_target[i]))
+				(treasure_in_reach(i, units_.order_target[i]) ||
+				 (units_.pack_elapsed[i] != 0.0f && units_.pack_state[i] == PACK_NONE &&
+				  units_.target_unit_id[i] == units_.order_target[i])))
 			continue;
 		if (now == ACTION_IDLE) {
 			if (interrupted) resume_order(i);
@@ -25320,8 +25328,9 @@ uint32_t Simulation::petra_find_hunt(size_t u, float px, float pz, const PetraHu
 		const auto &info = fauna_type_info(fauna_.fauna_type[f]);
 		if (info.is_naval() || (info.flags & FAUNA_F_FISH)) continue; // isHuntable skips SeaCreatures
 		if (info.attack_damage() > 0.0f) continue; // isHuntable: "Do not hunt retaliating animals" (only their carcasses)
-		// Herded or corralled (garrisoned) livestock is nobody's to hunt.
-		if (fauna_.behavior[f] == FAUNA_HERDED || fauna_.behavior[f] == FAUNA_CORRALLED || fauna_.behavior[f] == FAUNA_MOVING) continue;
+		// Herded or corralled (garrisoned) livestock is nobody's to hunt. Livestock walking to its
+		// rally point is (getHuntableSupplies has no order filter).
+		if (fauna_.behavior[f] == FAUNA_HERDED || fauna_.behavior[f] == FAUNA_CORRALLED) continue;
 		auto git = scan.on_animal.find(fauna_.id[f]);
 		consider(fauna_.id[f], fauna_.pos_x[f], fauna_.pos_z[f], fauna_.food_amount[f], info.max_gatherers,
 		         git == scan.on_animal.end() ? 0 : git->second, !info.is_domestic(),
@@ -25735,9 +25744,10 @@ void Simulation::petra_manage_hunters(PetraHuntScan &scan) {
 		const uint8_t st = units_.action_state[i];
 		const bool idle = st == ACTION_IDLE;
 		if (!idle) {
-			// Hunting units that drifted into enemy territory during the chase go home.
-			const bool hunting = (st == ACTION_ATTACK && is_fauna_id(units_.target_unit_id[i])) ||
-			                     ((st == ACTION_GATHER || st == ACTION_RETURN_DROPSITE) && units_.res_type_carried[i] == RES_FOOD);
+			// Hunting units that drifted into enemy territory during the hunt go home. worker.js
+			// checks only in UnitAI's GATHER state: the kill and its chase are COMBAT (Order.Gather
+			// pushes an Attack on a live animal), so a fight in enemy land goes on.
+			const bool hunting = (st == ACTION_GATHER || st == ACTION_RETURN_DROPSITE) && units_.res_type_carried[i] == RES_FOOD;
 			if (hunting && petra_foe(territory_owner_at(units_.pos_x[i], units_.pos_z[i]))) petra_start_hunting(i, scan);
 			if (uid != petra_scout_unit_id_) continue;
 		}
@@ -39642,9 +39652,29 @@ void Simulation::fauna_attacked(size_t f, uint32_t attacker_id, bool melee) {
 		const bool biteable = a >= 0 && units_.alive[a] && units_.team[a] < MAX_PLAYERS &&
 		                      !unit_is_ship(units_.unit_type[a]) && !unit_is_siege_engine(units_.unit_type[a]);
 		if (!biteable) return;
+		// respondHoldGround (defensive, passive-defensive) is AttackEntityInZone, which takes
+		// only an attacker within the animal's vision; aggressive and violent ones answer any.
+		const float ax = units_.pos_x[a] - fauna_.pos_x[f], az = units_.pos_z[a] - fauna_.pos_z[f];
+		if ((info.stance == FAUNA_STANCE_DEFENSIVE || info.stance == FAUNA_STANCE_PASSIVE_DEFENSIVE) &&
+				ax * ax + az * az >= info.vision * info.vision)
+			return;
 		if (b != FAUNA_ATTACK) {
 			fauna_start_attack(f, attacker_id);
 		} else if (melee && fauna_.target_unit_id[f] != attacker_id) {
+			// COMBAT.Attacked answers a melee attacker while approaching or chasing; once the
+			// animal is swinging at its target (ATTACKING.Attacked) it reacts only to Capture.
+			if (fauna_.flee_distance[f] > 0.0f) {
+				float tx, tz;
+				const int32_t t = lookup_unit(fauna_.target_unit_id[f]);
+				auto it = t < 0 ? fauna_id_to_idx_.find(fauna_.target_unit_id[f]) : fauna_id_to_idx_.end();
+				const bool has = t >= 0 || it != fauna_id_to_idx_.end();
+				if (has) {
+					tx = t >= 0 ? units_.pos_x[t] : fauna_.pos_x[it->second];
+					tz = t >= 0 ? units_.pos_z[t] : fauna_.pos_z[it->second];
+					const float r = info.attack_range + 0.6f; // tick_fauna's ATTACKING reach
+					if (det::hypot(tx - fauna_.pos_x[f], tz - fauna_.pos_z[f]) <= r) return;
+				}
+			}
 			fauna_.target_unit_id[f] = attacker_id;
 			fauna_.flee_distance[f] = 0.0f; // approaches the new target
 		}
@@ -39782,6 +39812,7 @@ void Simulation::tick_hunters() {
 			if (!slaughter) apply_status_fauna(f, unit_combat_at(i), units_.id[i], units_.team[i]); // Attack/Melee/ApplyStatus
 			continue;
 		}
+		collect_fauna_loot(f, units_.id[i], units_.team[i]);
 		fauna_killed(f, i);
 	}
 }
@@ -39833,6 +39864,14 @@ uint32_t Simulation::spawn_carcass(size_t f) {
 		resources_.owner[r] = fauna_owner_[f]; // Health.js: the corpse keeps its owner
 	}
 	return rid;
+}
+
+// Health.js KilledBy: the killer's Looter collects the animal's Loot. Fauna Loot holds only
+// xp, so what comes in is the Looter/Resource modifiers (Woad Warriors, Brennus, Lugius,
+// Philip's catafalque). Trainable livestock and a few herd animals have no Loot.
+void Simulation::collect_fauna_loot(size_t f, uint32_t killer_id, uint8_t killer_player) {
+	if (killer_id == 0 || fauna_type_info(fauna_.fauna_type[f]).loot_xp <= 0.0f) return;
+	collect_loot(killer_id, killer_player, LootInfo{}, 1.0f, RES_COUNT, 0);
 }
 
 void Simulation::fauna_killed(size_t f, size_t /*killer*/) {
@@ -40697,8 +40736,14 @@ void Simulation::order_collect_treasure(const uint32_t *unit_ids, size_t count, 
 // TreasureCollector.js: a collector within MaxDistance (2 m, plus the treasure's footprint) takes
 // CollectTime to collect; Treasure.Reward gives its owner the resources and the treasure is gone.
 void Simulation::tick_treasures(float dt) {
-	if (treasures_.empty()) return;
 	const size_t n = units_.count;
+	if (treasures_.empty()) {
+		// Only collectors that lost a race wait out their timers (pack_elapsed < 0).
+		bool waiting = false;
+		for (size_t i = 0; i < n && !waiting; ++i)
+			waiting = units_.pack_elapsed[i] < 0.0f && units_.order_kind[i] == ORDER_COLLECT_TREASURE;
+		if (!waiting) return;
+	}
 	std::vector<uint8_t> in_range(treasures_.size(), 0);
 	struct NextTreasure { uint32_t uid; float x, z; };
 	std::vector<NextTreasure> next_hunt; // collectors whose treasure is gone
@@ -40708,22 +40753,40 @@ void Simulation::tick_treasures(float dt) {
 		if (tid == 0 || !units_.alive[i] || lookup_unit(tid) >= 0) continue;
 		const uint8_t st = units_.action_state[i];
 		if (st != ACTION_MOVE && st != ACTION_IDLE) continue;
-		for (size_t k = 0; k < treasures_.size(); ++k) {
-			Treasure &t = treasures_[k];
-			if (t.id != tid) continue;
-			const float reach = treasure_reach(i);
-			if (reach < 0.0f || units_.pack_state[i] != PACK_NONE || !treasure_within(i, t, reach)) break;
-			// TreasureCollector.js: each collector in range runs its own CollectTime timer and the
-			// first to finish takes it. Collectors never pack, so pack_elapsed holds the timer.
-			collecting[i] = 1;
-			units_.pack_elapsed[i] += dt;
-			if (!in_range[k] || units_.pack_elapsed[i] > t.collect_progress) {
-				t.collector_id = units_.id[i];
-				t.collect_progress = units_.pack_elapsed[i];
+		if (units_.pack_state[i] != PACK_NONE) continue;
+		const bool ordered = units_.order_kind[i] == ORDER_COLLECT_TREASURE && units_.order_target[i] == tid;
+		size_t k = 0;
+		while (k < treasures_.size() && treasures_[k].id != tid) ++k;
+		if (k == treasures_.size()) {
+			// Someone else took it: this collector's own CollectTime timer still runs out first
+			// (TreasureCollector.CollectTreasure then finds it gone). The time left is kept as a
+			// negative pack_elapsed.
+			if (ordered && units_.pack_elapsed[i] < 0.0f) {
+				units_.pack_elapsed[i] = std::min(0.0f, units_.pack_elapsed[i] + dt);
+				collecting[i] = units_.pack_elapsed[i] < 0.0f;
 			}
-			in_range[k] = 1;
-			break;
+			continue;
 		}
+		Treasure &t = treasures_[k];
+		const float reach = treasure_reach(i);
+		if (reach < 0.0f) continue;
+		// TreasureCollector.js: each collector in range starts its own CollectTime timer and the
+		// first to finish takes it. Collectors never pack, so pack_elapsed holds the timer. The
+		// range is checked only when the timer fires, so a collector pushed aside keeps it.
+		const bool within = treasure_within(i, t, reach);
+		if (!within && !(ordered && units_.pack_elapsed[i] > 0.0f)) continue;
+		collecting[i] = 1;
+		units_.pack_elapsed[i] += dt;
+		if (!within) {
+			// Fired out of range (OutOfRange): the order starts over once it is back in reach.
+			if (units_.pack_elapsed[i] + 1e-4f >= treasure_type_info(t.type).collect_time) units_.pack_elapsed[i] = 0.0f;
+			continue;
+		}
+		if (!in_range[k] || units_.pack_elapsed[i] > t.collect_progress) {
+			t.collector_id = units_.id[i];
+			t.collect_progress = units_.pack_elapsed[i];
+		}
+		in_range[k] = 1;
 	}
 	// A collector that stops or leaves loses its timer, as its CollectTreasure order ends.
 	for (size_t i = 0; i < n; ++i)
@@ -40754,6 +40817,10 @@ void Simulation::tick_treasures(float dt) {
 			ev.value = t.type;
 			trigger_event(TRIGGER_ON_TREASURE_COLLECTED, ev);
 		}
+		// The other collectors wait out their own timers (stored as the time left, negative).
+		for (size_t j = 0; j < n; ++j)
+			if (collecting[j] && (int32_t)j != c && units_.target_unit_id[j] == t.id)
+				units_.pack_elapsed[j] = std::min(0.0f, units_.pack_elapsed[j] - info.collect_time);
 		treasures_.erase(treasures_.begin() + (std::ptrdiff_t)k);
 		in_range.erase(in_range.begin() + (std::ptrdiff_t)k);
 	}
@@ -40766,6 +40833,7 @@ void Simulation::tick_treasures(float dt) {
 			if (units_.action_state[i] == ACTION_IDLE && units_.target_unit_id[i] != units_.order_target[i]) finish_order(i);
 			continue;
 		}
+		if (units_.pack_elapsed[i] < 0.0f && units_.target_unit_id[i] == units_.order_target[i]) continue; // its timer runs
 		if (units_.target_unit_id[i] == units_.order_target[i]) units_.target_unit_id[i] = 0;
 		if (units_.action_state[i] == ACTION_MOVE) units_.action_state[i] = ACTION_IDLE;
 		units_.has_order[i] = 0;
