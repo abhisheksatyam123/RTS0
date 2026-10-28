@@ -191,7 +191,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 129; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 130; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_PETRA_NEXT_PLAN = 130; // a Petra plan preparing beside the one in the slot (petra_next_plan_)
 	static constexpr uint32_t SAVE_VERSION_TRICKLE_TIMER = 128; // each structure's own trickle timer (Building::trickle_tick)
 	static constexpr uint32_t SAVE_VERSION_PETRA_LOST_BASES = 127; // each Petra's bases kept after their civic centre was lost
 	static constexpr uint32_t SAVE_VERSION_PETRA_ARMY_POSITION_TIME = 129; // each Petra defense army's positionLastUpdate
@@ -3721,6 +3722,25 @@ private:
 	} petra_strike_force_;
 
 	AttackPlan petra_attack_plan_; // attackManager.js upcomingAttacks: the plan being prepared
+	// The main plan's own fields that PetraAttackManager holds for petra_attack_plan_.
+	struct PetraPlanMuster {
+		int32_t target_size = 0, min_size = 0;
+		uint16_t dropped_classes = 0, cost_lowered = 0;
+		uint8_t kind = PETRA_ATTACK_ATTACK, attack_name = 0, attack_siege = 0, pad = 0;
+	};
+	// attackManager.js upcomingAttacks holds a Rush and an Attack (or HugeAttack) at once: once
+	// the last rush is made, an Attack prepares beside it (attackManager.js:365-419). The second
+	// one waits here with its own fields, and is swapped into petra_attack_plan_ and
+	// petra_attack_mgr_ while it updates or trains (petra_swap_next_plan); it takes the slot once
+	// the first plan leaves it. (Save v130; never in use before.)
+	struct PetraNextPlan {
+		AttackPlan plan;
+		PetraPlanMuster muster;
+	} petra_next_plan_;
+	void petra_swap_next_plan();
+	// While the next plan updates: the kind of the plan in the slot, so that no second plan of
+	// its group is made (0xFF otherwise).
+	uint8_t petra_beside_kind_ = 0xFF;
 	std::vector<AttackPlan> petra_started_attacks_; // attackManager.js startedAttacks: armies on their way or fighting
 	AttackPlan petra_raid_plan_;
 	PetraAttackManager petra_attack_mgr_; // attackManager.js plan counters and sizes
@@ -4238,6 +4258,7 @@ private:
 	bool petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype = BLD_TYPE_COUNT, int clearance = -1) const; // btype: also 0 A.D.'s placement rules; clearance -1: petra_clearance
 	bool petra_spot_free_but_distance(int cell_x, int cell_y, int footprint, uint8_t btype, int clearance = -1) const;
 	bool petra_ring_clear(int cell_x, int cell_y, int footprint, uint8_t clearance = 1) const;
+	bool petra_ring_land(int cell_x, int cell_y, int footprint, uint8_t btype, uint8_t clearance) const;
 	static uint8_t petra_clearance(uint8_t btype); // findGoodPosition's 0, 4 or 8 m gap, as 0, 1, 2
 	bool petra_limit_allows_building(uint8_t btype) const;
 	mutable uint64_t petra_limit_cache_key_ = 0; // derived per tick, never saved
@@ -4352,7 +4373,7 @@ private:
 	X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_) \
 	X(petra_sent_diplo_) X(petra_started_attacks_) X(petra_defense_build_) X(petra_dropsite_check_) \
 	X(petra_failed_gather_) X(petra_hunt_search_) X(petra_base_dropsite_checks_) X(petra_approach_) X(petra_inaccessible_) \
-	X(petra_kept_) X(petra_move_to_gatherer_) X(petra_supply_) X(petra_room_) X(petra_prospect_) X(petra_targeted_relics_) X(petra_tile_bases_) X(petra_defense_targets_) X(petra_queue_heads_) X(petra_ferried_guards_)
+	X(petra_kept_) X(petra_move_to_gatherer_) X(petra_supply_) X(petra_room_) X(petra_prospect_) X(petra_targeted_relics_) X(petra_tile_bases_) X(petra_defense_targets_) X(petra_queue_heads_) X(petra_ferried_guards_) X(petra_next_plan_)
 	struct PetraSlot {
 		bool initialized = false;
 #define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};
@@ -4674,6 +4695,8 @@ private:
 	UnitOrder current_order(size_t i) const;
 	void set_order(size_t i, uint8_t kind, uint8_t flags, uint32_t target, float x, float z);
 	void begin_walk_order(size_t i); // cmd_move's walk: not forced, replaces the queue
+	// UnitMotion StopMoving on a new order: the unit's long path is dropped (the new walk plans its own).
+	void drop_walk_path(size_t i);
 	void drop_orders(size_t i);
 	void replace_orders(size_t i); // drop_orders, but a queued order applied keeps the rest of the queue      // orders UnitAI doesn't model (trade, hunt, board): no order, no queue
 	// Splits a Shift order: busy units get it queued, the rest are returned to run now.
