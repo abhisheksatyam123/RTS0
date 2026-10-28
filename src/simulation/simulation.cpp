@@ -4209,16 +4209,9 @@ Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, ui
 				for (int x = nx0; x <= nx1; ++x)
 					if ((is_water(x, y) || nav_grid_.is_steep(x, y)) && under(x, y)) return PLACE_TERRAIN;
 			if (steep_tile_under()) return PLACE_TERRAIN;
-		} else if (rule.placement == PLACE_LAND_SHORE && rect) {
-			// A WallSet piece stands wholly where land units can go (CheckFoundation over its
-			// shape with default-terrain-only): no deep water or steep slope under it.
-			for (int y = ny0; y <= ny1; ++y)
-				for (int x = nx0; x <= nx1; ++x) {
-					if (!nav_grid_.cells.inside(x, y) || !under(x, y)) continue;
-					if (nav_grid_.cells.at(x, y) == NAV_WATER || nav_grid_.is_steep(x, y)) return PLACE_TERRAIN;
-				}
-			if (steep_tile_under()) return PLACE_TERRAIN;
 		} else if (rule.placement == PLACE_LAND_SHORE) {
+			// BuildRestrictions.js Category "Wall": CheckFoundation(passClassName, true) tests the
+			// centre point only, so a segment or tower may hang over a bank, shore or cliff edge.
 			auto [ncx, ncy] = nav_grid_.world_to_cell(cxw, czw);
 			if (nav_grid_.cells.inside(ncx, ncy) && (nav_grid_.cells.at(ncx, ncy) == NAV_WATER || nav_grid_.is_steep(ncx, ncy)))
 				return PLACE_TERRAIN;
@@ -4356,6 +4349,9 @@ uint32_t Simulation::wall_snap_tower(uint8_t player, float x, float z, uint8_t k
 	uint32_t id = 0;
 	for (const Building &b : buildings_) {
 		if (b.type != ws.tower || b.team != player || b.wrecked || b.hp <= 0.0f) continue;
+		// input.js PickSimilarPlayerEntities(wallSet.templates.tower, ..., exact template): a tower
+		// of another civ's wall set (one captured) is no snap target.
+		if (b.civ != CIV_COUNT && b.civ != civ_of(player)) continue;
 		if (ws.tower == ws.segment && !is_wallset_tower_piece(b.type, b.half_size)) continue;
 		const float d2 = (b.x - x) * (b.x - x) + (b.z - z) * (b.z - z);
 		if (d2 <= best) {
@@ -4587,11 +4583,11 @@ size_t Simulation::cmd_build_wall(uint8_t player, float sx, float sz, float ex, 
 	const std::vector<WallPiece> pieces = wall_placement(player, sx, sz, ex, ez, &start_tower, &end_tower, kind);
 	// Each piece may overlap the last tower laid (or the one the wall starts from) and the pieces
 	// since it, and the last piece the tower the wall ends on: their obstruction control group.
-	// tryPlaceWall sends nothing when the part that can be laid (up to the first piece that is
-	// blocked or can't be paid for) holds no segment: no lone tower where the wall is blocked.
+	// tryPlaceWall sends nothing when the placeable part (SetWallPlacementPreview's result.pieces:
+	// up to the first blocked piece, affordable or not) holds no segment: no lone tower where the
+	// wall is blocked. Cost is TryConstructWall's: it lays the start tower and stops at a segment
+	// it can't pay for ("Insufficient resources").
 	{
-		float left[RES_COUNT];
-		for (int r = 0; r < RES_COUNT; ++r) left[r] = players_[player].res[r];
 		bool any_segment = false;
 		for (size_t i = 0; i < pieces.size() && !any_segment; ++i) {
 			const WallPiece &p = pieces[i];
@@ -4599,19 +4595,6 @@ size_t Simulation::cmd_build_wall(uint8_t player, float sx, float sz, float ex, 
 			if (start_tower) ignore.push_back(start_tower);
 			if (i + 1 == pieces.size() && end_tower) ignore.push_back(end_tower);
 			if (check_wall_piece(player, p, ignore.data(), ignore.size()) != PLACE_OK) break;
-			float cost[RES_COUNT];
-			structure_cost(player, p.type, wallset_piece_value(p.type, p.half_w, 1, p.civ), cost);
-			bool afford = true;
-			for (int r = 0; r < RES_COUNT; ++r) afford &= (left[r] -= cost[r]) >= 0.0f;
-			if (!afford) {
-				// TryConstructBuilding's TrySubtractResources (Player.js SubtractResourcesOrNotify):
-				// "Insufficient resources" with what this piece still needs.
-				SessionNotice need{SessionNotice::TEXT, player, 0, SessionNotice::TEXT_INSUFFICIENT_RESOURCES, {}};
-				for (int r = 0; r < RES_COUNT; ++r)
-					if (left[r] < 0.0f) need.amounts[r] = (int32_t)std::ceil(-left[r]);
-				note_session(need);
-				break;
-			}
 			any_segment = !(p.type == ws.tower && p.half_w == ws.tower_half);
 		}
 		if (!any_segment) return 0;
