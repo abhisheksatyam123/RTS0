@@ -56,7 +56,7 @@ func run() -> void:
 	change_scene_to_file("res://scenes/menu/options.tscn")
 	await frames(5)
 	var opts = current_scene
-	var key: String = opts._saved.keys()[0]
+	var key: String = opts.cfg.get_keys()[0]
 	var old: String = opts.cfg.get_value(key)
 	opts.cfg.set_value(key, "true" if old != "true" else "false")
 	await escape()
