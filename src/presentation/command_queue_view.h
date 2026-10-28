@@ -1663,8 +1663,8 @@ private:
 				const uint8_t gate = rtso::Simulation::unit_trainee_tech(tmpl, all[k]);
 				const uint8_t unlock = sim->train_unlock_tech(pid, tu.unit_type, rtso::BLD_TYPE_COUNT, all[k]);
 				// The ships' marines and archers: Techs "iphicratean_reforms" (their phase follows from it).
-				if (gate != rtso::TECH_NONE && !sim->player(pid).has_tech(gate)) tip += "\n" + requires_text(String::utf8(rtso::tech_info(gate).name));
-				else if (unlock != rtso::TECH_NONE) tip += "\n" + requires_text(String::utf8(rtso::tech_info(unlock).name));
+				if (gate != rtso::TECH_NONE && !sim->player(pid).has_tech(gate)) tip += "\n" + requires_tech_text(gate, sim->player_civ(pid));
+				else if (unlock != rtso::TECH_NONE) tip += "\n" + requires_tech_text(unlock, sim->player_civ(pid));
 				else if (tu.phase > sim->player_phase(pid)) tip += "\n" + requires_text(tu.phase >= 3 ? "City Phase" : "Town Phase");
 			}
 			set_roster_tip(idx, tip);
@@ -1700,7 +1700,7 @@ private:
 				roster_list_->set_item_disabled(idx, true);
 				if (const char *req = rtso::tech_requirements_tooltip(t)) tip += "\n" + rtso::objection_font(owner_->tr(String::utf8(req)));
 				else if (check == rtso::Simulation::TECH_ERR_PHASE) tip += "\n" + requires_text(ti.required_phase >= 3 ? "City Phase" : "Town Phase");
-				else if (ti.prerequisite != rtso::TECH_NONE) tip += "\n" + requires_text(String::utf8(rtso::tech_info(ti.prerequisite).name));
+				else if (ti.prerequisite != rtso::TECH_NONE) tip += "\n" + requires_tech_text(ti.prerequisite, sim->player_civ(pid));
 			}
 			const auto &ps = sim->player(pid);
 			const String need = rtso::needed_resources_tooltip(tech_cost, ps.res[rtso::RES_FOOD], ps.res[rtso::RES_WOOD],

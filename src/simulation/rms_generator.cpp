@@ -8670,7 +8670,8 @@ void RmsGenerator::synth_nearestern_badlands(HeightmapGrid &hm, RmsRng &rng, flo
 	// water); scaleByMapSize(10, 20) level 1 hills of scaleByMapSize(50, 300) tiles (3 from the oasis, 10
 	// apart) and scaleByMapSize(15, 25) small ones of (25, 150) (3 apart), each raised 16 m over 1 tile; as
 	// many level 2 hills of (25, 150) and level 3 ones of (12, 75) inside them (16 m more each); then
-	// scaleByMapSize(100, 200) bumps of (20, 50) tiles, 2 m, clear of the oasis, bases and hills.
+	// scaleByMapSize(100, 200) bumps of (20, 50) tiles, 2 m, clear of the oasis, bases and hills. Records
+	// the oasis and every hill for their LayeredPainters.
 	water_h = 0.0f;
 	const float half = hm.map_half, size = 2.0f * half;
 	const float land = metres(water_h, 10.0f), level = 16.0f * kMetre;
@@ -8692,6 +8693,7 @@ void RmsGenerator::synth_nearestern_badlands(HeightmapGrid &hm, RmsRng &rng, flo
 			});
 			if (!seas_any(m)) return false;
 			paint_mask_modify(hm, m, level, 1.0f);
+			record_area(hm, m, AREA_HILL);
 			seas_add(hills, m);
 			to_hill = seas_dist_inside(hm, hills);
 			return true;
@@ -8706,6 +8708,7 @@ void RmsGenerator::synth_nearestern_badlands(HeightmapGrid &hm, RmsRng &rng, flo
 			const auto m = seas_clump(hm, rng, tiles, 0.25f, 0.1f, 0.0f, x, z, [&](int k) { return hills[(size_t)k] != 0; });
 			if (!seas_any(m)) return false;
 			paint_mask_modify(hm, m, level, 1.0f);
+			record_area(hm, m, AREA_HILL);
 			return true;
 		});
 	seas_create_areas(hm, rng, seas_scale(100, 200, half), 10, [&](float x, float z) {
@@ -13836,8 +13839,35 @@ void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed, uint8_t type) {
 					t.tiles[j] = pick(band.terrain, 6, (int)(j % (size_t)res), (int)(j / (size_t)res), 12);
 		}
 	};
-	if (own) {
-		paint_bands(false);
+	// Biome maps whose script paints its coasts by height with g_Terrains' names: paintTerrainBasedOnHeight
+	// (1, shore_hi, tShore) then (-8, 1, tWater), so the land up to 1 m takes the water terrain and the shore
+	// runs to shore_hi, with no shore blend (their tMainTerrain bands repaint only the main terrain).
+	float biome_shore_hi = 0.0f;
+	if (!own) switch (type) {
+		case MAP_ISLANDS: case MAP_LAND_GRAB: case MAP_MIGRATION: case MAP_CONTINENT: case MAP_COAST_RANGE:
+		case MAP_ARCHIPELAGO_0AD: case MAP_UNKNOWN: biome_shore_hi = 3.0f; break;
+		case MAP_LAKE: biome_shore_hi = 2.4f; break;
+		case MAP_ISLAND_STRONGHOLD: case MAP_GEAR: biome_shore_hi = 2.0f; break;
+		default: break;
+	}
+	if (biome_shore_hi > 0.0f)
+		for (size_t j = 0; j < t.tiles.size(); ++j) {
+			if (!free_tile(j)) continue;
+			if (metres_up[j] <= 1.0f) t.tiles[j] = index_of(b.water);
+			else if (metres_up[j] < biome_shore_hi) t.tiles[j] = index_of(b.shore);
+		}
+	// A biome map whose script paints its areas with g_Terrains' names: neareastern_badlands.js's oasis
+	// (LayeredPainter [[tSand, pForest], [tGrassSand25, pForestOasis], tGrassSand25, tShore, tWaterDeep],
+	// [2, 3, 1, 1], its palms' floor the forest floors) and hills ([tCliff, tSand], [1]).
+	AreaLayers biome_areas[2] = {};
+	if (!own && type == MAP_NEARESTERN_BADLANDS) {
+		biome_areas[0] = {AREA_OASIS, {{b.tier[2], b.forest[0]}, {b.shore_blend, b.forest[1]}, {b.shore_blend}, {b.shore}, {b.water}}, {2, 3, 1, 1}};
+		biome_areas[1] = {AREA_HILL, {{b.cliff[0], b.cliff[1]}, {b.tier[2]}}, {1}};
+	}
+	const AreaLayers *area_rows = own ? own->areas : biome_areas;
+	const size_t n_area_rows = own ? std::size(own->areas) : (biome_areas[0].layer[0][0] ? std::size(biome_areas) : 0);
+	if (own || n_area_rows) {
+		if (own) paint_bands(false);
 		// The script's patches (PatchSet), with rmgen's ChainPlacer on the tile grid.
 		auto paint_patches = [&](auto &paint_layers) {
 			if (!own_patches) return;
@@ -14026,15 +14056,15 @@ void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed, uint8_t type) {
 		};
 		for (const MapArea &a : t_map_areas) {
 			const AreaLayers *paint = nullptr;
-			for (const AreaLayers &l : own->areas)
-				if (l.kind == a.kind && l.layer[0][0]) { paint = &l; break; }
+			for (size_t r = 0; r < n_area_rows; ++r)
+				if (area_rows[r].kind == a.kind && area_rows[r].layer[0][0]) { paint = &area_rows[r]; break; }
 			if (!paint) continue;
 			int layers = 0;
 			while (layers < 6 && paint->layer[layers][0]) ++layers;
 			paint_layers(a.tiles, &paint->layer[0][0], 6, layers, paint->width, 13);
 		}
 		paint_patches(paint_layers);
-		paint_bands(true);
+		if (own) paint_bands(true);
 	}
 	// latium.js paints each tile from the lowest, highest and spread of its four corners' heights (metres):
 	// sea depths, corals, wet rocks and beaches by height, cliffs where the corners differ (by 2.9 m, or 2.5 m,
@@ -14109,6 +14139,11 @@ void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed, uint8_t type) {
 		for (const HeightBand &band : own->bands)
 			if (band.late) order.insert(order.end(), band.terrain, band.terrain + 6);
 	}
+	else
+		for (const MapArea &a : t_map_areas)
+			for (size_t r = 0; r < n_area_rows; ++r)
+				if (area_rows[r].kind == a.kind)
+					for (const auto &layer : area_rows[r].layer) order.insert(order.end(), layer, layer + 6);
 	for (const char *n : {b.road_wild, b.road}) order.push_back(n);
 	for (const char *const *l : {b.cliff, b.hill, b.forest}) order.insert(order.end(), l, l + 2);
 	order.insert(order.end(), b.tier, b.tier + 4);
