@@ -408,11 +408,17 @@ func run() -> void:
 	var soldiers: Array = main.debug_selection_state()["units"].filter(func(x): return not x["civilian"] and not x["behind"] and int(x["tmpl"]) == want_tmpl)
 	soldiers.sort_custom(func(a, b): return a["screen"].y > b["screen"].y) # nearest the camera: nothing in front
 	var picked := false
-	if soldiers.size() >= 2:
-		await click(main.debug_unit_screen(soldiers[0]["id"]))
+	# A structure in front (Iberian start walls) takes the click: try the next soldier.
+	var first := -1
+	for s in soldiers.slice(0, 6):
+		await click(main.debug_unit_screen(s["id"]))
 		await frames(4)
+		if main.debug_selection_state()["selected"].has(int(s["id"])):
+			first = int(s["id"])
+			break
+	if soldiers.size() >= 2 and first >= 0:
 		# 0.28: a double-click selects every unit of that type on screen.
-		var p: Vector2 = main.debug_unit_screen(soldiers[0]["id"])
+		var p: Vector2 = main.debug_unit_screen(first)
 		await move(p)
 		await button_event(p, MOUSE_BUTTON_LEFT, true, true)
 		await button_event(p, MOUSE_BUTTON_LEFT, false)
