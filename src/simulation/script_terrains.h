@@ -99,6 +99,9 @@ struct ScriptTerrains {
 	bool tree = false;
 };
 
+// latium.js's per-tile terrains beyond its row's slots (RmsGenerator::paint_terrain's Latium pass).
+inline constexpr const char *kLatiumTileTerrains[] = {"medit_sea_coral_deep", "medit_sea_coral_plants", "medit_rocks_wet", "medit_sand_wet"};
+
 inline const ScriptTerrains *script_terrains(const char *map_id) {
 	static const ScriptTerrains kScripts[] = {
 		// aegean_sea.js: carob and date palm forests; date, fan palm, poplar and cypress stragglers.
