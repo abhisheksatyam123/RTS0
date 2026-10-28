@@ -27711,6 +27711,7 @@ void Simulation::petra_config_first_base() {
 			PetraKept::raise(petra_kept_.wanted_fish, sea, 2);
 	}
 	petra_kept_.need_corral = small_land;
+	petra_kept_.dock_at_16 = small_land ? 2 : 1;
 	if (food < 800.0f) {
 		if (small_land) petra_kept_.need_fish = true;
 		else petra_kept_.need_farm = true;
@@ -27745,8 +27746,10 @@ void Simulation::petra_manage_naval(float dt) {
 
 	// startingStrategy.js: a starting land under 25000 m² docks at 16 population, one short of
 	// food at once (needFish, popForDock 1); config.js popForDock 25.
-	const bool small_land = home && home < topo.land_size.size() && topo.cell_m2 * (float)topo.land_size[home] < 25000.0f;
-	const int pop_for_dock = petra_kept_.need_fish ? 1 : small_land ? 16 : 25;
+	// Decided once, with the first civic centre (configFirstBase).
+	if (!petra_kept_.dock_at_16)
+		petra_kept_.dock_at_16 = home && home < topo.land_size.size() && topo.cell_m2 * (float)topo.land_size[home] < 25000.0f ? 2 : 1;
+	const int pop_for_dock = petra_kept_.need_fish ? 1 : petra_kept_.dock_at_16 == 2 ? 16 : 25;
 
 	// Our docks by sea; ships by sea.
 	std::vector<uint32_t> sea_dock(nseas, 0); // a finished dock on each sea
@@ -28066,15 +28069,33 @@ void Simulation::petra_manage_naval(float dt) {
 		if (petra_fleets_.sea_warship_count[s] > 0) active_seas = s + 1;
 	petra_fleets_.sea_count_ = active_seas;
 
-	// 4. moveApart: an idle ship first goes for a treasure on its sea (gatherTreasure),
-	// else, within 70 m of an allied dock on its sea, moves out to 70-75 m so it leaves
-	// the dock free.
+	// 4. moveApart: an idle ship standing where it stood idle at the last check (and not
+	// already handled there) first goes for a treasure on its sea (gatherTreasure), else,
+	// within 70 m of an allied dock on its sea, moves out to 70-75 m so it leaves the dock
+	// free. Once per stop: it waits for its next stop before it tries again.
+	auto &idle_ships = petra_ship_idle_.ships;
+	std::erase_if(idle_ships, [&](const PetraShipIdleEntry &e) {
+		const int32_t i = lookup_unit(e.id);
+		return i < 0 || !units_.alive[i] || units_.team[i] != petra_pid_;
+	});
 	PetraHuntScan treasure_scan;
 	bool treasure_scanned = false;
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i] || units_.team[i] != petra_pid_ || !unit_is_ship(units_.unit_type[i])) continue;
 		if (units_.action_state[i] != ACTION_IDLE || units_.has_order[i]) continue;
 		if (petra_ship_in_plan(units_.id[i])) continue;
+		const uint32_t sid = units_.id[i];
+		auto at = std::lower_bound(idle_ships.begin(), idle_ships.end(), sid, [](const PetraShipIdleEntry &e, uint32_t id) { return e.id < id; });
+		if (at == idle_ships.end() || at->id != sid) {
+			idle_ships.insert(at, {sid, units_.pos_x[i], units_.pos_z[i], 0});
+			continue;
+		}
+		if (at->x != units_.pos_x[i] || at->z != units_.pos_z[i]) {
+			*at = {sid, units_.pos_x[i], units_.pos_z[i], 0};
+			continue;
+		}
+		if (at->stationary) continue;
+		at->stationary = 1;
 		if (!treasures_.empty()) {
 			if (!treasure_scanned) { petra_treasures_taken(treasure_scan); treasure_scanned = true; }
 			if (petra_gather_treasure(i, treasure_scan, true)) continue;
@@ -36655,6 +36676,7 @@ void Simulation::petra_reset_ai_state() {
 	petra_defense_targets_ = PetraDefenseTargets{};
 	petra_queue_heads_ = PetraQueueHeads{};
 	petra_ferried_guards_ = PetraFerriedGuards{};
+	petra_ship_idle_ = PetraShipIdle{};
 	petra_approach_.clear();
 	petra_inaccessible_.clear();
 	petra_base_dropsite_checks_.clear();
@@ -38614,6 +38636,11 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 				if (ar.version >= Simulation::SAVE_VERSION_PETRA_LOST_BASES)
 					io_vec(ar, v.lost_bases, 1u << 16, [&](std::pair<float, float> &p) { ar.pod(p.first); ar.pod(p.second); });
 				else v.lost_bases.clear(); // older saves: lost bases are forgotten
+				if (ar.version >= Simulation::SAVE_VERSION_PETRA_SHIP_IDLE) {
+					ar.pod(v.dock_at_16);
+					if constexpr (Ar::loading)
+						if (v.dock_at_16 > 2) ar.ok = false;
+				} else v.dock_at_16 = 0;
 			} else v = PetraKept{}; // decided again at the next AI turn, from the game as loaded
 		} else if constexpr (std::is_same_v<T, S::PetraQueueHeads>) {
 			if (ar.version >= Simulation::SAVE_VERSION_PETRA_QUEUE_HEADS) {
@@ -38628,6 +38655,17 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 				if constexpr (Ar::loading)
 					if (!std::is_sorted(v.ids.begin(), v.ids.end())) ar.ok = false;
 			} else v.ids.clear(); // older saves: guards on the way are picked again
+		} else if constexpr (std::is_same_v<T, S::PetraShipIdle>) {
+			if (ar.version >= Simulation::SAVE_VERSION_PETRA_SHIP_IDLE) {
+				io_vec(ar, v.ships, 1u << 16, [&](S::PetraShipIdleEntry &e) {
+					ar.pod(e.id); ar.pod(e.x); ar.pod(e.z); ar.pod(e.stationary);
+					if constexpr (Ar::loading)
+						if (e.stationary > 1) ar.ok = false;
+				});
+				if constexpr (Ar::loading)
+					if (std::adjacent_find(v.ships.begin(), v.ships.end(), [](const auto &a, const auto &b) { return a.id >= b.id; }) != v.ships.end())
+						ar.ok = false;
+			} else v.ships.clear(); // older saves: each idle ship waits a turn where it stands again
 		} else if constexpr (std::is_same_v<T, S::PetraDefenseTargets>) {
 			if (ar.version >= Simulation::SAVE_VERSION_PETRA_TARGET_LIST) {
 				io_vec(ar, v.ids, 1u << 16, [&](uint32_t &id) { ar.pod(id); });
