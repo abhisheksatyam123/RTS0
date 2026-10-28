@@ -33661,13 +33661,6 @@ void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt, std::vec
 					order_walk(&tp.ship_id, 1, tp.pickup_x, tp.pickup_z, false);
 				}
 				next.push_back({tp.ship_id, units_.pos_x[sidx], units_.pos_z[sidx], tries});
-			} else if (!ship_ready) {
-				// Its tries stand while it walks there again: 0.28's nTry[shipId] goes back to 0 only
-				// with a new boarding point (transportPlan.js:375-389). Dropped here, a ship that
-				// stopped short of a point it could not come within 6 of was sent back to it on every
-				// try for good, and its passengers waited at the beach.
-				auto it = std::find_if(tp.boarding.begin(), tp.boarding.end(), [&](const auto &o) { return o.uid == tp.ship_id; });
-				if (it != tp.boarding.end()) next.push_back(*it);
 			}
 			tp.boarding = std::move(next);
 			tp.passenger_ids = std::move(keep);
