@@ -323,14 +323,18 @@ void RtsoMain::find_idle_unit(IdleKind kind) {
 		selected_ids.clear();
 		selected_building_id = 0;
 	}
+	// addList: nothing joins someone else's entity while it is the sole selection.
+	const bool blocked = append && selected_ids.is_empty() && selected_building_id == 0 &&
+			inspector_.kind() != RtsoInspectorView::INSPECT_NONE && !sim->controls_all(local_player()) && !observer_all_view();
 	if (select_all) {
-		for (size_t i : idle) selected_ids.push_back((int32_t)uview.id[i]);
+		if (!blocked)
+			for (size_t i : idle) selected_ids.push_back((int32_t)uview.id[i]);
 		play_civ_voice("select");
 		return;
 	}
 	last_idle_unit_ = uview.id[best];
 	idle_class_index_ = (idle_class_index_ + best_index) % n;
-	selected_ids.push_back((int32_t)uview.id[best]);
+	if (!blocked) selected_ids.push_back((int32_t)uview.id[best]);
 	if (cam_rig) cam_rig->set_target_pos(Vector3(uview.pos_x[best], 0, uview.pos_z[best]));
 	play_civ_voice("select");
 }
