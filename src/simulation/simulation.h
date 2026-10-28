@@ -467,6 +467,9 @@ public:
 		// Not a switch: cart/s_wall_long (the Low Wall), a palisades_long whose Upgrade/Gate
 		// costs 20 wood and takes 5 s.
 		STRUCT_LOW_WALL = 32,
+		// Not ConquestCritical although its RTS0 type is: the maps' army tents (tent_desert,
+		// tent_arab, ...) are template_structure_special, unlike rome/tent.
+		STRUCT_NOT_CRITICAL = 64,
 	};
 	// Whether `b`'s obstruction blocks movement at all (its type's, unless its template says not).
 	static bool structure_blocks(const Building &b) {
@@ -712,7 +715,8 @@ public:
 		enum EndReason : uint8_t { END_CONQUEST = 0, END_UNITS, END_STRUCTURES, END_CIVIC_CENTRES, END_HERO, END_RESIGNED,
 			END_OBJECTIVE, END_LAST_ALIVE, END_WONDER, END_RELIC, END_GAME_MODE, END_LOST_CIVIC_CENTER,
 			END_TREASURE, END_STRUCTURES_CRITICAL, END_CIVIC_CENTRES_CRITICAL, END_CHEAT,
-			END_TUTORIAL }; // the tutorial's own lines: "Tutorial completed", and none for the defeated
+			END_TUTORIAL, // the tutorial's own lines: "Tutorial completed", and none for the defeated
+			END_UNITS_CRITICAL }; // ConquestUnits.js's second query
 		uint8_t kind;
 		uint8_t player; // who tributed, bartered, advances or changed its stance
 		uint8_t other;  // TRIBUTE: the recipient; BARTER: the resource sold; DIPLOMACY: the target
@@ -3667,6 +3671,10 @@ private:
 	bool capture_enemy(int source, int t) const;
 	void capture_reduce(CapturePools &pts, int to, float amount) const; // Capturable.js Reduce
 	uint8_t participant_mask_ = 0; // save v10
+	// Players that have held a unit (ConquestUnits.js's "Unit+!Animal" list was ever filled).
+	// Not saved: a loaded player with units sets it on the next check, and one without units
+	// that had some was already defeated.
+	uint8_t had_unit_mask_ = 0;
 	uint8_t defeated_mask_ = 0;
 	uint8_t winner_mask_ = 0;
 	float wonder_hold_[MAX_PLAYERS] = {}; // the longest countdown of each player's wonders (Building::wonder_hold)

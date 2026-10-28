@@ -182,6 +182,8 @@ const TIMEOUTS := {"gui.scale": 5000}
 
 ## options.json list items' tooltips, by option and value (shown with the chosen item).
 const ITEM_TIPS := {
+	"textures.quality": {"0": "Low", "1": "Medium", "2": "High"},
+	"textures.maxanisotropy": {"1": "Disabled", "2": "2x", "4": "4x", "8": "8x", "16": "16x"},
 	"renderer.upscale.technique": {
 		"fsr": "Advanced upscale technique. For better results, use FSR with antialiasing enabled. Using it with the OpenGL backend may have some issues, consider using Vulkan backend instead.",
 		"bilinear": "Bilinear upscale technique. Produces a slightly blurry picture depending on the scale.",
@@ -238,7 +240,6 @@ var overlay := false
 var cfg := RtsoUserConfig.new()
 var _controls := {} # row id (the key, "key#" for its repeat) -> [type, control, extra, key]
 var _labels := {} # row id -> its Label
-var _saved := {} # key -> value at the last save / load
 var _tabs: TabContainer
 var _tab_buttons: VBoxContainer # tab_buttons.xml, vertical
 var _hotkeys := RtsoHotkeyConfig.new()
@@ -399,7 +400,9 @@ func _add_option(grid: GridContainer, opt: Array) -> void:
 	label.mouse_filter = Control.MOUSE_FILTER_PASS
 	label.tooltip_text = tr(opt[3])
 	_labels[row_id] = label
-	if DEPENDENCIES.has(key):
+	# Graphics (advanced)'s Fog row depends on rendererbackend != glarb in 0.28, which RTS0 has
+	# no such backend to fail, so only its indentation follows.
+	if DEPENDENCIES.has(key) or row_id == "fog#":
 		# g_DependentLabelIndentation: an option that depends on another sits 25 px in.
 		var indent := MarginContainer.new()
 		indent.add_theme_constant_override("margin_left", 25)
@@ -627,11 +630,14 @@ func _load_controls() -> void:
 				c.get_child(1).color = col if col != null else Color(1, 0, 1)
 				_mark_invalid(c.get_child(0), _invalid(row_id))
 			"dropdown":
-				var idx := 0
+				var idx := -1 # valueToGui: a value that isn't listed selects nothing
 				for i in extra.size():
 					if extra[i][1] == v or (v.is_valid_float() and str(extra[i][1]).is_valid_float() and is_equal_approx(float(extra[i][1]), float(v))):
 						idx = i
-				c.select(idx)
+				if idx < 0:
+					c.deselect()
+				else:
+					c.select(idx)
 	_updating = false
 	_apply_dependencies()
 	for row_id in _controls:
@@ -643,16 +649,12 @@ func _refresh_tip(row_id: String) -> void:
 	_tip_target(row_id).tooltip_text = _describe(_controls[row_id][4])
 
 func _snapshot() -> void:
-	_saved.clear()
-	for key in cfg.get_keys():
-		_saved[key] = cfg.get_value(key)
 	_update_buttons()
 
+## ConfigDB_HasChanges("user"): the config's own flag, so changes made elsewhere (the FPS
+## and time counters) or left unsaved on an earlier visit count too.
 func has_unsaved_changes() -> bool:
-	for key in _saved:
-		if cfg.get_value(key) != _saved[key]:
-			return true
-	return false
+	return cfg.has_changes()
 
 func _changed(key: String, value: String) -> void:
 	if not _updating:
@@ -717,10 +719,9 @@ func _save() -> void:
 		return
 	_snapshot()
 
-## options.js "Revert": back to the values last saved.
+## options.js "Revert": ConfigDB_Reload("user"), back to user.cfg on disk.
 func _on_revert() -> void:
-	for key in _saved:
-		cfg.set_value(key, _saved[key])
+	cfg.reload()
 	_load_controls()
 
 ## options.js setDefaults: asks, then erases this page's settings (0 A.D.'s defaults) and saves.
