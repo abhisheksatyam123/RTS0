@@ -7034,6 +7034,28 @@ static void test_capturing_armies() {
 	}
 	std::printf("  capturing: Gaia sentry tower in our land taken: %s\n", taken ? "yes" : "no");
 	CHECK(taken, "Petra captures a Gaia structure in its land");
+
+	// A Gaia shrine has no Health: allowCapture is never true for it (healthLevel() is NaN)
+	// and nobody can damage it, so its capturing army gets no defenders (canAttackTarget).
+	const uint32_t shrine = s->spawn_building_world(cx + 16.0f, cz + 14.0f, BLD_SHRINE, MAX_PLAYERS, 1.0f);
+	bool shrine_army = false;
+	size_t shrine_defenders = 0;
+	for (int t = 0; t < 40; ++t) {
+		run_for(*s, 0.5f);
+		if (const PetraDefenseArmy *a = capturing(shrine)) {
+			shrine_army = true;
+			shrine_defenders = std::max(shrine_defenders, a->defender_ids.size());
+		}
+	}
+	const Simulation::Building *sh = bld(shrine);
+	std::printf("  capturing: Gaia shrine army %s, most defenders %zu, shrine owner %d\n", shrine_army ? "formed" : "none",
+	            shrine_defenders, sh ? (int)sh->team : -1);
+	CHECK(shrine_army, "a Gaia shrine in our land makes a capturing army");
+	CHECK(shrine_defenders == 0 && sh && sh->team != 1, "no defender is sent to a shrine nobody can capture or damage");
+	// Its army's foePosition is the shrine, so nothing of ours is placed beside it (isNearInvadingArmy).
+	const bool shrine_avoided = sh && s->petra_dangerous_location(sh->x + 10.0f, sh->z, 0.0f);
+	std::printf("  capturing: building spots beside the shrine avoided: %s\n", shrine_avoided ? "yes" : "no");
+	CHECK(shrine_avoided, "placement keeps away from a capturing army's structure");
 }
 
 // defenseArmy.js update: a defender capturing a structure allowCapture no longer allows

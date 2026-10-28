@@ -29798,13 +29798,8 @@ void Simulation::petra_manage_research(float dt) {
 void Simulation::petra_invading_army_centres(std::vector<std::array<float, 2>> &out) const {
 	out.clear();
 	for (const PetraDefenseArmy &a : petra_defense_armies_) {
-		float cx = 0.0f, cz = 0.0f;
-		int n = 0;
-		for (uint32_t f : a.foe_ids) {
-			float fx, fz;
-			if (petra_army_foe_pos(f, fx, fz)) { cx += fx; cz += fz; ++n; }
-		}
-		if (n) out.push_back({cx / n, cz / n});
+		float cx, cz;
+		if (petra_army_position(a, cx, cz)) out.push_back({cx, cz}); // a capturing army's structure too
 	}
 }
 
@@ -30478,6 +30473,9 @@ bool Simulation::petra_allow_capture(const std::vector<uint32_t> &squad, uint32_
 			const_cast<Simulation *>(this)->territory_decay_targets(b, decay_to, decay_gaia);
 	// Always recapture points from our own or an ally's structure, unless it decays.
 	if (b.team < MAX_PLAYERS && (b.team == petra_pid_ || is_ally(petra_pid_, b.team))) return !decaying;
+	// healthLevel() is NaN on a structure with no Health (a Gaia shrine), so the comparison
+	// below never holds: Petra doesn't capture it.
+	if (!structure_has_health(b.type)) return false;
 
 	// GarrisonRegenRate times each garrisoned unit's Capture strength (Capturable.GetRegenRate).
 	float anti = b.capture_regen_rate;
@@ -35367,15 +35365,15 @@ void Simulation::petra_manage_defense(float dt) {
 			candidates.push_back({best, i});
 		}
 		std::sort(candidates.begin(), candidates.end());
-		// A defender must be able to attack some foe of the army: a capturing army's structure
-		// is captured (ours or an ally's only while allowCapture) or else damaged.
+		// A defender must be able to attack some foe of the army (canAttackTarget): a capturing
+		// army's structure is captured while allowCapture says so, else damaged, which a
+		// structure with no Health (a Gaia shrine) can't be.
 		auto can_take_on = [&](size_t i, const PetraDefenseArmy &a) {
 			if (!petra_army_capturing(a)) return true;
 			const Building &b = buildings_[building_id_to_idx_.at(a.foe_ids[0])];
 			if (petra_allow_capture(a.defender_ids, units_.id[i], b)) return true;
 			if (b.team < MAX_PLAYERS && (b.team == petra_pid_ || is_ally(petra_pid_, b.team))) return false;
-			return (unit_capture_attack(units_.tmpl[i], units_.unit_type[i]) > 0.0f && can_capture_building(petra_pid_, b)) ||
-				(can_attack(petra_pid_, b.team) && unit_can_target_building(i, b.type));
+			return can_attack(petra_pid_, b.team) && unit_can_target_building(i, b.type);
 		};
 		// Each goes to the nearest army still in need, on its own land in the first pass and
 		// any in the second. Helping outside our land, up to 12 units farther than 200 m
