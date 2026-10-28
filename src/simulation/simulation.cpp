@@ -22709,7 +22709,7 @@ void Simulation::update_petra_bases(float dt) {
 		base.assigned_workers = w_count;
 
 		int safe_nodes = 0;
-		int total_amount = 0;
+		int64_t total_amount = 0; // fields hold FIELD_FOOD_SUPPLY (1e9) each
 		for (size_t r = 0; r < resources_.count; ++r) {
 			if (!resources_.alive[r] || resources_.amount[r] <= 0) continue;
 			float dx = resources_.x[r] - base.x;
@@ -27582,6 +27582,13 @@ void Simulation::petra_manage_naval(float dt) {
 		const uint16_t s = land == home ? 0 : topo.sea_between(home, land);
 		if (s && s < nseas) want_transport[s] = std::max(want_transport[s], 1);
 	}
+	// queues.ships.hasQueuedUnits: a ship plan waiting for its resources (its want, from the
+	// last third turn) holds back checkLevels altogether, on every sea (navalManager.js:480);
+	// a ship in a dock's production queue is countOwnQueuedEntitiesWithMetadata("sea"), per
+	// sea below.
+	const PetraQueueAccount &ship_want = petra_queues_.wants[PETRA_Q_SHIPS];
+	const bool ships_queued = petra_queues_.want_age[PETRA_Q_SHIPS] <= PetraQueueManager::want_ttl(PETRA_Q_SHIPS) &&
+	                          ship_want.food + ship_want.wood + ship_want.gold + ship_want.stone > 0.0f;
 	// checkLevels for crossings that found every ship busy: RTS0 starts a crossing only on a free
 	// ship, so a sea with crossings under way wants one ship more than it has crossings (one
 	// fewer while no attack wants ships there), for the next.
@@ -27589,14 +27596,12 @@ void Simulation::petra_manage_naval(float dt) {
 	for (const auto &tp : petra_transports_)
 		if (tp.sea && tp.sea < nseas) ++plans_on[tp.sea];
 	for (size_t s = 1; s < nseas; ++s)
-		if (plans_on[s]) want_transport[s] = std::max(want_transport[s], plans_on[s] + (want_transport[s] > 0 ? 1 : 0));
+		if (plans_on[s] && !ships_queued) want_transport[s] = std::max(want_transport[s], plans_on[s] + (want_transport[s] > 0 ? 1 : 0));
 	// setMinimalTransportShips: wantedTransportShips only grows (kept between turns, saved).
 	std::vector<uint8_t> &kept_transport = petra_kept_.wanted_transport;
 	for (size_t s = 1; s < nseas; ++s)
 		if (want_transport[s] > PetraKept::at(kept_transport, s)) PetraKept::raise(kept_transport, s, want_transport[s]);
 
-	// queues.ships.hasQueuedUnits: a ship plan waiting for its resources (a ship in a dock's
-	// production queue is countOwnQueuedEntitiesWithMetadata("sea"), per sea below).
 	std::vector<uint8_t> training(nseas, 0);
 	for (const Building &b : buildings_)
 		if (b.team == petra_pid_ && (b.type == BLD_DOCK || b.type == BLD_SUPER_DOCK)) {
@@ -27608,9 +27613,8 @@ void Simulation::petra_manage_naval(float dt) {
 	// checkLevels (with maintainFleet, every third turn): a crossing of 2 or more units with no ship
 	// (its ship lost), on a sea with as many transports as wanted and none in training, wants one more
 	// there when it has none wanted or fewer than its ships + 2; more than 2 such crossings on a sea
-	// want one more as well. 0 A.D. navalManager.js:490: a queued ship on one sea skips that sea only
-	// and does not delay or block checkLevels on separate seas.
-	if (third_turn) {
+	// want one more as well. A ship training on one sea skips that sea only (navalManager.js:490).
+	if (third_turn && !ships_queued) {
 		std::vector<int> needed(nseas, 0);
 		bool bumped = false;
 		for (const auto &tp : petra_transports_) {
@@ -27645,9 +27649,10 @@ void Simulation::petra_manage_naval(float dt) {
 			const int target_fishers = want_fish[s]; (void)target_fishers; // UNIT_FISHING_BOAT target_fishers
 		}
 	}
-	// maintainFleet: a sea already training a ship waits; every other sea may add one this check.
-	// 0 A.D. navalManager.js:509-540 loops across all seas; a queued or waiting ship on one sea
-	// does not delay or block queues on separate seas.
+	// maintainFleet: a sea already training a ship waits; every other sea may add one this check
+	// (navalManager.js:509-540). The ships queue starts its plans in order: one waiting for its
+	// resources or for a dock holds back the seas after it (0.28 adds one plan per sea, then
+	// adds none while any waits).
 	for (size_t s = 1; third_turn && s < nseas; ++s) {
 		if (training[s]) continue;
 		if (!sea_dock[s]) continue;
@@ -27657,7 +27662,7 @@ void Simulation::petra_manage_naval(float dt) {
 		if (tmpl == CIV_UNIT_TEMPLATE_NONE && fishers[s] < want_fish[s]) tmpl = petra_best_ship(true);
 		// A transport ship waits in the dock's queue for room, as in 0 A.D., rather than for a
 		// moment with room to spare that worker and army training would always take first.
-		if (tmpl != CIV_UNIT_TEMPLATE_NONE && !petra_train_template(PETRA_Q_SHIPS, sea_dock[s], tmpl, 1, transport)) continue;
+		if (tmpl != CIV_UNIT_TEMPLATE_NONE && !petra_train_template(PETRA_Q_SHIPS, sea_dock[s], tmpl, 1, transport)) break;
 	}
 
 	// 3. worker.js startFishing: an idle boat, or one that drifted into enemy territory,
@@ -27678,7 +27683,9 @@ void Simulation::petra_manage_naval(float dt) {
 	std::vector<uint32_t> spent_boats;
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.unit_type[i] != UNIT_FISHING_BOAT) continue;
-		if (units_.action_state[i] != ACTION_IDLE) {
+		// worker.js:180-184: a boat in COMBAT (UnitAI sent it after a moving whale) is sent
+		// fishing again; it keeps the whale only while no fish here will do.
+		if (units_.action_state[i] != ACTION_IDLE && units_.action_state[i] != ACTION_ATTACK) {
 			const int terr = territory_owner_at(units_.pos_x[i], units_.pos_z[i]);
 			if (terr < 0 || is_ally(petra_pid_, (uint8_t)terr)) continue; // still fishing at home
 		}

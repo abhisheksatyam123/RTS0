@@ -1937,6 +1937,16 @@ static void test_petra_fishing() {
 	std::printf("Petra fishing: picked fish %u (by the dock %u, by the boat %u)\n", picked, by_dock, by_boat);
 	CHECK(picked == by_dock);
 
+	// worker.js:180-184: a boat UnitAI sent after a whale (COMBAT) is sent fishing again.
+	const uint32_t whale = s.spawn_fauna(10.0f, -4.0f, FAUNA_WHALE_FIN);
+	s.order_hunt(&boat, 1, whale);
+	const int32_t hi = s.lookup_unit(boat);
+	const bool hunting = s.units_.action_state[hi] == ACTION_ATTACK;
+	s.petra_manage_naval(2.0f);
+	const uint32_t back = gather_target(s, boat);
+	std::printf("Petra fishing: boat hunting a whale (%d) sent back to fish %u\n", hunting, back);
+	CHECK(hunting && (back == by_dock || back == by_boat));
+
 	for (size_t r = 0; r < s.resources_.count; ++r)
 		if (s.resources_.subtype[r] == RES_SUB_FISH) s.resources_.amount[r] = 0;
 	// filters.js isFishable skips what can move: a live whale left on the sea is no fish for Petra.
@@ -2698,8 +2708,9 @@ static void test_board_rules() {
 	CHECK(!fought);
 }
 
-// 0 A.D. navalManager.js:509-540: a queued ship or queue wait on one sea body does
-// not delay or hold back ship queues on separate seas (G49).
+// 0 A.D. navalManager.js:509-540: a ship training at one sea's dock does not hold back
+// ship queues on separate seas (G49); a ship plan waiting in the ships queue for its
+// resources does (navalManager.js:480/509 queues.ships.hasQueuedUnits).
 static void test_petra_multi_sea_queues() {
 	static Simulation s;
 	fresh(s);
@@ -2780,6 +2791,40 @@ static void test_petra_multi_sea_queues() {
 	std::printf("Petra multi-sea checkLevels: lake transport bumped from %d to %d while sea dock queued\n",
 	            lake_wanted_before, lake_wanted_after);
 	CHECK(lake_wanted_after > lake_wanted_before);
+
+	// Case 3: the first sea's ship plan can't be paid for: it waits in the ships queue, and
+	// the next sea's fishing boat waits behind it; checkLevels adds no transport meanwhile.
+	if (b_sea) b_sea->queue.clear();
+	Simulation::Building *b_lk = const_cast<Simulation::Building*>(bld(s, dock_lake_id));
+	if (b_lk) b_lk->queue.clear();
+	const uint16_t first = std::min(sea, lake), second = std::max(sea, lake);
+	s.petra_kept_.wanted_transport.assign(std::max<size_t>(s.petra_kept_.wanted_transport.size(), second + 1), 0);
+	s.petra_kept_.wanted_fish.assign(std::max<size_t>(s.petra_kept_.wanted_fish.size(), second + 1), 0);
+	s.petra_kept_.wanted_transport[first] = 1;
+	s.petra_kept_.wanted_fish[second] = 1;
+	s.petra_transports_.clear();
+	s.set_player_resources(1, 0, 0, 0, 0);
+	s.petra_queues_.reset();
+	s.ticks_ = 4 * (5 + 8 * 7); // played turn 9
+	s.petra_manage_naval(1.6f);
+	const PetraQueueAccount &waiting = s.petra_queues_.wants[PETRA_Q_SHIPS];
+	CHECK(waiting.food + waiting.wood + waiting.gold + waiting.stone > 0.0f); // the first sea's transport waits
+	const uint32_t second_dock = second == lake ? dock_lake_id : dock_sea_id;
+	auto queued = [&](uint32_t id) { const Simulation::Building *b = bld(s, id); return b ? b->queue.size() : (size_t)0; };
+	s.set_player_resources(1, 1000, 1000, 1000, 1000);
+	PetraTransportPlan wait_plan;
+	wait_plan.sea = second;
+	wait_plan.passenger_ids = {1001, 1002};
+	s.petra_transports_.push_back(wait_plan);
+	const int second_wanted = PetraKept::at(s.petra_kept_.wanted_transport, second);
+	// Funded now, but the first sea's transport still heads the queue.
+	s.petra_queues_.accounts[PETRA_Q_SHIPS] = PetraQueueAccount{};
+	s.ticks_ = 4 * (5 + 8 * 10); // played turn 12
+	s.petra_manage_naval(1.6f);
+	std::printf("Petra multi-sea queued plan: second sea's dock queue %zu, transport wanted %d -> %d\n",
+	            queued(second_dock), second_wanted, PetraKept::at(s.petra_kept_.wanted_transport, second));
+	CHECK(queued(second_dock) == 0);
+	CHECK(PetraKept::at(s.petra_kept_.wanted_transport, second) == second_wanted);
 }
 
 int main() {
