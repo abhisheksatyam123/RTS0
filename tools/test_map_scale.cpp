@@ -690,6 +690,7 @@ int main() {
 		for (const char *n : {b.road, b.road_wild, b.shore_blend, b.shore, b.water})
 			if (n) own.insert(n);
 		for (const HeightBand &band : st->bands) add(band.terrain, 6);
+		if (type == MAP_LATIUM) add(kLatiumTileTerrains, (int)std::size(kLatiumTileTerrains));
 		for (const AreaLayers &area : st->areas)
 			for (const auto &layer : area.layer) add(layer, 6);
 		std::set<std::string> unpatched = own;
