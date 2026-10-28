@@ -1,6 +1,8 @@
 #include <godot_cpp/classes/image_texture.hpp>
 #include "world_view_node.h"
 #include "display_colors.h"
+#include "postproc_data.h"
+#include <godot_cpp/classes/rendering_server.hpp>
 #include "territory_boundary.h"
 #include "terrain_blend.h"
 #include "session_audio.h"
@@ -3765,24 +3767,25 @@ void RtsoWorldView::apply_biome_environment(const std::string &biome, const std:
 		Rgb ambient, water_color, water_tint;
 		float murkiness;
 		Rgb fog;
+		const char *biome028; // the 0 A.D. biome it follows (rmbiome/<name>.json)
 	};
 	static const Env kEnvs[] = {
-		{ "mediterranean", "default", { 1.023f, 0.923f, 0.714f }, 0.800f, -0.909f, { 0.400f, 0.400f, 0.400f }, { 0.024f, 0.212f, 0.212f }, { 0.133f, 0.725f, 0.855f }, 0.80f, { 0.800f, 0.850f, 0.900f } }, // aegean
-		{ "aegean", "default", { 1.023f, 0.923f, 0.714f }, 0.800f, -0.909f, { 0.400f, 0.400f, 0.400f }, { 0.024f, 0.212f, 0.212f }, { 0.133f, 0.725f, 0.855f }, 0.80f, { 0.800f, 0.850f, 0.900f } }, // aegean
-		{ "latium", "default", { 1.032f, 0.990f, 0.866f }, 0.846f, -0.488f, { 0.365f, 0.376f, 0.420f }, { 0.420f, 0.365f, 0.314f }, { 0.502f, 0.502f, 0.247f }, 0.97f, { 0.894f, 0.894f, 0.894f } }, // temperate
-		{ "alpine", "cloudless", { 1.019f, 1.040f, 0.973f }, 0.589f, -1.443f, { 0.390f, 0.374f, 0.524f }, { 0.078f, 0.247f, 0.420f }, { 0.471f, 1.000f, 0.502f }, 0.88f, { 0.800f, 0.800f, 0.900f } }, // alpine
-		{ "oasis", "default", { 0.976f, 0.859f, 0.749f }, 0.650f, -0.300f, { 0.231f, 0.282f, 0.357f }, { 0.376f, 0.267f, 0.122f }, { 0.502f, 0.502f, 0.000f }, 0.90f, { 0.992f, 0.949f, 0.839f } }, // sahara
-		{ "temperate", "default", { 1.032f, 0.990f, 0.866f }, 0.846f, -0.488f, { 0.365f, 0.376f, 0.420f }, { 0.420f, 0.365f, 0.314f }, { 0.502f, 0.502f, 0.247f }, 0.97f, { 0.894f, 0.894f, 0.894f } }, // temperate
-		{ "steppe", "sunrise", { 0.859f, 0.851f, 0.733f }, 0.421f, -1.526f, { 0.504f, 0.462f, 0.604f }, { 0.420f, 0.365f, 0.344f }, { 0.502f, 0.502f, 0.307f }, 0.97f, { 0.800f, 0.850f, 0.900f } }, // steppe
-		{ "savanna", "cloudless", { 1.246f, 1.109f, 0.989f }, 0.600f, -0.450f, { 0.351f, 0.402f, 0.477f }, { 0.060f, 0.205f, 0.224f }, { 0.202f, 0.302f, 0.047f }, 0.92f, { 0.847f, 0.737f, 0.482f } }, // savanna
-		{ "polar", "stormy", { 0.980f, 1.010f, 1.045f }, 0.502f, -0.626f, { 0.294f, 0.392f, 0.494f }, { 0.078f, 0.247f, 0.420f }, { 0.471f, 1.000f, 0.502f }, 0.88f, { 0.784f, 0.886f, 0.976f } }, // arctic
-		{ "india", "default", { 1.032f, 0.995f, 0.866f }, 1.950f, 0.000f, { 0.365f, 0.376f, 0.420f }, { 0.584f, 0.824f, 0.929f }, { 0.569f, 0.965f, 0.945f }, 0.45f, { 0.875f, 0.875f, 0.875f } }, // india
-		{ "desert", "default", { 0.976f, 0.859f, 0.749f }, 0.650f, -0.300f, { 0.231f, 0.282f, 0.357f }, { 0.376f, 0.267f, 0.122f }, { 0.502f, 0.502f, 0.000f }, 0.90f, { 0.992f, 0.949f, 0.839f } }, // sahara
-		{ "persia", "default", { 1.100f, 1.060f, 0.992f }, 0.700f, -1.700f, { 0.354f, 0.362f, 0.389f }, { 0.337f, 0.247f, 0.078f }, { 0.337f, 0.247f, 0.078f }, 0.96f, { 0.929f, 0.875f, 0.839f } }, // nubia
-		{ "volcanic", "default", { 1.032f, 0.990f, 0.866f }, 0.446f, -0.488f, { 0.365f, 0.376f, 0.420f }, { 0.420f, 0.365f, 0.314f }, { 0.502f, 0.502f, 0.247f }, 0.97f, { 0.894f, 0.894f, 0.894f } }, // autumn
-		{ "tropical", "default", { 1.032f, 0.995f, 0.866f }, 1.950f, 0.000f, { 0.365f, 0.376f, 0.420f }, { 0.584f, 0.824f, 0.929f }, { 0.569f, 0.965f, 0.945f }, 0.45f, { 0.875f, 0.875f, 0.875f } }, // india
-		{ "autumn", "default", { 1.032f, 0.990f, 0.866f }, 0.446f, -0.488f, { 0.365f, 0.376f, 0.420f }, { 0.420f, 0.365f, 0.314f }, { 0.502f, 0.502f, 0.247f }, 0.97f, { 0.894f, 0.894f, 0.894f } }, // autumn
-		{ "nubia", "default", { 1.100f, 1.060f, 0.992f }, 0.700f, -1.700f, { 0.354f, 0.362f, 0.389f }, { 0.337f, 0.247f, 0.078f }, { 0.337f, 0.247f, 0.078f }, 0.96f, { 0.929f, 0.875f, 0.839f } }, // nubia
+		{ "mediterranean", "default", { 1.023f, 0.923f, 0.714f }, 0.800f, -0.909f, { 0.400f, 0.400f, 0.400f }, { 0.024f, 0.212f, 0.212f }, { 0.133f, 0.725f, 0.855f }, 0.80f, { 0.800f, 0.850f, 0.900f }, "generic/aegean" }, // aegean
+		{ "aegean", "default", { 1.023f, 0.923f, 0.714f }, 0.800f, -0.909f, { 0.400f, 0.400f, 0.400f }, { 0.024f, 0.212f, 0.212f }, { 0.133f, 0.725f, 0.855f }, 0.80f, { 0.800f, 0.850f, 0.900f }, "generic/aegean" }, // aegean
+		{ "latium", "default", { 1.032f, 0.990f, 0.866f }, 0.846f, -0.488f, { 0.365f, 0.376f, 0.420f }, { 0.420f, 0.365f, 0.314f }, { 0.502f, 0.502f, 0.247f }, 0.97f, { 0.894f, 0.894f, 0.894f }, "generic/temperate" }, // temperate
+		{ "alpine", "cloudless", { 1.019f, 1.040f, 0.973f }, 0.589f, -1.443f, { 0.390f, 0.374f, 0.524f }, { 0.078f, 0.247f, 0.420f }, { 0.471f, 1.000f, 0.502f }, 0.88f, { 0.800f, 0.800f, 0.900f }, "generic/alpine" }, // alpine
+		{ "oasis", "default", { 0.976f, 0.859f, 0.749f }, 0.650f, -0.300f, { 0.231f, 0.282f, 0.357f }, { 0.376f, 0.267f, 0.122f }, { 0.502f, 0.502f, 0.000f }, 0.90f, { 0.992f, 0.949f, 0.839f }, "generic/sahara" }, // sahara
+		{ "temperate", "default", { 1.032f, 0.990f, 0.866f }, 0.846f, -0.488f, { 0.365f, 0.376f, 0.420f }, { 0.420f, 0.365f, 0.314f }, { 0.502f, 0.502f, 0.247f }, 0.97f, { 0.894f, 0.894f, 0.894f }, "generic/temperate" }, // temperate
+		{ "steppe", "sunrise", { 0.859f, 0.851f, 0.733f }, 0.421f, -1.526f, { 0.504f, 0.462f, 0.604f }, { 0.420f, 0.365f, 0.344f }, { 0.502f, 0.502f, 0.307f }, 0.97f, { 0.800f, 0.850f, 0.900f }, "generic/steppe" }, // steppe
+		{ "savanna", "cloudless", { 1.246f, 1.109f, 0.989f }, 0.600f, -0.450f, { 0.351f, 0.402f, 0.477f }, { 0.060f, 0.205f, 0.224f }, { 0.202f, 0.302f, 0.047f }, 0.92f, { 0.847f, 0.737f, 0.482f }, "generic/savanna" }, // savanna
+		{ "polar", "stormy", { 0.980f, 1.010f, 1.045f }, 0.502f, -0.626f, { 0.294f, 0.392f, 0.494f }, { 0.078f, 0.247f, 0.420f }, { 0.471f, 1.000f, 0.502f }, 0.88f, { 0.784f, 0.886f, 0.976f }, "generic/arctic" }, // arctic
+		{ "india", "default", { 1.032f, 0.995f, 0.866f }, 1.950f, 0.000f, { 0.365f, 0.376f, 0.420f }, { 0.584f, 0.824f, 0.929f }, { 0.569f, 0.965f, 0.945f }, 0.45f, { 0.875f, 0.875f, 0.875f }, "generic/india" }, // india
+		{ "desert", "default", { 0.976f, 0.859f, 0.749f }, 0.650f, -0.300f, { 0.231f, 0.282f, 0.357f }, { 0.376f, 0.267f, 0.122f }, { 0.502f, 0.502f, 0.000f }, 0.90f, { 0.992f, 0.949f, 0.839f }, "generic/sahara" }, // sahara
+		{ "persia", "default", { 1.100f, 1.060f, 0.992f }, 0.700f, -1.700f, { 0.354f, 0.362f, 0.389f }, { 0.337f, 0.247f, 0.078f }, { 0.337f, 0.247f, 0.078f }, 0.96f, { 0.929f, 0.875f, 0.839f }, "generic/nubia" }, // nubia
+		{ "volcanic", "default", { 1.032f, 0.990f, 0.866f }, 0.446f, -0.488f, { 0.365f, 0.376f, 0.420f }, { 0.420f, 0.365f, 0.314f }, { 0.502f, 0.502f, 0.247f }, 0.97f, { 0.894f, 0.894f, 0.894f }, "generic/autumn" }, // autumn
+		{ "tropical", "default", { 1.032f, 0.995f, 0.866f }, 1.950f, 0.000f, { 0.365f, 0.376f, 0.420f }, { 0.584f, 0.824f, 0.929f }, { 0.569f, 0.965f, 0.945f }, 0.45f, { 0.875f, 0.875f, 0.875f }, "generic/india" }, // india
+		{ "autumn", "default", { 1.032f, 0.990f, 0.866f }, 0.446f, -0.488f, { 0.365f, 0.376f, 0.420f }, { 0.420f, 0.365f, 0.314f }, { 0.502f, 0.502f, 0.247f }, 0.97f, { 0.894f, 0.894f, 0.894f }, "generic/autumn" }, // autumn
+		{ "nubia", "default", { 1.100f, 1.060f, 0.992f }, 0.700f, -1.700f, { 0.354f, 0.362f, 0.389f }, { 0.337f, 0.247f, 0.078f }, { 0.337f, 0.247f, 0.078f }, 0.96f, { 0.929f, 0.875f, 0.839f }, "generic/nubia" }, // nubia
 	};
 	const Env *e = &kEnvs[0];
 	for (const auto &x : kEnvs)
@@ -3791,6 +3794,8 @@ void RtsoWorldView::apply_biome_environment(const std::string &biome, const std:
 	// (tools/port_0ad_maps.py "environment"); it wins over the biome's.
 	Env own = *e;
 	std::string own_sky;
+	std::string scenario_effect;
+	rtso::Postproc scenario_pp = {nullptr, 0.0f, 1.0f, 1.0f, 0.2f};
 	{
 		const String path = "res://data/maps/" + String(map_id.c_str()) + ".json";
 		Ref<FileAccess> f = FileAccess::file_exists(path) ? FileAccess::open(path, FileAccess::READ) : Ref<FileAccess>();
@@ -3812,6 +3817,13 @@ void RtsoWorldView::apply_biome_environment(const std::string &biome, const std:
 			own_sky = String(env.get("sky_set", String(own.sky))).utf8().get_data();
 			own.sky = own_sky.c_str();
 			e = &own;
+			if (env.has("post_effect")) {
+				scenario_effect = String(env.get("post_effect", "default")).utf8().get_data();
+				scenario_pp.brightness = (float)env.get("brightness", 0.0f);
+				scenario_pp.contrast = (float)env.get("contrast", 1.0f);
+				scenario_pp.saturation = (float)env.get("saturation", 1.0f);
+				scenario_pp.bloom = (float)env.get("bloom", 0.2f);
+			}
 		}
 	}
 	// Game Setup Daytime (Simulation::map_daytime): the themes danubius.js and
@@ -3842,6 +3854,38 @@ void RtsoWorldView::apply_biome_environment(const std::string &biome, const std:
 		own.sun_elevation = (float)Math_PI * (1.0f / 24.0f + 1.0f / 7.0f) * 0.5f; // randFloat(1/24, 1/7)'s middle
 		e = &own;
 	}
+	// LightEnv's Postproc: the biome's (setBiome), then the random map script's own
+	// setPP* calls (postproc_data.h), then a ported scenario's Environment block.
+	// danubius.js sets its contrast, saturation and bloom for the day only.
+	rtso::Postproc pp = {"default", 0.0f, 1.0f, 1.0f, 0.2f};
+	if (const rtso::Postproc *b = rtso::biome_postproc(kEnvs[0].biome028)) pp = *b;
+	for (const auto &x : kEnvs)
+		if (biome == x.biome) {
+			if (const rtso::Postproc *b = rtso::biome_postproc(x.biome028)) pp = *b;
+			break;
+		}
+	const std::string rms = map_id.rfind("random_", 0) == 0 ? map_id.substr(7) : map_id;
+	if (const rtso::Postproc *m = rtso::map_postproc(rms.c_str())) {
+		if (m->effect) pp.effect = m->effect;
+		if (!(rms == "danubius" && daytime == 2)) {
+			if (m->brightness != rtso::kPostprocUnset) pp.brightness = m->brightness;
+			if (m->contrast != rtso::kPostprocUnset) pp.contrast = m->contrast;
+			if (m->saturation != rtso::kPostprocUnset) pp.saturation = m->saturation;
+			if (m->bloom != rtso::kPostprocUnset) pp.bloom = m->bloom;
+		}
+	}
+	if (!scenario_effect.empty()) {
+		pp = scenario_pp;
+		pp.effect = scenario_effect.c_str();
+	}
+	RenderingServer *rs = RenderingServer::get_singleton();
+	// "hdr" runs hdr.fs; DOF.xml's depth-of-field pass before it is left out.
+	rs->global_shader_parameter_set("rtso_pp_hdr", std::strcmp(pp.effect, "default") != 0 ? 1.0f : 0.0f);
+	rs->global_shader_parameter_set("rtso_pp_brightness", pp.brightness);
+	rs->global_shader_parameter_set("rtso_pp_contrast", pp.contrast);
+	rs->global_shader_parameter_set("rtso_pp_saturation", pp.saturation);
+	rs->global_shader_parameter_set("rtso_pp_bloom", pp.bloom);
+
 	auto col = [](const Rgb &c, float k = 1.0f) { return Color(c.r * k, c.g * k, c.b * k, 1.0f); };
 
 	// 0 A.D. gives the sun's height above the horizon and its bearing;
