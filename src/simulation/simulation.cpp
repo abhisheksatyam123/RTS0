@@ -31256,7 +31256,8 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 					continue;
 				}
 				if (units_.id[i] == petra_scout_unit_id_) continue; // Scout remains on exploration
-				if (petra_is_support_unit(units_.unit_type[i]) || units_.unit_type[i] == UNIT_TRIREME) continue;
+				// hasClasses(["!Unit", "Ship", "Support"]): healers are Support (and have no attack).
+				if (petra_is_support_unit(units_.unit_type[i]) || units_.unit_type[i] == UNIT_HEALER || units_.unit_type[i] == UNIT_TRIREME) continue;
 				// attackPlan.js isAvailableUnit: not garrisoning, not guarding a hero,
 				// and a regicide hero only while above 80% health.
 				if (units_.order_kind[i] == ORDER_GARRISON || petra_guards_critical_ent(i)) continue;
@@ -35589,7 +35590,8 @@ void Simulation::petra_manage_victory(float dt) {
 				auto bit = building_id_to_idx_.find(hit_by);
 				if (bit != building_id_to_idx_.end()) by = buildings_[bit->second].team;
 			}
-			if (petra_foe(by)) attacked.push_back((size_t)hero);
+			// Any Attacked event, Gaia's (wild animals, Gaia towers and attackers) too.
+			if (petra_foe(by) || by == GAIA_PLAYER) attacked.push_back((size_t)hero);
 		}
 		for (size_t f = 0; turn && f < units_.count; ++f) {
 			if (!units_.alive[f] || !petra_foe(units_.team[f]) || units_.target_unit_id[f] == 0) continue;
@@ -35701,10 +35703,18 @@ bool Simulation::petra_is_critical_wonder(uint32_t id) const {
 
 // guardEnts: ours guarding a hero (a military guard, or a healer), a relic or a wonder.
 bool Simulation::petra_guards_critical_ent(size_t i) const {
-	if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.order_kind[i] != ORDER_GUARD) return false;
-	const int32_t t = lookup_unit(units_.order_target[i]);
-	return t >= 0 ? petra_is_critical_ent((size_t)t) || petra_is_critical_relic((size_t)t)
-	              : petra_is_critical_wonder(units_.order_target[i]);
+	if (!units_.alive[i] || units_.team[i] != petra_pid_) return false;
+	uint32_t target = 0;
+	if (units_.order_kind[i] == ORDER_GUARD) {
+		target = units_.order_target[i];
+	} else if (units_.order_kind[i] == ORDER_RETURN_RESOURCE) {
+		// Dropping its load first (returnResources), the guard order queued after it.
+		const auto q = order_queues_.find(units_.id[i]);
+		if (q != order_queues_.end() && !q->second.empty() && q->second.front().kind == ORDER_GUARD) target = q->second.front().target;
+	}
+	if (!target) return false;
+	const int32_t t = lookup_unit(target);
+	return t >= 0 ? petra_is_critical_ent((size_t)t) || petra_is_critical_relic((size_t)t) : petra_is_critical_wonder(target);
 }
 
 // pickCriticalEntRetreatLocation: garrison, else turn passive (flee attacks)
@@ -35771,6 +35781,13 @@ void Simulation::petra_critical_ent_garrisoned() {
 }
 
 void Simulation::petra_manage_critical_ent_guards() {
+	// assignGuardToCriticalEnt: returnResources first, the guard order queued after it.
+	auto guard_after_drop = [&](size_t i, uint32_t target) {
+		const uint32_t uid = units_.id[i];
+		const uint32_t drop = petra_defender_dropsite(i);
+		if (drop) order_return_resource(&uid, 1, drop, false);
+		order_guard(&uid, 1, target, drop != 0);
+	};
 	int workers = 0;
 	for (size_t i = 0; i < units_.count; ++i)
 		if (units_.alive[i] && units_.team[i] == petra_pid_ && carry_cap(i, RES_WOOD) > 0 &&
@@ -35780,6 +35797,7 @@ void Simulation::petra_manage_critical_ent_guards() {
 			if (!petra_guards_critical_ent(i) || !(unit_tech_classes(units_.unit_type[i]) & TC_CITIZENSOLDIER)) continue;
 			const uint32_t uid = units_.id[i];
 			cmd_stop(&uid, 1);
+			petra_out_of_plan(uid); // plan -1: the next attack plan takes it (outOfPlan)
 			++workers;
 		}
 	}
@@ -35812,8 +35830,7 @@ void Simulation::petra_manage_critical_ent_guards() {
 		if (it == crit.end()) return true;
 		if (petra_aboard(g.first)) return false;
 		if (land_of((size_t)i) == it->land) {
-			const uint32_t uid = g.first;
-			order_guard(&uid, 1, g.second);
+			guard_after_drop((size_t)i, g.second);
 			return true;
 		}
 		return !petra_passenger(g.first); // its transport failed: picked again
@@ -35855,7 +35872,7 @@ void Simulation::petra_manage_critical_ent_guards() {
 					const uint32_t uid = units_.id[i];
 					const uint16_t own = land_of(i);
 					if (own == c.land) {
-						order_guard(&uid, 1, c.id);
+						guard_after_drop(i, c.id);
 					} else {
 						// The land petra_topo knows, for the ship's crossing.
 						const uint16_t from = petra_land_at(units_.pos_x[i], units_.pos_z[i]), to = petra_land_at(cx, cz);
@@ -35954,7 +35971,8 @@ void Simulation::petra_capture_gaia_relics() {
 			const Building *anchor = nullptr;
 			float best = 1e30f;
 			for (const auto &b : buildings_) {
-				if (b.team != petra_pid_ || !is_civic_centre(b.type) || b.build_progress < 1.0f || b.wrecked) continue;
+				// attackPlan.js Abort: the nearest base anchor, military colonies included.
+				if (b.team != petra_pid_ || !petra_base_anchor_type(b.type) || b.build_progress < 1.0f || b.wrecked) continue;
 				if (uland != 0 && petra_building_land(b, nullptr, uland) != uland) continue;
 				const float d2 = (b.x - units_.pos_x[i]) * (b.x - units_.pos_x[i]) + (b.z - units_.pos_z[i]) * (b.z - units_.pos_z[i]);
 				if (d2 < best) { best = d2; anchor = &b; }
