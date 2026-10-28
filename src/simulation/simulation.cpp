@@ -9,7 +9,9 @@
 #include "nav/rasterize.h"
 #include "../core/job_system.h"
 #include <cstdio>
-#include <atomic>
+#if defined(_MSC_VER) && !defined(__clang__)
+#include <intrin.h>
+#endif
 #include <chrono>
 #include <cmath>
 #include <numeric>
@@ -155,6 +157,15 @@ static constexpr int BUILDING_AI_ROUNDS = 20; // BuildingAI.js roundCount
 static constexpr uint32_t SAVE_VERSION_LOOT = 19;
 
 namespace {
+// A relaxed atomic add on a plain counter. std::atomic_ref is missing from the NDK's and Apple's
+// libc++, so this uses the compiler builtins.
+inline void relaxed_add(uint64_t &v, uint64_t d) {
+#if defined(_MSC_VER) && !defined(__clang__)
+	_InterlockedExchangeAdd64(reinterpret_cast<volatile long long *>(&v), (long long)d);
+#else
+	__atomic_fetch_add(&v, d, __ATOMIC_RELAXED);
+#endif
+}
 // Accumulates wall-clock microseconds for Simulation::MapScaleStats. Atomic adds, as find_path
 // runs in move_units' parallel jobs.
 struct ScopedUs {
@@ -163,8 +174,8 @@ struct ScopedUs {
 	ScopedUs(uint64_t &us_, uint64_t &calls_) : us(us_), calls(calls_) {}
 	~ScopedUs() {
 		const uint64_t d = (uint64_t)std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - t0).count();
-		std::atomic_ref<uint64_t>(us).fetch_add(d, std::memory_order_relaxed);
-		std::atomic_ref<uint64_t>(calls).fetch_add(1, std::memory_order_relaxed);
+		relaxed_add(us, d);
+		relaxed_add(calls, 1);
 	}
 };
 constexpr int kUnitGridRes = 64; // 64x64 grid cells (2.0m per cell over 128m map)
@@ -7057,7 +7068,7 @@ void Simulation::cmd_move_individual(const uint32_t *unit_ids, size_t count, flo
 			Walk &w = walks[k];
 			nav_grid_.find_path(units_.pos_x[w.idx], units_.pos_z[w.idx], w.dest_x, w.dest_z, w.wp, w.pass);
 		}, 1);
-		if (!walks.empty()) std::atomic_ref<uint64_t>(map_scale_stats_.path_calls).fetch_add(walks.size() - 1, std::memory_order_relaxed); // ScopedUs counts one
+		if (!walks.empty()) relaxed_add(map_scale_stats_.path_calls, walks.size() - 1); // ScopedUs counts one
 	}
 
 	ensure_unit_paths();
