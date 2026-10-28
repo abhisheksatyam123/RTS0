@@ -10,6 +10,8 @@
 //   - ResourceGatherer.StartGathering fixes the gather rate: a field's diminishing returns are
 //     those when the farmer started, until she stops gathering, and its timer starts afresh.
 //   - Han rice paddies take 3 farmers; the Ptolemaic team food trickle reaches allies without buildings.
+//   - ResourceSupply.AddGatherer: a full field keeps its farmers; a newcomer is turned away.
+//   - FINDINGNEWTARGET drops off a load before a queued order only if it is of the order's type.
 //   g++ -std=c++20 -O2 -Isrc tools/test_gather_parity.cpp src/simulation/simulation.cpp \
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
 //       src/network/net_host.cpp -lpthread -o /tmp/test_gather_parity && /tmp/test_gather_parity
@@ -644,6 +646,54 @@ int main() {
 		for (const auto &b : s.buildings()) if (b.id == site) progress = b.build_progress;
 		std::printf("  ram repaired to %.0f/%.0f, then the house nearby %.0f%% built\n", s.units_.hp[r], s.units_.max_hp[r], 100.0f * progress);
 		CHECK(s.units_.hp[r] >= s.units_.max_hp[r] && progress > 0.05f);
+	}
+
+	// 23. ResourceSupply.AddGatherer: a full field keeps the farmers it has. A newcomer (here
+	// lower in unit order) is the one turned away, not the last of the farmers.
+	{
+		static Simulation s;
+		fresh(s);
+		s.set_explore_map(true);
+		const uint32_t field = s.spawn_building_world(0.0f, 0.0f, BLD_FIELD, 0, 1.0f);
+		s.spawn_building_world(0.0f, -16.0f, BLD_FARMSTEAD, 0, 1.0f);
+		run(s, 0.5f);
+		const uint32_t grain = s.field_resource_id(field);
+		const uint32_t late = s.spawn_unit(0.0f, -12.0f, 0, UNIT_FEMALE_CITIZEN);
+		std::vector<uint32_t> women;
+		for (int k = 0; k < 5; ++k) women.push_back(s.spawn_unit(-4.0f + 2.0f * k, -4.0f, 0, UNIT_FEMALE_CITIZEN));
+		s.order_gather(women.data(), (int)women.size(), grain);
+		run(s, 8.0f); // all five at work, none full yet
+		s.order_gather(&late, 1, grain);
+		run(s, 4.0f);
+		int kept = 0;
+		for (uint32_t id : women) {
+			const int32_t u = s.lookup_unit(id);
+			kept += s.units_.target_resource_id[u] == grain;
+		}
+		const bool late_on = s.units_.target_resource_id[s.lookup_unit(late)] == grain;
+		std::printf("  full field: %d of 5 farmers keep it, the newcomer %s\n", kept, late_on ? "took a slot" : "is turned away");
+		CHECK(kept == 5 && !late_on);
+	}
+
+	// 24. GATHER FINDINGNEWTARGET (UnitAI.js:2601-2607): the drop-off before a queued order is for
+	// the order's type. A woman carrying wood turned away from full berries walks on with it.
+	{
+		static Simulation s;
+		fresh(s);
+		s.spawn_building_world(-20.0f, 0.0f, BLD_STOREHOUSE, 0, 1.0f);
+		const uint32_t bush = s.spawn_resource_world(10.0f, 0.0f, RES_FOOD, 200);
+		s.resources_.max_gatherers[s.res_id_to_idx_.at(bush)] = 0; // full
+		const uint32_t w = s.spawn_unit(0.0f, 0.0f, 0, UNIT_FEMALE_CITIZEN);
+		const int32_t i = s.lookup_unit(w);
+		s.units_.res_type_carried[i] = RES_WOOD;
+		s.units_.carry[i] = 5;
+		s.order_gather(&w, 1, bush);
+		s.order_walk(&w, 1, 0.0f, 20.0f, true);
+		bool returned = false;
+		for (int k = 0; k < 40; ++k) { run(s, 0.05f); returned |= s.units_.order_kind[i] == ORDER_RETURN_RESOURCE; }
+		std::printf("  carrying wood, turned away from berries: %s, order %d, %d wood\n", returned ? "went to drop it" : "walked on",
+				(int)s.units_.order_kind[i], s.units_.carry[i]);
+		CHECK(!returned && s.units_.order_kind[i] == ORDER_WALK && s.units_.carry[i] == 5);
 	}
 
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);

@@ -15299,6 +15299,31 @@ void Simulation::tick_gather(float dt) {
 			supply_slot[i] = 1;
 		}
 	}
+	// Fields and fish the same way: farmers and boats already gathering keep their slots
+	// (AddGatherer took them at APPROACHING), so a newcomer to a full one is the one turned
+	// away, whatever the unit order.
+	std::vector<uint8_t> kept_slot(n, 0);
+	for (size_t i = 0; i < n; ++i) {
+		const uint32_t rid = units_.target_resource_id[i];
+		if (!units_.alive[i] || units_.action_state[i] != ACTION_GATHER || rid == 0) continue;
+		if (units_.gather_res[i] != rid || !(units_.gather_rate[i] > 0.0f) || full_for_target(i)) continue;
+		auto rit = res_id_to_idx_.find(rid);
+		if (rit == res_id_to_idx_.end()) continue;
+		if (units_.unit_type[i] == UNIT_FISHING_BOAT) {
+			if (resources_.subtype[rit->second] != RES_SUB_FISH) continue;
+			FieldGatherers &fg = fish_gatherers_[rid];
+			if (fg.slots_taken >= resources_.max_gatherers[rit->second]) continue;
+			fg.slots_taken++;
+			kept_slot[i] = 1;
+		} else if (auto fit = field_bld_by_res_.find(rid); fit != field_bld_by_res_.end()) {
+			auto bit = building_id_to_idx_.find(fit->second);
+			if (bit == building_id_to_idx_.end()) continue;
+			FieldGatherers &fg = field_gatherers_[rid];
+			if (fg.slots_taken >= field_cap(buildings_[bit->second])) continue;
+			fg.slots_taken++;
+			kept_slot[i] = 1;
+		}
+	}
 	// The structures a returning worker may pick, listed when the first one needs them: no
 	// structure is placed, finished or removed during this loop.
 	bool drop_listed = false;
@@ -15520,12 +15545,12 @@ void Simulation::tick_gather(float dt) {
 			}
 			if (fish) {
 				FieldGatherers &fg = fish_gatherers_[units_.target_resource_id[i]];
-				if (fg.slots_taken >= resources_.max_gatherers[ridx]) { // ResourceSupply/MaxGatherers
+				if (!kept_slot[i] && fg.slots_taken >= resources_.max_gatherers[ridx]) { // ResourceSupply/MaxGatherers
 					fg.total--;
 					next_fish();
 					continue;
 				}
-				fg.slots_taken++;
+				if (!kept_slot[i]) fg.slots_taken++;
 			}
 			float field_efficiency = 0.0f; // > 0 only while farming a field
 			auto field_it = field_bld_by_res_.find(units_.target_resource_id[i]);
@@ -15536,7 +15561,7 @@ void Simulation::tick_gather(float dt) {
 				// ally's and even an enemy's field are farmed like our own.
 				bool exists = bit != building_id_to_idx_.end();
 				const int cap = exists ? field_cap(buildings_[bit->second]) : FIELD_MAX_GATHERERS;
-				if (!exists || fg.slots_taken >= cap) {
+				if (!exists || (!kept_slot[i] && fg.slots_taken >= cap)) {
 					// Field full or gone: AddGatherer fails at APPROACHING enter and UnitAI goes to
 					// FINDINGNEWTARGET: queued orders first, then a free field of anyone's within
 					// 64 m of the farmer or of where she was sent, else back to a dropsite.
@@ -15545,7 +15570,7 @@ void Simulation::tick_gather(float dt) {
 					finish_order(i, true);
 					continue;
 				}
-				fg.slots_taken++;
+				if (!kept_slot[i]) fg.slots_taken++;
 				// StartGathering takes the rate before AddActiveGatherer, and APPROACHING.leave has
 				// already removed this farmer: the diminishing returns count the others only.
 				field_efficiency = field_gather_efficiency(std::min(fg.total, cap) - 1);
@@ -20343,16 +20368,21 @@ void Simulation::finish_order(size_t i, bool find_new_target) {
 	auto queued = order_queues_.find(uid);
 	const bool finding = units_.order_kind[i] == ORDER_GATHER && (find_new_target || !order_still_valid(i, current_order(i)));
 	if (finding && queued != order_queues_.end() && !queued->second.empty()) {
-		// GATHER FINDINGNEWTARGET: FinishOrder comes first. A unit carrying a load drops it
-		// off before a next order that isn't a ReturnResource or a gather of the same type.
+		// GATHER FINDINGNEWTARGET (UnitAI.js:2601-2607): FinishOrder comes first. A unit carrying
+		// the order's generic type drops it off before a next order that isn't a gather of that
+		// type. (0.28 compares the next order object with the string "ReturnResource", so a
+		// queued ReturnResource gets one more in front of it, which ends at once.)
+		int order_t = units_.res_type_carried[i];
+		if (auto pr = res_id_to_idx_.find(units_.target_resource_id[i]); pr != res_id_to_idx_.end())
+			order_t = resources_.type[pr->second]; // a supply gone: what it was gathering
 		const UnitOrder &n = queued->second.front();
-		bool same = n.kind == ORDER_RETURN_RESOURCE;
+		bool same = false;
 		if (n.kind == ORDER_GATHER) {
 			auto r = res_id_to_idx_.find(n.target);
 			const int t = r != res_id_to_idx_.end() ? resources_.type[r->second] : (int)n.res_type - 1;
-			same = t == units_.res_type_carried[i];
+			same = t == order_t;
 		}
-		if (units_.carry[i] > 0 && !same) {
+		if (units_.carry[i] > 0 && units_.res_type_carried[i] == order_t && !same) {
 			if (const uint32_t d = nearest_dropsite(i); d != 0) {
 				UnitOrder ret;
 				ret.kind = ORDER_RETURN_RESOURCE;
