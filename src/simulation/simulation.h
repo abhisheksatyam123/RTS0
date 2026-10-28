@@ -3990,6 +3990,8 @@ private:
 	uint8_t petra_most_needed_resource();
 	float petra_trade_timer_ = 0.0f;
 	float petra_naval_timer_ = 0.0f;
+	// RTS0's old map-circling scout, which 0.28 doesn't have: no longer picked, kept in the save
+	// layout; one loaded from an older save goes back to hunting.
 	float petra_scout_timer_ = 0.0f;
 	uint32_t petra_scout_unit_id_ = 0;
 	float petra_scout_angle_ = 0.0f;
@@ -3997,7 +3999,6 @@ private:
 
 	void update_petra_bases(float dt);
 	void update_petra_threat_map(float dt);
-	void petra_manage_scouting(float dt);
 	void petra_manage_economy(float dt);
 	void petra_manage_trading(float dt);
 	void petra_manage_naval(float dt);

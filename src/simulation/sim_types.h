@@ -826,7 +826,8 @@ enum UnitStance : uint8_t {
 	STANCE_DEFENSIVE = 1,   // chase only near the held position (respondHoldGround)
 	STANCE_STAND_GROUND = 2,// attack what is in range, never move
 	STANCE_VIOLENT = 3,     // aggressive, and answers attackers even on forced orders
-	STANCE_PASSIVE = 4      // never attack, flee when attacked (respondFlee)
+	STANCE_PASSIVE = 4,     // never attack, flee when attacked (respondFlee)
+	STANCE_NONE = 5         // never attack nor answer an attacker; not selectable (Petra's ferries)
 };
 
 // RallyPoint data.command (gui/session/unit_actions.js "set-rallypoint") where the target

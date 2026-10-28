@@ -178,6 +178,22 @@ static void test_roster_army() {
 		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
 		s->set_team_civ(1, (uint8_t)civ);
 		s->set_victory_condition(VICTORY_ENDLESS); // keep playing once the idle player is beaten
+		// This small map has one metal mine a player, and the idle player's lies under its
+		// fortresses: Petra's own runs dry around minute 20, before its city army has trained
+		// its champions and siege, and the match then hangs on whether the first siege engines
+		// lived (which shifts with any change to the early game). A richer mine keeps metal coming.
+		{
+			float px = 0.0f, pz = 0.0f, best = 1.0e9f;
+			for (const auto &b : s->buildings())
+				if (b.team == 1 && b.type == BLD_TOWN_CENTER) { px = b.x; pz = b.z; }
+			size_t mine = SIZE_MAX;
+			for (size_t r = 0; r < s->resources_.count; ++r) {
+				if (!s->resources_.alive[r] || s->resources_.type[r] != RES_GOLD) continue;
+				const float d = std::hypot(s->resources_.x[r] - px, s->resources_.z[r] - pz);
+				if (d < best) { best = d; mine = r; }
+			}
+			if (mine != SIZE_MAX) s->resources_.amount[mine] *= 3;
+		}
 		// Garrisoned fortresses (ten more arrows each, BuildingAI) outlast the infantry's first
 		// waves, so the siege (trained some ten minutes into the city phase at 0 A.D.'s gather
 		// rates) still has something to fire at. They stand on dry land: no land unit wades out
@@ -7165,6 +7181,40 @@ static void test_capturing_armies() {
 	CHECK(shrine_avoided, "placement keeps away from a capturing army's structure");
 }
 
+// 0.28 Petra has no scout: an idle citizen cavalryman stays a hunter (worker.js looks for game
+// again every 20 s) rather than being sent circling the map.
+static void test_no_scout() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 10.0f);
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f) cc = &b;
+	if (!cc) { CHECK(false, "Petra has a civic centre"); return; }
+	const float cx = cc->x, cz = cc->z;
+	// No game anywhere, so the riders find nothing to hunt.
+	for (size_t f = 0; f < s->fauna_.count; ++f) s->fauna_.alive[f] = 0;
+	std::vector<uint32_t> riders;
+	for (int k = 0; k < 3; ++k) riders.push_back(s->spawn_unit(cx + 6.0f + 2.0f * (float)k, cz + 6.0f, 1, UNIT_CAVALRY));
+	float farthest = 0.0f;
+	bool scout = false;
+	for (int t = 0; t < 120; ++t) {
+		run_for(*s, 0.5f);
+		scout |= s->petra_scout_unit_id_ != 0;
+		for (uint32_t uid : riders) {
+			const int32_t i = s->lookup_unit(uid);
+			if (i < 0 || !s->units_.alive[i]) continue;
+			const float dx = s->units_.pos_x[i] - cx, dz = s->units_.pos_z[i] - cz;
+			farthest = std::max(farthest, std::sqrt(dx * dx + dz * dz));
+		}
+	}
+	std::printf("  no scout: a rider picked as scout %s, farthest from the civic centre %.1f\n", scout ? "yes" : "no", farthest);
+	CHECK(!scout && farthest < 30.0f, "idle cavalry with nothing to hunt isn't sent scouting");
+}
+
 // defenseArmy.js update: a defender capturing a structure allowCapture no longer allows
 // (its regeneration outruns the army) damages it instead.
 static void test_defenders_stop_hopeless_capture() {
@@ -10143,6 +10193,7 @@ int main(int argc, char **argv) {
 	RUN(test_defense_breakaway_timer);
 	RUN(test_defense_pass3);
 	RUN(test_capturing_armies);
+	RUN(test_no_scout);
 	RUN(test_defenders_stop_hopeless_capture);
 	RUN(test_assign_bombers);
 	RUN(test_cancel_attacks_on_peace);

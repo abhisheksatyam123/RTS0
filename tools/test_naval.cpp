@@ -1697,6 +1697,52 @@ static void test_petra_transport_wrong_land() {
 	CHECK(landed >= (int)aboard && on_islet == 0);
 }
 
+// transportPlan.js assignShip / releaseShip: a plan's ship takes the "none" stance, so it
+// doesn't stop to shoot at an enemy structure on the landing beach, and gets its default stance
+// back once it is empty. onSailing: those set down walk off the beach to make room.
+static void test_petra_ferry_stance() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.set_player_resources(1, 5000, 5000, 5000, 5000);
+	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+	const uint32_t ship = s.spawn_unit(-20.0f, 12.0f, 1, UNIT_TRIREME);
+	std::vector<uint32_t> crew;
+	for (int k = 0; k < 6; ++k) crew.push_back(s.spawn_unit(-24.0f + 2.0f * k, 26.0f, 1, UNIT_SPEARMAN));
+	run(s, 0.5f);
+	const uint16_t south = s.petra_land_at(-20.0f, -40.0f);
+	CHECK(s.petra_start_transport(crew, -20.0f, 30.0f, -20.0f, -40.0f, 0, PETRA_TRANSPORT_ATTACK));
+	for (int k = 0; k < 120 && !(s.petra_transport_plans().size() == 1 && s.petra_transport_plans()[0].state == PetraTransportPlan::SAILING); ++k)
+		run(s, 0.5f);
+	const int32_t si = idx(s, ship);
+	const size_t aboard = s.get_transport_passenger_count(ship);
+	const uint8_t sailing_stance = s.units().stance[si];
+	// An enemy house just inland of the landing point.
+	const float dx = s.petra_transport_plans().empty() ? -20.0f : s.petra_transport_plans()[0].drop_x;
+	const float dz = s.petra_transport_plans().empty() ? -10.0f : s.petra_transport_plans()[0].drop_z;
+	s.spawn_building_world(dx + 3.0f, dz - 3.0f, BLD_HOUSE, 0);
+	bool shot = false;
+	int landed = 0;
+	for (int k = 0; k < 120; ++k) {
+		run(s, 0.5f);
+		if (!s.petra_transport_plans().empty()) shot |= s.units_.target_building_id[si] != 0;
+		landed = 0;
+		for (uint32_t uid : crew) {
+			const int32_t i = idx(s, uid);
+			landed += i >= 0 && s.units().alive[i] && s.petra_land_at(s.units().pos_x[i], s.units().pos_z[i]) == south;
+		}
+		if (landed >= (int)aboard && aboard && s.petra_transport_plans().empty()) break;
+	}
+	run(s, 2.0f);
+	const uint8_t after = s.units().stance[si];
+	std::printf("Petra ferry stance: %d while sailing, %d once empty; shot at the house %s; %d of %zu landed\n", sailing_stance, after,
+	            shot ? "yes" : "no", landed, aboard);
+	CHECK(aboard >= 2 && sailing_stance == STANCE_NONE && !shot);
+	CHECK(landed >= (int)aboard && after == unit_default_stance(UNIT_TRIREME));
+}
+
 // navalManager.checkEvents: survivors of a ship sunk while sailing, set down on two lands (the
 // north shore and the islet), each ask for a transport (requireTransport) and all reach the
 // destination.
@@ -2939,6 +2985,7 @@ int main() {
 	test_petra_transport_trapped_passenger();
 	test_petra_transport_sunk_at_sea();
 	test_petra_transport_wrong_land();
+	test_petra_ferry_stance();
 	test_petra_sunk_survivors_two_lands();
 	test_petra_laden_ship_lands();
 	test_petra_merchantman_transport();
