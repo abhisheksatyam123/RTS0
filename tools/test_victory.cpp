@@ -103,6 +103,7 @@ int main() {
 	// 4. Conquest Units: killing units is enough.
 	{
 		Simulation *sim = fresh(VICTORY_CONQUEST_UNITS);
+		run(*sim, 0.1f); // the units list fills at the start (ConquestCommon.js)
 		wipe(*sim, 1, true, false);
 		run(*sim, 1.0f);
 		CHECK(sim->is_victory());
@@ -141,6 +142,7 @@ int main() {
 	// defeat hands the other the win (EndGameManager after each SetState), not a draw.
 	{
 		Simulation *sim = fresh(VICTORY_CONQUEST_UNITS);
+		run(*sim, 0.1f);
 		wipe(*sim, 0, true, false);
 		wipe(*sim, 1, true, false);
 		run(*sim, 1.0f);
@@ -1194,6 +1196,47 @@ int main() {
 		wipe(*sim, 1, true, false);
 		run(*sim, 1.0f);
 		CHECK(sim->is_victory() && reason(*sim, 1) == Simulation::SessionNotice::END_CIVIC_CENTRES_CRITICAL);
+		delete sim;
+		// "ConquestCritical CivilCentre+!Foundation" holds critical foundations: a Nomad player
+		// with a civic-centre foundation standing stays in after losing every unit.
+		sim = nomad(VK_CONQUEST_CIVIC_CENTRES);
+		sim->spawn_building_world(30.0f, 30.0f, BLD_TOWN_CENTER, 1, 0.1f);
+		run(*sim, 1.0f);
+		wipe(*sim, 1, true, false);
+		run(*sim, 1.0f);
+		CHECK(!sim->is_game_over() && sim->defeated_mask() == 0);
+		delete sim;
+		// Conquest Units (ConquestUnits.js): a player who starts with no units is not out on
+		// the first query; losing the critical structures too ends them ("lost all units and
+		// critical structures").
+		sim = combined(VK_CONQUEST_UNITS);
+		for (size_t i = 0; i < sim->units_.count; ++i)
+			if (sim->units_.team[i] == 1) kill_unit(*sim, i);
+		run(*sim, 1.0f);
+		CHECK(!sim->is_game_over() && sim->defeated_mask() == 0);
+		wipe(*sim, 1, false, true);
+		run(*sim, 1.0f);
+		CHECK(sim->is_victory() && reason(*sim, 1) == Simulation::SessionNotice::END_UNITS_CRITICAL);
+		delete sim;
+		sim = combined(VK_CONQUEST_UNITS);
+		run(*sim, 0.5f);
+		wipe(*sim, 1, true, false);
+		run(*sim, 1.0f);
+		CHECK(sim->is_victory() && reason(*sim, 1) == Simulation::SessionNotice::END_UNITS);
+		delete sim;
+		// The maps' army tents are template_structure_special, not ConquestCritical.
+		sim = fresh(VICTORY_CONQUEST);
+		wipe(*sim, 1, false, true);
+		const uint32_t tent = sim->spawn_building_world(30.0f, 30.0f, BLD_TENT, 1, 1.0f);
+		sim->set_structure_off(tent, Simulation::STRUCT_NOT_CRITICAL);
+		run(*sim, 0.5f);
+		std::vector<uint32_t> mine;
+		for (size_t i = 0; i < sim->units_.count; ++i)
+			if (sim->units_.team[i] == 1 && sim->units_.alive[i]) mine.push_back(sim->units_.id[i]);
+		sim->cmd_delete(1, mine.data(), mine.size());
+		sim->stats_[1].units_lost[STAT_UNIT_TOTAL] += (uint32_t)mine.size(); // as if killed (a deletion isn't counted)
+		run(*sim, 3.0f);
+		CHECK(sim->is_victory() && reason(*sim, 1) == Simulation::SessionNotice::END_CONQUEST);
 		delete sim;
 		GameSetupParams gp, back;
 		gp.victory = VICTORY_COMBINED | VK_CONQUEST | VK_WONDER | VK_RELIC;

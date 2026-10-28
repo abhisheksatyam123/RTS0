@@ -746,6 +746,7 @@ void Simulation::reset() {
 	game_over_ = false;
 	victory_ = false;
 	participant_mask_ = defeated_mask_ = winner_mask_ = 0;
+	had_unit_mask_ = 0;
 	relic_countdown_players_ = 0;
 	relic_changed_hands_ = false;
 	for (float &w : wonder_hold_) w = 0.0f;
@@ -18956,6 +18957,7 @@ void Simulation::check_victory_conditions(float dt) {
 	int unit_count[MAX_TEAMS] = {};
 	int structure_count[MAX_TEAMS] = {};
 	int critical_count[MAX_TEAMS] = {}; // ConquestCritical+!Foundation (Conquest.js)
+	int critical_structures[MAX_TEAMS] = {}; // ConquestCritical structures, foundations too
 	int critical_units[MAX_TEAMS] = {}; // ConquestCritical Unit
 	int tc_count[MAX_TEAMS] = {};
 	int built_cc_count[MAX_TEAMS] = {}; // CivilCentre+!Foundation (ConquestCivicCentres.js)
@@ -18965,7 +18967,10 @@ void Simulation::check_victory_conditions(float dt) {
 		// keeps a Conquest Structures player in; the critical and civic-centre counts skip it.
 		if (b.team >= MAX_TEAMS || b.hp <= 0.0f) continue;
 		structure_count[b.team]++;
-		if (is_conquest_critical(b.type) && b.build_progress >= 1.0f) critical_count[b.team]++;
+		if (is_conquest_critical(b.type) && !(b.template_off & STRUCT_NOT_CRITICAL)) {
+			critical_structures[b.team]++;
+			if (b.build_progress >= 1.0f) critical_count[b.team]++;
+		}
 		if (is_civic_centre(b.type)) tc_count[b.team]++;
 		if ((is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY) && b.build_progress >= 1.0f) built_cc_count[b.team]++;
 		if (b.type == BLD_WONDER && b.build_progress >= 1.0f) wonder[b.team] = true;
@@ -18978,6 +18983,7 @@ void Simulation::check_victory_conditions(float dt) {
 	}
 	for (int t = 0; t < MAX_TEAMS; ++t) {
 		if (unit_count[t] || structure_count[t]) participant_mask_ |= (uint8_t)(1u << t);
+		if (unit_count[t]) had_unit_mask_ |= (uint8_t)(1u << t);
 	}
 
 	if (has_victory(VK_WONDER)) {
@@ -19071,12 +19077,18 @@ void Simulation::check_victory_conditions(float dt) {
 		// holds nothing at all.
 		const bool lost_any = stats_[t].units_lost[STAT_UNIT_TOTAL] + stats_[t].buildings_lost[STAT_BLD_TOTAL] > 0;
 		if ((vk & VK_CONQUEST) && ((critical_count[t] == 0 && lost_any) || (no_units && no_structures))) return SN::END_CONQUEST;
-		if ((vk & VK_CONQUEST_UNITS) && no_units) return SN::END_UNITS;
 		const bool gone = lost_any || (no_units && no_structures);
+		// ConquestUnits.js: "Unit+!Animal" fires once the last unit is lost (a player who starts
+		// with none stays in), and "ConquestCritical Unit+!Animal" once the last unit and
+		// critical structure, foundations included, are gone.
+		if ((vk & VK_CONQUEST_UNITS) && no_units && ((had_unit_mask_ >> t) & 1)) return SN::END_UNITS;
+		if ((vk & VK_CONQUEST_UNITS) && no_units && critical_structures[t] == 0 && gone) return SN::END_UNITS_CRITICAL;
 		if ((vk & VK_CONQUEST_STRUCTURES) && no_structures && had_structure) return SN::END_STRUCTURES;
 		if ((vk & VK_CONQUEST_STRUCTURES) && no_structures && critical_units[t] == 0 && gone) return SN::END_STRUCTURES_CRITICAL;
 		if ((vk & VK_CONQUEST_CIVIC_CENTRES) && no_ccs) return SN::END_CIVIC_CENTRES;
-		if ((vk & VK_CONQUEST_CIVIC_CENTRES) && built_cc_count[t] == 0 && critical_count[t] == 0 && gone) return SN::END_CIVIC_CENTRES_CRITICAL;
+		// "ConquestCritical CivilCentre+!Foundation": a critical foundation keeps the player in.
+		if ((vk & VK_CONQUEST_CIVIC_CENTRES) && built_cc_count[t] == 0 && critical_structures[t] + critical_units[t] == 0 && gone)
+			return SN::END_CIVIC_CENTRES_CRITICAL;
 		if ((vk & VK_REGICIDE) && regicide_hero_lost(t)) return SN::END_HERO;
 		return -1;
 	};
@@ -37266,6 +37278,7 @@ bool Simulation::load_state(const char *filepath) {
 	in.read((char *)&game_over_, sizeof(game_over_));
 	in.read((char *)&victory_, sizeof(victory_));
 	participant_mask_ = defeated_mask_ = winner_mask_ = 0;
+	had_unit_mask_ = 0;
 	for (float &w : wonder_hold_) w = 0.0f;
 	if (version >= 10) {
 		in.read((char *)&participant_mask_, sizeof(participant_mask_));
