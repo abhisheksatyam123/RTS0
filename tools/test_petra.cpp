@@ -1115,15 +1115,17 @@ static void test_allow_capture() {
 	CHECK(f.garrisoned_units.size() == guards.size() && !take_fort, "damages a garrisoned fortress");
 	CHECK(!ram_captures, "siege never captures");
 
-	// A spearman sent to capture the fortress switches to damaging it.
+	// headquarters.js updateCaptureStrength: a spearman sent to capture the fortress switches
+	// to damaging it.
+	s->petra_pid_ = 1;
 	s->order_attack_building(&squad[1], 1, fort, false, true);
-	s->petra_check_captures(squad, f.x, f.z);
+	s->petra_update_capture_strength();
 	const auto &u = s->units_;
 	const int32_t i = s->lookup_unit(squad[1]);
 	CHECK(u.order_kind[i] == ORDER_ATTACK_BUILDING && !(u.order_flags[i] & ORDER_FLAG_ALLOW_CAPTURE),
 	      "a capture the squad can't win becomes an attack");
 	s->order_attack_building(&squad[2], 1, house, false, true);
-	s->petra_check_captures(squad, f.x, f.z);
+	s->petra_update_capture_strength();
 	const int32_t j = s->lookup_unit(squad[2]);
 	CHECK(u.order_flags[j] & ORDER_FLAG_ALLOW_CAPTURE, "a winnable capture goes on");
 
@@ -3431,7 +3433,7 @@ static void test_army_answers_attackers() {
 	run_for(*s, 4.0f);
 	const int32_t i = s->lookup_unit(squad[0]);
 	const bool turned = i >= 0 && s->units().alive[i] && s->units_.target_unit_id[i] == foe;
-	int helpers = 0; // attackPlan.js: the two nearest squad mates join in
+	int helpers = 0; // attackPlan.js filterNearest(2): the unit hit and its nearest squad mate
 	for (size_t k = 1; k < squad.size(); ++k) {
 		const int32_t j = s->lookup_unit(squad[k]);
 		if (j >= 0 && s->units_.target_unit_id[j] == foe) ++helpers;
@@ -3439,7 +3441,7 @@ static void test_army_answers_attackers() {
 	std::printf("  army under attack at a structure: the soldier hit turns on its attacker: %s, helpers %d (plan state %d)\n",
 	            turned ? "yes" : "no", helpers, (int)plan.state);
 	CHECK(turned, "a Petra soldier attacked while at a structure fights back at once");
-	CHECK(helpers == 2, "its two nearest squad mates turn on the attacker too");
+	CHECK(helpers == 1, "its nearest squad mate turns on the attacker too (filterNearest counts the unit hit)");
 }
 
 // attackPlan.js update: an attack's units pick their targets among the targetPlayer's
