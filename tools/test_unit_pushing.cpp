@@ -111,6 +111,45 @@
 //     about 1.2 past the edge). A wolf on a navcell a house's raster closes, beside a deep channel,
 //     never steps into the water after a spearman on the far bank (counted as on impassable ground,
 //     it swam across).
+// 27-30. Builders that never built in Stats' e2e_human_path runs (main 8f0eb61ab), each scene as the
+//     game dumped it: the civ, the village round the civic centre, every unit and structure under its
+//     id (the turn a unit searches on and the way a push takes follow its id).
+// 27. A worker sent to build from inside the crowd of its player's units standing idle by the civic
+//     centre (the soldiers it unloaded, with the women among them: civs 0, 2, 4, 6, 9 and 11) gets out
+//     and builds. The crowd shuts every way out at RTS0's crowd scale, among the smaller squares too,
+//     and the builder stood in it with its order for good, as 0.28's REPAIR never gives a walk to the
+//     site up. Now a builder whose searches find no way from where it stands walks through its own
+//     player's units that stand idle with no order, as a returner does (21), and one obstructed at the
+//     waypoint of a path round idle units (a path that led it within a standing woman's body, where
+//     separation nudged it off each tick) searches on from there, as HandleObstructedMove does.
+// 28. A site that waits for a unit on it to leave starts: LeaveFoundation's point is never inside
+//     another structure (civ 9: the barracks beside the house site) nor within a standing unit's square
+//     at the crowd scale (civ 13: 0.25 from the builder), where the unit's short path found no way and
+//     it stood on the site for good, and the site with it.
+// 29. A builder standing on its own site, its way off it shut by idle units, commits it from there, as
+//     0.28's builder is in range inside the footprint (civ 15's barracks): everyone on it leaves, the
+//     builder too, and it comes back to build. Before, the commit was tried only from outside.
+// 30. A builder given a gather order drops its path to the site, as StopMoving does (civ 4's market
+//     builder kept it as its next waypoint): the gather walk plans its own.
+// 31. Spearmen walking across a site that waits for them to leave, as a group and as a box formation,
+//     keep their walk to their points beyond it: 0.28 puts LeaveFoundation in front of the walk, which
+//     resumes once they are off. A walk is replaced only when LeaveFoundation gave it (its point on one
+//     of the rings just off the site that its points lie on) and that point is now taken or shut.
+//     Before, one whose point was near another's point (DistributeAround's ring, a formation's shared
+//     goal) was sent to the site's edge, ended there, and left its formation.
+// 32. A woman standing on the land part of a dock site, its seaward edge the nearest way off, sent to
+//     build it or standing there while another builds it: she leaves by land and the dock starts.
+//     LeaveFoundation's point for a land unit is on a navcell it can stand on and reach
+//     (Order.LeaveFoundation's range goal is planned on reachable navcells); out at sea, her walk ended
+//     on the site at the shore and she stood there (the builder since a builder on its site commits
+//     it, the woman standing there on main already).
+// 33. The same, the land round the dock packed with idle women so that every point off it on land is
+//     taken: she is still sent to a point on land, the nearest she can stand on and reach. Before, with
+//     no free point, she was sent to the first one, out at sea.
+// 34. A house site laid in a crowd of idle women, some of them on it: while it waits, a unit walking
+//     off it to its point is not given that walk again (0.28 leaves a LeaveFoundation under way as it
+//     is). Before, each was, every turn, its path planned anew each time: 1.3 find_path calls a turn
+//     here, twice main's.
 #define private public
 #include "simulation/simulation.h"
 #undef private
@@ -236,6 +275,102 @@ static FreezeRun freeze_run(Simulation &s, uint32_t w, float gx, float gz, uint3
 		}
 	}
 	return r;
+}
+
+// Tests 27-30: a scene of Stats' dumps on test 22's flat map, player 0 of civ `civ`, each structure and
+// unit under its id in the game.
+struct DumpBld {
+	uint32_t id;
+	float x, z;
+	uint8_t type;
+	float progress;
+};
+struct DumpUnit {
+	uint32_t id;
+	float x, z;
+	UnitType type;
+};
+static std::unique_ptr<Simulation> dump_scene(uint8_t civ, const std::vector<DumpBld> &blds, const std::vector<DumpUnit> &units) {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(5);
+	s->reset();
+	s->set_map_half(96.0f);
+	s->set_team_civ(0, civ);
+	s->set_team_civ(1, CIV_SPARTANS);
+	s->next_id_ = 5000;
+	s->spawn_building_world(-70.0f, -70.0f, BLD_TOWN_CENTER, 1, 1.0f);
+	for (const DumpBld &b : blds) {
+		s->next_id_ = b.id;
+		s->spawn_building_world(b.x, b.z, b.type, 0, b.progress);
+	}
+	s->rebuild_nav_grid();
+	for (const DumpUnit &u : units) {
+		s->next_id_ = u.id;
+		s->spawn_unit(u.x, u.z, 0, u.type);
+	}
+	s->next_id_ = 6000;
+	return s;
+}
+
+// The tick on which construction of `site` began (its progress above 0) within `ticks`, else -1.
+static int build_started(Simulation &s, uint32_t site, int ticks) {
+	for (int t = 1; t <= ticks; ++t) {
+		s.tick(DT);
+		if (s.buildings_[s.building_id_to_idx_.at(site)].build_progress > 0.0f) return t;
+	}
+	return -1;
+}
+
+// Tests 32-33: a shore (deep water south of z 16 on a map of half 64), player 0's civic centre inland and
+// a dock site of player 0 laid on the shore near x = -20 - 3 * pick. Returns the dock's id, 0 when it has
+// no place.
+static uint32_t shore_dock(Simulation &s, int pick) {
+	constexpr int RES = 65;
+	constexpr float HALF = 64.0f;
+	s.set_sim_seed(7);
+	s.reset();
+	s.set_map_half(HALF);
+	std::vector<float> h((size_t)RES * RES);
+	for (int j = 0; j < RES; ++j)
+		for (int i = 0; i < RES; ++i)
+			h[(size_t)j * RES + i] = std::fabs(-HALF + 2.0f * HALF * j / (RES - 1)) < 16.0f ? -3.0f : 3.0f;
+	s.set_terrain_data(h, RES, 0.0f);
+	s.begin_bulk_spawn();
+	s.end_bulk_spawn();
+	for (uint8_t p = 0; p < 4; ++p) {
+		s.set_player_active(p, true, false);
+		s.set_player_resources(p, 0, 0, 0, 0);
+	}
+	s.set_team_civ(0, CIV_CARTHAGINIANS);
+	s.set_team_civ(1, CIV_ATHENIANS);
+	s.spawn_building_world(-20.0f, 40.0f, BLD_TOWN_CENTER, 0);
+	for (int t = 0; t < 10; ++t) s.tick(Simulation::FIXED_STEP);
+	const int foot = building_type_info(BLD_DOCK).footprint;
+	for (int z = -64; z < 64; ++z)
+		for (int x = -64; x < 64; ++x) {
+			const float wx = (x + 0.5f * foot) * Simulation::GRID, wz = (z + 0.5f * foot) * Simulation::GRID;
+			if (wz > 10.0f && wz < 24.0f && std::fabs(wx + 20.0f + 3.0f * pick) < 6.0f && s.check_placement(0, x, z, BLD_DOCK) == Simulation::PLACE_OK)
+				return s.spawn_building(x, z, BLD_DOCK, 0, 0.0f);
+		}
+	return 0;
+}
+
+// The first point of a dock site's land part (0.3 in from its edges) whose nearest point off it is at sea.
+static bool wet_exit_spot(Simulation &s, const Simulation::Building &b, float &wx, float &wz) {
+	for (float lu = -b.hu + 0.3f; lu <= b.hu - 0.3f; lu += 0.25f)
+		for (float lv = -b.hv + 0.3f; lv <= b.hv - 0.3f; lv += 0.25f) {
+			const nav::Vec2 w = nav::footprint_world(b, lu, lv);
+			const auto [gx, gy] = s.nav_grid_.world_to_cell(w.x, w.y);
+			if (!s.nav_grid_.is_passable_for(gx, gy, PASS_INFANTRY)) continue;
+			float tx, tz;
+			s.foundation_exit_point(b, w.x, w.y, unit_collision_radius(UNIT_FEMALE_CITIZEN), tx, tz);
+			const auto [ex, ey] = s.nav_grid_.world_to_cell(tx, tz);
+			if (s.nav_grid_.is_passable_for(ex, ey, PASS_INFANTRY)) continue;
+			wx = w.x;
+			wz = w.y;
+			return true;
+		}
+	return false;
 }
 
 int main() {
@@ -1343,6 +1478,328 @@ int main() {
 		            "across it after %d ticks (-1 = never in 1200)\n", wx, wz, wet, bitten);
 		CHECK(found, "the wolf stands on a navcell the house closes, beside deep water");
 		CHECK(found && wet < 0, "an animal on a navcell a structure closes never steps into deep water");
+	}
+	// The village round player 0's civic centre in Stats' dumps.
+	const DumpBld cc{1, 37.335f, 37.335f, BLD_TOWN_CENTER, 1.0f}, house600{600, 39.0f, 41.0f, BLD_HOUSE, 1.0f};
+	const DumpBld barracks700{700, 40.0f, 44.0f, BLD_BARRACKS, 1.0f}, house601{601, 35.0f, 43.0f, BLD_HOUSE, 1.0f};
+	const DumpBld house934{934, 37.0f, 43.0f, BLD_HOUSE, 1.0f};
+	constexpr UnitType W = UNIT_FEMALE_CITIZEN, A = UNIT_ARCHER;
+	{
+		// 27. Each builder (the first unit) stands among its player's idle units, all with no order, and
+		// is sent to its foundation 6 to 14 units away. The last crowd is one of random layouts round the
+		// civ 6 builder, settled for a second first, whose path round the crowd led it within a woman's
+		// body.
+		struct Crowd {
+			const char *name;
+			uint8_t civ;
+			std::vector<DumpBld> blds;
+			std::vector<DumpUnit> units;
+			uint32_t site;
+			int settle;
+		};
+		const std::vector<Crowd> crowds = {
+			{"civ 0 house", CIV_ATHENIANS, {cc, house600, barracks700, {930, 35.0f, 33.0f, BLD_HOUSE, 0.0f}},
+			 {{879, 27.786f, 33.798f, W}, {8, 25.01f, 34.18f, A}, {881, 29.58f, 35.72f, W}, {882, 29.16f, 32.94f, W}, {883, 26.30f, 35.54f, W},
+			  {884, 27.81f, 36.17f, W}, {885, 29.32f, 34.38f, W}, {905, 26.63f, 33.89f, A}, {906, 29.03f, 31.53f, A}, {912, 27.55f, 32.36f, A},
+			  {913, 27.91f, 35.02f, A}},
+			 930, 0},
+			{"civ 9 house", CIV_MAURYANS,
+			 {cc, house600, barracks700, house601, house934, {992, 35.0f, 33.0f, BLD_STOREHOUSE, 0.0f}, {1038, 37.0f, 33.0f, BLD_HOUSE, 0.0f}},
+			 {{911, 27.522f, 33.009f, W}, {910, 27.67f, 33.97f, W}, {912, 26.17f, 34.78f, W}, {913, 29.26f, 35.16f, W}, {914, 26.09f, 32.89f, W},
+			  {981, 28.97f, 32.40f, A}, {982, 27.93f, 35.35f, A}, {984, 27.24f, 31.75f, A}, {987, 29.33f, 33.79f, A}},
+			 1038, 0},
+			{"civ 9 second house", CIV_MAURYANS,
+			 {cc, house600, barracks700, house601, house934, {992, 35.0f, 33.0f, BLD_STOREHOUSE, 0.0f}, {1038, 37.0f, 33.0f, BLD_HOUSE, 0.0f},
+			  {1063, 39.0f, 33.0f, BLD_HOUSE, 0.0f}},
+			 {{913, 29.271f, 35.155f, W}, {8, 29.73f, 37.72f, A}, {910, 27.67f, 33.97f, W}, {981, 28.97f, 32.40f, A}, {982, 27.93f, 35.35f, A},
+			  {983, 30.82f, 33.42f, A}, {986, 30.68f, 36.54f, A}, {987, 29.32f, 33.83f, A}, {988, 26.95f, 36.44f, A}, {989, 30.79f, 34.99f, A},
+			  {990, 28.63f, 36.63f, A}},
+			 1063, 0},
+			{"civ 2 market", CIV_PERSIANS, {cc, house600, barracks700, {982, 42.0f, 38.0f, BLD_MARKET, 0.0f}},
+			 {{909, 29.698f, 35.842f, W}, {8, 31.07f, 33.81f, A}, {912, 27.72f, 36.57f, W}, {913, 29.17f, 34.37f, W}, {953, 31.13f, 36.36f, A},
+			  {954, 27.40f, 34.29f, A}, {956, 28.05f, 38.11f, A}, {957, 28.26f, 35.44f, A}, {959, 31.03f, 34.82f, A}, {961, 29.25f, 37.11f, A}},
+			 982, 0},
+			{"civ 4 house", CIV_CARTHAGINIANS, {cc, house600, barracks700, {972, 35.0f, 33.0f, BLD_HOUSE, 0.0f}},
+			 {{895, 27.775f, 33.193f, W}, {9, 25.08f, 34.15f, A}, {910, 29.15f, 33.03f, W}, {911, 26.30f, 35.49f, W}, {913, 29.26f, 34.43f, W},
+			  {954, 27.42f, 34.28f, A}, {957, 28.25f, 35.44f, A}, {958, 28.24f, 31.72f, A}, {959, 26.80f, 31.69f, A}, {960, 26.12f, 33.15f, A}},
+			 972, 0},
+			{"civ 4 market", CIV_CARTHAGINIANS, {cc, house600, barracks700, {972, 35.0f, 33.0f, BLD_HOUSE, 1.0f}, {1011, 42.0f, 38.0f, BLD_MARKET, 0.0f}},
+			 {{911, 26.295f, 35.489f, W}, {9, 25.08f, 34.15f, A}, {895, 28.45f, 33.47f, W}, {912, 27.72f, 36.57f, W}, {952, 26.44f, 37.19f, A},
+			  {954, 27.27f, 34.25f, A}, {955, 24.64f, 35.50f, A}, {957, 28.27f, 35.48f, A}, {960, 26.12f, 33.15f, A}},
+			 1011, 0},
+			{"civ 6 house", CIV_BRITONS, {cc, {943, 35.0f, 33.0f, BLD_HOUSE, 0.0f}},
+			 {{896, 28.348f, 34.243f, W}, {8, 28.00f, 31.51f, A}, {9, 27.85f, 32.93f, A}, {910, 29.31f, 35.15f, W}, {911, 27.11f, 35.62f, W},
+			  {912, 28.44f, 35.95f, W}, {914, 30.22f, 34.11f, W}, {927, 30.01f, 36.65f, A}, {929, 26.43f, 34.28f, A}, {932, 30.77f, 32.51f, A},
+			  {933, 26.31f, 33.28f, A}, {934, 29.37f, 32.77f, A}},
+			 943, 0},
+			{"civ 11 house", CIV_PTOLEMIES, {cc, {968, 35.0f, 43.0f, BLD_HOUSE, 0.0f}},
+			 {{895, 27.890f, 35.144f, W}, {909, 29.20f, 34.10f, W}, {910, 26.81f, 34.05f, W}, {911, 27.46f, 36.60f, W}, {912, 29.40f, 35.50f, W},
+			  {913, 25.93f, 35.38f, W}, {926, 27.26f, 32.35f, A}, {928, 28.28f, 33.59f, A}, {929, 29.01f, 36.55f, A}},
+			 968, 0},
+			{"a civ 6 layout", CIV_BRITONS, {cc, {943, 35.0f, 33.0f, BLD_HOUSE, 0.0f}},
+			 {{896, 28.129f, 33.961f, W}, {902, 27.263f, 33.763f, W}, {903, 26.285f, 33.649f, A}, {904, 27.086f, 34.936f, W},
+			  {905, 30.184f, 34.799f, A}, {906, 28.087f, 32.062f, W}, {907, 26.981f, 35.754f, A}, {908, 28.285f, 33.031f, W},
+			  {909, 29.078f, 34.541f, A}},
+			 943, 20},
+		};
+		int started = 0;
+		float crowd_moved = 0.0f;
+		for (const Crowd &c : crowds) {
+			auto s = dump_scene(c.civ, c.blds, c.units);
+			for (int t = 0; t < c.settle; ++t) s->tick(DT);
+			const uint32_t builder = c.units[0].id;
+			s->order_build_or_repair(&builder, 1, c.site);
+			const int t = build_started(*s, c.site, 1200);
+			std::printf("  builder %u in the %s crowd: started its foundation after %.2f s (-1: not in 60 s)", builder, c.name,
+			            t < 0 ? -1.0f : t * DT);
+			if (c.settle == 0) {
+				// The crowd stands as it does without the builder, which once ordered neither pushes nor is
+				// pushed by it (Push never mixes moving and idle).
+				auto still = dump_scene(c.civ, c.blds, std::vector<DumpUnit>(c.units.begin() + 1, c.units.end()));
+				for (int k = 0; k < (t < 0 ? 1200 : t); ++k) still->tick(DT);
+				float moved = 0.0f;
+				for (size_t k = 1; k < c.units.size(); ++k) {
+					const int j = idx(*s, c.units[k].id), jj = idx(*still, c.units[k].id);
+					moved = std::max(moved, std::hypot(s->units_.pos_x[j] - still->units_.pos_x[jj], s->units_.pos_z[j] - still->units_.pos_z[jj]));
+				}
+				crowd_moved = std::max(crowd_moved, moved);
+				std::printf("; the crowd stands within %.3f of where it stands without the builder", moved);
+			}
+			std::printf("\n");
+			started += t > 0;
+		}
+		CHECK(started == (int)crowds.size(), "a builder in a crowd of its player's idle units gets out to its site and builds");
+		CHECK(crowd_moved < 0.01f, "and walking through them pushes none of the idle crowd aside");
+	}
+	{
+		// 28. A unit stands on a foundation whose builder stands just outside it. Civ 13's storehouse:
+		// the nearest point off the site lies 0.25 from the builder. Civ 9's house: the unit walks to
+		// the nearest point off it, inside the barracks beside it, when the builder is sent.
+		int started = 0, runs = 0;
+		for (int scene = 0; scene < 2; ++scene) {
+			auto s = scene == 0
+					? dump_scene(CIV_HAN, {cc, house600, barracks700, {935, 37.0f, 43.0f, BLD_STOREHOUSE, 0.0f}},
+					             {{3, 37.51297f, 41.15369f, W}, {4, 37.28f, 42.49f, W}, {11, 35.85f, 39.67f, UNIT_MINISTER}})
+					: dump_scene(CIV_MAURYANS, {cc, house600, barracks700, house601, {934, 37.0f, 43.0f, BLD_HOUSE, 0.0f}},
+					             {{3, 35.825f, 41.181f, W}, {2, 37.11f, 41.79f, W}, {4, 37.46f, 43.14f, W}, {10, 33.09f, 41.58f, UNIT_CAVALRY}});
+			const uint32_t builder = 3, on_site = 4, site = scene == 0 ? 935 : 934;
+			if (scene == 1) s->order_walk(&on_site, 1, 38.98f, 43.137f);
+			s->order_build_or_repair(&builder, 1, site);
+			const int t = build_started(*s, site, 600);
+			const int u = idx(*s, on_site);
+			std::printf("  civ %d's %s: started after %.2f s (-1: not in 30 s); the unit that stood on it is at (%.2f, %.2f)\n",
+			            scene == 0 ? 13 : 9, scene == 0 ? "storehouse" : "house", t < 0 ? -1.0f : t * DT, s->units_.pos_x[u], s->units_.pos_z[u]);
+			++runs;
+			started += t > 0;
+		}
+		CHECK(started == runs, "a unit on a site leaves it for a point it can get to, and the site starts");
+	}
+	{
+		// 29. Civ 15's barracks: its builder stands inside the footprint with an idle woman by the edge
+		// it would leave by, an archer standing on the site too.
+		auto s = dump_scene(CIV_GERMANS, {cc, house600, {908, 40.0f, 44.0f, BLD_BARRACKS, 0.0f}},
+		                    {{2, 38.53499f, 42.54517f, W}, {3, 37.16f, 41.61f, W}, {9, 40.87f, 42.28f, A}, {11, 37.56f, 39.74f, UNIT_CAVALRY}});
+		const uint32_t builder = 2;
+		s->order_build_or_repair(&builder, 1, 908);
+		const int t = build_started(*s, 908, 600);
+		const auto &b = s->buildings_[s->building_id_to_idx_.at(908)];
+		int on_site = 0;
+		for (const uint32_t id : {2u, 9u}) {
+			const int i = idx(*s, id);
+			on_site += nav::footprint_contains(b, s->units_.pos_x[i], s->units_.pos_z[i], 0.0f);
+		}
+		std::printf("  a builder standing on its barracks site: started after %.2f s (-1: not in 30 s), %d of the two units still on it\n",
+		            t < 0 ? -1.0f : t * DT, on_site);
+		CHECK(t > 0 && on_site == 0, "a builder standing on its site has everyone leave it, itself too, and builds");
+	}
+	{
+		// 30. Civ 4's market builder: the line to its stand point crosses the civic centre, so it walks a
+		// path; a second after its build order it is sent to gather wood.
+		auto s = dump_scene(CIV_CARTHAGINIANS, {cc, house600, barracks700, {972, 35.0f, 33.0f, BLD_HOUSE, 1.0f}, {1011, 42.0f, 38.0f, BLD_MARKET, 0.0f}},
+		                    {{911, 26.295f, 35.489f, W}, {9, 25.08f, 34.15f, A}, {895, 28.45f, 33.47f, W}, {912, 27.72f, 36.57f, W},
+		                     {952, 26.44f, 37.19f, A}, {954, 27.27f, 34.25f, A}, {955, 24.64f, 35.50f, A}, {957, 28.27f, 35.48f, A},
+		                     {960, 26.12f, 33.15f, A}});
+		const uint32_t builder = 911;
+		s->order_build_or_repair(&builder, 1, 1011);
+		for (int t = 0; t < 20; ++t) s->tick(DT);
+		const int i = idx(*s, builder);
+		const float *xs = nullptr, *zs = nullptr;
+		const int build_path = s->unit_waypoints_left((size_t)i, &xs, &zs);
+		const uint32_t tree = s->spawn_resource_world(24.0f, 42.0f, RES_WOOD, 200);
+		s->order_gather(&builder, 1, tree);
+		const int left = s->unit_waypoints_left((size_t)i, &xs, &zs);
+		const bool stale = left > 0 || s->unit_paths_[i].has_goal;
+		s->tick(DT);
+		// Any path it walks now is the gather walk's own, to the tree.
+		const auto &wp = s->unit_paths_[idx(*s, builder)];
+		const bool to_tree = !wp.has_goal || std::hypot(wp.goal_x - 24.0f, wp.goal_z - 42.0f) <= 2.0f;
+		std::printf("  a builder walking a path to its market: %d waypoints left; sent to gather, %d left of the old path; a tick on, its path "
+		            "%s\n", build_path, left, to_tree ? "leads to the tree or there is none" : "still leads to the market");
+		CHECK(build_path > 0, "the builder walks a path to its site");
+		CHECK(!stale && to_tree, "a gather order drops the path to the site");
+	}
+	{
+		// 31. Spearmen sent across a house site to points 14 beyond it, as a group and as a box formation;
+		// once one is on the site its builder, waiting beside it, is sent to build.
+		int far = 0, units = 0, started = 0, runs = 0;
+		for (int formation = 0; formation < 2; ++formation)
+			for (int seed = 0; seed < 6; ++seed) {
+				auto s = std::make_unique<Simulation>();
+				s->set_sim_seed(5);
+				s->reset();
+				s->set_map_half(96.0f);
+				s->set_team_civ(0, CIV_ATHENIANS);
+				s->set_team_civ(1, CIV_SPARTANS);
+				s->next_id_ = 5000;
+				s->spawn_building_world(-70.0f, -70.0f, BLD_TOWN_CENTER, 1, 1.0f);
+				s->next_id_ = 100;
+				const uint32_t site = s->spawn_building_world(0.0f, 0.0f, BLD_HOUSE, 0, 0.0f);
+				s->rebuild_nav_grid();
+				s->next_id_ = 200;
+				const uint32_t builder = s->spawn_unit(0.0f, -s->buildings_[s->building_id_to_idx_.at(site)].hv - 0.9f, 0, UNIT_FEMALE_CITIZEN);
+				const int n = formation ? 9 : 8;
+				std::vector<uint32_t> ids;
+				for (int k = 0; k < n; ++k)
+					ids.push_back(s->spawn_unit(-10.0f - 1.6f * (k % 2), -1.5f + 3.0f * k / (n - 1) + 0.13f * seed, 0, UNIT_SPEARMAN));
+				if (formation) s->order_set_formation(ids.data(), ids.size(), FORMATION_BOX);
+				for (int t = 0; t < 5; ++t) s->tick(DT);
+				const float gx = 14.0f, gz = 0.3f * seed;
+				s->cmd_move(ids.data(), ids.size(), gx, gz);
+				bool ordered = false;
+				for (int t = 1; t <= 800; ++t) {
+					for (size_t k = 0; k < ids.size() && !ordered; ++k) {
+						const int i = idx(*s, ids[k]);
+						if (nav::footprint_contains(s->buildings_[s->building_id_to_idx_.at(site)], s->units_.pos_x[i], s->units_.pos_z[i], 0.0f)) {
+							s->order_build_or_repair(&builder, 1, site);
+							ordered = true;
+						}
+					}
+					s->tick(DT);
+				}
+				for (const uint32_t id : ids) {
+					const int i = idx(*s, id);
+					far += std::hypot(s->units_.pos_x[i] - gx, s->units_.pos_z[i] - gz) > 6.0f;
+				}
+				units += n;
+				started += ordered && s->buildings_[s->building_id_to_idx_.at(site)].build_progress > 0.0f;
+				++runs;
+			}
+		std::printf("  spearmen across a waiting house site, as a group and as a box: %d of %d end more than 6 from their point; the site "
+		            "starts in %d of %d runs\n", far, units, started, runs);
+		CHECK(far == 0, "a group or formation walking across a site keeps its walk off it to its point");
+		CHECK(started == runs, "and the site starts once they are off it");
+	}
+	{
+		// 32. A dock site on a shore (deep water south of z 16): a woman standing on its land part, the
+		// sea the nearest way off it, is sent to build it, alone; or stands there while another woman,
+		// sent from the land north of it, builds it.
+		int started[2] = {0, 0}, runs[2] = {0, 0};
+		for (int run = 0; run < 8; ++run) {
+			const int pick = run % 4, role = run / 4;
+			auto s = std::make_unique<Simulation>();
+			const uint32_t dock = shore_dock(*s, pick);
+			if (!dock) continue;
+			const Simulation::Building &b = s->buildings_[s->building_id_to_idx_.at(dock)];
+			float wx = 0.0f, wz = 0.0f;
+			if (!wet_exit_spot(*s, b, wx, wz)) continue;
+			const uint32_t woman = s->spawn_unit(wx, wz, 0, UNIT_FEMALE_CITIZEN);
+			const uint32_t builder = role == 0 ? woman : s->spawn_unit(b.x, b.z + b.hv + 2.0f, 0, UNIT_FEMALE_CITIZEN);
+			s->order_build_or_repair(&builder, 1, dock);
+			const int t = build_started(*s, dock, 600);
+			std::printf("  a woman on a dock site at (%.2f, %.2f), the sea its nearest way off, %s: started after %.2f s (-1: not in 30 s)\n", wx,
+			            wz, role == 0 ? "sent to build it" : "idle, another building it", t < 0 ? -1.0f : t * DT);
+			started[role] += t > 0;
+			++runs[role];
+		}
+		CHECK(runs[0] == 4 && started[0] == runs[0], "a builder on its dock site leaves it by land, and the dock starts");
+		CHECK(runs[1] == 4 && started[1] == runs[1], "and so does a woman standing on it while another builds it");
+	}
+	{
+		// 33. The same shore, the land round the dock packed with idle women 1.1 apart out to 3 off its
+		// edges (none within 1.2 of its builder, beside the middle of its side furthest inland): a woman on
+		// its land part, the sea her nearest way off it, is sent off it once the builder is in range.
+		int runs = 0, sent = 0, wet = 0;
+		for (int pick = 0; pick < 4; ++pick) {
+			auto s = std::make_unique<Simulation>();
+			const uint32_t dock = shore_dock(*s, pick);
+			if (!dock) continue;
+			const Simulation::Building &b = s->buildings_[s->building_id_to_idx_.at(dock)];
+			float wx = 0.0f, wz = 0.0f;
+			if (!wet_exit_spot(*s, b, wx, wz)) continue;
+			nav::Vec2 bp = nav::footprint_world(b, 0.0f, b.hv + 0.9f);
+			for (const nav::Vec2 c : {nav::footprint_world(b, 0.0f, -b.hv - 0.9f), nav::footprint_world(b, b.hu + 0.9f, 0.0f),
+					 nav::footprint_world(b, -b.hu - 0.9f, 0.0f)})
+				if (c.y > bp.y) bp = c;
+			for (float lu = -b.hu - 3.0f; lu <= b.hu + 3.0f + 1e-4f; lu += 1.1f)
+				for (float lv = -b.hv - 3.0f; lv <= b.hv + 3.0f + 1e-4f; lv += 1.1f) {
+					if (std::fabs(lu) < b.hu + 0.45f && std::fabs(lv) < b.hv + 0.45f) continue;
+					const nav::Vec2 w = nav::footprint_world(b, lu, lv);
+					const auto [gx, gy] = s->nav_grid_.world_to_cell(w.x, w.y);
+					if (!s->nav_grid_.is_passable_for(gx, gy, PASS_INFANTRY) || std::hypot(w.x - bp.x, w.y - bp.y) < 1.2f) continue;
+					s->spawn_unit(w.x, w.y, 0, UNIT_FEMALE_CITIZEN);
+				}
+			for (int t = 0; t < 20; ++t) s->tick(DT);
+			const uint32_t woman = s->spawn_unit(wx, wz, 0, UNIT_FEMALE_CITIZEN);
+			const uint32_t builder = s->spawn_unit(bp.x, bp.y, 0, UNIT_FEMALE_CITIZEN);
+			s->order_build_or_repair(&builder, 1, dock);
+			bool walk = false, at_sea = false;
+			for (int t = 0; t < 200; ++t) {
+				s->tick(DT);
+				const int wi = idx(*s, woman);
+				if (s->units_.order_kind[wi] != ORDER_WALK || !s->units_.has_order[wi]) continue;
+				walk = true;
+				const auto [ox, oy] = s->nav_grid_.world_to_cell(s->units_.order_x[wi], s->units_.order_z[wi]);
+				if (!s->nav_grid_.is_passable_for(ox, oy, PASS_INFANTRY)) at_sea = true;
+			}
+			std::printf("  a woman on a dock site at (%.2f, %.2f), the land round it crowded: sent off it %d, to a point at sea %d\n", wx, wz, walk,
+			            at_sea);
+			++runs;
+			sent += walk;
+			wet += at_sea;
+		}
+		CHECK(runs == 4 && sent == runs && wet == 0, "a woman on a dock site, the land round it crowded, is sent off it to a point on land");
+	}
+	{
+		// 34. A house site laid in a crowd of idle women 1.3 apart (jittered), some of them on it, its
+		// builder just south of it: the find_path calls while it waits, 400 turns at most.
+		long long paths = 0;
+		int waited = 0;
+		for (int seed = 0; seed < 3; ++seed) {
+			auto s = std::make_unique<Simulation>();
+			s->set_sim_seed(5);
+			s->reset();
+			s->set_map_half(96.0f);
+			s->set_team_civ(0, CIV_ATHENIANS);
+			s->set_team_civ(1, CIV_SPARTANS);
+			s->next_id_ = 5000;
+			s->spawn_building_world(-70.0f, -70.0f, BLD_TOWN_CENTER, 1, 1.0f);
+			s->next_id_ = 100;
+			const uint32_t site = s->spawn_building_world(0.0f, 0.0f, BLD_HOUSE, 0, 0.0f);
+			s->rebuild_nav_grid();
+			s->next_id_ = 200;
+			const float bx = 0.0f, bz = -s->buildings_[s->building_id_to_idx_.at(site)].hv - 0.9f;
+			const uint32_t builder = s->spawn_unit(bx, bz, 0, UNIT_FEMALE_CITIZEN);
+			uint64_t r = (uint64_t)seed * 7919 + 17;
+			auto jitter = [&r]() {
+				r = r * 6364136223846793005ULL + 1442695040888963407ULL;
+				return ((float)((r >> 33) & 0xFFFFFF) / (float)0x1000000 - 0.5f) * 0.4f * 1.3f;
+			};
+			for (float z = -5.0f; z <= 5.0f + 1e-3f; z += 1.3f)
+				for (float x = -5.0f; x <= 5.0f + 1e-3f; x += 1.3f) {
+					const float jx = x + jitter(), jz = z + jitter();
+					if (std::hypot(jx - bx, jz - bz) >= 1.3f) s->spawn_unit(jx, jz, 0, UNIT_FEMALE_CITIZEN);
+				}
+			for (int t = 0; t < 20; ++t) s->tick(DT);
+			s->order_build_or_repair(&builder, 1, site);
+			const uint64_t p0 = s->map_scale_stats_.path_calls;
+			for (int t = 0; t < 400 && !s->buildings_[s->building_id_to_idx_.at(site)].committed; ++t) {
+				s->tick(DT);
+				++waited;
+			}
+			paths += (long long)(s->map_scale_stats_.path_calls - p0);
+		}
+		std::printf("  a house site waiting in a crowd of idle women: %lld find_path calls in %d turns\n", paths, waited);
+		CHECK(waited > 0 && 2 * paths < waited, "a site waiting in a crowd costs under one find_path every two turns");
 	}
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
