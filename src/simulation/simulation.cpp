@@ -21693,8 +21693,13 @@ Simulation::BribeResult Simulation::cmd_bribe(uint8_t player, uint8_t target) {
 	for (size_t i = 0; i < units_.count; ++i) {
 		if ((!units_.alive[i] && units_.action_state[i] != ACTION_GARRISONED) || units_.team[i] != target) continue;
 		if (units_.unit_type[i] != UNIT_TRADER && units_.unit_type[i] != UNIT_MERCHANT_SHIP) continue;
+		// !ShareVisionWith(player): not one already spied on by the briber, nor a merchant ship
+		// carrying the briber's units (CheckVisionSharings shares a holder's vision with them).
 		bool spied = false;
 		for (const Spy &s : spies_) spied |= s.unit_id == units_.id[i] && s.player == player;
+		if (auto it = transport_passengers_.find(units_.id[i]); !spied && it != transport_passengers_.end())
+			for (uint32_t pid : it->second)
+				if (const int32_t pu = pid ? lookup_unit(pid) : -1; pu >= 0 && units_.team[pu] == player) spied = true;
 		if (!spied) candidates.push_back(units_.id[i]);
 	}
 	PlayerState &ps = players_[player];
