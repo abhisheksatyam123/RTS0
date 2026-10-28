@@ -1827,7 +1827,9 @@ void RtsoMain::finish_right_line(const Ref<InputEventMouseButton> &release) {
 	const bool attack = units_only || rtso::hotkeys::held("session.attackmove") || attack_move_mode;
 	attack_move_mode = false;
 	const bool queued = rtso::hotkeys::held("session.queue");
-	const uint8_t qbit = queued ? rtso::NET_PARAM_QUEUED : 0;
+	// walk-custom and attack-walk-custom pass pushFront (Commands.js) like the plain orders.
+	const bool push_front = !queued && rtso::hotkeys::held("session.pushorderfront");
+	const uint8_t qbit = queued ? rtso::NET_PARAM_QUEUED : push_front ? rtso::NET_PARAM_PUSH_FRONT_ORDER : 0;
 	if (turn_cmds()) {
 		// formation NULL_FORMATION: the units leave their formations first.
 		std::vector<uint32_t> formed;
@@ -1852,6 +1854,7 @@ void RtsoMain::finish_right_line(const Ref<InputEventMouseButton> &release) {
 			turn_mgr_.post_local_command(c);
 		}
 	} else {
+		sim->set_push_front_order(push_front);
 		for (size_t k = 0; k < n; ++k) {
 			if (attack)
 				sim->order_attack_move(&ents[k], 1, dist[k].x, dist[k].y, queued, units_only, false);
@@ -1860,11 +1863,13 @@ void RtsoMain::finish_right_line(const Ref<InputEventMouseButton> &release) {
 				sim->order_fauna_walk(local_player(), &ents[k], 1, dist[k].x, dist[k].y);
 			}
 		}
+		sim->set_push_front_order(false);
 	}
 	// Target markers at least 5 m (1.25) apart.
 	const size_t step = std::max<size_t>(1, (size_t)std::ceil(1.25f / std::max(between, 0.001f)));
 	for (size_t k = 0; k < n; k += step) range_overlays_.add_target_marker(dist[k].x, dist[k].y);
-	play_civ_voice(attack ? "attack" : "move");
+	// PlaySound "order_walk" of the first unit by id, attack-move or not.
+	play_civ_voice("move", ents.front());
 }
 
 // getPreferredEntities for a box with no units: the player's finished defensive structures in it
