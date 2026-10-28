@@ -64,57 +64,6 @@ struct FormationUnitInfo {
 	uint16_t classes;    // FormationClass bits
 };
 
-struct FormationStatMods {
-	float hack_armor_add;
-	float pierce_armor_add;
-	float crush_armor_add;
-	float damage_mult;
-	float speed_mult;
-	float repeat_time_mult;
-};
-
-inline FormationStatMods formation_stat_modifiers(uint8_t form) {
-	switch (form) {
-	case FORMATION_PHALANX:
-		// Dense hoplite shield wall: heavy frontal defense, thrusting spear bonus, reduced speed
-		return {5.0f, 5.0f, 2.0f, 1.20f, 0.75f, 1.0f};
-	case FORMATION_TESTUDO:
-		// Roman tortoise shield roof/sides: massive missile protection, slow advance
-		return {3.0f, 10.0f, 1.0f, 1.0f, 0.60f, 1.0f};
-	case FORMATION_SYNTAGMA:
-		// Macedonian sarissa pike block: dense spear points, high melee damage & pierce armor, reduced speed
-		return {4.0f, 6.0f, 2.0f, 1.25f, 0.70f, 1.0f};
-	case FORMATION_SHIELD_WALL:
-		// Germanic/spearman shield wall: solid hack & pierce resistance, slightly reduced speed
-		return {4.0f, 4.0f, 1.0f, 1.10f, 0.80f, 1.0f};
-	case FORMATION_ANTI_CAVALRY:
-		// Anti-cavalry ring/square: bracing against cavalry impact
-		return {3.0f, 3.0f, 2.0f, 1.20f, 0.80f, 1.0f};
-	case FORMATION_WEDGE:
-		// Triangular cavalry charge: penetration attack bonus, faster strikes, charge speed, vulnerable flanks
-		return {-2.0f, -2.0f, 0.0f, 1.30f, 1.10f, 0.85f};
-	case FORMATION_COLUMN:
-		// Forced march: rapid movement, lower defense
-		return {-2.0f, -2.0f, 0.0f, 1.0f, 1.20f, 1.0f};
-	case FORMATION_COLUMN_OPEN:
-		// Open march: moderate speed boost
-		return {-1.0f, -1.0f, 0.0f, 1.0f, 1.10f, 1.0f};
-	case FORMATION_BOX:
-		// Square formation protecting all sides: slight all-around defense, minor speed cost
-		return {1.0f, 1.0f, 1.0f, 1.0f, 0.90f, 1.0f};
-	case FORMATION_BATTLE_LINE:
-	case FORMATION_LINE:
-		// Cohesive line order: slight attack cohesion
-		return {0.0f, 0.0f, 0.0f, 1.05f, 1.0f, 1.0f};
-	case FORMATION_SKIRMISH:
-	case FORMATION_LINE_OPEN:
-		// Dispersed order: slight agility, slight missile vulnerability
-		return {0.0f, -1.0f, 0.0f, 1.0f, 1.05f, 1.0f};
-	default:
-		return {0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f};
-	}
-}
-
 #include "core/math/det_math.h"
 #include "formation_data.h"
 
