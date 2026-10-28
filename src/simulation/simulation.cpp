@@ -9562,6 +9562,9 @@ void Simulation::set_team_civ(uint8_t team, uint8_t civ) {
 		b.civ = civ;
 		b.garrison_cap = structure_garrison_cap(b);
 	}
+	// The civ's auto-researched bonuses (the Macedonian storehouse's instant research) are in its
+	// modifiers: a civ set after reset (a map's own civs) recomputes them, as load_state does.
+	if (was != civ) refresh_tech_mods(team);
 }
 
 bool Simulation::structure_accepts_garrison(const Building &b, size_t i) const {
