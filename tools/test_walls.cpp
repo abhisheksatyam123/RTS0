@@ -475,6 +475,308 @@ int main() {
 		}
 	}
 
+	// 11b. RTS0's own maps (0-10) have no 0.28 map script: there a ring a laid piece of which would
+	// come within a tower's half width of a steep tile gives way to placePolygonalWall's seven towers
+	// at radius 15, less those by steep tiles and those that would part the ground of either
+	// passability class (place_starting_walls' off_steep). Elsewhere the ring stands as 0.28 lays it,
+	// and place_generic_fortress lays the same pieces as before its outline moved to
+	// generic_fortress_outline. Laid out as soak_match does: 4 players, 256 tiles, civs 8, 9, 10, 11
+	// (Iberians as player 0).
+	{
+		static Simulation w; // its own, so the civs set here don't reach the sections below
+		struct Piece { uint8_t type; float x, z, rot; };
+		constexpr uint8_t L = BLD_WALL_SEGMENT, T = BLD_WALL_TOWER, G = BLD_GATE;
+		auto gen4 = [&](MapType map, uint32_t seed) {
+			w.reset();
+			w.set_sim_seed(seed);
+			w.set_waves_enabled(false);
+			for (int p = 0; p < 4; ++p) w.set_team_civ((uint8_t)p, (uint8_t)(CIV_IBERIANS + p));
+			w.generate_random_map(map, seed, 4, 128.0f);
+		};
+		auto is_wall = [](uint8_t t) { return t == BLD_WALL_TOWER || t == BLD_WALL_SEGMENT || t == BLD_GATE; };
+		auto pieces_of = [&](uint8_t p, size_t from = 0) {
+			std::vector<Piece> out;
+			for (size_t i = from; i < w.buildings().size(); ++i) {
+				const auto &b = w.buildings()[i];
+				if (b.team == p && is_wall(b.type)) out.push_back({b.type, b.x, b.z, b.rot});
+			}
+			return out;
+		};
+		auto same_pieces = [](const std::vector<Piece> &got, const Piece *want, size_t n) {
+			bool ok = got.size() == n;
+			for (size_t i = 0; ok && i < n; ++i)
+				ok = got[i].type == want[i].type && std::fabs(got[i].x - want[i].x) < 1e-3f && std::fabs(got[i].z - want[i].z) < 1e-3f &&
+						std::fabs(got[i].rot - want[i].rot) < 1e-3f;
+			if (!ok) {
+				std::printf("  pieces differ: %zu laid, %zu expected\n", got.size(), n);
+				for (const Piece &q : got) std::printf("    {%d, %.4ff, %.4ff, %.5ff},\n", q.type, q.x, q.z, q.rot);
+			}
+			return ok;
+		};
+		const float th = wallset_info(WALLSET_STONE).tower_half;
+		// A laid ring's outline: its towers in the order laid, corner to corner, each side tested as
+		// fortress_crosses_steep tests a side whose wall is laid, by a tower's half width and the
+		// sampling pad (a whole ring only: a tower left out would cut a corner).
+		auto ring_crosses_steep = [&](const std::vector<Piece> &ring) {
+			std::vector<Piece> c;
+			for (const Piece &q : ring) if (q.type == BLD_WALL_TOWER) c.push_back(q);
+			const float rs = th + w.nav_grid_.steep_sample_pad();
+			for (size_t i = 0; i < c.size(); ++i)
+				if (w.nav_grid_.segment_near_steep_tile(c[i].x, c[i].z, c[(i + 1) % c.size()].x, c[(i + 1) % c.size()].z, rs)) return true;
+			return false;
+		};
+		auto count = [](const std::vector<Piece> &v, uint8_t t) { int n = 0; for (const Piece &q : v) n += q.type == t; return n; };
+		auto cc_of = [&](uint8_t p, float &cx, float &cz) {
+			for (const auto &b : w.buildings())
+				if (b.type == BLD_TOWN_CENTER && b.team == p) { cx = b.x; cz = b.z; return; }
+		};
+
+		// placePolygonalWall's corners round player 0's civic centre (place_starting_walls: radius 15,
+		// orientation -pi/4), as {x, z, angle}; and of 64 points round the civic centre (32 angles at
+		// radius 25 and 35) on ground of class cls, how many share the civic centre's tile region.
+		struct Corner { float x, z, a; };
+		auto corners_of = [&](float cx, float cz) {
+			std::vector<Corner> out;
+			const float step = 2.0f * 3.14159265f / 7.0f;
+			for (int i = 0; i < 7; ++i) {
+				const float a = -0.7853982f - 0.5f * step + (float)i * step;
+				out.push_back({cx + 15.0f * det::cos(a), cz + 15.0f * det::sin(a), a});
+			}
+			return out;
+		};
+		auto reach = [&](float cx, float cz, int cls, int &valid) {
+			float chs = 0.0f;
+			for (const auto &b : w.buildings())
+				if (b.type == BLD_TOWN_CENTER && b.team == 0) chs = b.half_size;
+			uint32_t home = 0;
+			for (int a = 0; a < 8 && !home; ++a)
+				home = w.nav_grid_.tile_region_at(cx + det::cos(a * 0.785398f) * (chs + 1.5f), cz + det::sin(a * 0.785398f) * (chs + 1.5f), 6, cls);
+			int same = 0;
+			valid = 0;
+			for (float r : {25.0f, 35.0f})
+				for (int a = 0; a < 32; ++a) {
+					const uint32_t q = w.nav_grid_.tile_region_at(cx + det::cos(a * 0.19634954f) * r, cz + det::sin(a * 0.19634954f) * r, 0, cls);
+					if (!q) continue;
+					++valid;
+					same += q == home;
+				}
+			return same;
+		};
+		auto towers_ok = [&](const std::vector<Piece> &laid, float cx, float cz, int &off_steep, int &at_15) {
+			off_steep = at_15 = 0;
+			for (const Piece &q : laid) {
+				if (q.type != BLD_WALL_TOWER) continue;
+				off_steep += !w.nav_grid_.near_steep_tile(q.x, q.z, th);
+				at_15 += std::fabs(std::hypot(q.x - cx, q.z - cz) - 15.0f) < 0.05f;
+			}
+		};
+
+		// (a) Acropolis Heights seed 3: main's ring (13 towers, 9 long walls, 4 gates) ran up the cliff
+		// by player 0's civic centre and its lowland walls shut the base in. Now no wall or gate, and
+		// no tower either: of the seven corners only one is off steep ground, and it is the mouth of
+		// the only ramp up to the civic centre's plateau. A tower there leaves the default class its
+		// way (a 0.2 clearance passes beside it) but shuts the large one (0.75: rams, elephants,
+		// siege) out of the plateau, so place_starting_walls leaves it out (tile_obs_parts_ground).
+		gen4(MAP_ACROPOLIS, 3);
+		{
+			const std::vector<Piece> laid = pieces_of(0);
+			float cx = 0.0f, cz = 0.0f;
+			cc_of(0, cx, cz);
+			int off_steep = 0, at_15 = 0;
+			towers_ok(laid, cx, cz, off_steep, at_15);
+			const int tw = count(laid, BLD_WALL_TOWER), lw = count(laid, BLD_WALL_SEGMENT), gt = count(laid, BLD_GATE);
+			std::printf("  acropolis seed 3, iberian p0: %d towers (%d off steep ground, %d at 15), %d long walls, %d gates\n", tw, off_steep,
+					at_15, lw, gt);
+			CHECK(lw == 0 && gt == 0);
+			CHECK(tw <= 7 && off_steep == tw && at_15 == tw);
+			CHECK(tw == 0);
+			// The ramp corner: the one corner on the map, above the water and off steep ground.
+			std::vector<Corner> open;
+			for (const Corner &c : corners_of(cx, cz))
+				if (w.map_wall_site_ok(c.x, c.z) && !w.nav_grid_.near_steep_tile(c.x, c.z, th)) open.push_back(c);
+			CHECK(open.size() == 1);
+			if (open.size() == 1) {
+				int v0 = 0, v1 = 0, u0 = 0, u1 = 0;
+				const int a0 = reach(cx, cz, 0, v0), a1 = reach(cx, cz, 1, v1);
+				std::vector<NavGrid::TileObstruction> before, after;
+				w.list_structure_tile_obstructions(before);
+				CHECK(w.place_map_wall_piece({BLD_WALL_TOWER, open[0].x, open[0].z, -open[0].a, th}, 0));
+				w.rebuild_nav_grid();
+				w.list_structure_tile_obstructions(after);
+				const NavGrid::TileObstruction *t = nullptr;
+				for (const auto &o : after)
+					if (std::fabs(o.x - open[0].x) < 1e-4f && std::fabs(o.z - open[0].z) < 1e-4f) t = &o;
+				CHECK(t != nullptr && after.size() == before.size() + 1);
+				const bool parts0 = t && w.nav_grid_.tile_obs_parts_ground(*t, before, 0);
+				const bool parts1 = t && w.nav_grid_.tile_obs_parts_ground(*t, before, 1);
+				const int b0 = reach(cx, cz, 0, u0), b1 = reach(cx, cz, 1, u1);
+				std::printf("  acropolis seed 3, a tower at the ramp: parts the ground %d (default) %d (large); round the civic centre "
+						"default %d/%d -> %d/%d, large %d/%d -> %d/%d\n", (int)parts0, (int)parts1, a0, v0, b0, u0, a1, v1, b1, u1);
+				CHECK(!parts0 && parts1);
+				CHECK(v0 > 48 && a0 == v0 && b0 == a0 && u0 == v0); // default: all the ground round the plateau, tower or not
+				CHECK(v1 > 48 && a1 == v1 && b1 == 0 && u1 == v1);   // large: all of it, and none once the tower stands
+			}
+		}
+		// (a2) Acropolis Heights seed 31: the same corner is the only one off steep ground, but there
+		// a tower at it shuts no way, so it stands: one tower, 15 from the civic centre, and all the
+		// ground round the plateau in the civic centre's region for both classes.
+		gen4(MAP_ACROPOLIS, 31);
+		{
+			const std::vector<Piece> laid = pieces_of(0);
+			float cx = 0.0f, cz = 0.0f;
+			cc_of(0, cx, cz);
+			int off_steep = 0, at_15 = 0;
+			towers_ok(laid, cx, cz, off_steep, at_15);
+			const int tw = count(laid, BLD_WALL_TOWER), lw = count(laid, BLD_WALL_SEGMENT), gt = count(laid, BLD_GATE);
+			int v0 = 0, v1 = 0;
+			const int a0 = reach(cx, cz, 0, v0), a1 = reach(cx, cz, 1, v1);
+			std::printf("  acropolis seed 31, iberian p0: %d towers (%d off steep ground, %d at 15), %d long walls, %d gates; round the "
+					"civic centre default %d/%d, large %d/%d\n", tw, off_steep, at_15, lw, gt, a0, v0, a1, v1);
+			CHECK(lw == 0 && gt == 0);
+			CHECK(tw >= 1 && tw <= 7 && off_steep == tw && at_15 == tw);
+			CHECK(v0 > 48 && a0 == v0 && v1 > 48 && a1 == v1);
+		}
+
+		// (b) Spartan Valley seed 10 (also RTS0's own): no laid piece of its ring comes within a tower's
+		// half width of a steep tile, so main's ring stands, piece for piece. "Within" is a box square
+		// with the map (near_steep_tile): the corner of its tower at (-116.72, -7.15), turned 2.751,
+		// reaches 0.31 past that box, onto a steep tile (0.15 inside it), and no turned tower's
+		// corner reaches more than sqrt 2 - 1 of the half width past it.
+		static const Piece kSparta10[] = {
+			{L, -123.6347f, -21.1182f, 1.97449f}, {T, -121.5577f, -16.2557f, 2.01627f}, {L, -122.0223f, -29.7682f, 0.79853f},
+			{T, -125.7117f, -25.9806f, 1.38651f}, {G, -117.3843f, -38.7576f, 1.39042f}, {T, -118.3329f, -33.5558f, 1.09448f},
+			{L, -111.1574f, -44.2699f, 0.05877f}, {T, -116.4357f, -43.9593f, 0.72460f}, {L, -100.8839f, -42.8464f, -0.33413f},
+			{T, -105.8790f, -44.5805f, -0.13768f}, {G, -91.7074f, -37.8761f, -0.65866f}, {T, -95.8888f, -41.1124f, -0.49640f},
+			{L, -86.9988f, -29.3787f, -1.47093f}, {T, -87.5260f, -34.6398f, -1.06480f}, {L, -89.2681f, -19.6300f, -2.12806f},
+			{T, -86.4717f, -24.1175f, -1.79949f}, {G, -94.4895f, -10.4439f, -2.04727f}, {T, -92.0644f, -15.1425f, -2.08767f},
+			{L, -101.7375f, -7.9128f, 2.71922f}, {T, -96.9146f, -5.7453f, -2.80562f}, {L, -111.6413f, -8.6172f, -2.86122f},
+			{T, -106.5603f, -10.0803f, 3.07059f}, {G, -119.1400f, -11.7049f, 2.05914f}, {T, -116.7224f, -7.1541f, 2.75099f},
+		};
+		gen4(MAP_SPARTAN_VALLEY, 10);
+		{
+			const std::vector<Piece> laid = pieces_of(0);
+			std::printf("  spartan valley seed 10, iberian p0: %zu pieces, ring crosses steep ground %d\n", laid.size(), (int)ring_crosses_steep(laid));
+			CHECK(same_pieces(laid, kSparta10, sizeof(kSparta10) / sizeof(kSparta10[0])));
+			CHECK(!ring_crosses_steep(laid));
+			const Simulation::Building *t = nullptr;
+			for (const auto &b : w.buildings())
+				if (b.team == 0 && b.type == BLD_WALL_TOWER && std::hypot(b.x + 116.7224f, b.z + 7.1541f) < 1e-3f) t = &b;
+			CHECK(t != nullptr);
+			if (t) {
+				// How far past the box the points of its turned square that lie on steep tiles reach.
+				const nav::Vec2 u = nav::footprint_u(*t);
+				float past = -1.0f;
+				for (float lu = -t->hu; lu <= t->hu + 1e-4f; lu += 0.01f)
+					for (float lv = -t->hv; lv <= t->hv + 1e-4f; lv += 0.01f) {
+						const float px = t->x + lu * u.x - lv * u.y, pz = t->z + lu * u.y + lv * u.x;
+						if (w.nav_grid_.steep_tile_in(px, pz, px, pz))
+							past = std::max(past, std::max(std::fabs(px - t->x), std::fabs(pz - t->z)) - th);
+					}
+				std::printf("  spartan valley seed 10, the tower at (%.2f, %.2f): by steep ground %d (box), its corner %.3f past the box on a "
+						"steep tile\n", t->x, t->z, (int)w.nav_grid_.near_steep_tile(t->x, t->z, th), past);
+				CHECK(!w.nav_grid_.near_steep_tile(t->x, t->z, th));
+				CHECK(past > 0.25f && past <= (std::sqrt(2.0f) - 1.0f) * th + 0.01f);
+			}
+		}
+
+		// (c) Canyon (map 22, a 0.28 map script) seed 4: the ring crosses steep ground, and 3 of its
+		// towers stand by steep tiles, yet it stands whole as on main (13 towers, 9 long walls, 4 gates).
+		gen4(MAP_CANYON, 4);
+		{
+			const std::vector<Piece> laid = pieces_of(0);
+			int near = 0;
+			for (const Piece &q : laid) near += q.type == BLD_WALL_TOWER && w.nav_grid_.near_steep_tile(q.x, q.z, th);
+			const int tw = count(laid, BLD_WALL_TOWER), lw = count(laid, BLD_WALL_SEGMENT), gt = count(laid, BLD_GATE);
+			std::printf("  canyon seed 4, iberian p0: %d towers (%d by steep tiles), %d long walls, %d gates, ring crosses steep ground %d\n",
+					tw, near, lw, gt, (int)ring_crosses_steep(laid));
+			CHECK(tw == 13 && lw == 9 && gt == 4 && near == 3 && ring_crosses_steep(laid));
+		}
+
+		// (d) place_generic_fortress on flat ground lays main's pieces where main laid them: the
+		// default (unstyled) ring, radius 20, and an Iberian-styled one, as Wall Demo lays it.
+		static const Piece kDefault[] = {
+			{L, 12.2973f, -17.9412f, -0.73379f}, {T, 8.3705f, -21.4821f, -0.02067f}, {L, 16.2613f, -9.1128f, -1.56375f},
+			{T, 16.2240f, -14.4002f, -1.14877f}, {G, 15.2287f, 1.3527f, -1.77454f}, {T, 16.2985f, -3.8255f, -1.66915f},
+			{L, 11.3391f, 11.0037f, -2.13327f}, {T, 14.1588f, 6.5308f, -1.95391f}, {L, 3.7636f, 17.7874f, -2.68929f},
+			{T, 8.5194f, 15.4766f, -2.41128f}, {G, -5.0925f, 16.7598f, 2.45824f}, {T, -0.9922f, 20.0983f, 3.02607f},
+			{L, -14.2388f, 11.8418f, 2.83825f}, {T, -9.1927f, 13.4212f, 2.64824f}, {L, -17.8299f, 5.1790f, 1.29202f},
+			{T, -19.2849f, 10.2624f, 2.06513f}, {G, -16.6438f, -5.1850f, 1.62168f}, {T, -16.3749f, 0.0956f, 1.45685f},
+			{L, -13.1829f, -14.2135f, 0.78781f}, {T, -16.9127f, -10.4657f, 1.20475f}, {L, -4.4197f, -16.3421f, -0.31124f},
+			{T, -9.4531f, -17.9614f, 0.23829f}, {G, 4.4922f, -18.1025f, 0.71679f}, {T, 0.6138f, -14.7229f, 0.19502f},
+		};
+		static const Piece kStyled[] = {
+			{L, 45.9965f, -54.9957f, 2.09496f}, {T, 48.6241f, -50.4505f, 2.32186f}, {L, 42.7295f, -64.7517f, 1.69291f},
+			{T, 43.3690f, -59.5408f, 1.89393f}, {G, 46.5398f, -72.7486f, 0.55937f}, {T, 42.0900f, -69.9626f, 1.12614f},
+			{L, 56.2324f, -75.8104f, 0.05258f}, {T, 50.9897f, -75.5345f, 0.30597f}, {L, 66.3772f, -74.2068f, -0.36612f},
+			{T, 61.4752f, -76.0863f, -0.15677f}, {G, 73.0644f, -67.3902f, -1.22385f}, {T, 71.2793f, -72.3274f, -0.79498f},
+			{L, 74.2110f, -57.2420f, -1.69273f}, {T, 74.8496f, -62.4530f, -1.45829f}, {L, 70.6042f, -47.7006f, -2.17169f},
+			{T, 73.5724f, -52.0310f, -1.93221f}, {G, 62.4284f, -44.0369f, 3.01428f}, {T, 67.6359f, -43.3703f, -2.72030f},
+			{L, 52.9225f, -47.5770f, 2.55232f}, {T, 57.2209f, -44.7035f, 2.78509f},
+		};
+		{
+			w.set_sim_seed(3);
+			w.reset();
+			w.spawn_building_world(0.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
+			const size_t n0 = w.buildings().size();
+			const size_t a = w.place_generic_fortress(0, 0.0f, 0.0f, 20.0f, 0x5eed1234u);
+			const std::vector<Piece> def = pieces_of(0, n0);
+			const size_t n1 = w.buildings().size();
+			const size_t b = w.place_generic_fortress(0, 60.0f, -60.0f, 18.0f, 77u, 0.5f, 3, 100, WALL_STYLE_IBER_STONE);
+			const std::vector<Piece> sty = pieces_of(0, n1);
+			std::printf("  generic fortress: %zu pieces (default), %zu (iberian style)\n", a, b);
+			CHECK(a == 24 && same_pieces(def, kDefault, sizeof(kDefault) / sizeof(kDefault[0])));
+			CHECK(b == 20 && same_pieces(sty, kStyled, sizeof(kStyled) / sizeof(kStyled[0])));
+		}
+
+		// (e) Mediterranean Sea (RMS), map 10, the last of RTS0's own maps, seed 10: main's ring (11
+		// towers, 8 long walls, 4 gates) comes by steep ground, so the seven towers stand, 15 from the
+		// civic centre, off steep ground. They are laid as a ring's pieces are (place_map_wall_piece),
+		// so the trees and bushes under them go: a tree and a bush set on each tower's site, and the
+		// towers laid again, none is left (spawn_wall_piece left them all). On the generated map one
+		// tree is still within 0.75 of a tower's axis: snap_trees_to_tiles, which runs after the
+		// walls, moved it onto its tile's centre there, as it can under a ring's pieces (3 under
+		// spawn_wall_piece's towers).
+		gen4(MAP_RANDOM_MEDITERRANEAN, 10);
+		{
+			const std::vector<Piece> laid = pieces_of(0);
+			float cx = 0.0f, cz = 0.0f;
+			cc_of(0, cx, cz);
+			int off_steep = 0, at_15 = 0, under = 0;
+			towers_ok(laid, cx, cz, off_steep, at_15);
+			const auto &res = w.resources_;
+			for (const Piece &q : laid) {
+				if (q.type != BLD_WALL_TOWER) continue;
+				const float c = det::cos(q.rot), sn = -det::sin(q.rot);
+				for (size_t i = 0; i < res.count; ++i) {
+					if (!res.alive[i] || !(res.type[i] == RES_WOOD || (res.type[i] == RES_FOOD && res.subtype[i] == RES_SUB_NONE))) continue;
+					bool on = false;
+					for (float u = -th; u <= th + 1e-3f; u += 0.5f)
+						on |= det::hypot(res.x[i] - (q.x + u * c), res.z[i] - (q.z + u * sn)) <= 0.75f;
+					under += on;
+				}
+			}
+			const int tw = count(laid, BLD_WALL_TOWER), lw = count(laid, BLD_WALL_SEGMENT), gt = count(laid, BLD_GATE);
+			std::printf("  mediterranean sea seed 10, iberian p0: %d towers (%d off steep ground, %d at 15), %d long walls, %d gates, "
+					"%d trees or bushes under them\n", tw, off_steep, at_15, lw, gt, under);
+			CHECK(tw == 7 && lw == 0 && gt == 0 && off_steep == tw && at_15 == tw);
+			std::vector<uint32_t> planted;
+			for (auto &b : const_cast<std::vector<Simulation::Building> &>(w.buildings()))
+				if (b.team == 0 && b.type == BLD_WALL_TOWER && !b.wrecked) {
+					planted.push_back(w.spawn_resource_world(b.x, b.z, RES_WOOD, 200));
+					planted.push_back(w.spawn_resource_world(b.x + 0.5f, b.z, RES_FOOD, 200, RES_SUB_NONE));
+					w.destroy_building(b);
+				}
+			const size_t again = w.place_starting_walls(0, cx, cz, 256, Simulation::STARTING_WALLS_TOWERS, -0.7853982f, 0u, true);
+			int left = 0;
+			for (uint32_t id : planted) {
+				auto it = w.res_id_to_idx_.find(id);
+				left += it != w.res_id_to_idx_.end() && res.alive[it->second];
+			}
+			std::printf("  laid again over a tree and a bush each: %zu towers, %d of %zu trees and bushes left\n", again, left, planted.size());
+			CHECK(planted.size() == 14 && again == 7 && left == 0);
+		}
+	}
+
 	// 12. fortress.js's "Spahbod" (placeCustomFortress): a closed square of WallSet pieces round
 	// each Civic Centre, its first gate towards the map centre, the four side buildings inside.
 	{
@@ -747,6 +1049,18 @@ int main() {
 		s.generate_random_map(MAP_RANDOM_CONTINENTAL, 19, 4, 128.0f);
 		for (uint8_t p = 0; p < 4; ++p) s.set_team_civ(p, civs[p]);
 		for (uint8_t p = 0; p < MAX_PLAYERS; ++p) s.set_player_active(p, p < 4, false);
+		// Continental is one of RTS0's own maps, where a laid piece of player 0's ring on this seed
+		// comes within a tower's half width of a steep tile, so the seven towers stand instead (11b,
+		// G97). Take them away and lay the ring map generation laid before, from the seed it drew for
+		// player 0.
+		{
+			float cx = 0.0f, cz = 0.0f;
+			for (auto &b : const_cast<std::vector<Simulation::Building> &>(s.buildings())) {
+				if (b.team == 0 && b.type == BLD_TOWN_CENTER) cx = b.x, cz = b.z;
+				if (b.team == 0 && b.type == BLD_WALL_TOWER && !b.wrecked) s.destroy_building(b);
+			}
+			CHECK(s.place_starting_walls(0, cx, cz, 256, Simulation::STARTING_WALLS_FORTRESS, -0.7853982f, 3261542810u) == 19);
+		}
 		const Simulation::Building *gate = nullptr;
 		for (const auto &b : s.buildings())
 			if (b.team == 0 && b.type == BLD_GATE && std::hypot(b.x - 36.75f, b.z - 39.0f) < 1.0f) gate = &b;

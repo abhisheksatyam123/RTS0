@@ -674,8 +674,18 @@ int main() {
 	// the map's River placement was restored), player 1's gate at (56.71, -10.21) has its Door over player
 	// 3's gate's Left part, and 0.28's 1 m navcells cross it there, so the navcells must too, whatever the
 	// other gate's check decides for its parts. Those walls are built here as that map placed them.
+	// Random Highlands is one of RTS0's own maps, where a ring a laid piece of which would come within a
+	// tower's half width of a steep tile now gives way to the seven towers (REMAINING_GAPS G97), as all
+	// four do on these seeds. The pins are those rings' gates, so the towers are taken away and each ring
+	// is laid as map generation laid it before, from the seed it drew for that player (the trees and
+	// bushes the towers cleared stay gone).
 	{
 		struct Pin { MapType map; uint32_t seed; float x, z; bool crosses; };
+		struct RingSeeds { uint32_t seed; uint32_t player[4]; };
+		static const RingSeeds ring_seeds[] = {
+			{1, {3674344964u, 3264917445u, 2066402036u, 1828659726u}}, {2, {4167089423u, 400848655u, 3116280365u, 4087133776u}},
+			{4, {3342821605u, 1851286388u, 619487119u, 1421452321u}}, {6, {1081334644u, 1488296378u, 2614567707u, 2302403809u}},
+		};
 		const Pin pins[] = {
 			{MAP_RANDOM_HIGHLANDS, 1, 54.24f, -32.63f, true}, {MAP_RANDOM_HIGHLANDS, 1, 65.73f, 38.55f, false},
 			{MAP_RANDOM_HIGHLANDS, 2, -47.78f, -34.26f, true}, {MAP_RANDOM_HIGHLANDS, 4, 63.00f, 37.10f, false},
@@ -692,6 +702,21 @@ int main() {
 				s.generate_random_map(pin.map, pin.seed, 4, 128.0f);
 				s.set_victory_condition(VICTORY_CONQUEST);
 				for (uint8_t p = 0; p < 4; ++p) s.set_team_civ(p, CIV_IBERIANS);
+				int gates = 0;
+				for (auto &b : const_cast<std::vector<Simulation::Building> &>(s.buildings())) {
+					gates += b.type == BLD_GATE;
+					if (b.team < 4 && b.type == BLD_WALL_TOWER && !b.wrecked) s.destroy_building(b);
+				}
+				CHECK(gates == 0);
+				for (const RingSeeds &r : ring_seeds) {
+					if (r.seed != pin.seed) continue;
+					for (uint8_t p = 0; p < 4; ++p)
+						for (const auto &b : s.buildings())
+							if (b.team == p && b.type == BLD_TOWN_CENTER) {
+								CHECK(s.place_starting_walls(p, b.x, b.z, 256, Simulation::STARTING_WALLS_FORTRESS, -0.7853982f, r.player[p]) >= 20);
+								break;
+							}
+				}
 				for (uint8_t p = 0; p < MAX_PLAYERS; ++p) s.set_player_active(p, p < 4, false);
 				run(s, 5.0f * Simulation::FIXED_STEP);
 				made = (int)(pin.map * 1000 + pin.seed);
