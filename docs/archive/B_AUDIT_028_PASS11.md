@@ -84,6 +84,6 @@ Fixed on main 91ccb63cf:
 8. The idle re-form leaves unpacked siege engines where they stand.
 9. The Formation panel spaces its buttons 1 px apart, 5 to a row.
 
-Item 1 (formation stat modifiers from T22) is handled in its own PR, pending the owner's choice on keeping them.
+Item 1 (formation stat modifiers from T22) is removed in its own PR (G100): formations no longer change armour, damage, speed or attack rate.
 
 Live sweep on this branch: e2e_victory_conditions, e2e_diplomacy_dialog, e2e_observer_view, e2e_summary and e2e_formation_options all pass.
