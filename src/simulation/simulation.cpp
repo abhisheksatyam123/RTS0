@@ -34874,9 +34874,9 @@ void Simulation::petra_manage_defense(float dt) {
 		petra_fight_back(i, a, armies, helped);
 	}
 	// checkEnemyUnits "Keep animals attacking us or our allies": an enemy's or Gaia's animal in
-	// COMBAT whose target is ours or an ally's counts as a foe. One biting ours is answered
-	// from neutral or allied land as any attacker is (checkEvents); one biting an ally's only
-	// where isDangerous says so (close to our structures, a cooperative ally's civic centre).
+	// COMBAT whose target is ours or an ally's counts as a foe where isDangerous says so (close
+	// to our structures, a cooperative ally's civic centre). Elsewhere one going for ours waits
+	// for its first bite (checkEvents Attacked, above).
 	for (size_t f = 0; f < fauna_.count; ++f) {
 		if (!fauna_.alive[f] || fauna_.behavior[f] != FAUNA_ATTACK || !is_hostile(petra_pid_, fauna_owner_[f])) continue;
 		if (!scanned(fauna_owner_[f]) || army_of_foe(fauna_.id[f]) >= 0) continue;
@@ -34884,7 +34884,6 @@ void Simulation::petra_manage_defense(float dt) {
 		int target_owner = -1;
 		if (const int32_t t = lookup_unit(tid); t >= 0) {
 			if (units_.alive[t]) target_owner = units_.team[t];
-			if (target_owner == petra_pid_ && in_attack_squad(tid)) continue;
 		} else if (const auto it = fauna_id_to_idx_.find(tid); it != fauna_id_to_idx_.end()) {
 			target_owner = fauna_owner_[it->second];
 		}
@@ -34893,8 +34892,7 @@ void Simulation::petra_manage_defense(float dt) {
 		const int terr = territory_owner_at(x, z);
 		if (terr >= 0 && (terr >= MAX_PLAYERS || !is_ally(petra_pid_, (uint8_t)terr))) continue; // enemy land
 		const float reach = 6000.0f / 16.0f; // a melee attacker's dist2Min, m² to RTS0 units²
-		const bool dangerous = target_owner == petra_pid_ || (terr == petra_pid_ && near_own_structure_at(x, z, reach)) ||
-		                       dangerous_outside_at(x, z, reach, terr);
+		const bool dangerous = (terr == petra_pid_ && near_own_structure_at(x, z, reach)) || dangerous_outside_at(x, z, reach, terr);
 		if (dangerous) make_into_army(fauna_.id[f]);
 	}
 
@@ -39798,6 +39796,10 @@ void Simulation::fauna_hit_unit(size_t f, size_t u) {
 	if (invulnerable(units_.id[u]) || is_relic_unit((int32_t)u)) return; // a relic has no Health
 	units_.hp[u] -= dmg;
 	note_attacked(fauna_.id[f], GAIA_PLAYER, units_.id[u], units_.team[u], false, dmg, true);
+	// The Attacked event for the victim's Petra (defenseManager.js checkEvents): stamped as the
+	// next tick's, since this tick's AI turns have already read their events.
+	if (units_.team[u] < MAX_PLAYERS && petra_runs_for(units_.team[u]))
+		petra_ev_attacked_.push_back({(uint32_t)ticks_ + 1, units_.id[u], fauna_.id[f]});
 	if (units_.hp[u] <= 0.0f) {
 		units_.alive[u] = 0;
 		units_.action_state[u] = ACTION_DYING;
