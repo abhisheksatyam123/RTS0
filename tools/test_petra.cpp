@@ -4524,6 +4524,88 @@ static void test_attack_request() {
 	CHECK(!asked_again, "a requested attack asks no one to join it");
 }
 
+// attackManager.js:365-419: once the last rush is made, an Attack is made the next turn in the
+// town phase though that rush still prepares (upcomingAttacks holds both); each trains and
+// takes units of its own, and the Attack takes the preparation slot once the rush leaves it.
+static void test_attack_beside_last_rush() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(7);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 7, 2, 128.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	s->set_player_active(0, true, false);
+	s->set_player_active(1, true, true);
+	s->set_diplomacy(0, 1, Simulation::DIPLO_ENEMY);
+	s->set_diplomacy(1, 0, Simulation::DIPLO_ENEMY);
+	run_for(*s, 5.0f);
+	float bx = 0.0f, bz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { bx = b.x; bz = b.z; }
+	s->spawn_building_world(bx + (bx > 0.0f ? -14.0f : 14.0f), bz, BLD_BARRACKS, 1, 1.0f);
+	s->players_[1].phase = 2;
+	auto &m = s->petra_attack_mgr_;
+	m.rushes_set = 1;
+	m.max_rushes = 1;
+	m.rush_number = 1; // the last rush is made and prepares
+	auto &rush = s->petra_attack_plan_;
+	rush = Simulation::AttackPlan();
+	rush.kind = PETRA_ATTACK_RUSH;
+	rush.state = Simulation::AttackPlan::MUSTER;
+	for (int k = 0; k < 4; ++k) rush.squad.push_back(s->spawn_unit(bx + 6.0f + (float)k, bz + 6.0f, 1, UNIT_SPEARMAN));
+	m.kind = PETRA_ATTACK_RUSH;
+	m.attack_name = m.plans_made++;
+	const uint8_t rush_name = m.attack_name;
+	m.target_size = 40; // far from ready
+	m.min_size = 20;
+	const uint8_t made = m.plans_made;
+	const auto &next = s->petra_next_plan_;
+	for (int t = 0; t < 6 && next.plan.state == Simulation::AttackPlan::UNEXECUTED; ++t) run_ai_turns(*s, 1);
+	std::printf("  beside the rush: next plan state %d kind %d name %d (rush %d), slot kind %d name %d\n",
+	            (int)next.plan.state, (int)next.plan.kind, (int)next.muster.attack_name, (int)rush_name,
+	            (int)s->petra_attack_plan_.kind, (int)m.attack_name);
+	CHECK(next.plan.state == Simulation::AttackPlan::MUSTER && next.plan.kind == PETRA_ATTACK_ATTACK,
+	      "an Attack prepares beside the last rush");
+	CHECK(s->petra_attack_plan_.kind == PETRA_ATTACK_RUSH && s->petra_attack_plan_.state == Simulation::AttackPlan::MUSTER &&
+	      m.kind == PETRA_ATTACK_RUSH && m.attack_name == rush_name, "the rush keeps the slot and its own fields");
+	CHECK(next.muster.attack_name == made && m.plans_made == made + 1 && m.attack_number == 1 && next.muster.target_size > 0,
+	      "the Attack has its own name and sizes");
+	bool shared = false;
+	for (uint32_t uid : next.plan.squad)
+		shared |= std::find(s->petra_attack_plan_.squad.begin(), s->petra_attack_plan_.squad.end(), uid) != s->petra_attack_plan_.squad.end();
+	CHECK(!shared, "no unit is in both plans");
+	// Only one plan of each group: no second Attack while this one prepares.
+	run_ai_turns(*s, 3);
+	CHECK(m.plans_made == made + 1, "no further plan while both prepare");
+
+	// Saved and loaded with its own fields.
+	const std::string path = "/tmp/rtso_petra_next_plan.sav";
+	CHECK(s->save_state(path.c_str()), "save");
+	auto t = std::make_unique<Simulation>();
+	CHECK(t->load_state(path.c_str()), "load");
+	std::remove(path.c_str());
+	CHECK(t->petra_next_plan_.plan.state == next.plan.state && t->petra_next_plan_.plan.kind == next.plan.kind &&
+	      t->petra_next_plan_.muster.attack_name == next.muster.attack_name &&
+	      t->petra_next_plan_.muster.target_size == next.muster.target_size &&
+	      t->petra_next_plan_.plan.squad == next.plan.squad, "the plan beside the slot's survives a save");
+
+	// The rush sets off (forced): the Attack takes the slot with its own fields.
+	const uint8_t attack_name = next.muster.attack_name;
+	const int32_t attack_target = next.muster.target_size;
+	rush.forced = true;
+	bool promoted = false;
+	for (int k = 0; k < 20 && !promoted; ++k) {
+		run_ai_turns(*s, 1);
+		promoted = s->petra_attack_plan_.kind == PETRA_ATTACK_ATTACK && s->petra_attack_plan_.state == Simulation::AttackPlan::MUSTER;
+	}
+	bool rush_started = false;
+	for (const auto &p : s->petra_started_attacks_) rush_started |= p.kind == PETRA_ATTACK_RUSH;
+	std::printf("  rush started %d, Attack in the slot %d (name %d, target %d)\n", (int)rush_started, (int)promoted,
+	            (int)m.attack_name, (int)m.target_size);
+	CHECK(rush_started && promoted && m.kind == PETRA_ATTACK_ATTACK && m.attack_name == attack_name && m.target_size == attack_target,
+	      "the Attack takes the slot once the rush leaves it");
+	CHECK(next.plan.state == Simulation::AttackPlan::UNEXECUTED && next.plan.squad.empty(), "the second place is free again");
+}
+
 // attackPlan.js getPathToTarget, setRallyPoint, updatePreparation "completing" and
 // UpdateWalking: a land army gathers at a rally point where its path leaves our territory,
 // sets off once gathered, walks the path's waypoints and arrives together near its target.
@@ -9705,6 +9787,7 @@ int main(int argc, char **argv) {
 	RUN(test_ai_slots);
 	RUN(test_attack_plans);
 	RUN(test_attack_rally_point);
+	RUN(test_attack_beside_last_rush);
 	RUN(test_attack_stuck_siege);
 	RUN(test_attack_waits_for_each_class);
 	RUN(test_slot_config);
