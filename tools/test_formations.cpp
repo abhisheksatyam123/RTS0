@@ -1034,6 +1034,42 @@ static void test_stop_and_back_to_work() {
 	check(g.unit_order(hop[0]).kind == ORDER_GATHER && g.unit_order(hop[0]).target == tree, "and goes back to its tree");
 }
 
+static void test_queued_leave_and_facing() {
+	std::printf("19. queued leave and facing at the slots\n");
+	Simulation s;
+	setup(s, CIV_ATHENIANS);
+	auto inf = spawn_block(s, 8, -10, -10, 0, UNIT_SWORDSMAN);
+	s.order_set_formation(inf.data(), inf.size(), FORMATION_BOX);
+	run(s, 6.0f);
+	// Formation.js SetFinishedEntity: members at their slots face the formation's front.
+	const auto *fc = s.formations().empty() ? nullptr : &s.formations()[0];
+	bool facing = fc != nullptr;
+	for (uint32_t id : inf) {
+		const int i = idx_of(s, id);
+		if (fc && std::fabs(s.units().heading_x[i] - std::sin(fc->rot)) + std::fabs(s.units().heading_z[i] - std::cos(fc->rot)) > 0.05f)
+			facing = false;
+	}
+	check(facing, "formed-up members face the formation's front");
+	// LeaveFormation(queued): a marching formation finishes its walk in shape, then breaks up
+	// and its members do the queued walk on their own.
+	s.cmd_move(inf.data(), inf.size(), 20.0f, -10.0f);
+	run(s, 0.5f);
+	const uint32_t fid = s.formation_of_unit(inf[0]);
+	s.order_set_formation(inf.data(), inf.size(), FORMATION_NONE, true);
+	s.order_walk(inf.data(), inf.size(), 20.0f, 10.0f, true, true);
+	check(s.formation_of_unit(inf[0]) == fid && ctrl(s, fid) && ctrl(s, fid)->members.size() == 8, "a queued leave keeps the march in shape");
+	run(s, 30.0f);
+	check(s.formations().empty() && form_of(s, inf[0]) == FORMATION_NONE, "then the formation breaks up");
+	float cx, cz;
+	centroid(s, inf, cx, cz);
+	check(std::fabs(cx - 20.0f) < 4.0f && std::fabs(cz - 10.0f) < 4.0f, "and the members carry out the queued walk");
+	// An idle formation leaves at once.
+	s.order_set_formation(inf.data(), inf.size(), FORMATION_BOX);
+	run(s, 1.0f);
+	s.order_set_formation(inf.data(), inf.size(), FORMATION_NONE, true);
+	check(s.formations().empty(), "an idle formation leaves at once");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_formations.sav";
 	test_templates();
@@ -1056,6 +1092,7 @@ int main(int argc, char **argv) {
 	test_queue(save.c_str());
 	test_stat_modifiers();
 	test_stop_and_back_to_work();
+	test_queued_leave_and_facing();
 	test_audit_028();
 	if (g_failures) {
 		std::printf("test_formations: FAIL (%d)\n", g_failures);

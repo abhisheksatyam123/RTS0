@@ -191,7 +191,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 131; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 132; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_PETRA_TARGET_ORDER = 132; // the targetList in discovery order (no longer sorted)
 	static constexpr uint32_t SAVE_VERSION_ATTACK_MOVE_STRUCTURES = 131; // attack-moves at structures only (attack_move_structures_)
 	static constexpr uint32_t SAVE_VERSION_PETRA_NEXT_PLAN = 130; // a Petra plan preparing beside the one in the slot (petra_next_plan_)
 	static constexpr uint32_t SAVE_VERSION_TRICKLE_TIMER = 128; // each structure's own trickle timer (Building::trickle_tick)
@@ -1063,7 +1064,9 @@ public:
 	// 0 A.D. "formation" command (Commands.js): the units form up in `formation` where they
 	// stand, in clusters (Commands.js ClusterEntities); FORMATION_NONE disbands. Units that may
 	// not use it (UnitAI/Formations, Player formations) are left out.
-	void order_set_formation(const uint32_t *unit_ids, size_t count, uint8_t formation);
+	// `queued`: a Shift-queued null formation (UnitAI LeaveFormation(queued)) waits behind a
+	// whole formation's current and queued orders.
+	void order_set_formation(const uint32_t *unit_ids, size_t count, uint8_t formation, bool queued = false);
 	// Formation.js / Player.js queries for the formation panel.
 	uint32_t player_formation_mask(uint8_t player) const; // Player.js GetFormations
 	bool unit_can_use_formation(uint32_t unit_id, uint8_t formation) const; // UnitAI.js CanUseFormation
@@ -2966,7 +2969,12 @@ private:
 	// (reusing a whole selected formation) and returns the controllers; `individual` gets the rest.
 	std::vector<size_t> formation_controllers_for(const uint32_t *unit_ids, size_t count, uint8_t tmpl,
 			bool force_template, std::vector<uint32_t> &individual);
-	void formation_remove_units(const uint32_t *unit_ids, size_t count); // Commands.js RemoveFromFormation
+	// Commands.js RemoveFromFormation; `rearrange` false is Order.LeaveFormation's
+	// SetRearrange(false): the members that stay keep their slots.
+	void formation_remove_units(const uint32_t *unit_ids, size_t count, bool rearrange = true);
+	// A controller-queue entry (UnitOrder.pad) that disbands the formation when reached and
+	// hands the orders behind it to the members (a queued LeaveFormation).
+	static constexpr uint8_t FORMATION_QUEUE_LEAVE = 1;
 	void formation_disband(size_t ci);
 	void formation_move_members_into(size_t ci, bool move_center, bool force); // Formation.js MoveMembersIntoFormation
 	float formation_walking_distance(const FormationController &fc) const; // UnitAI.js ComputeWalkingDistance
@@ -3969,7 +3977,7 @@ private:
 	std::vector<PetraTargetedRelic> petra_targeted_relics_;
 	// defenseManager.js targetList: enemy structures seen being built in our territory, or
 	// enemy civic centres going up near our structures; kept until gone or no longer an enemy's.
-	struct PetraDefenseTargets { std::vector<uint32_t> ids; }; // sorted
+	struct PetraDefenseTargets { std::vector<uint32_t> ids; }; // in discovery order (targetList.push), each once
 	PetraDefenseTargets petra_defense_targets_;
 	// queue.js plans in order: the structure at the head of each queue (type + 1, 0 none) and the
 	// seconds since it last asked; another structure in that queue waits until it starts or

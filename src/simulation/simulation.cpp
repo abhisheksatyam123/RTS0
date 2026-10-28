@@ -7702,7 +7702,7 @@ void Simulation::formation_disband(size_t ci) {
 	formation_refresh_groups();
 }
 
-void Simulation::formation_remove_units(const uint32_t *unit_ids, size_t count) {
+void Simulation::formation_remove_units(const uint32_t *unit_ids, size_t count, bool rearrange) {
 	// Commands.js RemoveFromFormation -> Formation.js RemoveMembers: below
 	// RequiredMemberCount the formation disbands, else the rest re-form, but only while it
 	// rearranges: FORMATIONCONTROLLER IDLE and MEMBER SetRearrange(false), so a death in a
@@ -7723,6 +7723,7 @@ void Simulation::formation_remove_units(const uint32_t *unit_ids, size_t count) 
 			formation_disband(ci);
 			continue;
 		}
+		if (!rearrange) continue;
 		fc.has_offsets = 0;
 		if (fc.order != FORDER_IDLE && fc.order != FORDER_MEMBER) formation_move_members_into(ci, true, false);
 	}
@@ -7822,6 +7823,9 @@ void Simulation::formation_move_members_into(size_t ci, bool move_center, bool f
 		if (idx < 0 || !units_.alive[idx]) continue;
 		const uint8_t st = units_.action_state[idx];
 		if (!force && st != ACTION_IDLE && st != ACTION_MOVE && st != ACTION_ATTACK_MOVE) continue;
+		// Order.FormationWalk: a packable member of an idle controller stays put rather than
+		// pack, "as that would unpack us" (an unpacked engine isn't walked back into line).
+		if (fc.order == FORDER_IDLE && !pack_state_can_move(units_.pack_state[idx])) continue;
 		s.following = 1;
 		float wx, wz;
 		formation_slot_world(fc.x, fc.z, fc.rot, s.x, s.y, wx, wz);
@@ -7896,11 +7900,8 @@ std::vector<size_t> Simulation::formation_controllers_for(const uint32_t *unit_i
 					want = fc.tmpl;
 					result.push_back((size_t)ctrls[0]);
 				} else if (can_move_into_formation(sel.data(), sel.size(), want)) {
-					// Formation.js LoadFormation: same controller, new template. Members that
-					// cannot use it leave.
-					std::vector<uint32_t> leave;
-					for (uint32_t id : fc.members)
-						if (!unit_can_use_formation(id, want)) leave.push_back(id);
+					// Formation.js LoadFormation: same controller, new template. SetMembers keeps
+					// every member, those that can't use the template too.
 					fc.tmpl = want;
 					fc.has_offsets = 0;
 					formation_refresh_groups();
@@ -7908,13 +7909,7 @@ std::vector<size_t> Simulation::formation_controllers_for(const uint32_t *unit_i
 						const int32_t idx = lookup_unit(id);
 						if (idx >= 0) units_.formation[idx] = want;
 					}
-					const size_t keep = (size_t)ctrls[0];
-					const uint32_t keep_id = fc.id;
-					if (!leave.empty()) formation_remove_units(leave.data(), leave.size());
-					for (size_t ci = 0; ci < formations_.size(); ++ci)
-						if (formations_[ci].id == keep_id) { result.push_back(ci); break; }
-					(void)keep;
-					for (uint32_t id : leave) individual.push_back(id);
+					result.push_back((size_t)ctrls[0]);
 					return result;
 				}
 			} else if (!force_template) {
@@ -7943,7 +7938,7 @@ std::vector<size_t> Simulation::formation_controllers_for(const uint32_t *unit_i
 			formed.push_back(id);
 		}
 	}
-	if (!leaving.empty()) formation_remove_units(leaving.data(), leaving.size());
+	if (!leaving.empty()) formation_remove_units(leaving.data(), leaving.size(), false); // Order.LeaveFormation
 	if (individual.size() == sel.size()) return {};
 	if (!result.empty()) {
 		// The reused controller may have moved in formations_ when others disbanded.
@@ -8023,12 +8018,34 @@ std::vector<size_t> Simulation::formation_controllers_for(const uint32_t *unit_i
 	return result;
 }
 
-void Simulation::order_set_formation(const uint32_t *unit_ids, size_t count, uint8_t formation) {
+void Simulation::order_set_formation(const uint32_t *unit_ids, size_t count, uint8_t formation, bool queued) {
 	// Commands.js "formation" -> GetFormationUnitAIs(forceTemplate) -> UnitAI MoveIntoFormation:
 	// the units form up where they stand. The null formation (or one unit) leaves formations.
 	if (count == 0 || formation >= FORMATION_COUNT) return;
+	if (formation == FORMATION_NONE && queued && count > 1) {
+		// LeaveFormation(true) is queued behind each member's orders, and the controller's
+		// FormationWalk keeps it (UnitAI ReplaceOrder): a whole formation that is busy finishes
+		// its orders in shape, then breaks up and its members carry on with what was queued.
+		for (uint32_t fid : formation_whole_ids(unit_ids, count))
+			for (FormationController &fc : formations_) {
+				if (fc.id != fid || (fc.order == FORDER_IDLE && fc.queue.empty())) continue;
+				UnitOrder leave;
+				leave.pad = FORMATION_QUEUE_LEAVE;
+				if (fc.queue.size() < 64) fc.queue.push_back(leave);
+			}
+		std::vector<uint32_t> now;
+		for (size_t k = 0; k < count; ++k) {
+			const uint32_t fid = formation_of_unit(unit_ids[k]);
+			const FormationController *fc = nullptr;
+			for (const FormationController &f : formations_)
+				if (f.id == fid) fc = &f;
+			if (!fc || fc->queue.empty() || fc->queue.back().pad != FORMATION_QUEUE_LEAVE) now.push_back(unit_ids[k]);
+		}
+		if (!now.empty()) formation_remove_units(now.data(), now.size(), now.size() == 1);
+		return;
+	}
 	if (formation == FORMATION_NONE || count == 1) {
-		formation_remove_units(unit_ids, count);
+		formation_remove_units(unit_ids, count, count == 1); // a lone unit: RemoveFromFormation
 		return;
 	}
 	std::vector<uint32_t> individual;
@@ -8461,6 +8478,22 @@ void Simulation::tick_formations(float dt) {
 			const UnitOrder o = fc.queue.front();
 			fc.queue.erase(fc.queue.begin());
 			const std::vector<uint32_t> members = fc.members;
+			if (o.pad == FORMATION_QUEUE_LEAVE) {
+				// A queued LeaveFormation: the members leave, and the orders queued behind it
+				// become each member's own (Order.LeaveFormation, then their queue).
+				const std::vector<UnitOrder> rest = fc.queue;
+				formation_remove_units(members.data(), members.size(), false);
+				for (uint32_t uid : members) {
+					if (lookup_unit(uid) < 0 || rest.empty()) continue;
+					apply_order(uid, rest.front());
+					if (rest.size() > 1 && lookup_unit(uid) >= 0) {
+						std::vector<UnitOrder> &q = order_queues_[uid];
+						q.insert(q.end(), rest.begin() + 1, rest.end());
+						if (q.size() > 64) q.resize(64);
+					}
+				}
+				break;
+			}
 			formation_apply_order(members, o);
 			break;
 		}
@@ -13142,6 +13175,16 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 	// units' action_state (unit_running); before avoid_idle_units, which reads it too (obstructs).
 	for (size_t i = 0; i < n; ++i) {
 		if (!arrived[i]) continue;
+		// Formation.js SetFinishedEntity: a member at its slot turns to the formation's front.
+		if (units_.formation[i] != FORMATION_NONE && !formations_.empty()) {
+			const uint32_t fid = formation_of_unit(units_.id[i]);
+			for (const FormationController &fc : formations_)
+				if (fc.id == fid) {
+					units_.heading_x[i] = det::sin(fc.rot);
+					units_.heading_z[i] = det::cos(fc.rot);
+					break;
+				}
+		}
 		has[i] = 0;
 		units_.action_state[i] = ACTION_IDLE;
 		units_.waypoint_cur[i] = 0;
@@ -30421,7 +30464,7 @@ bool Simulation::petra_squad_centre(const std::vector<uint32_t> &squad, float &c
 bool Simulation::petra_defense_target(const Building &b) const {
 	if (!petra_foe(b.team) || b.hp <= 0.0f || b.wrecked) return false;
 	const auto &ids = petra_defense_targets_.ids;
-	return std::binary_search(ids.begin(), ids.end(), b.id);
+	return std::find(ids.begin(), ids.end(), b.id) != ids.end();
 }
 
 bool Simulation::petra_raid_target_ok(uint32_t bld_id) const {
@@ -32036,21 +32079,17 @@ bool Simulation::petra_unit_reserved(uint32_t uid) const {
 uint32_t Simulation::find_petra_raid_target(float &out_tx, float &out_tz) const {
 	float bx = 36.0f, bz = 36.0f;
 	if (const auto *base = get_primary_petra_base()) { bx = base->x; bz = base->z; }
-	// defenseManager.js targetList (petra_defense_target), nearest to the base first
-	// (attackManager.js raids them with cavalry).
-	uint32_t best = 0;
-	float best_d = 1e18f;
-	for (const auto &b : buildings_) {
-		if (!petra_defense_target(b)) continue;
-		const float dsq = (b.x - bx) * (b.x - bx) + (b.z - bz) * (b.z - bz);
-		if (dsq < best_d) {
-			best_d = dsq;
-			best = b.id;
-			out_tx = b.x;
-			out_tz = b.z;
-		}
+	// attackManager.js:425-433: the first enemy structure of defenseManager.js targetList, in
+	// the order the structures were found.
+	(void)bx; (void)bz;
+	for (const uint32_t id : petra_defense_targets_.ids) {
+		const auto it = building_id_to_idx_.find(id);
+		if (it == building_id_to_idx_.end() || !petra_defense_target(buildings_[it->second])) continue;
+		out_tx = buildings_[it->second].x;
+		out_tz = buildings_[it->second].z;
+		return id;
 	}
-	return best;
+	return 0;
 }
 
 // attackManager.js raidTargetEntity / attackPlan.js "Raid": a few cavalry
@@ -34926,7 +34965,11 @@ void Simulation::petra_manage_defense(float dt) {
 		if (petra_army_capturing(a)) return; // only a "default" army
 		// Sandbox runs no attackManager (headquarters.js:2335): such a plan would never march.
 		if (petra_config_.difficulty == PETRA_SANDBOX) return;
-		for (const Building &b : buildings_) {
+		const std::vector<uint32_t> list = petra_defense_targets_.ids; // targetList, in its order
+		for (const uint32_t tid : list) {
+			const auto tit = building_id_to_idx_.find(tid);
+			if (tit == building_id_to_idx_.end()) continue;
+			const Building &b = buildings_[tit->second];
 			if (!defense_target(b)) continue;
 			const uint16_t land = petra_land_at(b.x, b.z);
 			bool near = false;
@@ -35274,7 +35317,7 @@ void Simulation::petra_manage_defense(float dt) {
 		const int terr = territory_owner_at(units_.pos_x[i], units_.pos_z[i]);
 		if (terr >= 0 && (terr >= MAX_PLAYERS || !is_ally(petra_pid_, (uint8_t)terr))) continue;
 		auto &ids = petra_defense_targets_.ids;
-		bool target = std::binary_search(ids.begin(), ids.end(), b.id);
+		bool target = std::find(ids.begin(), ids.end(), b.id) != ids.end();
 		if (!target && terr == petra_pid_) target = true;
 		else if (!target && (is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY)) {
 			for (const Building &o : buildings_) {
@@ -35284,7 +35327,7 @@ void Simulation::petra_manage_defense(float dt) {
 			}
 		}
 		if (!target) continue;
-		if (!std::binary_search(ids.begin(), ids.end(), b.id)) ids.insert(std::lower_bound(ids.begin(), ids.end(), b.id), b.id);
+		if (std::find(ids.begin(), ids.end(), b.id) == ids.end()) ids.push_back(b.id); // targetList.push
 		make_into_army(units_.id[i]);
 	}
 
@@ -35503,8 +35546,7 @@ void Simulation::petra_manage_defense(float dt) {
 				float fx, fz;
 				petra_army_foe_pos(best_foe, fx, fz);
 				const uint16_t own = petra_land_at(units_.pos_x[idx], units_.pos_z[idx]), there = petra_land_at(fx, fz);
-				if (own && there && own != there) {
-					++against[best_foe];
+				if (own && there && own != there) { // not assigned against it meanwhile (DA:363-370)
 					petra_require_defense_transport(uid, own, there, fx, fz);
 					continue;
 				}
@@ -38589,8 +38631,14 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		} else if constexpr (std::is_same_v<T, S::PetraDefenseTargets>) {
 			if (ar.version >= Simulation::SAVE_VERSION_PETRA_TARGET_LIST) {
 				io_vec(ar, v.ids, 1u << 16, [&](uint32_t &id) { ar.pod(id); });
-				if constexpr (Ar::loading)
-					if (!std::is_sorted(v.ids.begin(), v.ids.end())) ar.ok = false;
+				if constexpr (Ar::loading) {
+					// v132 keeps discovery order, each id once; older saves kept it sorted.
+					std::vector<uint32_t> sorted = v.ids;
+					std::sort(sorted.begin(), sorted.end());
+					if (std::adjacent_find(sorted.begin(), sorted.end()) != sorted.end() ||
+							(ar.version < Simulation::SAVE_VERSION_PETRA_TARGET_ORDER && sorted != v.ids))
+						ar.ok = false;
+				}
 			} else v.ids.clear(); // older saves: structures are seen being built again
 		} else if constexpr (std::is_same_v<T, S::PetraTileBases>) {
 			// The claimed tiles only (index, anchor), in index order.
