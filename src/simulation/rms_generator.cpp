@@ -13322,9 +13322,12 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 	// under them go (template_gaia_flora's DeleteUponConstruction).
 	const int map_tiles = (int)std::lround(2.0f * hm.map_half);
 	const uint8_t walls = starting_walls_of(config.map_type, map_tiles);
+	// RTS0's own maps (0-10) have no 0.28 map script: there a ring that would cross steep ground
+	// gives way to the towers (place_starting_walls' off_steep).
+	const bool own_map = config.map_type <= MAP_RANDOM_MEDITERRANEAN;
 	if (walls != Simulation::STARTING_WALLS_NONE)
 		for (const auto &sp : spawns)
-			sim.place_starting_walls(sp.team, sp.x, sp.z, map_tiles, walls, -0.7853982f, rng.next_u32());
+			sim.place_starting_walls(sp.team, sp.x, sp.z, map_tiles, walls, -0.7853982f, rng.next_u32(), own_map);
 
 	return true;
 }
