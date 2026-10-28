@@ -24433,6 +24433,19 @@ void Simulation::petra_staff_foundations() {
 	}
 	for (auto &n : needs)
 		if (n.watch->stall >= kStallRelease) n.watch->stall = 0.0f;
+	// assignToFoundations counts every unit whose target-foundation it is, those still crossing
+	// to it too: a builders' crossing is its land's first foundation's builders until it lands.
+	if (naval_map)
+		for (const PetraTransportPlan &tp : petra_transports_) {
+			if (tp.owner != PETRA_TRANSPORT_BUILDERS || tp.state == PetraTransportPlan::FAILED) continue;
+			const uint16_t to = petra_land_at(tp.drop_x, tp.drop_z);
+			for (auto &n : needs) {
+				if (n.land != to) continue;
+				n.missing -= (int)tp.passenger_ids.size();
+				building += (int)tp.passenger_ids.size();
+				break;
+			}
+		}
 	// maxTotalBuilders: the workers times the builder ratio (getAvailableResources), at least
 	// two; two more for a house while the population is near its cap; 15 for a base
 	// anchor or the wonder in wonder victory; every worker while there is no base yet.
@@ -24473,6 +24486,7 @@ void Simulation::petra_staff_foundations() {
 			const auto &ban = n.watch->banned;
 			if (std::find(ban.begin(), ban.end(), units_.id[i]) != ban.end()) continue;
 			if (std::find(taken.begin(), taken.end(), units_.id[i]) != taken.end()) continue;
+			if (petra_passenger(units_.id[i])) continue; // bound for a crossing (its "transport" metadata)
 			if (land && petra_land_at(units_.pos_x[i], units_.pos_z[i]) != land) continue;
 			if (left && (*left)[base_of(i)] <= 3) continue;
 			float dx = units_.pos_x[i] - n.x, dz = units_.pos_z[i] - n.z;
@@ -24521,10 +24535,12 @@ void Simulation::petra_staff_foundations() {
 			++building;
 		}
 		// navalManager.requireTransport: nobody of ours on that land yet, so a ship
-		// takes builders from home (one builders' crossing at a time).
+		// takes builders from home (one builders' crossing at a time). With no transport ship
+		// on that sea the plan is made all the same and waits for one (worker.js asks whatever
+		// ships there are; needTransportShips has one trained).
 		if (!naval_map || n.missing < wanted || budget <= 0 || !n.land || n.land == home_land) continue;
 		const uint16_t sea = topo.sea_between(home_land, n.land);
-		if (!sea || petra_transport_ships_on(sea) == 0) continue;
+		if (!sea) continue;
 		std::vector<uint32_t> crew;
 		while ((int)crew.size() < std::min(n.missing, budget)) {
 			const int w = pick_worker(n, home_land, crew);
