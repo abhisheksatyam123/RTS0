@@ -720,6 +720,59 @@ static void check_turret_stance(TurnManager &tm, const char *path) {
 		std::printf("a passive archer up on a wall at the save comes down passive in each loaded copy: ok\n");
 }
 
+// A structures-only attack-move (Petra's siege at a structure, attackPlan.js targetClassesSiege; RTS0's
+// attack_move_structures_) lasts through a save: a swordsman attack-moving at structures only walks past
+// a passive enemy spearman. The game is saved on the way; each loaded copy, a fresh Simulation and one
+// built for the match, must keep the mark and play on identically.
+static void check_attack_move_structures(TurnManager &tm, const char *path) {
+	static Simulation a, b;
+	auto setup = [](Simulation &s) {
+		s.reset();
+		s.set_sim_seed(SEED);
+		s.set_victory_condition(VICTORY_ENDLESS);
+		s.spawn_building_world(-50.0f, -50.0f, BLD_TOWN_CENTER, 0, 1.0f);
+		s.spawn_building_world(50.0f, 50.0f, BLD_TOWN_CENTER, 1, 1.0f);
+	};
+	setup(a);
+	const uint32_t house = a.spawn_building_world(-20.0f, 20.0f, BLD_HOUSE, 1, 1.0f);
+	const uint32_t id = a.spawn_unit(10.0f, -10.0f, 0, UNIT_SWORDSMAN, 1.0e6f);
+	const uint32_t foe = a.spawn_unit(4.0f, -4.0f, 1, UNIT_SPEARMAN, 1.0e6f);
+	a.order_set_stance(&foe, 1, STANCE_PASSIVE);
+	a.order_attack_move(&id, 1, -20.0f, 20.0f, false, false, false, 0, true);
+	run(a, 30);
+	const int before = failures;
+	(void)house;
+	if (a.attack_move_structures_.size() != 1) {
+		std::printf("  FAIL expected the swordsman's attack-move marked structures only (%zu marked)\n", a.attack_move_structures_.size());
+		++failures;
+		return;
+	}
+	if (!a.save_state(path)) { std::printf("FAIL save (structures-only attack-move)\n"); ++failures; return; }
+	auto fresh = std::make_unique<Simulation>();
+	setup(b);
+	struct Copy { Simulation *sim; const char *how; };
+	const Copy copies[] = {{fresh.get(), "fresh"}, {&b, "built for the match"}};
+	for (const Copy &c : copies)
+		if (!c.sim->load_state(path) || c.sim->attack_move_structures_ != a.attack_move_structures_) {
+			std::printf("  FAIL the structures-only attack-move after a load into a sim %s\n", c.how);
+			++failures;
+		}
+	if (failures != before) return;
+	run(a, 60);
+	const int32_t ai = a.lookup_unit(id);
+	for (const Copy &c : copies) {
+		run(*c.sim, 60);
+		const uint32_t ha = tm.compute_sim_hash(a), hc = tm.compute_sim_hash(*c.sim);
+		const int32_t ci = c.sim->lookup_unit(id);
+		if (ai < 0 || ci < 0 || ha != hc || c.sim->units_.target_unit_id[ci] == foe || a.units_.target_unit_id[ai] == foe) {
+			std::printf("  FAIL the structures-only attack-move played on differently in a sim %s (hash %08x / %08x)\n", c.how, ha, hc);
+			++failures;
+		}
+	}
+	if (failures == before)
+		std::printf("a structures-only attack-move at the save walks past enemy soldiers in each loaded copy: ok\n");
+}
+
 // Fields and their grain. 0.28's field is its own supply (template_structure_resource_field.xml:45-51
 // ResourceSupply), so a save keeps the two together. RTS0's grain is a supply of its own at the field's
 // centre, linked to the field (field_res_by_bld_, field_bld_by_res_) until sync_field_resources finds
@@ -886,6 +939,7 @@ int main() {
 	check_trader_save_order("/tmp/rts0_test_save_hash.sav");
 	check_forest_twin(tm, "/tmp/rts0_test_save_hash.sav");
 	check_turret_stance(tm, "/tmp/rts0_test_save_hash.sav");
+	check_attack_move_structures(tm, "/tmp/rts0_test_save_hash.sav");
 	check_field_links(tm, "/tmp/rts0_test_save_hash.sav");
 	check_tick_caches(tm, "/tmp/rts0_test_save_hash.sav");
 	build(live);

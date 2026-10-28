@@ -470,6 +470,42 @@ static void test_shared_sight_and_winner() {
 	std::printf("ally unit far away: seen %d without Cartography, %d with; unseen ally structures shown %zu\n", before,
 			after, ally_bld_shown);
 	CHECK(!before && !vis_before && after && ally_bld_shown == 0, "ally sight shared only with Cartography");
+	{
+		// A shared-sight ally's structure is anyone else's (ComputeLosVisibility: only the owner
+		// sees the real entity in the fog): its CC, which sees itself, shows live; a foundation
+		// (Vision 0) laid out of everyone's sight stays hidden, and once seen shows as it was.
+		static Simulation c;
+		c.set_sim_seed(7);
+		c.reset();
+		c.set_player_active(0, true, false);
+		c.set_player_active(1, true, false);
+		c.spawn_building_world(-40.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
+		const uint32_t ally_cc = c.spawn_building_world(40.0f, 0.0f, BLD_TOWN_CENTER, 1, 1.0f);
+		c.set_mutual_ally(1);
+		c.player(0).techs.set(TECH_UNLOCK_SHARED_LOS);
+		const uint32_t site = c.spawn_building_world(0.0f, 45.0f, BLD_HOUSE, 1, 0.0f);
+		const uint32_t own_site = c.spawn_building_world(0.0f, -45.0f, BLD_HOUSE, 0, 0.0f);
+		for (int i = 0; i < 20; ++i) c.tick(Simulation::FIXED_STEP);
+		FogMirages sm;
+		sm.update(c, 0);
+		const bool cc_live = c.fow_state_at(40.0f, 0.0f, 0) == Simulation::FOW_VISIBLE && find_b(sm, ally_cc) != nullptr &&
+		                     !find_b(sm, ally_cc)->miraged;
+		const bool site_hidden = c.fow_state_at(0.0f, 45.0f, 0) != Simulation::FOW_VISIBLE && find_b(sm, site) == nullptr;
+		const bool own_shown = find_b(sm, own_site) != nullptr && !find_b(sm, own_site)->miraged;
+		std::printf("Cartography: ally CC live %d, ally foundation out of sight hidden %d, own foundation shown %d\n", cc_live,
+				site_hidden, own_shown);
+		CHECK(cc_live && site_hidden && own_shown, "an ally's Vision 0 structure out of sight is not drawn live");
+
+		// A corral-trained horse (Vision 0, not RetainInFog) out of everyone's sight is hidden from
+		// its owner too; a trained sheep (Vision 6) sees itself.
+		const uint32_t horse = c.spawn_fauna(-20.0f, 45.0f, FAUNA_HORSE_TRAINABLE, 0);
+		(void)horse;
+		const bool horse_hidden = !los_sees_fauna(c, 0, -20.0f, 45.0f, 0, FAUNA_HORSE_TRAINABLE);
+		const bool horse_near = los_sees_fauna(c, 0, -40.0f, 5.0f, 0, FAUNA_HORSE_TRAINABLE);
+		const bool sheep = los_sees_fauna(c, 0, -20.0f, 45.0f, 0, FAUNA_SHEEP);
+		std::printf("trained horse out of sight hidden %d, in sight shown %d; own sheep shown %d\n", horse_hidden, horse_near, sheep);
+		CHECK(horse_hidden && horse_near && sheep, "a Vision 0 trained animal is seen only in sight");
+	}
 
 	static Simulation w;
 	w.set_sim_seed(7);

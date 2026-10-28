@@ -1150,6 +1150,21 @@ void RtsoMain::prune_structure_selection() {
 		}
 		return;
 	}
+	// selection.js update: with more than one entity selected, a structure captured away leaves
+	// the selection, the first one too; addList's g_MaxSelectionSize counts structures with units.
+	constexpr size_t kMaxSelectionSize = 300;
+	const bool owners_only = !spectating() && !turn_mgr_.is_replaying() && !any_owner;
+	if (selected_building_id != 0 && owners_only && !live_own(selected_building_id) &&
+			selected_ids.size() + extra_structures_.size() >= 1) { // more than one selected
+		std::vector<uint32_t> rest = extra_structures_;
+		rest.erase(std::remove_if(rest.begin(), rest.end(), [&](uint32_t id) { return !live_own(id); }), rest.end());
+		set_selected_structures(rest);
+	}
+	const size_t room = kMaxSelectionSize - std::min(kMaxSelectionSize, (size_t)selected_ids.size());
+	if (selected_building_id != 0) {
+		if (room == 0) set_selected_structures({});
+		else if (extra_structures_.size() + 1 > room) extra_structures_.resize(room - 1);
+	}
 	if (extra_structures_.empty()) return;
 	extra_structures_.erase(std::remove_if(extra_structures_.begin(), extra_structures_.end(),
 			[&](uint32_t id) { return !live_own(id); }), extra_structures_.end());

@@ -42,7 +42,11 @@ bool los_sees_unit(const Simulation &sim, uint8_t viewer, float x, float z, uint
 
 bool los_sees_fauna(const Simulation &sim, uint8_t viewer, float x, float z, uint8_t owner, uint8_t ftype) {
 	if (los_sees_all(sim, viewer)) return true;
-	if (owner < MAX_PLAYERS && sim.shares_los(viewer, owner)) return true;
+	// An own or shared-sight ally's animal is in sight wherever it stands, except corral-trained
+	// horses and camels (Vision 0, RetainInFog false): CCmpRangeManager hides them out of sight,
+	// even from their owner.
+	if (owner < MAX_PLAYERS && sim.shares_los(viewer, owner) && (ftype >= FAUNA_COUNT || fauna_type_info(ftype).vision > 0.0f))
+		return true;
 	// RetainInFog: Gaia's animals stay in explored fog; corral livestock only in sight.
 	return fauna_retained_in_fog(ftype) ? sim.los_explored(viewer, x, z) : sim.los_visible(viewer, x, z);
 }
@@ -184,9 +188,12 @@ void FogMirages::add_building(const FoggedBuilding &live, bool allied, bool seen
 			return;
 		}
 	}
-	if (allied) {
-		// Owner (or shared-vision ally): RetainInFog shows the real structure.
-		// A mirage of it from before it changed hands is no longer needed.
+	if (allied && own) {
+		// The owner: RetainInFog shows the real structure (ComputeLosVisibility FOGGED).
+		// A mirage of it from before it changed hands is no longer needed. A shared-vision
+		// ally's is anyone else's: live in sight, else its mirage or hidden (a foundation or
+		// field has Vision 0, so out of everyone's sight it can be).
+		(void)allied;
 		building_memory_.erase(b.id);
 		out_buildings_.push_back(b);
 		return;

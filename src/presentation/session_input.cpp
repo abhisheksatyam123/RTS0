@@ -121,7 +121,10 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			if (fired("cancel")) close_open_dialogs();
 			if (fired("selection.cancel")) {
 				if (build_mode) enter_build_mode(false);
-				else clear_selection();
+				else {
+					clear_selection();
+					inspector_.clear(); // g_Selection.reset() drops an inspected entity too
+				}
 				attack_move_mode = patrol_mode = guard_mode = call_to_arms_mode = garrison_mode = turret_mode = repair_mode = false;
 			}
 			return;
@@ -605,6 +608,19 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					const bool idle_only = rtso::hotkeys::held("selection.idleonly");
 					const bool wounded_only = rtso::hotkeys::held("selection.woundedonly");
 					const bool offscreen = rtso::hotkeys::held("selection.offscreen");
+					// selection.js addList: while someone else's entity is the sole selection (the
+					// inspector), nothing is added; removeList drops only that entity.
+					if (selected_ids.is_empty() && selected_building_id == 0 && inspector_.kind() != RtsoInspectorView::INSPECT_NONE &&
+							!sim->controls_all(local_player()) && !observer_all_view() && (is_shift || is_ctrl)) {
+						if (is_ctrl && !is_shift && drag_start.distance_to(drag_end) < user_opts_.drag_delta) {
+							const uint8_t kind = inspector_.kind();
+							const uint32_t id = inspector_.id();
+							const bool same = inspector_.inspect_at(get_ground_click_pos(mouse_pos)) && inspector_.kind() == kind && inspector_.id() == id;
+							if (same) inspector_.clear();
+							else inspector_.inspect(kind, id);
+						}
+						return;
+					}
 
 					if (drag_start.distance_to(drag_end) < user_opts_.drag_delta) {
 						// Single click selection
@@ -626,6 +642,12 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 							bool hov_unit = hov == 0;
 							for (size_t i = 0; i < uview.count && !hov_unit; ++i) hov_unit = uview.id[i] == hov;
 							if (hov_unit) best_uidx = click_pick_unit(mouse_pos, control_all);
+							// input.js: a double-click on someone else's unit picks the player's own of
+							// its template (PickSimilarPlayerEntities names no player), maybe none.
+							if (hov_unit && best_uidx == (size_t)-1 && dbl_click) {
+								best_uidx = click_pick_unit(mouse_pos, true);
+								if (best_uidx != (size_t)-1) inspector_.clear();
+							}
 						}
 						// input.js: clicking any entity but the followed one stops the camera following.
 						if (best_uidx != (size_t)-1 && cam_rig && cam_rig->follow_id() != uview.id[best_uidx]) cam_rig->set_follow_id(0);
@@ -690,7 +712,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 										}
 									}
 								}
-								if (selected_ids.is_empty() && !is_ctrl)
+								if (selected_ids.is_empty() && !is_ctrl && (uview.team[best_uidx] == local_player() || control_all))
 									selected_ids.push_back((int32_t)uview.id[best_uidx]);
 							} else if (is_shift) {
 								// Shift+click adds the unit (selection.add -> addList keeps it if
@@ -743,6 +765,14 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 							// rendered entity), then the old ground test round its base.
 							// Control all units: anyone's structure (selection.js addList force).
 							uint32_t hit_bld = building_under_mouse(mouse_pos, nullptr, sim->controls_all(local_player()));
+							// input.js: a double-click on someone else's structure picks the player's own
+							// of its selection group (PickSimilarPlayerEntities), maybe none.
+							bool foreign_bld = false;
+							if (hit_bld == 0 && dbl_click && !is_ctrl) {
+								hit_bld = building_under_mouse(mouse_pos, nullptr, true);
+								foreign_bld = hit_bld != 0;
+								if (foreign_bld) inspector_.clear();
+							}
 							for (const auto &b : sim->buildings()) {
 								if (hit_bld != 0) break;
 								if (b.team != local_player()) continue;
@@ -763,7 +793,8 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 								// foundations (input.js PickSimilarPlayerEntities: matchRank false by
 								// SelectionGroupName, else the template name, "foundation|" included).
 								std::vector<uint32_t> structs = selected_structures();
-								std::vector<uint32_t> picked{hit_bld};
+								std::vector<uint32_t> picked;
+								if (!foreign_bld) picked.push_back(hit_bld);
 								if (dbl_click) {
 									const bool exact = click_count_ >= 3;
 									auto group_of = [&](const rtso::Simulation::Building &b) -> int64_t {
@@ -809,7 +840,10 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 								if (cam_rig && cam_rig->follow_id() != inspector_.id()) cam_rig->set_follow_id(0);
 								selected_ids.clear();
 								selected_building_id = 0;
-								play_inspected_select();
+								// A double-click picks the player's own entities of its template
+								// (PickSimilarPlayerEntities): none of an animal, a tree or a treasure.
+								if (dbl_click && !is_shift) inspector_.clear();
+								else play_inspected_select();
 							} else {
 								// Clicked empty ground: deselect unless selection.add or .remove is held
 								// (input.js:963-975).

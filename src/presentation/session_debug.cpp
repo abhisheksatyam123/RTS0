@@ -413,6 +413,7 @@ Dictionary RtsoMain::debug_selection_state() {
 	if (!sim) return d;
 	d["selected"] = selected_ids;
 	d["building"] = (int64_t)selected_building_id;
+	d["inspected"] = inspector_.kind() == RtsoInspectorView::INSPECT_NONE ? (int64_t)0 : (int64_t)inspector_.id();
 	for (const auto &b : sim->buildings())
 		if (b.id == selected_building_id && b.has_rally_point) d["rally"] = Vector2(b.rally_x, b.rally_z);
 	Camera3D *cam = cam_rig ? cam_rig->get_camera() : nullptr;
@@ -447,7 +448,7 @@ Dictionary RtsoMain::debug_selection_state() {
 	}
 	d["units"] = units;
 	d["viewport"] = get_viewport()->get_visible_rect().size;
-	// The resource nearest the first selected unit, and where it is on screen.
+	// The land supply nearest the first selected unit, and where it is on screen.
 	if (cam && !selected_ids.is_empty()) {
 		float ux = 0, uz = 0;
 		for (size_t i = 0; i < uview.count; ++i)
@@ -457,7 +458,9 @@ Dictionary RtsoMain::debug_selection_state() {
 		for (size_t r = 0; r < rv.count; ++r) {
 			// A field's grain is hovered as the field (the supply pick skips it), and a
 			// unit other than the selected ones standing over a supply is picked before it.
-			if (!rv.alive[r] || rv.subtype[r] == rtso::RES_SUB_GRAIN) continue;
+			// Fish are left out: only boats gather them, and template_gaia_fish has no
+			// select sound.
+			if (!rv.alive[r] || rv.subtype[r] == rtso::RES_SUB_GRAIN || rv.subtype[r] == rtso::RES_SUB_FISH) continue;
 			const float dd = (rv.x[r] - ux) * (rv.x[r] - ux) + (rv.z[r] - uz) * (rv.z[r] - uz);
 			if (dd >= best) continue;
 			bool covered = false;
@@ -687,6 +690,13 @@ void RtsoMain::debug_select_structures(const PackedInt32Array &ids) {
 	std::vector<uint32_t> v;
 	for (int i = 0; i < ids.size(); ++i) v.push_back((uint32_t)ids[i]);
 	set_selected_structures(v);
+}
+
+void RtsoMain::debug_convert(const PackedInt32Array &ids, int to) {
+	if (!sim) return;
+	std::vector<uint32_t> v;
+	for (int i = 0; i < ids.size(); ++i) v.push_back((uint32_t)ids[i]);
+	sim->cmd_cheat(local_player(), rtso::Simulation::CHEAT_CONVERT_UNITS, to, 0, v.data(), v.size());
 }
 
 void RtsoMain::debug_select_entity(int64_t id) {

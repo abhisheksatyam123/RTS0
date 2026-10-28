@@ -191,7 +191,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 130; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 131; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_ATTACK_MOVE_STRUCTURES = 131; // attack-moves at structures only (attack_move_structures_)
 	static constexpr uint32_t SAVE_VERSION_PETRA_NEXT_PLAN = 130; // a Petra plan preparing beside the one in the slot (petra_next_plan_)
 	static constexpr uint32_t SAVE_VERSION_TRICKLE_TIMER = 128; // each structure's own trickle timer (Building::trickle_tick)
 	static constexpr uint32_t SAVE_VERSION_PETRA_LOST_BASES = 127; // each Petra's bases kept after their civic centre was lost
@@ -990,7 +991,10 @@ public:
 	// on the way, and carry on to (tx, tz) afterwards.
 	// `avoid` holds ORDER_AVOID_* bits: structures the walk does not stop for.
 	void order_attack_move(const uint32_t *unit_ids, size_t count, float tx, float tz,
-			bool queued = false, bool units_only = false, bool allow_capture = false, uint8_t avoid = 0);
+			bool queued = false, bool units_only = false, bool allow_capture = false, uint8_t avoid = 0,
+			bool structures_only = false);
+	// Is unit i's attack-move at structures only (targetClasses attack ["Structure"])?
+	bool attack_move_structures_only(size_t i) const;
 	// targets: ORDER_PATROL_UNITS, or ORDER_PATROL_STRUCTURES / _DEFENSIVE (a trigger script's targetClasses).
 	void order_patrol(const uint32_t *unit_ids, size_t count, float tx, float tz, bool queued = false,
 	                  uint8_t targets = ORDER_PATROL_UNITS);
@@ -2642,8 +2646,31 @@ public:
 	// (STARTING_WALLS_TOWERS, placePolygonalWall at radius 15 facing `orientation`). Other civs
 	// and smaller maps get none. Returns the number of pieces placed.
 	enum StartingWalls : uint8_t { STARTING_WALLS_NONE, STARTING_WALLS_FORTRESS, STARTING_WALLS_TOWERS };
+	// `off_steep` (RTS0's own maps, which have no 0.28 script; an RTS0 rule, as 0.28 lays the ring
+	// wherever the base is): the fortress is laid only when none of the pieces it would lay comes
+	// within a tower's half width of a steep tile (fortress_crosses_steep). Else the seven towers
+	// stand, less those within a tower's half width of a steep tile and those that would part the
+	// ground of either passability class round them (NavGrid::tile_obs_parts_ground: on Acropolis
+	// Heights the one tower left stood in the only ramp up to the civic centre's plateau and shut rams
+	// and elephants off it); the trees and bushes under them go, as under the ring's pieces
+	// (place_map_wall_piece). "Within" is a box of that half width square with the map round each
+	// point (NavGrid::near_steep_tile), so a turned tower's corner may reach past it onto a steep
+	// tile, by up to sqrt 2 - 1 of the half width (about 0.4: a tower turned 45 degrees, as the
+	// fifth of the seven is).
 	size_t place_starting_walls(uint8_t player, float x, float z, int map_tiles, uint8_t walls, float orientation,
-			uint32_t seed);
+			uint32_t seed, bool off_steep = false);
+	// Whether place_generic_fortress(player, x, z, radius, seed) with its other defaults would lay a
+	// piece within a tower's half width of a steep tile: a long wall or gate whose side of the
+	// outline (generic_fortress_outline, the same draws) comes that near one, or a tower whose corner
+	// does. A piece is laid where its centre is on the map and above the water (map_wall_site_ok);
+	// the others don't count. The sides are sampled (NavGrid::segment_near_steep_tile) with the half
+	// width grown by steep_sample_pad, so a steep tile between two samples is not missed.
+	bool fortress_crosses_steep(float x, float z, float radius, uint32_t seed) const;
+	// placeGenericFortress's defaults (wall_builder.js), place_generic_fortress's and the ones
+	// fortress_crosses_steep draws its outline with.
+	static constexpr float GENERIC_FORTRESS_IRREGULARITY = 0.5f;
+	static constexpr int GENERIC_FORTRESS_GATE_EVERY = 3;
+	static constexpr int GENERIC_FORTRESS_TRIES = 100;
 	// wall_builder.js placeGenericFortress: `player`'s built stone walls round (x, z) at about
 	// `radius`, long walls between towers with every `gate_every`-th wall a gate, the outline's
 	// corners pushed in or out by up to `irregularity` of a wall's length (the best closing of
@@ -2651,7 +2678,8 @@ public:
 	// With a `style` (WallStyle) the pieces are that style's, laid as place_wall lays them; without
 	// one, the generic stone set's, as the Iberian starting walls have always had them.
 	size_t place_generic_fortress(uint8_t player, float x, float z, float radius, uint32_t seed,
-			float irregularity = 0.5f, int gate_every = 3, int max_tries = 100, uint8_t style = WALL_STYLE_COUNT);
+			float irregularity = GENERIC_FORTRESS_IRREGULARITY, int gate_every = GENERIC_FORTRESS_GATE_EVERY,
+			int max_tries = GENERIC_FORTRESS_TRIES, uint8_t style = WALL_STYLE_COUNT);
 	// wall_builder.js placeCustomFortress (getWallAlignment with the stone WallSet): `player`'s
 	// built closed wall of `n` elements laid one after the next round (x, z), each a long wall, a
 	// gate, a wall tower, a cornerIn (a tower turned 45 degrees where the wall turns a quarter
@@ -3139,6 +3167,9 @@ private:
 	// changed.
 	void sync_tile_obstructions(bool structures);
 	std::vector<NavGrid::TileObstruction> tile_obs_scratch_;
+	// The structures, unlocked gates' sides, scenery and mines as sync_tile_obstructions lists them
+	// (sorted by key), into `list`.
+	void list_structure_tile_obstructions(std::vector<NavGrid::TileObstruction> &list) const;
 	bool line_crosses_impassable(float x0, float z0, float x1, float z1, uint8_t ship_pass = 0) const;
 	// Deep water within c of (x, z) on both axes: 0 A.D. expands it by a land unit's class clearance.
 	bool near_deep_water(float x, float z, float c) const;
@@ -3336,6 +3367,10 @@ private:
 	bool beach_goal_ = false; // set by order_walk(..., beach_goal) around its cmd_move
 	// Saved (SAVE_VERSION_TURRET_STANCE).
 	std::unordered_map<uint32_t, uint8_t> turret_prev_stance_;
+	// Units whose attack-move fights structures only (Petra's siege at a structure target,
+	// attackPlan.js targetClassesSiege attack ["Structure"]); sorted ids, and an entry counts
+	// only while the unit's order is that attack-move (set_order drops it on any other).
+	std::vector<uint32_t> attack_move_structures_;
 	const TurretPointSet *turret_points_of(const Building &b) const;
 	int structure_garrison_cap(const Building &b) const;
 	void occupy_turret(size_t i, Building &b);
@@ -3460,6 +3495,9 @@ private:
 	// A map script's built wall piece for `player` (placeGenericFortress, placeCustomFortress): left
 	// out off the map or in water; the trees and bushes under it go (DeleteUponConstruction).
 	bool place_map_wall_piece(const WallPiece &p, uint8_t player);
+	// Whether place_map_wall_piece lays a piece centred at (x, z): more than a unit inside the map's
+	// edge and above the water.
+	bool map_wall_site_ok(float x, float z) const;
 	// Cost.js: pays `b_type`'s cost after civ, team and technology bonuses (stone_override, when
 	// not negative, in place of its template stone). False, paying nothing, if unaffordable.
 	bool pay_for_structure(uint8_t player, uint8_t b_type, float cost_override = -1.0f);
@@ -3820,13 +3858,17 @@ private:
 	bool petra_plan_has_force_order(const AttackPlan &plan) const;
 	// must_start: the pick when a plan in preparation sets off (attackPlan.js chooseTarget at
 	// mustStart), where an Attack without siege takes only an undefended structure.
-	uint32_t find_petra_attack_target(float &out_tx, float &out_tz, uint16_t same_land = 0, const AttackPlan *plan = nullptr, bool must_start = false) const;
+	// note: false for the provisional pick when a plan is made, which keeps currentEnemyPlayer
+	// and the Gaia-relic wait as they are (0.28 asks getEnemyPlayer only in chooseTarget).
+	uint32_t find_petra_attack_target(float &out_tx, float &out_tz, uint16_t same_land = 0, const AttackPlan *plan = nullptr,
+	                                  bool must_start = false, bool note = true) const;
 	uint8_t petra_enemy_player(uint8_t kind, bool first = true, bool *gaia_relics = nullptr) const;
 	uint32_t petra_nearest_target(uint8_t kind, bool forced, uint8_t enemy, float px, float pz, uint16_t same_land, float &out_tx, float &out_tz) const;
 	uint32_t find_petra_raid_target(float &out_tx, float &out_tz) const;
 	bool petra_defense_target(const Building &b) const; // defenseManager.js targetList
 	uint8_t petra_target_owner(uint32_t id) const;
-	bool petra_defendable(float x, float z) const; // headquarters.js isDefendable
+	bool petra_defendable(float x, float z) const;
+	bool petra_structure_defended(const Building &b) const; // DM:608-612: not blinking-and-undefendable, a base anchor on its land // headquarters.js isDefendable
 	void petra_scuttle_undefendable();
 	uint32_t petra_help_attack_target(const AttackPlan &plan, uint16_t land, float &tx, float &tz) const;
 	uint32_t find_petra_rush_target(float &out_tx, float &out_tz, uint8_t prefer = 0xFF, const float *from = nullptr, uint16_t land = 0,
@@ -3988,6 +4030,8 @@ private:
 	uint8_t petra_most_needed_resource();
 	float petra_trade_timer_ = 0.0f;
 	float petra_naval_timer_ = 0.0f;
+	// RTS0's old map-circling scout, which 0.28 doesn't have: no longer picked, kept in the save
+	// layout; one loaded from an older save goes back to hunting.
 	float petra_scout_timer_ = 0.0f;
 	uint32_t petra_scout_unit_id_ = 0;
 	float petra_scout_angle_ = 0.0f;
@@ -3995,7 +4039,6 @@ private:
 
 	void update_petra_bases(float dt);
 	void update_petra_threat_map(float dt);
-	void petra_manage_scouting(float dt);
 	void petra_manage_economy(float dt);
 	void petra_manage_trading(float dt);
 	void petra_manage_naval(float dt);
@@ -4145,6 +4188,12 @@ private:
 	// A defense army's foe that is still about: a living unit, or an animal neither dead nor
 	// penned (defenseManager.js checkEnemyUnits keeps animals attacking us or our allies).
 	bool petra_army_foe_pos(uint32_t fid, float &x, float &z) const;
+	// entityExtend.js canAttackTarget for a defense army's foe: may unit i attack unit or animal
+	// fid at all (Attack RestrictedClasses: rams and ships reach no land animal)?
+	bool petra_can_hit_foe(size_t i, uint32_t fid) const {
+		if (const int32_t fi = lookup_unit(fid); fi >= 0) return unit_can_target(i, (size_t)fi);
+		return units_.unit_type[i] != UNIT_SIEGE_RAM && !unit_is_ship(units_.unit_type[i]);
+	}
 	float petra_fauna_strength(size_t f) const; // getMaxStrength, x3 for an elephant (evaluateStrength)
 	bool petra_army_capturing(const PetraDefenseArmy &army) const; // getType() == "capturing"
 	float petra_enemy_capture_points(const Building &b) const;
