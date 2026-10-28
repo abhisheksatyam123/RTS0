@@ -2645,8 +2645,31 @@ public:
 	// (STARTING_WALLS_TOWERS, placePolygonalWall at radius 15 facing `orientation`). Other civs
 	// and smaller maps get none. Returns the number of pieces placed.
 	enum StartingWalls : uint8_t { STARTING_WALLS_NONE, STARTING_WALLS_FORTRESS, STARTING_WALLS_TOWERS };
+	// `off_steep` (RTS0's own maps, which have no 0.28 script; an RTS0 rule, as 0.28 lays the ring
+	// wherever the base is): the fortress is laid only when none of the pieces it would lay comes
+	// within a tower's half width of a steep tile (fortress_crosses_steep). Else the seven towers
+	// stand, less those within a tower's half width of a steep tile and those that would part the
+	// ground of either passability class round them (NavGrid::tile_obs_parts_ground: on Acropolis
+	// Heights the one tower left stood in the only ramp up to the civic centre's plateau and shut rams
+	// and elephants off it); the trees and bushes under them go, as under the ring's pieces
+	// (place_map_wall_piece). "Within" is a box of that half width square with the map round each
+	// point (NavGrid::near_steep_tile), so a turned tower's corner may reach past it onto a steep
+	// tile, by up to sqrt 2 - 1 of the half width (about 0.4: a tower turned 45 degrees, as the
+	// fifth of the seven is).
 	size_t place_starting_walls(uint8_t player, float x, float z, int map_tiles, uint8_t walls, float orientation,
-			uint32_t seed);
+			uint32_t seed, bool off_steep = false);
+	// Whether place_generic_fortress(player, x, z, radius, seed) with its other defaults would lay a
+	// piece within a tower's half width of a steep tile: a long wall or gate whose side of the
+	// outline (generic_fortress_outline, the same draws) comes that near one, or a tower whose corner
+	// does. A piece is laid where its centre is on the map and above the water (map_wall_site_ok);
+	// the others don't count. The sides are sampled (NavGrid::segment_near_steep_tile) with the half
+	// width grown by steep_sample_pad, so a steep tile between two samples is not missed.
+	bool fortress_crosses_steep(float x, float z, float radius, uint32_t seed) const;
+	// placeGenericFortress's defaults (wall_builder.js), place_generic_fortress's and the ones
+	// fortress_crosses_steep draws its outline with.
+	static constexpr float GENERIC_FORTRESS_IRREGULARITY = 0.5f;
+	static constexpr int GENERIC_FORTRESS_GATE_EVERY = 3;
+	static constexpr int GENERIC_FORTRESS_TRIES = 100;
 	// wall_builder.js placeGenericFortress: `player`'s built stone walls round (x, z) at about
 	// `radius`, long walls between towers with every `gate_every`-th wall a gate, the outline's
 	// corners pushed in or out by up to `irregularity` of a wall's length (the best closing of
@@ -2654,7 +2677,8 @@ public:
 	// With a `style` (WallStyle) the pieces are that style's, laid as place_wall lays them; without
 	// one, the generic stone set's, as the Iberian starting walls have always had them.
 	size_t place_generic_fortress(uint8_t player, float x, float z, float radius, uint32_t seed,
-			float irregularity = 0.5f, int gate_every = 3, int max_tries = 100, uint8_t style = WALL_STYLE_COUNT);
+			float irregularity = GENERIC_FORTRESS_IRREGULARITY, int gate_every = GENERIC_FORTRESS_GATE_EVERY,
+			int max_tries = GENERIC_FORTRESS_TRIES, uint8_t style = WALL_STYLE_COUNT);
 	// wall_builder.js placeCustomFortress (getWallAlignment with the stone WallSet): `player`'s
 	// built closed wall of `n` elements laid one after the next round (x, z), each a long wall, a
 	// gate, a wall tower, a cornerIn (a tower turned 45 degrees where the wall turns a quarter
@@ -3137,6 +3161,9 @@ private:
 	// changed.
 	void sync_tile_obstructions(bool structures);
 	std::vector<NavGrid::TileObstruction> tile_obs_scratch_;
+	// The structures, unlocked gates' sides, scenery and mines as sync_tile_obstructions lists them
+	// (sorted by key), into `list`.
+	void list_structure_tile_obstructions(std::vector<NavGrid::TileObstruction> &list) const;
 	bool line_crosses_impassable(float x0, float z0, float x1, float z1, uint8_t ship_pass = 0) const;
 	// Deep water within c of (x, z) on both axes: 0 A.D. expands it by a land unit's class clearance.
 	bool near_deep_water(float x, float z, float c) const;
@@ -3462,6 +3489,9 @@ private:
 	// A map script's built wall piece for `player` (placeGenericFortress, placeCustomFortress): left
 	// out off the map or in water; the trees and bushes under it go (DeleteUponConstruction).
 	bool place_map_wall_piece(const WallPiece &p, uint8_t player);
+	// Whether place_map_wall_piece lays a piece centred at (x, z): more than a unit inside the map's
+	// edge and above the water.
+	bool map_wall_site_ok(float x, float z) const;
 	// Cost.js: pays `b_type`'s cost after civ, team and technology bonuses (stone_override, when
 	// not negative, in place of its template stone). False, paying nothing, if unaffordable.
 	bool pay_for_structure(uint8_t player, uint8_t b_type, float cost_override = -1.0f);

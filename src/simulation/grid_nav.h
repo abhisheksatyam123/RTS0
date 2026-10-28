@@ -235,6 +235,9 @@ struct NavGrid {
     // A start region of at most this many nodes is walked whole when MakeGoalReachable moves a goal
     // the start can't reach (find_path_tiles), rather than scanned in rings round a far goal.
     static constexpr size_t TILE_POCKET_NODES = 1024;
+    // tile_obs_parts_ground's floods round an obstruction stop at this many nodes (a part that big is
+    // no pocket), unless two of them must be told apart.
+    static constexpr size_t TILE_PART_FLOOD = 16384;
 
     // A static obstruction the tile pass keeps units off (CCmpObstructionManager::Rasterize: the
     // static shapes that BlockPathfinding): a rectangle centred on (x, z), hu along u = (ux, uz) and
@@ -700,8 +703,12 @@ struct NavGrid {
     // outside it as well, as JPS takes a diagonal step only past two open nodes). Then no step
     // between open nodes, and no square of four, crosses it, and a path along open nodes is one a
     // unit can walk, while the nodes beside its faces stay open as they do beside a shape square
-    // with the map.
+    // with the map. The counts are tile_obs_count_[cls], or `count` when given.
     void tile_obs_raster(const TileObstruction &o, int cls, int delta, std::vector<uint32_t> *crossed) {
+        tile_obs_raster(o, cls, delta, crossed, tile_obs_count_[cls]);
+    }
+    void tile_obs_raster(const TileObstruction &o, int cls, int delta, std::vector<uint32_t> *crossed,
+            std::vector<uint16_t> &count) const {
         const int nw = node_res();
         if (nw <= 0) return;
         const float s = node_step(), hs = 0.5f * s, g = tile_clearance(cls) + TILE_HAIR;
@@ -748,7 +755,6 @@ struct NavGrid {
                 }
             return false;
         };
-        std::vector<uint16_t> &count = tile_obs_count_[cls];
         for (int b = b0; b <= b1; ++b)
             for (int a = a0; a <= a1; ++a) {
                 bool in;
@@ -765,6 +771,130 @@ struct NavGrid {
                     crossed->push_back(static_cast<uint32_t>(k));
                 }
             }
+    }
+
+    // Whether obstruction o, put down among the static obstructions `obs`, would part the ground of
+    // class cls round it: whether, of the open nodes beside those it closes, some that are joined
+    // without it are no longer joined with it, the part cut off holding more nodes than o closes (a
+    // pocket smaller than that, a node or two between it and a cliff, counts for nothing). The ground
+    // is the terrain as the nodes take it (node_terrain_open: steep tiles, deep water as the navcells
+    // have it now, and the map's edge, each kept off by the class clearance) with `obs` and o
+    // rasterized as tile_obs_raster does, nodes joined to their four neighbours as the regions join
+    // them (flood_tile_regions). The trees, bushes and treasures are left out, as they are cut,
+    // gathered and picked up: a way only they narrow is still one o would shut once they are gone.
+    // Simulation::place_starting_walls leaves out a tower of RTS0's own maps that would part either
+    // class (Acropolis Heights: the only ramp up to the civic centre's plateau).
+    bool tile_obs_parts_ground(const TileObstruction &o, const std::vector<TileObstruction> &obs, int cls) const {
+        const int nw = node_res();
+        if (nw <= 0 || cells.blank()) return false;
+        const uint32_t w = static_cast<uint32_t>(nw);
+        const size_t n = static_cast<size_t>(nw) * static_cast<size_t>(nw);
+        std::vector<uint16_t> cover(n, 0);
+        for (const TileObstruction &q : obs) tile_obs_raster(q, cls, 1, nullptr, cover);
+        std::vector<uint32_t> shut; // the nodes o covers and nothing in obs does
+        tile_obs_raster(o, cls, 1, &shut, cover);
+        // Per node: bit 0 its terrain worked out, bit 1 open to it, bit 2 covered by o alone.
+        std::vector<uint8_t> node(n, 0);
+        for (const uint32_t k : shut) node[k] |= 4;
+        auto open = [&](uint32_t k, bool with) {
+            if (cover[k] && (with || !(node[k] & 4))) return false;
+            if (!(node[k] & 1)) node[k] |= node_terrain_open(static_cast<int>(k % w), static_cast<int>(k / w), cls, true) ? 3 : 1;
+            return (node[k] & 2) != 0;
+        };
+        std::vector<uint32_t> mark(n, 0);
+        uint32_t stamp = 1;
+        auto each_neighbour = [&](uint32_t k, auto &&f) {
+            const uint32_t a = k % w, b = k / w;
+            if (a > 0) f(k - 1);
+            if (a + 1 < w) f(k + 1);
+            if (b > 0) f(k - w);
+            if (b + 1 < w) f(k + w);
+        };
+        // The open nodes beside the ones o closes, sorted.
+        std::vector<uint32_t> edge;
+        for (const uint32_t k : shut) {
+            if (!open(k, false)) continue;
+            each_neighbour(k, [&](uint32_t j) {
+                if (mark[j] != stamp && open(j, true)) {
+                    mark[j] = stamp;
+                    edge.push_back(j);
+                }
+            });
+        }
+        if (edge.size() < 2) return false;
+        std::sort(edge.begin(), edge.end());
+        // A flood from edge node e, with o or without it, putting the edge nodes it reaches that
+        // `want` lists and no group holds yet into group g. It stops when it runs out, at `cap`
+        // nodes, or once none of those edge nodes is left and it has reached more than `pocket`
+        // nodes (its part is no pocket). It returns the nodes it reached when it ran out, else `open`.
+        // Breadth first, so that the edge nodes round o, a few steps apart, are met first.
+        const size_t pocket = shut.size(), open_part = static_cast<size_t>(-1);
+        std::vector<uint32_t> queue;
+        auto flood = [&](size_t e, bool with, int g, std::vector<int> &group, const std::vector<uint8_t> &want, size_t &left, size_t cap) {
+            size_t nodes = 0;
+            queue.assign(1, edge[e]);
+            mark[edge[e]] = ++stamp;
+            while (nodes < queue.size() && nodes < cap && (left || nodes <= pocket)) {
+                const uint32_t k = queue[nodes++];
+                const auto it = std::lower_bound(edge.begin(), edge.end(), k);
+                if (it != edge.end() && *it == k) {
+                    const size_t i = static_cast<size_t>(it - edge.begin());
+                    if (want[i] && group[i] < 0) {
+                        group[i] = g;
+                        --left;
+                    }
+                }
+                each_neighbour(k, [&](uint32_t j) {
+                    if (mark[j] != stamp && open(j, with)) {
+                        mark[j] = stamp;
+                        queue.push_back(j);
+                    }
+                });
+            }
+            return nodes == queue.size() ? nodes : open_part;
+        };
+        // With o: the groups the edge nodes fall into, each flood held to TILE_PART_FLOOD nodes; a
+        // group of no more than `pocket` nodes is a pocket. Groups whose floods stopped short may
+        // be one part: floods without the cap join them.
+        const std::vector<uint8_t> all(edge.size(), 1);
+        std::vector<int> with(edge.size(), -1);
+        std::vector<size_t> size;
+        size_t left = edge.size();
+        for (size_t e = 0; e < edge.size(); ++e)
+            if (with[e] < 0) size.push_back(flood(e, true, static_cast<int>(size.size()), with, all, left, TILE_PART_FLOOD));
+        auto parts_of = [&]() { return std::count_if(size.begin(), size.end(), [&](size_t z) { return z > pocket; }); };
+        if (parts_of() < 2) return false;
+        for (size_t gr = 0; gr < size.size(); ++gr) {
+            if (size[gr] != open_part) continue;
+            std::vector<uint8_t> later(edge.size(), 0); // the edge nodes of the open groups after gr
+            size_t from = edge.size(), todo = 0;
+            for (size_t e = 0; e < edge.size(); ++e) {
+                const size_t h = static_cast<size_t>(with[e]);
+                if (h == gr && from == edge.size()) from = e;
+                if (h > gr && size[h] == open_part) {
+                    later[e] = 1;
+                    ++todo;
+                }
+            }
+            if (!todo) continue;
+            std::vector<int> reached(edge.size(), -1);
+            flood(from, true, 0, reached, later, todo, open_part);
+            for (size_t e = 0; e < edge.size(); ++e)
+                if (reached[e] == 0) {
+                    size[static_cast<size_t>(with[e])] = 0; // one part with gr's
+                    with[e] = static_cast<int>(gr);
+                }
+        }
+        if (parts_of() < 2) return false;
+        // Without o: the groups the edge nodes of those parts fall into; fewer, and o parts them.
+        std::vector<uint8_t> want(edge.size());
+        for (size_t e = 0; e < edge.size(); ++e) want[e] = size[static_cast<size_t>(with[e])] > pocket;
+        std::vector<int> without(edge.size(), -1);
+        left = static_cast<size_t>(std::count(want.begin(), want.end(), uint8_t{1}));
+        int groups = 0;
+        for (size_t e = 0; e < edge.size(); ++e)
+            if (want[e] && without[e] < 0) flood(e, false, groups++, without, want, left, open_part);
+        return groups < parts_of();
     }
 
     // Calls f on the index of each bucket (tile_obs_buckets_) that obstruction o's box, grown by the

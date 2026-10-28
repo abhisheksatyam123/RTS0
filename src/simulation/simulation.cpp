@@ -2508,6 +2508,61 @@ void Simulation::rebuild_nav_grid() {
 	++nav_terrain_stamp_;
 }
 
+namespace {
+// The keys of the tile pass's static obstructions: the kind, then the entity id, then which part of it.
+enum TileObsKind : uint64_t { K_BUILDING = 1, K_GATE_SIDE, K_SCENERY, K_MINE, K_FLORA, K_TREASURE };
+// A static obstruction as the tile pass lists it (NavGrid::TileObstruction): centred on (x, z), hu
+// along u = (ux, uz) and hv across it; one square with the map has u = (1, 0) (nav/footprint.h) and
+// its half sizes along x and z.
+NavGrid::TileObstruction tile_obstruction(uint64_t kind, uint32_t id, uint32_t part, float x, float z, float ux, float uz, float hu,
+		float hv) {
+	NavGrid::TileObstruction o;
+	o.key = (kind << 56) | ((uint64_t)id << 2) | part;
+	o.x = x;
+	o.z = z;
+	if (std::fabs(uz) < 1e-6f) {
+		ux = 1.0f;
+		uz = 0.0f;
+	} else if (std::fabs(ux) < 1e-6f) {
+		ux = 1.0f;
+		uz = 0.0f;
+		std::swap(hu, hv);
+	}
+	o.ux = ux;
+	o.uz = uz;
+	o.hu = hu;
+	o.hv = hv;
+	return o;
+}
+} // namespace
+
+void Simulation::list_structure_tile_obstructions(std::vector<NavGrid::TileObstruction> &list) const {
+	auto put = [&](uint64_t kind, uint32_t id, uint32_t part, float x, float z, float ux, float uz, float hu, float hv) {
+		list.push_back(tile_obstruction(kind, id, part, x, z, ux, uz, hu, hv));
+	};
+	list.clear();
+	for (const auto &b : buildings_) {
+		const nav::Vec2 u = nav::footprint_u(b);
+		// An unlocked gate's sides still block pathfinding: only its Door is switched (Gate.js).
+		if (is_gate_type(b.type) && !b.wrecked && b.build_progress >= 0.99f && !blocks_pathfinding(b)) {
+			uint32_t side = 0;
+			for_each_gate_side(b, [&](float x, float z, float hu, float hv) { put(K_GATE_SIDE, b.id, side++, x, z, u.x, u.y, hu, hv); });
+			continue;
+		}
+		// A committed foundation blocks movement too (Foundation.js Commit sets its obstruction); a wreck doesn't.
+		if (b.wrecked || (b.build_progress < 0.99f && !b.committed) || !blocks_pathfinding(b)) continue;
+		put(K_BUILDING, b.id, 0, b.x, b.z, u.x, u.y, b.hu, b.hv);
+	}
+	for (const Scenery &sc : scenery_)
+		put(K_SCENERY, sc.id, 0, sc.x, sc.z, det::cos(sc.angle), -det::sin(sc.angle), sc.half_w, sc.half_d);
+	for (size_t r = 0; r < resources_.count; ++r) {
+		nav::Footprint m;
+		if (!resources_.alive[r] || resources_.amount[r] <= 0 || !mine_footprint(r, m)) continue;
+		put(K_MINE, resources_.id[r], 0, m.x, m.z, m.ux, m.uz, m.hu, m.hv);
+	}
+	std::sort(list.begin(), list.end(), [](const NavGrid::TileObstruction &a, const NavGrid::TileObstruction &b) { return a.key < b.key; });
+}
+
 // The static obstructions the nodes of the long paths on the terrain tiles keep units off
 // (NavGrid::set_tile_obstructions), as CCmpObstructionManager::Rasterize puts the static shapes
 // that BlockPathfinding onto 0.28's navcells. With `structures`, the ones rebuild_nav_grid closes
@@ -2589,51 +2644,12 @@ void Simulation::sync_tile_obstructions(bool structures) {
 	if (!structures && gaia_listed) return;
 
 	std::vector<TileObs> &list = tile_obs_scratch_;
-	// Keys: the kind, then the entity id, then which part of it.
-	enum : uint64_t { K_BUILDING = 1, K_GATE_SIDE, K_SCENERY, K_MINE, K_FLORA, K_TREASURE };
 	auto put = [&](uint64_t kind, uint32_t id, uint32_t part, float x, float z, float ux, float uz, float hu, float hv) {
-		TileObs o;
-		o.key = (kind << 56) | ((uint64_t)id << 2) | part;
-		o.x = x;
-		o.z = z;
-		// Square with the map: u = (1, 0) (nav/footprint.h), the half sizes along x and z.
-		if (std::fabs(uz) < 1e-6f) {
-			ux = 1.0f;
-			uz = 0.0f;
-		} else if (std::fabs(ux) < 1e-6f) {
-			ux = 1.0f;
-			uz = 0.0f;
-			std::swap(hu, hv);
-		}
-		o.ux = ux;
-		o.uz = uz;
-		o.hu = hu;
-		o.hv = hv;
-		list.push_back(o);
+		list.push_back(tile_obstruction(kind, id, part, x, z, ux, uz, hu, hv));
 	};
 	auto by_key = [](const TileObs &a, const TileObs &b) { return a.key < b.key; };
 	if (structures) {
-		list.clear();
-		for (const auto &b : buildings_) {
-			const nav::Vec2 u = nav::footprint_u(b);
-			// An unlocked gate's sides still block pathfinding: only its Door is switched (Gate.js).
-			if (is_gate_type(b.type) && !b.wrecked && b.build_progress >= 0.99f && !blocks_pathfinding(b)) {
-				uint32_t side = 0;
-				for_each_gate_side(b, [&](float x, float z, float hu, float hv) { put(K_GATE_SIDE, b.id, side++, x, z, u.x, u.y, hu, hv); });
-				continue;
-			}
-			// A committed foundation blocks movement too (Foundation.js Commit sets its obstruction); a wreck doesn't.
-			if (b.wrecked || (b.build_progress < 0.99f && !b.committed) || !blocks_pathfinding(b)) continue;
-			put(K_BUILDING, b.id, 0, b.x, b.z, u.x, u.y, b.hu, b.hv);
-		}
-		for (const Scenery &sc : scenery_)
-			put(K_SCENERY, sc.id, 0, sc.x, sc.z, det::cos(sc.angle), -det::sin(sc.angle), sc.half_w, sc.half_d);
-		for (size_t r = 0; r < resources_.count; ++r) {
-			nav::Footprint m;
-			if (!resources_.alive[r] || resources_.amount[r] <= 0 || !mine_footprint(r, m)) continue;
-			put(K_MINE, resources_.id[r], 0, m.x, m.z, m.ux, m.uz, m.hu, m.hv);
-		}
-		std::sort(list.begin(), list.end(), by_key);
+		list_structure_tile_obstructions(list);
 		nav_grid_.set_tile_obstructions(NavGrid::TILE_OBS_STRUCTURES, list);
 	}
 	if (gaia_listed) return;
@@ -9910,12 +9926,19 @@ void Simulation::clear_resources_near(float x, float z, float r) {
 }
 
 size_t Simulation::place_starting_walls(uint8_t player, float x, float z, int map_tiles, uint8_t walls, float orientation,
-		uint32_t seed) {
+		uint32_t seed, bool off_steep) {
 	if (player >= MAX_PLAYERS || civ_of(player) != CIV_IBERIANS || map_tiles <= 128) return 0;
-	if (walls == STARTING_WALLS_FORTRESS) return place_generic_fortress(player, x, z, 20.0f, seed);
+	if (walls == STARTING_WALLS_FORTRESS) {
+		if (!off_steep || !fortress_crosses_steep(x, z, 20.0f, seed)) return place_generic_fortress(player, x, z, 20.0f, seed);
+		walls = STARTING_WALLS_TOWERS;
+	}
 	if (walls != STARTING_WALLS_TOWERS) return 0;
 	// placePolygonalWall(position, 15, ["entry"], "tower", civ, playerID, orientation, 7): a tower at
 	// each of 7 corners; an "entry" has no template, so nothing stands between them.
+	const float th = wallset_info(WALLSET_STONE).tower_half;
+	// off_steep: what a tower must not shut a way between, the towers laid so far joining it.
+	std::vector<NavGrid::TileObstruction> obs;
+	if (off_steep) list_structure_tile_obstructions(obs);
 	const bool bulk = bulk_spawn_;
 	bulk_spawn_ = true;
 	size_t placed = 0;
@@ -9923,9 +9946,20 @@ size_t Simulation::place_starting_walls(uint8_t player, float x, float z, int ma
 	for (int i = 0; i < 7; ++i) {
 		const float a = orientation - 0.5f * step + (float)i * step;
 		const float px = x + 15.0f * det::cos(a), pz = z + 15.0f * det::sin(a);
-		if (std::fabs(px) > map_half_ - 1.0f || std::fabs(pz) > map_half_ - 1.0f) continue;
-		if (get_terrain_height(px, pz) < terrain_water_height_ + 0.15f) continue;
-		spawn_wall_piece({BLD_WALL_TOWER, px, pz, -a, wallset_info(WALLSET_STONE).tower_half}, player, 1.0f);
+		if (!map_wall_site_ok(px, pz)) continue;
+		const WallPiece tower{BLD_WALL_TOWER, px, pz, -a, th};
+		if (!off_steep) {
+			spawn_wall_piece(tower, player, 1.0f);
+			++placed;
+			continue;
+		}
+		if (nav_grid_.near_steep_tile(px, pz, th)) continue;
+		const Building fp = wall_piece_footprint(tower);
+		const nav::Vec2 u = nav::footprint_u(fp);
+		const NavGrid::TileObstruction t = tile_obstruction(K_BUILDING, 0, 0, fp.x, fp.z, u.x, u.y, fp.hu, fp.hv);
+		if (nav_grid_.tile_obs_parts_ground(t, obs, 0) || nav_grid_.tile_obs_parts_ground(t, obs, 1)) continue;
+		place_map_wall_piece(tower, player);
+		obs.push_back(t);
 		++placed;
 	}
 	bulk_spawn_ = bulk;
@@ -9933,9 +9967,12 @@ size_t Simulation::place_starting_walls(uint8_t player, float x, float z, int ma
 	return placed;
 }
 
+bool Simulation::map_wall_site_ok(float x, float z) const {
+	return !(std::fabs(x) > map_half_ - 1.0f || std::fabs(z) > map_half_ - 1.0f || get_terrain_height(x, z) < terrain_water_height_ + 0.15f);
+}
+
 bool Simulation::place_map_wall_piece(const WallPiece &p, uint8_t player) {
-	if (std::fabs(p.x) > map_half_ - 1.0f || std::fabs(p.z) > map_half_ - 1.0f) return false;
-	if (get_terrain_height(p.x, p.z) < terrain_water_height_ + 0.15f) return false;
+	if (!map_wall_site_ok(p.x, p.z)) return false;
 	// template_gaia_flora's DeleteUponConstruction: trees and bushes under the piece go.
 	const float c = det::cos(p.rot), sn = -det::sin(p.rot);
 	for (float u = -p.half_w; u <= p.half_w + 1e-3f; u += 0.5f)
@@ -10017,10 +10054,16 @@ size_t Simulation::place_custom_fortress(uint8_t player, float x, float z, float
 	return placed;
 }
 
-size_t Simulation::place_generic_fortress(uint8_t player, float x, float z, float radius, uint32_t seed,
-		float irregularity, int gate_every, int max_tries, uint8_t style) {
-	const WallSetInfo &ws = wallset_info(WALLSET_STONE);
-	const bool styled = style < WALL_STYLE_COUNT;
+namespace {
+struct FortressCorner {
+	float x, z;
+};
+// placeGenericFortress's outline (wall_builder.js): the corners, relative to the centre, of the closed
+// walk round it a wall's length `pd` at a time, each corner pushed in or out at random by up to
+// `irregularity` of it; of `max_tries` tries the one whose last wall overlaps the first least (a try
+// starts where the previous one stopped). The draws come from `seed` alone.
+std::vector<FortressCorner> generic_fortress_outline(float radius, uint32_t seed, float irregularity, int max_tries,
+		float overlap, float pd) {
 	uint64_t state = (uint64_t)seed * 0x9E3779B97F4A7C15ull + 0x2545F4914F6CDD1Dull;
 	auto rnd = [&state]() { // splitmix64, [0, 1)
 		uint64_t v = (state += 0x9E3779B97F4A7C15ull);
@@ -10029,16 +10072,9 @@ size_t Simulation::place_generic_fortress(uint8_t player, float x, float z, floa
 		v ^= v >> 31;
 		return (float)((double)(v >> 11) * (1.0 / 9007199254740992.0));
 	};
-	struct V { float x, z; };
+	using V = FortressCorner;
 	auto polar = [](float r, float a) { return V{r * det::cos(a), r * det::sin(a)}; };
 	auto dist = [](V a, V b) { return det::hypot(a.x - b.x, a.z - b.z); };
-	// getWallLength(style, ["long", "tower"]): each element's length less the tower overlap.
-	const float overlap = styled ? (float)wall_overlap<double>(style) : ws.min_overlap * ws.tower_length;
-	const float pd = styled ? (float)wall_length<double>(style, {WallElementName{WALL_EL_LONG}, WallElementName{}})
-	                        : (ws.lengths[0] - overlap) + (ws.tower_length - overlap);
-	// Walk round the centre a wall's length at a time, each corner pushed in or out at random,
-	// until the outline closes; keep the try whose last wall overlaps the first least. As in
-	// placeGenericFortress, a try starts where the previous one stopped.
 	const float start_angle = rnd() * 2.0f * 3.14159265f;
 	V off = polar(radius, start_angle);
 	float angle = start_angle;
@@ -10065,6 +10101,59 @@ size_t Simulation::place_generic_fortress(uint8_t player, float x, float z, floa
 			if (pts.size() > 1000) break; // a radius too small to close on
 		}
 	}
+	return best;
+}
+// getWallLength(style, ["long", "tower"]): each element's length less the tower overlap (`pd`), and
+// that overlap; without a style (WALL_STYLE_COUNT), the generic stone set's.
+void generic_fortress_lengths(uint8_t style, float &overlap, float &pd) {
+	const WallSetInfo &ws = wallset_info(WALLSET_STONE);
+	const bool styled = style < WALL_STYLE_COUNT;
+	overlap = styled ? (float)wall_overlap<double>(style) : ws.min_overlap * ws.tower_length;
+	pd = styled ? (float)wall_length<double>(style, {WallElementName{WALL_EL_LONG}, WallElementName{}})
+	            : (ws.lengths[0] - overlap) + (ws.tower_length - overlap);
+}
+// The middle of the wall from corner a to corner b, where the unstyled ring lays it.
+FortressCorner fortress_wall_mid(FortressCorner a, FortressCorner b) {
+	const float wa = det::atan2(b.z - a.z, b.x - a.x), d = det::hypot(a.x - b.x, a.z - b.z);
+	return {a.x + 0.5f * d * det::cos(wa), a.z + 0.5f * d * det::sin(wa)};
+}
+} // namespace
+
+// An RTS0 rule for RTS0's own maps (place_starting_walls' off_steep). 0.28's placeStartingWalls
+// (player.js) lays placeGenericFortress wherever the map script puts the base; these maps have no
+// 0.28 script. On Acropolis Heights seed 3 the ring round player 0's civic centre ran up the cliff
+// beside it, and its lowland walls, whose gates all open onto steep ground, shut the base in: stuck
+// returners, builders and foundations. The test walks the outline place_generic_fortress would lay
+// (its defaults, unstyled), corner to corner: each tower it lays (at a corner) by a tower's half
+// width, and each long wall or gate it lays (along a side, from its middle) over the whole side by
+// that and steep_sample_pad, its first corner by the point test. Pieces it leaves out (off the map,
+// in water) don't count.
+bool Simulation::fortress_crosses_steep(float x, float z, float radius, uint32_t seed) const {
+	if (!nav_grid_.any_steep_tile()) return false;
+	const float r = wallset_info(WALLSET_STONE).tower_half, rs = r + nav_grid_.steep_sample_pad();
+	float overlap, pd;
+	generic_fortress_lengths(WALL_STYLE_COUNT, overlap, pd);
+	const std::vector<FortressCorner> best =
+			generic_fortress_outline(radius, seed, GENERIC_FORTRESS_IRREGULARITY, GENERIC_FORTRESS_TRIES, overlap, pd);
+	const size_t n = best.size();
+	for (size_t i = 0; i < n; ++i) {
+		const FortressCorner a{x + best[i].x, z + best[i].z}, b{x + best[(i + 1) % n].x, z + best[(i + 1) % n].z};
+		const FortressCorner mid = fortress_wall_mid(a, b);
+		const bool tower = map_wall_site_ok(a.x, a.z), wall = map_wall_site_ok(mid.x, mid.z);
+		if ((tower || wall) && nav_grid_.near_steep_tile(a.x, a.z, r)) return true;
+		if (wall && nav_grid_.segment_near_steep_tile(a.x, a.z, b.x, b.z, rs)) return true;
+	}
+	return false;
+}
+
+size_t Simulation::place_generic_fortress(uint8_t player, float x, float z, float radius, uint32_t seed,
+		float irregularity, int gate_every, int max_tries, uint8_t style) {
+	const WallSetInfo &ws = wallset_info(WALLSET_STONE);
+	const bool styled = style < WALL_STYLE_COUNT;
+	using V = FortressCorner;
+	float overlap, pd;
+	generic_fortress_lengths(style, overlap, pd);
+	const std::vector<V> best = generic_fortress_outline(radius, seed, irregularity, max_tries, overlap, pd);
 	if (best.empty()) return 0;
 	const bool bulk = bulk_spawn_;
 	bulk_spawn_ = true;
@@ -10092,7 +10181,7 @@ size_t Simulation::place_generic_fortress(uint8_t player, float x, float z, floa
 		// The wall from this corner to the next: every gate_every-th a gate, else a long wall.
 		const V a{x + best[i].x, z + best[i].z}, b{x + best[(i + 1) % n].x, z + best[(i + 1) % n].z};
 		const float wa = det::atan2(b.z - a.z, b.x - a.x);
-		const V mid{a.x + 0.5f * dist(a, b) * det::cos(wa), a.z + 0.5f * dist(a, b) * det::sin(wa)};
+		const V mid = fortress_wall_mid(a, b);
 		const bool gate = gate_every > 0 && (int)((i + 1) % (size_t)gate_every) == 0;
 		place({gate ? (uint8_t)BLD_GATE : ws.segment, mid.x, mid.z, -wa, 0.5f * ws.lengths[0]});
 		// The tower at this corner, turned along the wall from the previous corner to the next.
