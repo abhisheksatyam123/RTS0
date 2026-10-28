@@ -336,6 +336,33 @@ static void test_patrol() {
 	run(s, 20.0f);
 	std::printf("  enemy house beside the patrol: %.0f of %.0f hp\n", bld(s, house)->hp, hp0);
 	check(bld(s, house)->hp >= hp0, "and leaves an enemy house beside its way alone");
+
+	// A trigger script's targetClasses (jebel_barkal_triggers.js's elephants): "Structure"
+	// walks past units to the structures, "Defensive SiegeEngine Monument Wonder" past houses
+	// to the towers, and both keep their classes on every leg.
+	for (const uint8_t classes : {ORDER_PATROL_STRUCTURES, ORDER_PATROL_DEFENSIVE_MONUMENTS}) {
+		Simulation t;
+		setup(t);
+		const uint32_t e = t.spawn_unit(-10, 0, 0, UNIT_SWORDSMAN, 5000.0f);
+		const uint32_t foe = t.spawn_unit(0, 2, 1, UNIT_SPEARMAN);
+		t.order_set_stance(&foe, 1, STANCE_PASSIVE);
+		const uint32_t h = t.spawn_building_world(4, 4, BLD_HOUSE, 1, 1.0f);
+		const uint32_t tower = t.spawn_building_world(-4, -5, BLD_SENTRY_TOWER, 1, 1.0f);
+		t.order_patrol(&e, 1, 10, 0, false, classes);
+		const uint8_t flags = t.unit_order(e).flags;
+		check(!(flags & ORDER_FLAG_UNITS_ONLY) && ((flags & ORDER_PATROL_MASK) >> ORDER_PATROL_SHIFT) == classes,
+		      "a structure patrol keeps its target classes");
+		const float foe_hp = hp_of(t, foe), h_hp = bld(t, h)->hp, tw_hp = bld(t, tower)->hp;
+		run(t, 30.0f);
+		std::printf("  %s patrol: enemy spearman %.0f of %.0f hp, house %.0f of %.0f, tower %.0f of %.0f\n",
+		            classes == ORDER_PATROL_STRUCTURES ? "Structure" : "Defensive", hp_of(t, foe), foe_hp, bld(t, h)->hp, h_hp,
+		            bld(t, tower)->hp, tw_hp);
+		check(hp_of(t, foe) >= foe_hp, "and walks past the enemy unit beside its way");
+		if (classes == ORDER_PATROL_STRUCTURES) check(bld(t, h)->hp < h_hp || bld(t, tower)->hp < tw_hp, "attacking the structures");
+		else check(bld(t, h)->hp >= h_hp && bld(t, tower)->hp < tw_hp, "attacking the tower, not the house");
+		check(t.unit_order(e).kind == ORDER_NONE || ((t.unit_order(e).flags & ORDER_PATROL_MASK) >> ORDER_PATROL_SHIFT) == classes,
+		      "and still has them after the fight");
+	}
 }
 
 static void test_women_flee() {

@@ -5,7 +5,7 @@
 //   - idle under order: ACTION_IDLE with an order kind set for 30 s;
 //   - hits nothing: ACTION_ATTACK on one target for 60 s while the target's
 //     health never drops (no one is hurting it, this unit included); an automatic
-//     fight on a structure across water is left out, as 0.28 does the same;
+//     fight on a unit or structure across water is left out, as 0.28 does the same;
 //   - siege that never fires: a siege engine with 120 s in ACTION_ATTACK and
 //     no drop in any of its targets' health while it attacked;
 //   - garrisoned for good: inside a holder for 15 min;
@@ -55,6 +55,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <tuple>
 #include <unordered_map>
 #include <vector>
 
@@ -390,10 +391,13 @@ int main(int argc, char **argv) {
 		const int sec = t / 5;
 		Simulation &s = *a;
 		if (save_at >= 0.0 && !c && sec >= (int)(save_at * 60.0)) {
-			const std::string path = "/tmp/soak_" + std::to_string(seed) + "_" + std::to_string(map) + ".sav";
+			// Per map: a sweep runs skirmish (--json) matches side by side, so the map id alone would collide.
+			const std::string path = "/tmp/soak_" + std::to_string(seed) + "_" + (json.empty() ? std::to_string(map) : json) + ".sav";
 			c = std::make_unique<Simulation>();
 			const bool saved = s.save_state(path.c_str());
-			if (!saved || !c->load_state(path.c_str())) {
+			const bool loaded = saved && c->load_state(path.c_str());
+			std::remove(path.c_str()); // a 1-2 MB file per match otherwise piles up over sweeps
+			if (!loaded) {
 				size_t alive = 0, garrisoned = 0, dying = 0, gaia = 0;
 				for (size_t i = 0; i < s.units_.count; ++i) {
 					alive += s.units_.alive[i];
@@ -601,10 +605,17 @@ int main(int argc, char **argv) {
 		}
 		// 0.28 UnitAI also keeps re-picking an unreachable structure it sees for an automatic
 		// fight (likelyFailure, then FINDINGNEWTARGET), so that one is expected, not a finding.
-		auto auto_fight_across_water = [&](size_t i, uint32_t tb) {
-			if (!tb || s.units_.order_kind[i] != ORDER_NONE) return false;
+		auto auto_fight_across_water = [&](size_t i, uint32_t tu, uint32_t tb) {
+			if (s.units_.order_kind[i] != ORDER_NONE) return false; // a player's (forced) attack still counts
+			if (tu) { // a unit target: the two on different terrain lands (0.28 picks it again just the same)
+				const int32_t j = s.lookup_unit(tu);
+				if (j < 0) return false;
+				const uint16_t ua = s.petra_access_at(s.units_.pos_x[i], s.units_.pos_z[i]);
+				const uint16_t ta = s.petra_access_at(s.units_.pos_x[j], s.units_.pos_z[j]);
+				return ua && ta && ua != ta;
+			}
 			auto bit = s.building_id_to_idx_.find(tb);
-			return bit != s.building_id_to_idx_.end() && !s.petra_same_land(i, s.buildings_[bit->second]);
+			return tb && bit != s.building_id_to_idx_.end() && !s.petra_same_land(i, s.buildings_[bit->second]);
 		};
 		auto report = [&](size_t i, Track &k, int kind, const char *what, const char *extra) {
 			if (k.reported[kind]) return;
@@ -672,7 +683,7 @@ int main(int argc, char **argv) {
 					k.tgt_cp = std::min(k.tgt_cp, cp);
 					k.no_hurt_s = 0;
 					if (hurt && is_siege(s.units_.unit_type[i])) k.siege_hurt = true;
-				} else if (++k.no_hurt_s == 60 && !auto_fight_across_water(i, tb)) {
+				} else if (++k.no_hurt_s == 60 && !auto_fight_across_water(i, tu, tb)) {
 					char buf[160];
 					float tdist = -1.0f;
 					const char *tk = "bld";
@@ -721,6 +732,66 @@ int main(int argc, char **argv) {
 				std::printf("[no-phase] p%d still in Village at %d s\n", p, end_sec);
 				++counts["no-phase"];
 			}
+	// [stat-drift]: every living unit and finished structure against a fresh one of its template,
+	// rank and owner spawned now, and each player's technology modifiers against a recompute: a
+	// stat that a research, promotion, capture or aura left out of step with ModificationsManager.
+	{
+		Simulation &s = *a;
+		int drift = 0;
+		auto off = [](float x, float y) { return std::fabs(x - y) > 1e-3f * std::max(1.0f, std::fabs(y)); };
+		for (int p = 0; p < players; ++p) {
+			auto fresh = std::make_unique<Simulation::TechMods>();
+			s.compute_tech_mods((uint8_t)p, *fresh);
+			// Word by word, as numbers: 0 and -0 (a 0 multiplier times a negative add) are the same.
+			static_assert(sizeof(Simulation::TechMods) % 4 == 0);
+			const auto *x = (const uint32_t *)fresh.get(), *y = (const uint32_t *)&s.tech_mods_[p];
+			for (size_t w = 0; w < sizeof(Simulation::TechMods) / 4; ++w) {
+				float fx, fy;
+				std::memcpy(&fx, &x[w], 4);
+				std::memcpy(&fy, &y[w], 4);
+				if (x[w] == y[w] || fx == fy) continue;
+				if (drift++ < 40)
+					std::printf("[stat-drift] p%d technology modifiers differ from a recompute at byte %zu: %g, recomputed %g\n", p, w * 4, fy, fx);
+				break;
+			}
+		}
+		std::map<std::tuple<int, int, int>, int> seen;
+		const size_t n_units = s.units_.count;
+		for (size_t i = 0; i < n_units; ++i) {
+			if (!s.units_.alive[i] || s.units_.team[i] >= players || s.units_.hp[i] <= 0.0f) continue;
+			const auto key = std::make_tuple((int)s.units_.team[i], (int)s.units_.tmpl[i], (int)s.units_.rank[i]);
+			if (seen[key]++) continue;
+			const uint32_t id = s.spawn_unit(s.units_.pos_x[i], s.units_.pos_z[i], s.units_.team[i], (UnitType)s.units_.unit_type[i], 0.0f,
+					s.units_.tmpl[i]);
+			const int32_t f = id ? s.lookup_unit(id) : -1;
+			if (f < 0) continue;
+			s.apply_rank_bonus((size_t)f, s.units_.rank[f], s.units_.rank[i]); // a template trained above Basic starts ranked
+			const float was[4] = {s.units_.max_hp[i], s.units_.attack_damage[i], s.units_.speed[i], s.units_.attack_range[i]};
+			const float now[4] = {s.units_.max_hp[f], s.units_.attack_damage[f], s.units_.speed[f], s.units_.attack_range[f]};
+			static const char *kName[4] = {"max_hp", "attack", "speed", "range"};
+			for (int k = 0; k < 4; ++k)
+				if (off(was[k], now[k]) && drift++ < 40)
+					std::printf("[stat-drift] p%d unit %u tmpl %d (%s) rank %d %s %.3f, fresh %.3f\n", (int)s.units_.team[i], s.units_.id[i],
+							(int)s.units_.tmpl[i], civ_unit_template(s.units_.tmpl[i]).id, (int)s.units_.rank[i], kName[k], was[k], now[k]);
+		}
+		// A structure's Health/Max: its own civ's template (a captured one keeps it), by length for a
+		// wall or palisade piece, times its owner's modifiers and the health auras on it; its
+		// CapturePoints: Capturable.js UpdateCachedValues (structure_max_capture).
+		for (const auto &b : s.buildings_) {
+			if (b.team >= players || b.build_progress < 1.0f || b.hp <= 0.0f || b.type == BLD_FIELD || !is_playable_civ(b.civ)) continue;
+			const float piece = wallset_piece_value(b.type, b.half_size, 0, b.civ);
+			const float base = piece > 0.0f ? piece : civ_building_type_info(b.civ, b.type).max_hp;
+			const float was[2] = {b.max_hp, b.max_capture_points};
+			// Walls and palisades are not Capturable (0 points).
+			const float now[2] = {base * s.structure_hp_mult(b.type, b.team) * b.aura_hp_mult, b.max_capture_points > 0.0f ? s.structure_max_capture(b) : 0.0f};
+			static const char *kName[2] = {"max_hp", "capture_points"};
+			for (int k = 0; k < 2; ++k)
+				if (off(was[k], now[k]) && drift++ < 40)
+					std::printf("[stat-drift] p%d structure %u %s (civ %d) %s %.3f, expected %.3f\n", (int)b.team, b.id,
+							building_type_info(b.type).name, (int)b.civ, kName[k], was[k], now[k]);
+		}
+		if (drift) counts["stat-drift"] = drift;
+	}
 	std::printf("[summary] map=%s seed=%u desyncs=%d slowest_min=%.1fs slowest_turn=%.0fms", map_name.c_str(), seed, desyncs, slowest_minute,
 			slowest_turn);
 	for (const auto &[k, v] : counts) std::printf(" %s=%d", k.c_str(), v);
