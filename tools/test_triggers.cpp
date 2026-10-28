@@ -1309,17 +1309,30 @@ static void check_jebel_barkal() {
 	for (const TriggerWatch &w : s.triggers_.watched) early += w.role == 3;
 	CHECK(early == 0, "%d attackers before 5 minutes", early);
 	run_to(s, 421.0f);
-	int attackers = 0, ordered = 0;
+	int attackers = 0, ordered = 0, elephants = 0, elephants_on_structures = 0, others_on_units = 0, others_patrolling = 0;
 	for (const TriggerWatch &w : s.triggers_.watched) {
 		if (w.role != 3) continue;
 		++attackers;
 		const int32_t u = s.lookup_unit(w.id);
 		ordered += u >= 0 && s.units_.order_kind[u] != ORDER_NONE;
+		if (u < 0 || s.units_.order_kind[u] != ORDER_PATROL) continue;
+		// targetClasses: the elephants "Structure" or "Defensive SiegeEngine Monument Wonder",
+		// everyone else "Unit+!Ship".
+		const uint8_t classes = (s.units_.order_flags[u] & ORDER_PATROL_MASK) >> ORDER_PATROL_SHIFT;
+		if (s.unit_classes_at((size_t)u) & TC_ELEPHANT) {
+			++elephants;
+			elephants_on_structures += classes == ORDER_PATROL_STRUCTURES || classes == ORDER_PATROL_DEFENSIVE_MONUMENTS;
+		} else if (s.formation_group_.empty() || s.formation_group_[u] == 0) {
+			++others_patrolling;
+			others_on_units += classes == ORDER_PATROL_LAND_UNITS;
+		}
 	}
 	CHECK(attackers > 0 && ordered > 0, "first wave by 7 minutes: %d attackers, %d under orders", attackers, ordered);
+	CHECK(elephants_on_structures == elephants, "%d of %d patrolling elephants after structures", elephants_on_structures, elephants);
+	CHECK(others_on_units == others_patrolling, "%d of %d other patrolling attackers after units but ships", others_on_units, others_patrolling);
 	if (failures == before)
-		std::printf("Jebel Barkal: Napata (%d houses, %d CCs, %d fortresses, %d wall pieces, %d gates), %d spawn points, %d patrolling, %d in the first wave: ok\n",
-		            houses, ccs, forts, walls, gates, spawns, patrols, attackers);
+		std::printf("Jebel Barkal: Napata (%d houses, %d CCs, %d fortresses, %d wall pieces, %d gates), %d spawn points, %d patrolling, %d in the first wave (%d elephants after structures): ok\n",
+		            houses, ccs, forts, walls, gates, spawns, patrols, attackers, elephants);
 
 	// Game Setup Trigger Difficulty (getDifficulty()): Very Easy builds Napata with no wall
 	// and fewer defenders, Very Hard with the Kushite wall and more; the triggers get it.
