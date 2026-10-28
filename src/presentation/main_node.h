@@ -1144,7 +1144,7 @@ private:
 	void play_sfx(const char *path);
 	void play_spatial_sfx(const char *path, Vector3 pos);
 
-	bool use_english_voice_orders_ = true; // Default to English orders
+	bool use_english_voice_orders_ = false; // 0.28 speaks each unit's civ voice groups; English lines on request
 
 	// ---- Match archive: replays, saves and statistics (match_archive.cpp) ----
 	bool local_turns_ = true;

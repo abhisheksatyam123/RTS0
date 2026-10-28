@@ -916,7 +916,7 @@ int Simulation::pop_max(uint8_t player) const {
 	return limit > 0 ? std::min(cap, limit) : cap;
 }
 
-int Simulation::pop_cap(uint8_t player) const {
+int Simulation::pop_cap(uint8_t player, bool count_defeated) const {
 	// A scenario's own PopulationLimit for this player (SetPerPlayerPopulationCaps) wins.
 	if (player_pop_cap(player) > 0) return player_pop_cap(player);
 	if (pop_cap_ >= 0) return pop_cap_;
@@ -929,7 +929,7 @@ int Simulation::pop_cap(uint8_t player) const {
 	for (const PlayerState &ps : players_) any_active |= ps.active != 0;
 	int live = 0;
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p)
-		if ((any_active ? players_[p].active != 0 : p < 2) && !is_defeated(p) &&
+		if ((any_active ? players_[p].active != 0 : p < 2) && (count_defeated || !is_defeated(p)) &&
 		    (team_cap == 0 || (player < MAX_PLAYERS && players_[p].team == team)))
 			++live;
 	if (team_cap > 0) return std::max(1, (int)std::lround((double)team_cap / std::max(1, live)));
@@ -4209,16 +4209,9 @@ Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, ui
 				for (int x = nx0; x <= nx1; ++x)
 					if ((is_water(x, y) || nav_grid_.is_steep(x, y)) && under(x, y)) return PLACE_TERRAIN;
 			if (steep_tile_under()) return PLACE_TERRAIN;
-		} else if (rule.placement == PLACE_LAND_SHORE && rect) {
-			// A WallSet piece stands wholly where land units can go (CheckFoundation over its
-			// shape with default-terrain-only): no deep water or steep slope under it.
-			for (int y = ny0; y <= ny1; ++y)
-				for (int x = nx0; x <= nx1; ++x) {
-					if (!nav_grid_.cells.inside(x, y) || !under(x, y)) continue;
-					if (nav_grid_.cells.at(x, y) == NAV_WATER || nav_grid_.is_steep(x, y)) return PLACE_TERRAIN;
-				}
-			if (steep_tile_under()) return PLACE_TERRAIN;
 		} else if (rule.placement == PLACE_LAND_SHORE) {
+			// BuildRestrictions.js Category "Wall": CheckFoundation(passClassName, true) tests the
+			// centre point only, so a segment or tower may hang over a bank, shore or cliff edge.
 			auto [ncx, ncy] = nav_grid_.world_to_cell(cxw, czw);
 			if (nav_grid_.cells.inside(ncx, ncy) && (nav_grid_.cells.at(ncx, ncy) == NAV_WATER || nav_grid_.is_steep(ncx, ncy)))
 				return PLACE_TERRAIN;
@@ -4356,6 +4349,9 @@ uint32_t Simulation::wall_snap_tower(uint8_t player, float x, float z, uint8_t k
 	uint32_t id = 0;
 	for (const Building &b : buildings_) {
 		if (b.type != ws.tower || b.team != player || b.wrecked || b.hp <= 0.0f) continue;
+		// input.js PickSimilarPlayerEntities(wallSet.templates.tower, ..., exact template): a tower
+		// of another civ's wall set (one captured) is no snap target.
+		if (b.civ != CIV_COUNT && b.civ != civ_of(player)) continue;
 		if (ws.tower == ws.segment && !is_wallset_tower_piece(b.type, b.half_size)) continue;
 		const float d2 = (b.x - x) * (b.x - x) + (b.z - z) * (b.z - z);
 		if (d2 <= best) {
@@ -4587,11 +4583,11 @@ size_t Simulation::cmd_build_wall(uint8_t player, float sx, float sz, float ex, 
 	const std::vector<WallPiece> pieces = wall_placement(player, sx, sz, ex, ez, &start_tower, &end_tower, kind);
 	// Each piece may overlap the last tower laid (or the one the wall starts from) and the pieces
 	// since it, and the last piece the tower the wall ends on: their obstruction control group.
-	// tryPlaceWall sends nothing when the part that can be laid (up to the first piece that is
-	// blocked or can't be paid for) holds no segment: no lone tower where the wall is blocked.
+	// tryPlaceWall sends nothing when the placeable part (SetWallPlacementPreview's result.pieces:
+	// up to the first blocked piece, affordable or not) holds no segment: no lone tower where the
+	// wall is blocked. Cost is TryConstructWall's: it lays the start tower and stops at a segment
+	// it can't pay for ("Insufficient resources").
 	{
-		float left[RES_COUNT];
-		for (int r = 0; r < RES_COUNT; ++r) left[r] = players_[player].res[r];
 		bool any_segment = false;
 		for (size_t i = 0; i < pieces.size() && !any_segment; ++i) {
 			const WallPiece &p = pieces[i];
@@ -4599,19 +4595,6 @@ size_t Simulation::cmd_build_wall(uint8_t player, float sx, float sz, float ex, 
 			if (start_tower) ignore.push_back(start_tower);
 			if (i + 1 == pieces.size() && end_tower) ignore.push_back(end_tower);
 			if (check_wall_piece(player, p, ignore.data(), ignore.size()) != PLACE_OK) break;
-			float cost[RES_COUNT];
-			structure_cost(player, p.type, wallset_piece_value(p.type, p.half_w, 1, p.civ), cost);
-			bool afford = true;
-			for (int r = 0; r < RES_COUNT; ++r) afford &= (left[r] -= cost[r]) >= 0.0f;
-			if (!afford) {
-				// TryConstructBuilding's TrySubtractResources (Player.js SubtractResourcesOrNotify):
-				// "Insufficient resources" with what this piece still needs.
-				SessionNotice need{SessionNotice::TEXT, player, 0, SessionNotice::TEXT_INSUFFICIENT_RESOURCES, {}};
-				for (int r = 0; r < RES_COUNT; ++r)
-					if (left[r] < 0.0f) need.amounts[r] = (int32_t)std::ceil(-left[r]);
-				note_session(need);
-				break;
-			}
 			any_segment = !(p.type == ws.tower && p.half_w == ws.tower_half);
 		}
 		if (!any_segment) return 0;
@@ -12332,13 +12315,26 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 	// faster than that unit moves now (TryMatchTargetSpeed, mayRun false). Read before the
 	// parallel pass, which writes the velocities.
 	float *guard_cap = arena.alloc_array<float>(n);
-	if (!guard_cap) return;
+	// arrived[i]: the unit's MOVE or ATTACK_MOVE ended in the parallel pass; it goes IDLE after the pass.
+	uint8_t *arrived = arena.alloc_array<uint8_t>(n);
+	if (!guard_cap || !arrived) return;
+	memset(arrived, 0, n * sizeof(uint8_t));
 	if (short_path_search_.size() < n) short_path_search_.resize(n);
+	const bool any_flight = !flight_.empty();
 	for (size_t i = 0; i < n; ++i) {
 		guard_cap[i] = 0.0f;
 		if (!alive[i] || units_.action_state[i] != ACTION_GUARD || units_.target_unit_id[i] == 0) continue;
 		const int32_t g = lookup_unit(units_.target_unit_id[i]);
-		if (g < 0 || !alive[g]) continue;
+		if (g < 0 || !alive[g]) {
+			// The ESCORTING Timer finishes the order of a guard whose unit died (ShouldGuard, UnitAI.js:1942-1946).
+			// Before the parallel pass, whose chasers read the guard's action_state (unit_running).
+			if (!(any_flight && unit_flies(i))) { // UnitMotionFlying moves it (tick_flight)
+				units_.action_state[i] = ACTION_IDLE;
+				units_.has_order[i] = 0;
+				units_.target_unit_id[i] = 0;
+			}
+			continue;
+		}
 		const float gdx = px[g] - px[i], gdz = pz[g] - pz[i];
 		const float far = 3.0f * guard_range(i) + unit_clearance_at(i) + unit_clearance_at((size_t)g);
 		if (gdx * gdx + gdz * gdz > far * far) continue;
@@ -12346,7 +12342,6 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		if (gs > 0.0f) guard_cap[i] = std::min(unit_walk_speed(i), gs);
 	}
 
-	const bool any_flight = !flight_.empty();
 	JobSystem::instance().for_each_index(n, [&](size_t i) {
 		if (!alive[i]) {
 			vx[i] = vz[i] = 0;
@@ -12376,7 +12371,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 				}
 			}
 		}
-		// Guard.js — follow and protect target unit
+		// Guard.js — follow and protect target unit (a guard whose unit died went IDLE before the pass)
 		if (units_.action_state[i] == ACTION_GUARD && units_.target_unit_id[i] != 0) {
 			int32_t gtidx = lookup_unit(units_.target_unit_id[i]);
 			if (gtidx >= 0 && units_.alive[gtidx]) {
@@ -12392,11 +12387,6 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 				} else {
 					has[i] = 0; // close enough, stand still
 				}
-			} else {
-				// Target died
-				units_.action_state[i] = ACTION_IDLE;
-				units_.has_order[i] = 0;
-				units_.target_unit_id[i] = 0;
 			}
 		}
 
@@ -12800,13 +12790,8 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 					units_.heading_z[i] = ddz * inv_dd;
 				}
 			}
-			if (units_.action_state[i] == ACTION_MOVE || units_.action_state[i] == ACTION_ATTACK_MOVE) {
-				has[i] = 0;
-				units_.action_state[i] = ACTION_IDLE;
-				units_.waypoint_cur[i] = 0;
-				units_.waypoint_count[i] = 0;
-				if ((size_t)i < unit_paths_.size()) unit_paths_[i].clear();
-			}
+			// The walk is over: it goes IDLE after the pass (arrived), as chasers read its action_state here.
+			if (units_.action_state[i] == ACTION_MOVE || units_.action_state[i] == ACTION_ATTACK_MOVE) arrived[i] = 1;
 			// A patrol turns round in tick_unit_ai(), which runs first.
 			return;
 		}
@@ -13026,6 +13011,17 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		vx[i] = ux * spd;
 		vz[i] = uz * spd;
 	});
+
+	// The walks that ended in the pass go IDLE, in index order. Serially, as the pass reads other
+	// units' action_state (unit_running); before avoid_idle_units, which reads it too (obstructs).
+	for (size_t i = 0; i < n; ++i) {
+		if (!arrived[i]) continue;
+		has[i] = 0;
+		units_.action_state[i] = ACTION_IDLE;
+		units_.waypoint_cur[i] = 0;
+		units_.waypoint_count[i] = 0;
+		if (i < unit_paths_.size()) unit_paths_[i].clear();
+	}
 
 	avoid_idle_units(dt, arena, walk, walk_aim_x, walk_aim_z, npx, npz, want_x, want_z, blocked);
 	memcpy(px, npx, n * sizeof(float));
@@ -20510,7 +20506,9 @@ void Simulation::finish_order(size_t i, bool find_new_target) {
 // target, in any stance, while that target can hit the unit it guards.
 bool Simulation::guard_keeps_target(size_t i, size_t t) const {
 	if (units_.order_kind[i] != ORDER_GUARD || !(units_.order_flags[i] & ORDER_FLAG_INTERRUPTED)) return false;
-	if (!units_.alive[t] || units_.attack_damage[t] <= 0.0f || unit_walk_speed(i) <= 0.0f) return false; // AbleToMove
+	// AbleToMove. The walk speed without running has the same sign, and does not read the state of the
+	// unit i chases (unit_running), which acquire sets in tick_combat's parallel pass.
+	if (!units_.alive[t] || units_.attack_damage[t] <= 0.0f || unit_base_walk_speed(i) <= 0.0f) return false;
 	const int32_t g = lookup_unit(units_.order_target[i]);
 	if (g < 0) { // a guarded structure in the attacker's range
 		auto bit = building_id_to_idx_.find(units_.order_target[i]);
@@ -30052,9 +30050,11 @@ float Simulation::petra_plan_pop_scaling() const {
 
 // config.js setConfig reads gameState.getPopulationMax() once, at the AI's first turn: the
 // player's population cap with its civ bonus (han/maur/pers_population, a starting
-// technology), before any Wonder or relic. `unlimited` stands in for no cap.
+// technology), before any Wonder or relic. `unlimited` stands in for no cap. World and
+// Team Population keep their split among every seated player: PopulationCapManager.js
+// re-splits on a defeat, but Petra's Config never reads the cap again.
 int Simulation::petra_config_max_pop(int unlimited) const {
-	const int cap = pop_cap(petra_pid_);
+	const int cap = pop_cap(petra_pid_, true);
 	if (cap <= 0) return unlimited;
 	return std::max(1, (int)std::lround((float)cap * civ_bonus_mult(civ_of(petra_pid_), CIV_BONUS_POP_CAP)));
 }
@@ -30623,12 +30623,7 @@ void Simulation::petra_attack_home(float &x, float &z) const {
 }
 
 void Simulation::petra_manage_tactical_attacks(float dt) {
-	// headquarters.js update runs the attackManager only with an active base (a built civic
-	// centre) or when the AI can't build units at all.
-	bool active_base = false;
-	for (const auto &b : buildings_)
-		active_base |= b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked && b.build_progress >= 1.0f && is_civic_centre(b.type);
-	if (!active_base && petra_can_build_units()) return;
+	// The caller runs this only inside headquarters.js's attackManager gate.
 	petra_strike_force_.state_timer += dt;
 
 	float base_x, base_z;
@@ -36404,13 +36399,18 @@ void Simulation::tick_petra_ai_player(float dt) {
 	petra_manage_research(dt);
 
 	// 11. Coordinated Tactical Battlegroup Attacks (attackPlan.js) + concurrent raid
+	// headquarters.js:2335 runs attackManager.update (its attacks, raids and bombers) only above
+	// Sandbox and with an active base (any base anchor, a military colony too), or when the AI
+	// can't build units at all.
 	petra_retake_civic_centres();
-	petra_manage_tactical_attacks(dt);
-	if (petra_turn_mod(5)) petra_assign_bombers(); // attackManager.js:439
+	const bool attack_manager = petra_config_.difficulty > PETRA_SANDBOX &&
+			(petra_has_active_base() || !petra_can_build_units());
+	if (attack_manager) petra_manage_tactical_attacks(dt);
+	if (attack_manager && petra_turn_mod(5)) petra_assign_bombers(); // attackManager.js:439
 	petra_move_dropsites_to_gatherers();
 	if (petra_attack_mgr_.gaia_relic_lapse && (int)(petra_timer_ / 2.0f) != (int)((petra_timer_ - dt) / 2.0f))
 		--petra_attack_mgr_.gaia_relic_lapse;
-	petra_manage_raid(dt);
+	if (attack_manager) petra_manage_raid(dt);
 
 	// 11b. Naval transportPlan.js land-sea-land
 	petra_manage_transport(dt);

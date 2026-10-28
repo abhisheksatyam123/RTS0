@@ -82,6 +82,14 @@ def test_object():
     check(code == 200 and room["players"] == 2 and room["state"] == "running", "re-registering updates it")
     check(room["name"] == "Skirmish" and room["password"] == 1 and room["host_ip"] == "127.0.0.1",
           "fields left out keep their value")
+    # XpartaMuPP change_game_state: fewer players than at the start is "waiting".
+    states = []
+    for players, state in ((3, "init"), (3, "running"), (2, "running"), (3, "running")):
+        _, w = lb.register({"id": "g2", "host_port": 20601, "players": players, "state": state})
+        states.append(w["state"])
+    check(states == ["init", "running", "waiting", "running"] and "players_init" not in w,
+          "a running game that lost a player is waiting until it is back (%s)" % states)
+    lb.unregister("g2")
     check(room["player_names"] == [] and room["map_type"] == "" and room["start_time"] == 0,
           "the optional details default to empty for an older host")
     names = [{"name": " alice ", "team": 0, "civ": "athen"}, {"name": "Petra", "team": 9, "ai": True, "ai_difficulty": 4},
