@@ -1059,7 +1059,9 @@ public:
 	// 0 A.D. "formation" command (Commands.js): the units form up in `formation` where they
 	// stand, in clusters (Commands.js ClusterEntities); FORMATION_NONE disbands. Units that may
 	// not use it (UnitAI/Formations, Player formations) are left out.
-	void order_set_formation(const uint32_t *unit_ids, size_t count, uint8_t formation);
+	// `queued`: a Shift-queued null formation (UnitAI LeaveFormation(queued)) waits behind a
+	// whole formation's current and queued orders.
+	void order_set_formation(const uint32_t *unit_ids, size_t count, uint8_t formation, bool queued = false);
 	// Formation.js / Player.js queries for the formation panel.
 	uint32_t player_formation_mask(uint8_t player) const; // Player.js GetFormations
 	bool unit_can_use_formation(uint32_t unit_id, uint8_t formation) const; // UnitAI.js CanUseFormation
@@ -2938,7 +2940,12 @@ private:
 	// (reusing a whole selected formation) and returns the controllers; `individual` gets the rest.
 	std::vector<size_t> formation_controllers_for(const uint32_t *unit_ids, size_t count, uint8_t tmpl,
 			bool force_template, std::vector<uint32_t> &individual);
-	void formation_remove_units(const uint32_t *unit_ids, size_t count); // Commands.js RemoveFromFormation
+	// Commands.js RemoveFromFormation; `rearrange` false is Order.LeaveFormation's
+	// SetRearrange(false): the members that stay keep their slots.
+	void formation_remove_units(const uint32_t *unit_ids, size_t count, bool rearrange = true);
+	// A controller-queue entry (UnitOrder.pad) that disbands the formation when reached and
+	// hands the orders behind it to the members (a queued LeaveFormation).
+	static constexpr uint8_t FORMATION_QUEUE_LEAVE = 1;
 	void formation_disband(size_t ci);
 	void formation_move_members_into(size_t ci, bool move_center, bool force); // Formation.js MoveMembersIntoFormation
 	float formation_walking_distance(const FormationController &fc) const; // UnitAI.js ComputeWalkingDistance

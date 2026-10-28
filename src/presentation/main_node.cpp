@@ -789,13 +789,22 @@ void RtsoMain::toggle_default_formation() {
 	set_default_formation(cur == rtso::FORMATION_NONE ? last_default_formation_ : rtso::FORMATION_NONE);
 }
 
-void RtsoMain::apply_default_formation(const uint32_t *ids, size_t n) {
+void RtsoMain::apply_default_formation(const uint32_t *ids, size_t n, bool queued) {
 	const uint8_t f = RtsoCommandPanelView::default_formation();
-	if (f == rtso::FORMATION_NONE || n < 2 || !sim) return;
-	// Units already in a formation keep it (the walk reuses its template).
+	// Commands.js ProcessCommand passes a queued order no formation: loose units queue their
+	// own walks, and formations walk on in theirs.
+	if (f == rtso::FORMATION_NONE || n < 2 || !sim || queued) return;
+	// GetFormationUnitAIs: units in formations keep their template when they all share one
+	// (the walk reuses it); formations of different templates take the default instead.
+	uint8_t common = rtso::FORMATION_COUNT;
+	bool mixed = false;
 	for (const auto &fc : sim->formations())
 		for (uint32_t m : fc.members)
-			if (std::find(ids, ids + n, m) != ids + n) return;
+			if (std::find(ids, ids + n, m) != ids + n) {
+				if (common == rtso::FORMATION_COUNT) common = fc.tmpl;
+				else if (fc.tmpl != common) mixed = true;
+			}
+	if (common != rtso::FORMATION_COUNT && !mixed) return;
 	if (turn_cmds()) {
 		rtso::NetCommand form;
 		form.cmd_type = (uint8_t)rtso::NetCommandType::NET_CMD_FORMATION;
@@ -1607,7 +1616,7 @@ void RtsoMain::post_lockstep(uint8_t cmd_type, const uint32_t *ids, size_t n,
 		c.param |= rtso::NET_PARAM_PUSH_FRONT_ORDER;
 	if (!orders_allowed()) return; // observers and defeated players order nothing
 	if (ids && (cmd_type == (uint8_t)rtso::NetCommandType::NET_CMD_MOVE || cmd_type == (uint8_t)rtso::NetCommandType::NET_CMD_PATROL))
-		apply_default_formation(ids, n);
+		apply_default_formation(ids, n, (param & rtso::NET_PARAM_QUEUED) != 0);
 	if (ids && n && order_disbands_formation(cmd_type)) {
 		// 0 A.D. AutoFormation.getNull: with gui.session.formationwalkonly every order but
 		// walk and patrol carries the null formation, so the units leave their formations
@@ -1620,7 +1629,8 @@ void RtsoMain::post_lockstep(uint8_t cmd_type, const uint32_t *ids, size_t n,
 			rtso::NetCommand leave;
 			leave.cmd_type = (uint8_t)rtso::NetCommandType::NET_CMD_FORMATION;
 			leave.entity_ids = std::move(formed);
-			leave.param = rtso::FORMATION_NONE;
+			// LeaveFormation(queued): a Shift-queued order lets a busy formation finish first.
+			leave.param = (uint8_t)(rtso::FORMATION_NONE | (param & rtso::NET_PARAM_QUEUED));
 			turn_mgr_.post_local_command(leave);
 		}
 	}

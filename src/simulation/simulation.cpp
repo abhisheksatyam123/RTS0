@@ -7675,7 +7675,7 @@ void Simulation::formation_disband(size_t ci) {
 	formation_refresh_groups();
 }
 
-void Simulation::formation_remove_units(const uint32_t *unit_ids, size_t count) {
+void Simulation::formation_remove_units(const uint32_t *unit_ids, size_t count, bool rearrange) {
 	// Commands.js RemoveFromFormation -> Formation.js RemoveMembers: below
 	// RequiredMemberCount the formation disbands, else the rest re-form, but only while it
 	// rearranges: FORMATIONCONTROLLER IDLE and MEMBER SetRearrange(false), so a death in a
@@ -7696,6 +7696,7 @@ void Simulation::formation_remove_units(const uint32_t *unit_ids, size_t count) 
 			formation_disband(ci);
 			continue;
 		}
+		if (!rearrange) continue;
 		fc.has_offsets = 0;
 		if (fc.order != FORDER_IDLE && fc.order != FORDER_MEMBER) formation_move_members_into(ci, true, false);
 	}
@@ -7795,6 +7796,9 @@ void Simulation::formation_move_members_into(size_t ci, bool move_center, bool f
 		if (idx < 0 || !units_.alive[idx]) continue;
 		const uint8_t st = units_.action_state[idx];
 		if (!force && st != ACTION_IDLE && st != ACTION_MOVE && st != ACTION_ATTACK_MOVE) continue;
+		// Order.FormationWalk: a packable member of an idle controller stays put rather than
+		// pack, "as that would unpack us" (an unpacked engine isn't walked back into line).
+		if (fc.order == FORDER_IDLE && !pack_state_can_move(units_.pack_state[idx])) continue;
 		s.following = 1;
 		float wx, wz;
 		formation_slot_world(fc.x, fc.z, fc.rot, s.x, s.y, wx, wz);
@@ -7869,11 +7873,8 @@ std::vector<size_t> Simulation::formation_controllers_for(const uint32_t *unit_i
 					want = fc.tmpl;
 					result.push_back((size_t)ctrls[0]);
 				} else if (can_move_into_formation(sel.data(), sel.size(), want)) {
-					// Formation.js LoadFormation: same controller, new template. Members that
-					// cannot use it leave.
-					std::vector<uint32_t> leave;
-					for (uint32_t id : fc.members)
-						if (!unit_can_use_formation(id, want)) leave.push_back(id);
+					// Formation.js LoadFormation: same controller, new template. SetMembers keeps
+					// every member, those that can't use the template too.
 					fc.tmpl = want;
 					fc.has_offsets = 0;
 					formation_refresh_groups();
@@ -7881,13 +7882,7 @@ std::vector<size_t> Simulation::formation_controllers_for(const uint32_t *unit_i
 						const int32_t idx = lookup_unit(id);
 						if (idx >= 0) units_.formation[idx] = want;
 					}
-					const size_t keep = (size_t)ctrls[0];
-					const uint32_t keep_id = fc.id;
-					if (!leave.empty()) formation_remove_units(leave.data(), leave.size());
-					for (size_t ci = 0; ci < formations_.size(); ++ci)
-						if (formations_[ci].id == keep_id) { result.push_back(ci); break; }
-					(void)keep;
-					for (uint32_t id : leave) individual.push_back(id);
+					result.push_back((size_t)ctrls[0]);
 					return result;
 				}
 			} else if (!force_template) {
@@ -7916,7 +7911,7 @@ std::vector<size_t> Simulation::formation_controllers_for(const uint32_t *unit_i
 			formed.push_back(id);
 		}
 	}
-	if (!leaving.empty()) formation_remove_units(leaving.data(), leaving.size());
+	if (!leaving.empty()) formation_remove_units(leaving.data(), leaving.size(), false); // Order.LeaveFormation
 	if (individual.size() == sel.size()) return {};
 	if (!result.empty()) {
 		// The reused controller may have moved in formations_ when others disbanded.
@@ -7996,12 +7991,34 @@ std::vector<size_t> Simulation::formation_controllers_for(const uint32_t *unit_i
 	return result;
 }
 
-void Simulation::order_set_formation(const uint32_t *unit_ids, size_t count, uint8_t formation) {
+void Simulation::order_set_formation(const uint32_t *unit_ids, size_t count, uint8_t formation, bool queued) {
 	// Commands.js "formation" -> GetFormationUnitAIs(forceTemplate) -> UnitAI MoveIntoFormation:
 	// the units form up where they stand. The null formation (or one unit) leaves formations.
 	if (count == 0 || formation >= FORMATION_COUNT) return;
+	if (formation == FORMATION_NONE && queued && count > 1) {
+		// LeaveFormation(true) is queued behind each member's orders, and the controller's
+		// FormationWalk keeps it (UnitAI ReplaceOrder): a whole formation that is busy finishes
+		// its orders in shape, then breaks up and its members carry on with what was queued.
+		for (uint32_t fid : formation_whole_ids(unit_ids, count))
+			for (FormationController &fc : formations_) {
+				if (fc.id != fid || (fc.order == FORDER_IDLE && fc.queue.empty())) continue;
+				UnitOrder leave;
+				leave.pad = FORMATION_QUEUE_LEAVE;
+				if (fc.queue.size() < 64) fc.queue.push_back(leave);
+			}
+		std::vector<uint32_t> now;
+		for (size_t k = 0; k < count; ++k) {
+			const uint32_t fid = formation_of_unit(unit_ids[k]);
+			const FormationController *fc = nullptr;
+			for (const FormationController &f : formations_)
+				if (f.id == fid) fc = &f;
+			if (!fc || fc->queue.empty() || fc->queue.back().pad != FORMATION_QUEUE_LEAVE) now.push_back(unit_ids[k]);
+		}
+		if (!now.empty()) formation_remove_units(now.data(), now.size(), now.size() == 1);
+		return;
+	}
 	if (formation == FORMATION_NONE || count == 1) {
-		formation_remove_units(unit_ids, count);
+		formation_remove_units(unit_ids, count, count == 1); // a lone unit: RemoveFromFormation
 		return;
 	}
 	std::vector<uint32_t> individual;
@@ -8434,6 +8451,22 @@ void Simulation::tick_formations(float dt) {
 			const UnitOrder o = fc.queue.front();
 			fc.queue.erase(fc.queue.begin());
 			const std::vector<uint32_t> members = fc.members;
+			if (o.pad == FORMATION_QUEUE_LEAVE) {
+				// A queued LeaveFormation: the members leave, and the orders queued behind it
+				// become each member's own (Order.LeaveFormation, then their queue).
+				const std::vector<UnitOrder> rest = fc.queue;
+				formation_remove_units(members.data(), members.size(), false);
+				for (uint32_t uid : members) {
+					if (lookup_unit(uid) < 0 || rest.empty()) continue;
+					apply_order(uid, rest.front());
+					if (rest.size() > 1 && lookup_unit(uid) >= 0) {
+						std::vector<UnitOrder> &q = order_queues_[uid];
+						q.insert(q.end(), rest.begin() + 1, rest.end());
+						if (q.size() > 64) q.resize(64);
+					}
+				}
+				break;
+			}
 			formation_apply_order(members, o);
 			break;
 		}
@@ -13042,6 +13075,16 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 	// units' action_state (unit_running); before avoid_idle_units, which reads it too (obstructs).
 	for (size_t i = 0; i < n; ++i) {
 		if (!arrived[i]) continue;
+		// Formation.js SetFinishedEntity: a member at its slot turns to the formation's front.
+		if (units_.formation[i] != FORMATION_NONE && !formations_.empty()) {
+			const uint32_t fid = formation_of_unit(units_.id[i]);
+			for (const FormationController &fc : formations_)
+				if (fc.id == fid) {
+					units_.heading_x[i] = det::sin(fc.rot);
+					units_.heading_z[i] = det::cos(fc.rot);
+					break;
+				}
+		}
 		has[i] = 0;
 		units_.action_state[i] = ACTION_IDLE;
 		units_.waypoint_cur[i] = 0;

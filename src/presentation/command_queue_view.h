@@ -236,8 +236,9 @@ public:
 		actions_bar_ = memnew(HFlowContainer);
 		actions_bar_->set_position(Vector2(6, 6));
 		actions_bar_->set_size(Vector2(kLeftW - 12.0f, kPanelH - 50.0f));
-		actions_bar_->add_theme_constant_override("h_separation", 2);
-		actions_bar_->add_theme_constant_override("v_separation", 2);
+		// setPanelObjectPosition: 38 px buttons 1 px apart, rowLength 5 (5 x 38 + 4 = 194).
+		actions_bar_->add_theme_constant_override("h_separation", 1);
+		actions_bar_->add_theme_constant_override("v_separation", 1);
 		actions_bar_->set_meta("tooltip_style", "session_bottom_bold");
 		left_panel_->add_child(actions_bar_);
 
