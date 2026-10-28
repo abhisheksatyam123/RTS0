@@ -4209,6 +4209,7 @@ private:
 	float petra_builder_ratio() const;         // assignToFoundations builderRatio
 	float petra_available_resource(uint8_t r) const; // queueManager.getAvailableResources: stock less every queue's account
 	bool petra_plan_in_transport(const AttackPlan &plan) const;
+	bool petra_plan_transporting(AttackPlan &plan, float base_x, float base_z, uint8_t owner);
 	bool petra_passenger(uint32_t uid) const;
 	bool petra_ferried_guard(uint32_t uid) const; // on its way by sea to guard a critical entity   // booked on one of our transport plans
 	void petra_assign_bombers(); // attackManager.js assignBombers
