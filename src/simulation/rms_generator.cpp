@@ -11175,6 +11175,10 @@ void RmsGenerator::synth_unknown(HeightmapGrid &hm, RmsRng &rng, float &water_h,
 	const float land_lo = water_h, land_hi = metres(water_h, 3.12f);
 	std::vector<uint8_t> flat(N);
 	for (size_t i = 0; i < N; ++i) flat[i] = hm.data[i] >= land_lo && hm.data[i] <= land_hi;
+	// paintTerrainBasedOnHeight(heightCliff, 40, tCliff) on the landscape, before the bumps and hills.
+	std::vector<uint8_t> cliff_band(N);
+	for (size_t i = 0; i < N; ++i) cliff_band[i] = hm.data[i] >= land_hi && hm.data[i] < metres(water_h, 40.0f);
+	record_area(hm, cliff_band, AREA_CLIFF_HEIGHT);
 	{
 		// Bumps: +2 m, 2 from water, 10 from the bases, 3 inside the land.
 		const auto in_land = dist_inside(hm, flat);
@@ -13839,7 +13843,24 @@ void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed, uint8_t type) {
 					t.tiles[j] = pick(band.terrain, 6, (int)(j % (size_t)res), (int)(j / (size_t)res), 12);
 		}
 	};
-	// A biome map whose script paints its areas with g_Terrains' names: neareastern_badlands.js's oasis
+	// Biome maps whose script paints its coasts by height with g_Terrains' names: paintTerrainBasedOnHeight
+	// (1, shore_hi, tShore) then (-8, 1, tWater), so the land up to 1 m takes the water terrain and the shore
+	// runs to shore_hi, with no shore blend (their tMainTerrain bands repaint only the main terrain).
+	float biome_shore_hi = 0.0f;
+	if (!own) switch (type) {
+		case MAP_ISLANDS: case MAP_LAND_GRAB: case MAP_MIGRATION: case MAP_CONTINENT: case MAP_COAST_RANGE:
+		case MAP_ARCHIPELAGO_0AD: case MAP_UNKNOWN: biome_shore_hi = 3.0f; break;
+		case MAP_LAKE: biome_shore_hi = 2.4f; break;
+		case MAP_ISLAND_STRONGHOLD: case MAP_GEAR: biome_shore_hi = 2.0f; break;
+		default: break;
+	}
+	if (biome_shore_hi > 0.0f)
+		for (size_t j = 0; j < t.tiles.size(); ++j) {
+			if (!free_tile(j)) continue;
+			if (metres_up[j] <= 1.0f) t.tiles[j] = index_of(b.water);
+			else if (metres_up[j] < biome_shore_hi) t.tiles[j] = index_of(b.shore);
+		}
+	// Biome maps whose script paints its areas with g_Terrains' names: neareastern_badlands.js's oasis
 	// (LayeredPainter [[tSand, pForest], [tGrassSand25, pForestOasis], tGrassSand25, tShore, tWaterDeep],
 	// [2, 3, 1, 1], its palms' floor the forest floors) and hills ([tCliff, tSand], [1]).
 	AreaLayers biome_areas[2] = {};
@@ -13847,6 +13868,8 @@ void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed, uint8_t type) {
 		biome_areas[0] = {AREA_OASIS, {{b.tier[2], b.forest[0]}, {b.shore_blend, b.forest[1]}, {b.shore_blend}, {b.shore}, {b.water}}, {2, 3, 1, 1}};
 		biome_areas[1] = {AREA_HILL, {{b.cliff[0], b.cliff[1]}, {b.tier[2]}}, {1}};
 	}
+	// unknown.js's cliff band: tCliff on its landscape's ground from 3.12 m to 40 m.
+	if (!own && type == MAP_UNKNOWN) biome_areas[0] = {AREA_CLIFF_HEIGHT, {{b.cliff[0], b.cliff[1]}}, {}};
 	const AreaLayers *area_rows = own ? own->areas : biome_areas;
 	const size_t n_area_rows = own ? std::size(own->areas) : (biome_areas[0].layer[0][0] ? std::size(biome_areas) : 0);
 	if (own || n_area_rows) {
