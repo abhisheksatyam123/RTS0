@@ -4247,6 +4247,7 @@ private:
 	bool petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype = BLD_TYPE_COUNT, int clearance = -1) const; // btype: also 0 A.D.'s placement rules; clearance -1: petra_clearance
 	bool petra_spot_free_but_distance(int cell_x, int cell_y, int footprint, uint8_t btype, int clearance = -1) const;
 	bool petra_ring_clear(int cell_x, int cell_y, int footprint, uint8_t clearance = 1) const;
+	bool petra_ring_land(int cell_x, int cell_y, int footprint, uint8_t btype, uint8_t clearance) const;
 	static uint8_t petra_clearance(uint8_t btype); // findGoodPosition's 0, 4 or 8 m gap, as 0, 1, 2
 	bool petra_limit_allows_building(uint8_t btype) const;
 	mutable uint64_t petra_limit_cache_key_ = 0; // derived per tick, never saved
