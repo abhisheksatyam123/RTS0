@@ -169,9 +169,21 @@ void FogMirages::begin(const uint8_t *los, int res, float map_half) {
 	out_treasures_.clear();
 }
 
-void FogMirages::add_building(const FoggedBuilding &live, bool allied, bool seen_before) {
+void FogMirages::add_building(const FoggedBuilding &live, bool allied, bool seen_before, bool own) {
 	FoggedBuilding b = live;
 	b.miraged = false;
+	const uint8_t st = los_at(b.x, b.z);
+	// Visibility.js GetVisibility for a Corpse (a destroyed structure and its rubble): RetainInFog
+	// for its owner only; anyone else sees it only in sight, never as a mirage in the fog.
+	if (b.wrecked && !own && st != Simulation::FOW_VISIBLE) {
+		// An ally's out of shared sight is hidden; another player's seen falling (or known only
+		// as a wreck) leaves no mirage. One destroyed unseen keeps its standing mirage.
+		auto it = building_memory_.find(b.id);
+		if (allied || it == building_memory_.end() || it->second.seen.wrecked) {
+			if (it != building_memory_.end()) building_memory_.erase(it);
+			return;
+		}
+	}
 	if (allied) {
 		// Owner (or shared-vision ally): RetainInFog shows the real structure.
 		// A mirage of it from before it changed hands is no longer needed.
@@ -179,7 +191,6 @@ void FogMirages::add_building(const FoggedBuilding &live, bool allied, bool seen
 		out_buildings_.push_back(b);
 		return;
 	}
-	const uint8_t st = los_at(b.x, b.z);
 	if (st == Simulation::FOW_VISIBLE) {
 		// Fogging.OnVisibilityChanged(VIS_VISIBLE): seen = true; the copy taken
 		// when it next drops into fog (LoadMirage) is this frame's state.
@@ -416,7 +427,7 @@ void FogMirages::pass(const Simulation &sim, uint8_t viewer) {
 			f.work_remaining = w.remaining;
 			f.work_remaining_new = w.remaining_new;
 		}
-		add_building(f, allied, viewer < MAX_PLAYERS && ((b.seen_mask >> viewer) & 1));
+		add_building(f, allied, viewer < MAX_PLAYERS && ((b.seen_mask >> viewer) & 1), b.team == viewer);
 	}
 	const auto rv = sim.resources();
 	// Each supply's gatherers at work (ResourceSupply numGatherers), remembered with its amount.
