@@ -34542,6 +34542,20 @@ bool Simulation::petra_defendable(float x, float z) const {
 	return n > 8;
 }
 
+// defenseManager.js checkEvents (DM:608-612): an attacked structure of ours is defended unless
+// it stands on blinking territory and isn't defendable, or no base anchor of ours is on its land.
+bool Simulation::petra_structure_defended(const Building &b) const {
+	bool anchored = false;
+	const uint16_t land = petra_building_land(b);
+	for (const PetraBase &pb : petra_bases_) {
+		auto it = building_id_to_idx_.find(pb.anchor_building_id);
+		if (it == building_id_to_idx_.end()) continue;
+		const Building &a = buildings_[it->second];
+		if (a.team == petra_pid_ && a.hp > 0.0f && !a.wrecked && petra_building_land(a) == land) { anchored = true; break; }
+	}
+	return anchored && (territory_connected_at(b.x, b.z) || petra_defendable(b.x, b.z));
+}
+
 // defenseManager.js checkEvents: an attacked structure of ours on blinking territory that
 // isn't defendable, or with no base anchor of ours on its land, is destroyed while we hold
 // 50-70% of its capture points, rather than left to the enemy capturing it.
@@ -34550,15 +34564,7 @@ void Simulation::petra_scuttle_undefendable() {
 	for (const Building &b : buildings_) {
 		if (b.team != petra_pid_ || b.wrecked || b.hp <= 0.0f || b.build_progress < 1.0f || b.max_capture_points <= 0.0f) continue;
 		if (structure_attacker(b.id, petra_pid_) < 0) continue; // the Attacked event
-		bool anchored = false;
-		const uint16_t land = petra_building_land(b);
-		for (const PetraBase &pb : petra_bases_) {
-			auto it = building_id_to_idx_.find(pb.anchor_building_id);
-			if (it == building_id_to_idx_.end()) continue;
-			const Building &a = buildings_[it->second];
-			if (a.team == petra_pid_ && a.hp > 0.0f && !a.wrecked && petra_building_land(a) == land) { anchored = true; break; }
-		}
-		if (anchored && (territory_connected_at(b.x, b.z) || petra_defendable(b.x, b.z))) continue;
+		if (petra_structure_defended(b)) continue;
 		float total = 0.0f;
 		for (float cp : b.capture_points_by_team) total += cp;
 		if (total <= 0.0f) continue;
@@ -35058,6 +35064,13 @@ void Simulation::petra_manage_defense(float dt) {
 	};
 	std::vector<uint32_t> helped; // capturableTargets: each squad-mate helps once a turn
 	for (const auto &[target, attacker] : petra_turn_attacks_) {
+		// A unit hitting one of our structures joins an army at once too (DM:636-642), where the
+		// structure is defended at all (DM:608-622; petra_scuttle_undefendable handles the rest).
+		if (const auto bit = building_id_to_idx_.find(target); bit != building_id_to_idx_.end()) {
+			const Building &b = buildings_[bit->second];
+			if (b.team == petra_pid_ && !b.wrecked && b.hp > 0.0f && petra_structure_defended(b)) add_attacker(lookup_unit(attacker));
+			continue;
+		}
 		const int32_t i = lookup_unit(target);
 		if (i < 0 || !units_.alive[i] || units_.team[i] != petra_pid_) continue;
 		// checkEvents: an idle or gathering fishing boat moves out of its attacker's reach,
@@ -35362,8 +35375,9 @@ void Simulation::petra_manage_defense(float dt) {
 		needs.push_back(n);
 	}
 	if (!needs.empty()) {
-		// Units that can fight and have nothing more pressing to do, nearest to an army first.
-		std::vector<std::pair<float, size_t>> candidates;
+		// Units that can fight and have nothing more pressing to do, oldest first: 0.28 walks
+		// getOwnUnits() in creation order ("TODO could sort them by distance", DM:458).
+		std::vector<std::pair<uint32_t, size_t>> candidates;
 		for (size_t i = 0; i < units_.count; ++i) {
 			if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
 			if (!petra_is_combat_unit(units_.unit_type[i]) || units_.attack_damage[i] <= 0.0f) continue;
@@ -35377,19 +35391,16 @@ void Simulation::petra_manage_defense(float dt) {
 			if (in_attack_squad(units_.id[i]) || petra_is_critical_ent(i) || petra_guards_critical_ent(i)) continue;
 			if (petra_ship_in_plan(units_.id[i]) || petra_passenger(units_.id[i])) continue;
 			if (petra_is_defender(units_.id[i])) continue;
-			float best = 1e18f;
-			for (const Need &n : needs) {
-				const float dx = units_.pos_x[i] - n.x, dz = units_.pos_z[i] - n.z;
-				best = std::min(best, dx * dx + dz * dz);
-			}
-			candidates.push_back({best, i});
+			candidates.push_back({units_.id[i], i});
 		}
 		std::sort(candidates.begin(), candidates.end());
-		// A defender must be able to attack some foe of the army (canAttackTarget): a capturing
-		// army's structure is captured while allowCapture says so, else damaged, which a
-		// structure with no Health (a Gaia shrine) can't be.
+		// A defender must be able to attack some foe of the army (canAttackTarget, DM:476-481):
+		// a ram no unit, a melee soldier no archer up on a wall; a capturing army's structure is
+		// captured while allowCapture says so, else damaged, which a structure with no Health
+		// (a Gaia shrine) can't be.
 		auto can_take_on = [&](size_t i, const PetraDefenseArmy &a) {
-			if (!petra_army_capturing(a)) return true;
+			if (!petra_army_capturing(a))
+				return std::any_of(a.foe_ids.begin(), a.foe_ids.end(), [&](uint32_t fid) { return petra_can_hit_foe(i, fid); });
 			const Building &b = buildings_[building_id_to_idx_.at(a.foe_ids[0])];
 			if (petra_allow_capture(a.defender_ids, units_.id[i], b)) return true;
 			if (b.team < MAX_PLAYERS && (b.team == petra_pid_ || is_ally(petra_pid_, b.team))) return false;
@@ -35483,12 +35494,14 @@ void Simulation::petra_manage_defense(float dt) {
 			for (uint32_t fid : army.foe_ids) {
 				float fx, fz;
 				if (!petra_army_foe_pos(fid, fx, fz)) continue;
+				if (!petra_can_hit_foe((size_t)idx, fid)) continue; // DA:321 canAttackTarget
 				const int32_t fi = lookup_unit(fid);
 				const auto fit = fi < 0 ? fauna_id_to_idx_.find(fid) : fauna_id_to_idx_.end();
 				const uint32_t foe_target = fi >= 0 ? units_.target_unit_id[fi] : fauna_.target_unit_id[fit->second];
 				if (foe_target == uid) { best_foe = fid; break; } // being attacked: fight back
 				const int n = against.count(fid) ? against[fid] : 0;
-				const bool big = fi >= 0 && (units_.unit_type[fi] == UNIT_HERO || unit_is_siege_engine(units_.unit_type[fi]));
+				// isSiegeUnit (entityExtend.js:4-7): Siege, or a melee elephant.
+				const bool big = fi >= 0 && (units_.unit_type[fi] == UNIT_HERO || petra_is_siege_unit((size_t)fi));
 				if (n > 8 || (n > 5 && !big)) continue;
 				float dx = units_.pos_x[idx] - fx;
 				float dz = units_.pos_z[idx] - fz;
