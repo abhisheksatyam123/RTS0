@@ -3277,6 +3277,79 @@ static void test_regicide_hero_tower_fire() {
 	CHECK(hit && reacted, "a hurt hero under tower fire retreats to heal");
 }
 
+// victoryManager.js checkEvents answers any Attacked event on the hero, Gaia's too: a hurt hero
+// under a Gaia tower's arrows retreats. And attackPlan.js assignUnits skips Support, so a healer
+// (the hero's, or any) never joins a mustering plan.
+static void test_regicide_hero_gaia_fire_and_healers() {
+	{
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(42);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		s->set_victory_condition(VICTORY_REGICIDE);
+		s->set_regicide_garrison(true);
+		run_for(*s, 1.0f);
+		auto &u = s->units_;
+		const uint32_t hero = s->regicide_hero(1);
+		CHECK(hero != 0, "regicide gives AI 1 a hero");
+		if (!hero) return;
+		float tx = 0.0f, tz = 0.0f;
+		for (const auto &b : s->buildings())
+			if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+		const float hx = tx * 0.6f, hz = tz * 0.6f;
+		int32_t h = s->lookup_unit(hero);
+		u.pos_x[h] = hx; u.pos_z[h] = hz;
+		const uint32_t stance_hero = hero;
+		s->order_set_stance(&stance_hero, 1, STANCE_STAND_GROUND);
+		s->spawn_building_world(hx + 5.0f, hz + 5.0f, BLD_SENTRY_TOWER, GAIA_PLAYER, 1.0f);
+		bool hit = false, reacted = false;
+		for (float t = 0.0f; t < 12.0f && !reacted; t += Simulation::FIXED_STEP) {
+			h = s->lookup_unit(hero);
+			if (h < 0 || !u.alive[h]) break;
+			if (u.action_state[h] != ACTION_GARRISONED) u.hp[h] = u.max_hp[h] * 0.6f;
+			s->tick(Simulation::FIXED_STEP);
+			h = s->lookup_unit(hero);
+			if (h < 0) break;
+			hit |= u.attacked_by[h] != 0;
+			reacted = u.order_kind[h] == ORDER_GARRISON || u.action_state[h] == ACTION_GARRISONED || u.stance[h] == STANCE_PASSIVE;
+		}
+		std::printf("  regicide hero under Gaia tower fire: hit %s, retreats %s\n", hit ? "yes" : "no", reacted ? "yes" : "no");
+		CHECK(hit && reacted, "a hurt hero under Gaia fire retreats to heal");
+	}
+	{
+		// A healer and a spearman out of any plan while an Attack musters.
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(42);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		s->set_victory_condition(VICTORY_ENDLESS);
+		run_for(*s, 1.0f);
+		float tx = 0.0f, tz = 0.0f;
+		for (const auto &b : s->buildings())
+			if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+		s->spawn_building_world(tx - 12.0f, tz - 12.0f, BLD_BARRACKS, 1, 1.0f);
+		const uint32_t healer = s->spawn_unit(tx + 6.0f, tz + 6.0f, 1, UNIT_HEALER);
+		const uint32_t spear = s->spawn_unit(tx + 7.0f, tz + 6.0f, 1, UNIT_SPEARMAN);
+		s->petra_pid_ = 1;
+		s->petra_out_of_plan(spear);
+		s->petra_out_of_plan(healer);
+		auto in_plan = [&](uint32_t id) {
+			for (const auto *sq : {&s->petra_attack_plan_.squad, &s->petra_next_plan_.plan.squad})
+				if (std::find(sq->begin(), sq->end(), id) != sq->end()) return true;
+			return false;
+		};
+		bool healer_in = false, spear_in = false;
+		for (int k = 0; k < 30 && !spear_in; ++k) {
+			run_ai_turns(*s, 1);
+			healer_in |= in_plan(healer);
+			spear_in |= in_plan(spear);
+		}
+		std::printf("  attack plans: spearman joins %s, healer joins %s\n", spear_in ? "yes" : "no", healer_in ? "yes" : "no");
+		CHECK(spear_in, "a free soldier joins the plan preparing");
+		CHECK(!healer_in, "a healer never joins an attack plan (Support)");
+	}
+}
+
 // With RegicideGarrison off the hero can't garrison: victoryManager.js
 // pickCriticalEntRetreatLocation sends it home on foot instead (no garrison
 // order that is refused and retried every turn).
@@ -3913,6 +3986,24 @@ static void test_scuttle_undefendable() {
 	            kept ? "kept" : "destroyed", gone(bar) ? "destroyed" : "kept");
 	CHECK(kept, "a structure in an anchored base is defended, not destroyed");
 	CHECK(gone(bar), "with no anchor on its land it is destroyed at 50-70% of its capture points");
+	// DM:608-622: any Attacked event since our last turn counts, a tower's arrows too, with no
+	// unit at the structure.
+	float bx = 0.0f, bz = 0.0f;
+	for (const auto &b : s->buildings()) if (b.team == 0 && b.type == BLD_TOWN_CENTER) { bx = b.x; bz = b.z; }
+	const uint32_t tower = s->spawn_building_world(bx + 12.0f, bz, BLD_TOWER, 0, 1.0f);
+	const uint32_t bar2 = s->spawn_building_world(cx, cz + 12.0f, BLD_BARRACKS, 1, 1.0f);
+	run_for(*s, 0.5f);
+	{
+		auto &b = s->buildings_[idx(bar2)];
+		b.capture_points_by_team.fill(0.0f);
+		b.capture_points_by_team[1] = 0.6f * b.max_capture_points;
+		b.capture_points_by_team[0] = 0.4f * b.max_capture_points;
+	}
+	while (!s->petra_turn_due(1)) s->tick(Simulation::FIXED_STEP);
+	s->note_attacked(tower, 0, bar2, 1, true, 5.0f, false, false);
+	run_ai_turns(*s, 1);
+	std::printf("  scuttle: an unanchored barracks hit by a tower's arrow is %s\n", gone(bar2) ? "destroyed" : "kept");
+	CHECK(gone(bar2), "a hit by a structure is an Attacked event too");
 }
 
 // headquarters.js update: buildDefenses runs only above Sandbox.
@@ -6617,12 +6708,13 @@ static void test_soldier_fights_back() {
 	const float sx = ex + ux * 14.0f - uz * 3.0f, sz = ez + uz * 14.0f + ux * 3.0f;
 	const uint32_t spear = s->spawn_unit(sx, sz, 1, UNIT_SPEARMAN, 1.0e5f);
 	const uint32_t woman = s->spawn_unit(sx + uz * 6.0f, sz - ux * 6.0f, 1, UNIT_FEMALE_CITIZEN, 1.0e5f);
-	for (uint32_t id : {spear, woman}) {
+	const uint32_t cata = s->spawn_unit(sx - uz * 6.0f, sz + ux * 6.0f, 1, UNIT_CATAPULT, 1.0e5f);
+	for (uint32_t id : {spear, woman, cata}) {
 		s->order_walk(&id, 1, ex - ux * 20.0f, ez - uz * 20.0f, false); // deeper into the enemy's land
 		s->units_.order_flags[s->lookup_unit(id)] |= ORDER_FLAG_FORCE;
 	}
 	std::vector<uint32_t> archers;
-	for (uint32_t id : {spear, woman}) {
+	for (uint32_t id : {spear, woman, cata}) {
 		const int32_t t = s->lookup_unit(id);
 		const uint32_t a = s->spawn_unit(s->units_.pos_x[t] - ux * 4.0f, s->units_.pos_z[t] - uz * 4.0f, 0, UNIT_ARCHER, 1.0e6f);
 		s->order_attack(&a, 1, id);
@@ -6632,10 +6724,13 @@ static void test_soldier_fights_back() {
 	const int32_t i = s->lookup_unit(spear), w = s->lookup_unit(woman);
 	const bool fights = i >= 0 && s->units_.action_state[i] == ACTION_ATTACK && s->units_.target_unit_id[i] == archers[0];
 	const bool woman_fights = w >= 0 && s->units_.target_unit_id[w] == archers[1];
-	std::printf("  a soldier walking under an archer's fire turns on it: %s; a woman does: %s; armies %zu\n",
-	            fights ? "yes" : "no", woman_fights ? "yes" : "no", s->petra_defense_armies().size());
+	const int32_t c = s->lookup_unit(cata);
+	const bool cata_fights = c >= 0 && s->units_.target_unit_id[c] == archers[2];
+	std::printf("  a soldier walking under an archer's fire turns on it: %s; a woman does: %s; a catapult does: %s; armies %zu\n",
+	            fights ? "yes" : "no", woman_fights ? "yes" : "no", cata_fights ? "yes" : "no", s->petra_defense_armies().size());
 	CHECK(fights, "a Petra soldier hit by an enemy unit fights back (checkEvents target.attack)");
 	CHECK(!woman_fights, "a support unit doesn't");
+	CHECK(!cata_fights, "nor a stone thrower: it is only sent to shelter (DM:681-687)");
 }
 
 // defenseArmy.js update and assignUnit: a defender is re-assigned only once it has no orders,
@@ -10229,6 +10324,7 @@ int main(int argc, char **argv) {
 	RUN(test_regicide_hero);
 	RUN(test_regicide_hero_no_garrison);
 	RUN(test_regicide_hero_tower_fire);
+	RUN(test_regicide_hero_gaia_fire_and_healers);
 	RUN(test_nomad_first_base);
 	RUN(test_entity_limit_placement);
 	RUN(test_army_answers_attackers);

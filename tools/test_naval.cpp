@@ -1454,6 +1454,53 @@ static void test_petra_landed_army_answers_attack() {
 	s.petra_transports_.clear();
 }
 
+// attackManager.js raids are attackPlans too: a raid launched overseas is "transporting"
+// until none of its units is in a transport (UpdateTransporting); it does not attack-move
+// on foot to the beach meanwhile, and fights once ashore.
+static void test_petra_overseas_raid_sails() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+	const uint32_t house = s.spawn_building_world(30.0f, -50.0f, BLD_HOUSE, 0);
+	std::vector<uint32_t> raiders;
+	for (int k = 0; k < 3; ++k) raiders.push_back(s.spawn_unit(-36.0f + 2.0f * k, 26.0f, 1, UNIT_SPEARMAN));
+	run(s, 0.5f);
+	s.petra_pid_ = 1;
+	s.petra_transports_.clear();
+	Simulation::AttackPlan plan;
+	plan.kind = PETRA_ATTACK_RAID;
+	plan.state = Simulation::AttackPlan::WALKING;
+	plan.target_building_id = house;
+	plan.target_player = 0;
+	plan.target_x = 30.0f; plan.target_z = -50.0f;
+	plan.squad = raiders;
+	plan.initial_squad_size = 3;
+	CHECK(s.petra_plan_overseas(-30.0f, 40.0f, house) != 0);
+	s.petra_update_started_raid(plan, -30.0f, 40.0f);
+	size_t booked = 0;
+	for (const auto &tp : s.petra_transports_)
+		if (tp.owner == PETRA_TRANSPORT_RAID) booked += tp.passenger_ids.size();
+	s.petra_update_started_raid(plan, -30.0f, 40.0f);
+	const bool waits = plan.state == Simulation::AttackPlan::WALKING;
+	bool marched = false;
+	for (uint32_t uid : raiders) {
+		const int32_t i = idx(s, uid);
+		if (i >= 0 && s.units().action_state[i] != ACTION_IDLE) marched = true;
+	}
+	// Ashore on the target's land, with no transport left: it fights.
+	s.petra_transports_.clear();
+	for (size_t k = 0; k < raiders.size(); ++k)
+		if (const int32_t i = idx(s, raiders[k]); i >= 0) { s.units_.pos_x[i] = -14.0f + 2.0f * k; s.units_.pos_z[i] = -28.0f; }
+	s.petra_update_started_raid(plan, -30.0f, 40.0f);
+	std::printf("Petra overseas raid: %zu of 3 booked on a ship, waits at sea %s, marched on foot %s, fights ashore %s\n",
+	            booked, waits ? "yes" : "no", marched ? "yes" : "no", plan.state == Simulation::AttackPlan::ATTACKED ? "yes" : "no");
+	CHECK(booked == 3 && waits && !marched);
+	CHECK(plan.state == Simulation::AttackPlan::ATTACKED);
+}
+
 // attackPlan.js constructor and updatePreparation:479: a plan bound overseas asks for one
 // transport ship and takes no unit until that sea has one; then it musters as on land.
 static void test_petra_overseas_plan_waits_for_ship() {
@@ -1743,6 +1790,51 @@ static void test_petra_ferry_stance() {
 	CHECK(landed >= (int)aboard && after == unit_default_stance(UNIT_TRIREME));
 }
 
+// transportPlan.js onBoarding nTry[shipId]: a ship stopped short of its boarding point is sent
+// there again, and on its second failed try goes for another point. Its tries last while it
+// sails back (they reset only with a new point), so a ship stopped short every time it is
+// sent off doesn't head for the same blocked point for good.
+static void test_petra_ship_boarding_retry() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.set_player_resources(1, 5000, 5000, 5000, 5000);
+	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+	const uint32_t ship = s.spawn_unit(50.0f, 0.0f, 1, UNIT_TRIREME);
+	std::vector<uint32_t> crew;
+	for (int k = 0; k < 4; ++k) crew.push_back(s.spawn_unit(-24.0f + 2.0f * k, 26.0f, 1, UNIT_SPEARMAN));
+	run(s, 0.5f);
+	CHECK(s.petra_start_transport(crew, -20.0f, 30.0f, -20.0f, -40.0f, 0, PETRA_TRANSPORT_ATTACK));
+	run(s, 0.5f);
+	const float px = s.petra_transport_plans().empty() ? 0.0f : s.petra_transport_plans()[0].pickup_x;
+	const float pz = s.petra_transport_plans().empty() ? 0.0f : s.petra_transport_plans()[0].pickup_z;
+	// Something (another ship lying at the point) holds it 10 units short: it pushes on for
+	// 4 s, then gives up and stops there.
+	float stuck = 0.0f, hx = 0.0f, hz = 0.0f;
+	bool moved_on = false;
+	for (int k = 0; k < 60 * 20 && !moved_on; ++k) {
+		run(s, Simulation::FIXED_STEP);
+		const int32_t si = idx(s, ship);
+		if (si < 0 || s.petra_transport_plans().empty()) break;
+		const float dx = s.units().pos_x[si] - px, dz = s.units().pos_z[si] - pz;
+		if (s.units().action_state[si] == ACTION_MOVE && dx * dx + dz * dz < 10.0f * 10.0f) {
+			if (stuck == 0.0f) { hx = s.units().pos_x[si]; hz = s.units().pos_z[si]; }
+			s.units_.pos_x[si] = hx;
+			s.units_.pos_z[si] = hz;
+			stuck += Simulation::FIXED_STEP;
+			if (stuck >= 4.0f) s.cmd_stop(&ship, 1);
+		} else {
+			stuck = 0.0f;
+		}
+		const auto &tp = s.petra_transport_plans()[0];
+		moved_on = tp.state == PetraTransportPlan::BOARDING && (tp.pickup_x != px || tp.pickup_z != pz);
+	}
+	std::printf("Petra ship stopped short on every leg: tries another boarding point %s\n", moved_on ? "yes" : "no");
+	CHECK(moved_on);
+}
+
 // navalManager.checkEvents: survivors of a ship sunk while sailing, set down on two lands (the
 // north shore and the islet), each ask for a transport (requireTransport) and all reach the
 // destination.
@@ -1917,10 +2009,39 @@ static void test_petra_ship_treasure() {
 	const uint32_t wreck = s.spawn_treasure(-10.0f, 0.0f, TREASURE_SHIPWRECK);
 	s.spawn_treasure(10.0f, 19.0f, TREASURE_SHIPWRECK_DEBRIS); // nearer, but on land
 	s.petra_pid_ = 1;
-	s.petra_manage_naval(2.0f); // one naval update (every 2 s)
+	s.petra_manage_naval(2.0f); // a naval update (every 2 s): it notes where the idle ship stands
+	const bool first = s.unit_order(tri).kind == ORDER_COLLECT_TREASURE;
+	s.petra_manage_naval(2.0f); // still standing there: its turn
 	const auto o = s.unit_order(tri);
-	std::printf("Petra ship treasure: order %d target %u (wreck %u)\n", (int)o.kind, o.target, wreck);
+	std::printf("Petra ship treasure: order %d target %u (wreck %u), on the first look %s\n", (int)o.kind, o.target, wreck,
+	            first ? "yes" : "no");
+	CHECK(!first);
 	CHECK(o.kind == ORDER_COLLECT_TREASURE && o.target == wreck);
+}
+
+// navalManager.js moveApart (FA12): an idle ship has its turn once where it stopped (stationnary);
+// a treasure washed up afterwards waits for its next stop.
+static void test_petra_idle_ship_once() {
+	static Simulation s;
+	fresh(s);
+	s.set_player_active(1, true, true);
+	s.spawn_building_world(-40.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	const uint32_t tri = s.spawn_unit(0.0f, 10.0f, 1, UNIT_TRIREME);
+	s.petra_pid_ = 1;
+	s.petra_manage_naval(2.0f);
+	s.petra_manage_naval(2.0f); // its turn here, with nothing to do
+	const uint32_t wreck = s.spawn_treasure(-10.0f, 0.0f, TREASURE_SHIPWRECK);
+	s.petra_manage_naval(2.0f);
+	s.petra_manage_naval(2.0f);
+	const bool waited = s.unit_order(tri).kind != ORDER_COLLECT_TREASURE;
+	// Moved on, it stops somewhere else and has its turn there (Petra's own turns now).
+	const float wood0 = s.player(1).wood();
+	s.order_walk(&tri, 1, 4.0f, 6.0f, false);
+	run(s, 40.0f);
+	std::printf("Petra idle ship: waits where it had its turn %s, takes the treasure after its next stop %s (wreck %u)\n",
+	            waited ? "yes" : "no", s.player(1).wood() > wood0 ? "yes" : "no", wreck);
+	CHECK(waited);
+	CHECK(s.player(1).wood() > wood0);
 }
 
 // Ships drop off at any Naval dropsite (ResourceGatherer.js): the Briton crannog, a civic
@@ -2105,6 +2226,35 @@ static void test_petra_fishing_boat_backs_off() {
 	}
 	std::printf("Petra fishing boat attacked: walks off %s, to %.1f from the warship (its reach + 15 m: %.1f)\n", away ? "yes" : "no", d, reach);
 	CHECK(away && d >= reach);
+}
+
+// defenseManager.js checkEvents (DM:586-597): the attacker may be a structure too; a boat
+// under a tower's arrows backs off to the tower's arrow range + 15 m.
+static void test_petra_fishing_boat_backs_off_tower() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+	const uint32_t fish = s.spawn_resource_world(18.0f, 6.0f, RES_FOOD, FISH_FOOD_SUPPLY, RES_SUB_FISH);
+	const uint32_t boat = s.spawn_unit(20.0f, 10.0f, 1, UNIT_FISHING_BOAT, 1.0e5f);
+	s.order_gather(&boat, 1, fish);
+	run(s, 1.0f);
+	const uint32_t tower = s.spawn_building_world(20.0f, 21.0f, BLD_TOWER, 0, 1.0f);
+	const auto &t = s.buildings_[s.building_id_to_idx_.at(tower)];
+	const float reach = s.building_arrow_range(t) + 15.0f * 0.28f, tx = t.x, tz = t.z;
+	const int32_t bi = s.lookup_unit(boat);
+	bool away = false;
+	float d = 0.0f;
+	for (int k = 0; k < 80 && !away; ++k) {
+		run(s, 0.1f);
+		away = s.units_.order_kind[bi] == ORDER_WALK;
+		const float dx = s.units_.order_x[bi] - tx, dz = s.units_.order_z[bi] - tz;
+		d = std::sqrt(dx * dx + dz * dz);
+	}
+	std::printf("Petra fishing boat under a tower: walks off %s, to %.1f from it (its arrow range + 15 m: %.1f)\n", away ? "yes" : "no", d, reach);
+	CHECK(away && d >= reach - 0.01f);
 }
 
 // startingStrategy.js configFirstBase: on a starting land under 25000 m² Petra keeps to one
@@ -2980,12 +3130,14 @@ int main() {
 	test_petra_transport_ship_lost();
 	test_petra_transport_waits_for_all();
 	test_petra_landed_army_answers_attack();
+	test_petra_overseas_raid_sails();
 	test_petra_abort_stranded_army();
 	test_petra_overseas_plan_waits_for_ship();
 	test_petra_transport_trapped_passenger();
 	test_petra_transport_sunk_at_sea();
 	test_petra_transport_wrong_land();
 	test_petra_ferry_stance();
+	test_petra_ship_boarding_retry();
 	test_petra_sunk_survivors_two_lands();
 	test_petra_laden_ship_lands();
 	test_petra_merchantman_transport();
@@ -2995,12 +3147,14 @@ int main() {
 	test_ship_treasure();
 	test_ship_round_wreck();
 	test_petra_ship_treasure();
+	test_petra_idle_ship_once();
 	test_crannog_takes_fish();
 	test_ship_leaves_dock_site();
 	test_next_fish_range();
 	test_petra_land_skips_wreck();
 	test_petra_fishing();
 	test_petra_fishing_boat_backs_off();
+	test_petra_fishing_boat_backs_off_tower();
 	test_petra_small_land_fields();
 	test_petra_need_fish();
 	test_petra_dock_position();

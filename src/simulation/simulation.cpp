@@ -13464,12 +13464,15 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		const uint8_t owner = units_.team[i];
 		// A builder on its way to its site whose last short path search, among the crowd-scale squares
 		// and then the smaller ones, found no way from where it still stands toward the same aim (the
-		// stuck memo, `no_way` below): see obstructs.
+		// stuck memo, `no_way` below), or that was caught going round a way its searches find (the
+		// obstructed branch below): see obstructs. With `as_sealed` a step is tested as if it were one.
+		const bool builder = units_.action_state[i] == ACTION_BUILD && units_.target_building_id[i] != 0;
+		const bool member = !formations_.empty() && (size_t)i < formation_group_.size() && formation_group_[i] != 0;
 		const ShortPathMemo &last = units_.short_path[i];
 		const float lsx = x0 - last.x, lsz = z0 - last.z, lax = aim_x[i] - last.aim_x, laz = aim_z[i] - last.aim_z;
-		const bool sealed_builder = units_.action_state[i] == ACTION_BUILD && units_.target_building_id[i] != 0 &&
-				last.key == stuck_key && lsx * lsx + lsz * lsz < 0.25f &&
+		const bool sealed_builder = builder && last.key == stuck_key && lsx * lsx + lsz * lsz < 0.25f &&
 				lax * lax + laz * laz <= nav::SHORT_PATH_AIM_SLACK * nav::SHORT_PATH_AIM_SLACK;
+		bool as_sealed = false;
 		auto obstructs = [&](int32_t j) {
 			// A unit standing still obstructs one that moves, as in 0.28 (ControlGroupMovementObstructionFilter,
 			// ICmpObstructionManager.h:406-429, CCmpUnitMotion.h:840-851): only its own control group lets a
@@ -13496,7 +13499,8 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 			// centre), so farther out the returner walks round them, as in 0.28. Units on other tasks, other
 			// players' units and the walk back to the supply keep 0.28's rule.
 			// The same deviation lets a sealed builder (sealed_builder) through its own player's units that
-			// stand idle with no order, and only while its searches find no way from where it stands. The
+			// stand idle with no order, and only while its searches find no way from where it stands, or once
+			// it is caught going round a way they find (civ 13's market builder, below). The
 			// soldiers a civic centre unloads stand round it with the workers among them, and a worker sent
 			// from there to build stood in that pocket for good (Stats' e2e_human_path, 2026-10: builders of
 			// civs 0, 2, 4, 6, 9 and 11 never started): the crowd shuts every way out among the crowd-scale
@@ -13507,7 +13511,8 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 			// OutOfRange -> APPROACHING, UnitAI.js:3087-3090, 3109-3113, 3140-3142): the build order stands
 			// for good. Once the builder is 0.5 off the spot it searches by 0.28's rule again; a body in its
 			// way still slides it round (separation), and every other unit's walk keeps the rule.
-			if (sealed_builder && units_.team[j] == owner && units_.action_state[j] == ACTION_IDLE && !units_.has_order[j])
+			if ((sealed_builder || as_sealed) && units_.team[j] == owner && units_.action_state[j] == ACTION_IDLE &&
+					!units_.has_order[j])
 				return false;
 			if (!returning || units_.team[j] != owner) return true;
 			return !((units_.action_state[j] == ACTION_IDLE && !units_.has_order[j]) ||
@@ -13554,6 +13559,31 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 			if (l <= 0.0f || l >= probe) return step_blocked(ex, ez, relaxed);
 			return step_blocked(x0 + dx / l * probe, z0 + dz / l * probe, relaxed);
 		};
+		// Whether a step would be clear for a sealed builder: only its own player's units that stand idle
+		// with no order are in its way (obstructs).
+		auto clear_as_sealed = [&](float ex, float ez, float to_x, float to_z, bool relaxed) {
+			as_sealed = true;
+			const bool clear = !full_step_blocked(ex, ez, to_x, to_z, relaxed);
+			as_sealed = false;
+			return clear;
+		};
+		// The same for a full step straight toward its aim, and for the whole line to its aim out to the
+		// widest search range: a sealed builder heads straight for its aim (a builder caught going round a
+		// way its searches find, below).
+		auto aim_step_clear_as_sealed = [&] {
+			const float ax = aim_x[i] - x0, az = aim_z[i] - z0, al = std::sqrt(ax * ax + az * az);
+			if (al <= 1e-4f) return false;
+			const float k = std::min(full_step, al) / al;
+			return clear_as_sealed(x0 + ax * k, z0 + az * k, aim_x[i], aim_z[i], false);
+		};
+		auto aim_line_clear_as_sealed = [&] {
+			const float lx = aim_x[i] - x0, lz = aim_z[i] - z0, ll = std::sqrt(lx * lx + lz * lz);
+			const float lk = ll > RANGE_MAX ? RANGE_MAX / ll : 1.0f;
+			as_sealed = true;
+			const bool clear = !step_blocked(x0 + lx * lk, z0 + lz * lk);
+			as_sealed = false;
+			return clear;
+		};
 		// A unit that reached a waypoint of its short path last tick searches on from there, as 0 A.D.
 		// follows the whole path: heading straight for its aim could take it back to where it was
 		// stuck, such as a dead end between idle units.
@@ -13563,9 +13593,11 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		const bool from_corner = (memo.key == corner_key || memo.key == relaxed_corner_key) && same_aim;
 		// A step on a path that was searched among the smaller squares is tested against them.
 		const bool relaxed = (memo.key == relaxed_key || memo.key == relaxed_corner_key) && same_aim;
+		const bool dropped = memo.key == 0; // no path (one dropped below keeps its waypoint), not a corner
 		if (memo.key == corner_key || memo.key == relaxed_corner_key) memo.key = 0;
 		const uint8_t failed = units_.motion[i].failed;
 		const bool obstructed = full_step_blocked(npx[i], npz[i], aim_x[i], aim_z[i], relaxed);
+		const float step_x = npx[i], step_z = npz[i]; // the step move_units gave it
 		bool no_way = false;
 		if (obstructed) {
 			// Obstructed: the unit stays put this tick. One within reach of its task is where 0 A.D.'s
@@ -13573,7 +13605,45 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 			// The way to its waypoint is blocked now. So is the way along a short path it keeps round trees
 			// or steep ground (nav::kept_path_key): 0.28's HandleObstructedMove replaces the short path the
 			// unit follows with a new one (CCmpUnitMotion.h:1436-1441).
-			if (memo.key == key || memo.key == relaxed_key || nav::is_kept_path_key(memo.key, short_path_key_)) memo.key = 0;
+			// A builder caught going round a way its searches find takes the stuck memo where it stands, as
+			// when its search finds no way, and is a sealed builder from the next tick (obstructs). RTS0
+			// deviation, with sealed_builder's. Civ 13's market builder in Stats' e2e_human_path (2026-10)
+			// went round such a loop for good, in BUILD with its long path and no velocity. Its search found
+			// a way down a slit between two crowd-scale squares and through the body of a unit whose square
+			// held it (a ray that starts inside a square is never blocked by it). Walking into that body,
+			// separation slid it off the path, as 0.28 never does (a moving unit and a standing one are never
+			// pushed apart: CCmpUnitMotion_System.cpp:673-687), and its next step entered the square beside
+			// the slit and was refused here. 0.28 would keep the unit there and search again from it
+			// (HandleObstructedMove, CCmpUnitMotion.h:1369, 1397-1398, 1441-1446); RTS0 drops the path and
+			// heads straight for its aim, back to where it searched, and finds the same way. The builder is
+			// caught when:
+			// - its search from where a step toward its aim was refused finds the way whose path it dropped
+			//   (the memo keeps that path's waypoint with key 0; below, after the search), or
+			// - a step along its path is refused after more than CAUGHT_FAILED obstructed turns in a row
+			//   (here): building steering round a structure beside the crowd can take the memo of the
+			//   dropped path's waypoint, and the loop can run round two ways in turn.
+			// Either way only where the refused step would be clear for a sealed builder: only its own idle
+			// units with no order are in its way, so the seal frees it on the next tick. A builder refused
+			// among farmers, other builders or allied units keeps 0.28's rule and searches again on its own
+			// tick; with the stuck memo it would search only every fourth turn. A sealed builder heads
+			// straight for its aim, so each test also looks ahead along that line. The first fires on a
+			// single re-find, so it looks along the whole line to the aim, out to the widest search range
+			// (RANGE_MAX): with the refused step alone it also sealed builders that would have got on along
+			// the way found. In test_naval's Petra overseas base a house builder beside the civic centre,
+			// sealed so, made straight for its site and was refused there by other builders and gatherers,
+			// which the seal does not let through. It searched again and went the same way round 2.5 s late,
+			// after the house was finished, and Petra's move overseas fell behind with it (the test found 6
+			// workers on the far land at 360 s, against 23 without the seal, where it needs 8). The second
+			// looks one full step ahead: past CAUGHT_FAILED turns the builder searches every eighth turn over
+			// the widest range anyway, so the memo costs it no search. A formation's member keeps the rule
+			// too (its aim is its slot).
+			constexpr uint8_t CAUGHT_FAILED = 12;
+			const bool on_path = memo.key == key || memo.key == relaxed_key;
+			if (on_path && same_aim && builder && !member && failed > CAUGHT_FAILED &&
+					clear_as_sealed(npx[i], npz[i], aim_x[i], aim_z[i], relaxed) && aim_step_clear_as_sealed())
+				memo = ShortPathMemo{x0, z0, aim_x[i], aim_z[i], stuck_key};
+			else if (on_path || nav::is_kept_path_key(memo.key, short_path_key_))
+				memo.key = 0;
 			npx[i] = x0;
 			npz[i] = z0;
 			units_.vel_x[i] = units_.vel_z[i] = 0.0f;
@@ -13692,7 +13762,6 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		// while the relaxed memo keeps its aim, and a member's aim is its formation slot, which moves every
 		// tick. Such a path would leave it inside a standing unit's crowd-scale square with the memo gone,
 		// where the plain step test no longer stops it crossing the unit's body (test_unit_pushing 22).
-		const bool member = !formations_.empty() && (size_t)i < formation_group_.size() && formation_group_[i] != 0;
 		bool relaxed_path = false;
 		if (!found && !squares.empty() && !member) {
 			thread_local std::vector<nav::ShortPathSquare> relaxed_squares;
@@ -13726,6 +13795,18 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		if ((w - pos).lengthSq() < 1e-8f) w = next;
 		nav::Vec2 keep = w;
 		if ((w - pos).lengthSq() <= reach * reach) keep = next;
+		// A builder caught going round this way (the obstructed branch above): its step toward its aim was
+		// refused, and the way found is the one whose path it dropped. It takes the stuck memo here instead,
+		// where that step and the whole line to its aim would be clear for a sealed builder.
+		if (obstructed && dropped && same_aim && builder && !member) {
+			constexpr float SAME_WAYPOINT = 0.05f;
+			const float kx = keep.x - memo.x, kz = keep.y - memo.z;
+			if (kx * kx + kz * kz < SAME_WAYPOINT * SAME_WAYPOINT && clear_as_sealed(step_x, step_z, aim_x[i], aim_z[i], false) &&
+					aim_line_clear_as_sealed()) {
+				memo = ShortPathMemo{x0, z0, aim.x, aim.y, stuck_key};
+				return;
+			}
+		}
 		const nav::Vec2 to = w - pos;
 		const float len = to.length();
 		if (len < 1e-4f) return;
@@ -27689,6 +27770,7 @@ void Simulation::petra_config_first_base() {
 			PetraKept::raise(petra_kept_.wanted_fish, sea, 2);
 	}
 	petra_kept_.need_corral = small_land;
+	petra_kept_.dock_at_16 = small_land ? 2 : 1;
 	if (food < 800.0f) {
 		if (small_land) petra_kept_.need_fish = true;
 		else petra_kept_.need_farm = true;
@@ -27723,8 +27805,10 @@ void Simulation::petra_manage_naval(float dt) {
 
 	// startingStrategy.js: a starting land under 25000 m² docks at 16 population, one short of
 	// food at once (needFish, popForDock 1); config.js popForDock 25.
-	const bool small_land = home && home < topo.land_size.size() && topo.cell_m2 * (float)topo.land_size[home] < 25000.0f;
-	const int pop_for_dock = petra_kept_.need_fish ? 1 : small_land ? 16 : 25;
+	// Decided once, with the first civic centre (configFirstBase).
+	if (!petra_kept_.dock_at_16)
+		petra_kept_.dock_at_16 = home && home < topo.land_size.size() && topo.cell_m2 * (float)topo.land_size[home] < 25000.0f ? 2 : 1;
+	const int pop_for_dock = petra_kept_.need_fish ? 1 : petra_kept_.dock_at_16 == 2 ? 16 : 25;
 
 	// Our docks by sea; ships by sea.
 	std::vector<uint32_t> sea_dock(nseas, 0); // a finished dock on each sea
@@ -28044,15 +28128,33 @@ void Simulation::petra_manage_naval(float dt) {
 		if (petra_fleets_.sea_warship_count[s] > 0) active_seas = s + 1;
 	petra_fleets_.sea_count_ = active_seas;
 
-	// 4. moveApart: an idle ship first goes for a treasure on its sea (gatherTreasure),
-	// else, within 70 m of an allied dock on its sea, moves out to 70-75 m so it leaves
-	// the dock free.
+	// 4. moveApart: an idle ship standing where it stood idle at the last check (and not
+	// already handled there) first goes for a treasure on its sea (gatherTreasure), else,
+	// within 70 m of an allied dock on its sea, moves out to 70-75 m so it leaves the dock
+	// free. Once per stop: it waits for its next stop before it tries again.
+	auto &idle_ships = petra_ship_idle_.ships;
+	std::erase_if(idle_ships, [&](const PetraShipIdleEntry &e) {
+		const int32_t i = lookup_unit(e.id);
+		return i < 0 || !units_.alive[i] || units_.team[i] != petra_pid_;
+	});
 	PetraHuntScan treasure_scan;
 	bool treasure_scanned = false;
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i] || units_.team[i] != petra_pid_ || !unit_is_ship(units_.unit_type[i])) continue;
 		if (units_.action_state[i] != ACTION_IDLE || units_.has_order[i]) continue;
 		if (petra_ship_in_plan(units_.id[i])) continue;
+		const uint32_t sid = units_.id[i];
+		auto at = std::lower_bound(idle_ships.begin(), idle_ships.end(), sid, [](const PetraShipIdleEntry &e, uint32_t id) { return e.id < id; });
+		if (at == idle_ships.end() || at->id != sid) {
+			idle_ships.insert(at, {sid, units_.pos_x[i], units_.pos_z[i], 0});
+			continue;
+		}
+		if (at->x != units_.pos_x[i] || at->z != units_.pos_z[i]) {
+			*at = {sid, units_.pos_x[i], units_.pos_z[i], 0};
+			continue;
+		}
+		if (at->stationary) continue;
+		at->stationary = 1;
 		if (!treasures_.empty()) {
 			if (!treasure_scanned) { petra_treasures_taken(treasure_scan); treasure_scanned = true; }
 			if (petra_gather_treasure(i, treasure_scan, true)) continue;
@@ -31234,7 +31336,8 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 					continue;
 				}
 				if (units_.id[i] == petra_scout_unit_id_) continue; // Scout remains on exploration
-				if (petra_is_support_unit(units_.unit_type[i]) || units_.unit_type[i] == UNIT_TRIREME) continue;
+				// hasClasses(["!Unit", "Ship", "Support"]): healers are Support (and have no attack).
+				if (petra_is_support_unit(units_.unit_type[i]) || units_.unit_type[i] == UNIT_HEALER || units_.unit_type[i] == UNIT_TRIREME) continue;
 				// attackPlan.js isAvailableUnit: not garrisoning, not guarding a hero,
 				// and a regicide hero only while above 80% health.
 				if (units_.order_kind[i] == ORDER_GARRISON || petra_guards_critical_ent(i)) continue;
@@ -31513,47 +31616,7 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 			// UpdateTransporting: done once none of this army is in a transport any more. Until
 			// then, the first Attacked event on one of its units turns the idle landed ones on
 			// the attacker.
-			if (sailed && petra_plan_in_transport(plan) && petra_plan_overseas(base_x, base_z, plan.target_building_id)) {
-				for (const auto &[target, attacker] : petra_turn_attacks_) {
-					if (std::find(squad.begin(), squad.end(), target) == squad.end()) continue;
-					const int32_t a = lookup_unit(attacker);
-					if (lookup_unit(target) < 0 || (a < 0 && !building_id_to_idx_.count(attacker))) continue;
-					for (uint32_t uid : squad) {
-						const int32_t k = lookup_unit(uid);
-						if (k < 0 || !units_.alive[k] || units_.action_state[k] != ACTION_IDLE) continue;
-						if (petra_passenger(uid) || petra_aboard(uid)) continue;
-						if (a >= 0) order_attack(&uid, 1, attacker);
-						else {
-							const Building &b = buildings_[building_id_to_idx_.at(attacker)];
-							order_attack_building(&uid, 1, attacker, false, petra_allow_capture(squad, uid, b));
-						}
-					}
-					break;
-				}
-				return; // still at sea
-			}
-			// navalManager.js requireTransport: the ship comes back for those still on
-			// our land (a failed transport leaves them, as a plan without ships does).
-			if (sailed && petra_plan_overseas(base_x, base_z, plan.target_building_id)) {
-				const PetraNavalTopo &topo = petra_topo();
-				const uint32_t target_id = plan.target_building_id;
-				const uint16_t overseas = petra_overseas(topo, base_x, base_z, target_id);
-				auto tit = building_id_to_idx_.find(target_id);
-				if (overseas && tit != building_id_to_idx_.end()) {
-					const uint16_t there = petra_building_land(buildings_[tit->second], &topo);
-					std::vector<uint32_t> left;
-					for (uint32_t uid : squad) {
-						const int32_t idx = lookup_unit(uid);
-						if (idx >= 0 && units_.alive[idx] && petra_land_at(units_.pos_x[idx], units_.pos_z[idx]) != there)
-							left.push_back(uid);
-					}
-					if (!left.empty() && petra_start_transport(left, base_x, base_z, plan.target_x,
-					                                           plan.target_z, overseas, PETRA_TRANSPORT_ATTACK)) {
-						plan.state_timer = 0.0f;
-						return;
-					}
-				}
-			}
+			if (sailed && petra_plan_transporting(plan, base_x, base_z, PETRA_TRANSPORT_ATTACK)) return;
 
 			// attackPlan.js update: an attack goes on while any of its army lives (no retreat
 			// on losses or danger); the plan ends once its army is gone.
@@ -32391,6 +32454,9 @@ void Simulation::petra_update_started_raid(AttackPlan &plan, float base_x, float
 				petra_go_home(plan.squad, base_x, base_z, PETRA_TRANSPORT_RAID, true);
 			return;
 		}
+		// A raid overseas sails as an attack does ("transporting"), then fights.
+		if (plan.state == AttackPlan::WALKING && plan.path_x.empty() && petra_plan_transporting(plan, base_x, base_z, PETRA_TRANSPORT_RAID))
+			return;
 		// A raid marching along its path fights only once it arrives (attackPlan.js update
 		// "walking" state, then "arrived").
 		if (plan.state == AttackPlan::WALKING && !plan.path_x.empty()) {
@@ -33261,6 +33327,9 @@ void Simulation::petra_fight_back(size_t i, int32_t a, const std::vector<PetraDe
 	if (unit_is_ship(units_.unit_type[i]) || petra_passenger(uid) || units_.action_state[i] == ACTION_GARRISONED) return;
 	for (const PetraDefenseArmy &army : armies)
 		if (std::find(army.defender_ids.begin(), army.defender_ids.end(), uid) != army.defender_ids.end()) return;
+	// checkEvents (DM:681-687): an attacked stone thrower is only sent to shelter
+	// (garrisonSiegeUnit, petra_manage_garrisons), holder found or not.
+	if ((unit_tech_classes(units_.unit_type[i]) & TC_STONETHROWER).any()) return;
 	auto support = [&](size_t k) {
 		return (unit_classes_at(k) & (TC_CIVILIAN | TC_HEALER | TC_TRADER)).any() ||
 		       unit_gather_class(units_.unit_type[k], units_.tmpl[k]) == GATHER_SUPPORT;
@@ -33724,6 +33793,10 @@ void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt, std::vec
 					order_walk(&tp.ship_id, 1, tp.pickup_x, tp.pickup_z, false);
 				}
 				next.push_back({tp.ship_id, units_.pos_x[sidx], units_.pos_z[sidx], tries});
+			} else if (!ship_ready) {
+				// Sent there again, it keeps its tries on the way (nTry resets only with a new point).
+				auto it = std::find_if(tp.boarding.begin(), tp.boarding.end(), [&](const auto &o) { return o.uid == tp.ship_id; });
+				if (it != tp.boarding.end()) next.push_back(*it);
 			}
 			tp.boarding = std::move(next);
 			tp.passenger_ids = std::move(keep);
@@ -34560,10 +34633,18 @@ bool Simulation::petra_structure_defended(const Building &b) const {
 // isn't defendable, or with no base anchor of ours on its land, is destroyed while we hold
 // 50-70% of its capture points, rather than left to the enemy capturing it.
 void Simulation::petra_scuttle_undefendable() {
+	// The Attacked events since our last turn (DM:608-622): any hit or capture attempt,
+	// from a unit, a structure's arrows or a siege engine out of sight.
+	std::vector<uint32_t> attacked;
+	for (const auto &[target, attacker] : petra_turn_attacks_)
+		if (building_id_to_idx_.count(target)) attacked.push_back(target);
+	if (attacked.empty()) return;
+	std::sort(attacked.begin(), attacked.end());
+	attacked.erase(std::unique(attacked.begin(), attacked.end()), attacked.end());
 	std::vector<uint32_t> scuttle;
-	for (const Building &b : buildings_) {
+	for (uint32_t id : attacked) {
+		const Building &b = buildings_[building_id_to_idx_.at(id)];
 		if (b.team != petra_pid_ || b.wrecked || b.hp <= 0.0f || b.build_progress < 1.0f || b.max_capture_points <= 0.0f) continue;
-		if (structure_attacker(b.id, petra_pid_) < 0) continue; // the Attacked event
 		if (petra_structure_defended(b)) continue;
 		float total = 0.0f;
 		for (float cp : b.capture_points_by_team) total += cp;
@@ -34673,6 +34754,49 @@ void Simulation::petra_manage_garrisons() {
 
 // attackPlan.js waitingForTransport / UpdateTransporting: one of this plan's units has a
 // transport (waiting for its ship or aboard), whatever the other attacks' ferries do.
+// attackPlan.js UpdateTransporting, for a plan that sails to its target: it waits while any
+// of its army is in a transport, and the first Attacked event on one of its units turns the
+// idle landed ones on the attacker. navalManager.js requireTransport: the ship comes back for
+// those still off the target's land (a failed transport leaves them, as a plan without ships
+// does). True while the plan waits.
+bool Simulation::petra_plan_transporting(AttackPlan &plan, float base_x, float base_z, uint8_t owner) {
+	auto &squad = plan.squad;
+	if (!petra_plan_overseas(base_x, base_z, plan.target_building_id)) return false;
+	if (petra_plan_in_transport(plan)) {
+		for (const auto &[target, attacker] : petra_turn_attacks_) {
+			if (std::find(squad.begin(), squad.end(), target) == squad.end()) continue;
+			const int32_t a = lookup_unit(attacker);
+			if (lookup_unit(target) < 0 || (a < 0 && !building_id_to_idx_.count(attacker))) continue;
+			for (uint32_t uid : squad) {
+				const int32_t k = lookup_unit(uid);
+				if (k < 0 || !units_.alive[k] || units_.action_state[k] != ACTION_IDLE) continue;
+				if (petra_passenger(uid) || petra_aboard(uid)) continue;
+				if (a >= 0) order_attack(&uid, 1, attacker);
+				else {
+					const Building &b = buildings_[building_id_to_idx_.at(attacker)];
+					order_attack_building(&uid, 1, attacker, false, petra_allow_capture(squad, uid, b));
+				}
+			}
+			break;
+		}
+		return true; // still at sea
+	}
+	const PetraNavalTopo &topo = petra_topo();
+	const uint32_t target_id = plan.target_building_id;
+	const uint16_t overseas = petra_overseas(topo, base_x, base_z, target_id);
+	auto tit = building_id_to_idx_.find(target_id);
+	if (!overseas || tit == building_id_to_idx_.end()) return false;
+	const uint16_t there = petra_building_land(buildings_[tit->second], &topo);
+	std::vector<uint32_t> left;
+	for (uint32_t uid : squad) {
+		const int32_t idx = lookup_unit(uid);
+		if (idx >= 0 && units_.alive[idx] && petra_land_at(units_.pos_x[idx], units_.pos_z[idx]) != there) left.push_back(uid);
+	}
+	if (left.empty() || !petra_start_transport(left, base_x, base_z, plan.target_x, plan.target_z, overseas, owner)) return false;
+	plan.state_timer = 0.0f;
+	return true;
+}
+
 bool Simulation::petra_plan_in_transport(const AttackPlan &plan) const {
 	for (uint32_t uid : plan.squad)
 		if (petra_passenger(uid) || petra_aboard(uid)) return true;
@@ -35080,19 +35204,32 @@ void Simulation::petra_manage_defense(float dt) {
 		// checkEvents: an idle or gathering fishing boat moves out of its attacker's reach,
 		// its ranged range + 15 m (25 m from a melee attacker), x0.28.
 		if (units_.unit_type[i] == UNIT_FISHING_BOAT) {
+			// Any attacker with a position (DM:586-597): a unit, or a structure's arrows (a
+			// shooting structure is Ranged: its arrow range + 15 m).
 			const int32_t a = lookup_unit(attacker);
-			if (a < 0 || !units_.alive[a] || is_ally(petra_pid_, units_.team[a])) continue;
+			float ax = 0.0f, az = 0.0f, range = 0.0f;
+			if (a >= 0) {
+				if (!units_.alive[a] || is_ally(petra_pid_, units_.team[a])) continue;
+				ax = units_.pos_x[a]; az = units_.pos_z[a];
+				range = (unit_tech_classes(units_.unit_type[a]) & TC_RANGED).any() ? units_.attack_range[a] + 15.0f * 0.28f : 25.0f * 0.28f;
+			} else if (const auto bit = building_id_to_idx_.find(attacker); bit != building_id_to_idx_.end()) {
+				const Building &ab = buildings_[bit->second];
+				if (ab.wrecked || (ab.team < MAX_PLAYERS && is_ally(petra_pid_, ab.team))) continue;
+				ax = ab.x; az = ab.z;
+				range = building_arrow_range(ab) + 15.0f * 0.28f;
+			} else {
+				continue;
+			}
 			const bool gathering = units_.action_state[i] == ACTION_IDLE || units_.action_state[i] == ACTION_GATHER ||
 			                       units_.action_state[i] == ACTION_RETURN_DROPSITE || units_.order_kind[i] == ORDER_GATHER;
 			if (!gathering) continue;
-			const float range = (unit_tech_classes(units_.unit_type[a]) & TC_RANGED).any() ? units_.attack_range[a] + 15.0f * 0.28f : 25.0f * 0.28f;
-			const float dx = units_.pos_x[i] - units_.pos_x[a], dz = units_.pos_z[i] - units_.pos_z[a];
+			const float dx = units_.pos_x[i] - ax, dz = units_.pos_z[i] - az;
 			const float d = std::sqrt(dx * dx + dz * dz);
 			if (d >= range) continue;
 			// moveToRange(range, range + 5): straight away from the attacker.
 			const float to = range + 2.5f * 0.28f, ux = d > 1e-3f ? dx / d : 1.0f, uz = d > 1e-3f ? dz / d : 0.0f;
 			const uint32_t uid = units_.id[i];
-			order_walk(&uid, 1, units_.pos_x[a] + ux * to, units_.pos_z[a] + uz * to, false);
+			order_walk(&uid, 1, ax + ux * to, az + uz * to, false);
 			continue;
 		}
 		if (unit_is_ship(units_.unit_type[i])) continue; // "TODO integrate other ships later"
@@ -35567,7 +35704,8 @@ void Simulation::petra_manage_victory(float dt) {
 				auto bit = building_id_to_idx_.find(hit_by);
 				if (bit != building_id_to_idx_.end()) by = buildings_[bit->second].team;
 			}
-			if (petra_foe(by)) attacked.push_back((size_t)hero);
+			// Any Attacked event, Gaia's (wild animals, Gaia towers and attackers) too.
+			if (petra_foe(by) || by == GAIA_PLAYER) attacked.push_back((size_t)hero);
 		}
 		for (size_t f = 0; turn && f < units_.count; ++f) {
 			if (!units_.alive[f] || !petra_foe(units_.team[f]) || units_.target_unit_id[f] == 0) continue;
@@ -35679,10 +35817,18 @@ bool Simulation::petra_is_critical_wonder(uint32_t id) const {
 
 // guardEnts: ours guarding a hero (a military guard, or a healer), a relic or a wonder.
 bool Simulation::petra_guards_critical_ent(size_t i) const {
-	if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.order_kind[i] != ORDER_GUARD) return false;
-	const int32_t t = lookup_unit(units_.order_target[i]);
-	return t >= 0 ? petra_is_critical_ent((size_t)t) || petra_is_critical_relic((size_t)t)
-	              : petra_is_critical_wonder(units_.order_target[i]);
+	if (!units_.alive[i] || units_.team[i] != petra_pid_) return false;
+	uint32_t target = 0;
+	if (units_.order_kind[i] == ORDER_GUARD) {
+		target = units_.order_target[i];
+	} else if (units_.order_kind[i] == ORDER_RETURN_RESOURCE) {
+		// Dropping its load first (returnResources), the guard order queued after it.
+		const auto q = order_queues_.find(units_.id[i]);
+		if (q != order_queues_.end() && !q->second.empty() && q->second.front().kind == ORDER_GUARD) target = q->second.front().target;
+	}
+	if (!target) return false;
+	const int32_t t = lookup_unit(target);
+	return t >= 0 ? petra_is_critical_ent((size_t)t) || petra_is_critical_relic((size_t)t) : petra_is_critical_wonder(target);
 }
 
 // pickCriticalEntRetreatLocation: garrison, else turn passive (flee attacks)
@@ -35749,6 +35895,13 @@ void Simulation::petra_critical_ent_garrisoned() {
 }
 
 void Simulation::petra_manage_critical_ent_guards() {
+	// assignGuardToCriticalEnt: returnResources first, the guard order queued after it.
+	auto guard_after_drop = [&](size_t i, uint32_t target) {
+		const uint32_t uid = units_.id[i];
+		const uint32_t drop = petra_defender_dropsite(i);
+		if (drop) order_return_resource(&uid, 1, drop, false);
+		order_guard(&uid, 1, target, drop != 0);
+	};
 	int workers = 0;
 	for (size_t i = 0; i < units_.count; ++i)
 		if (units_.alive[i] && units_.team[i] == petra_pid_ && carry_cap(i, RES_WOOD) > 0 &&
@@ -35758,6 +35911,7 @@ void Simulation::petra_manage_critical_ent_guards() {
 			if (!petra_guards_critical_ent(i) || !(unit_tech_classes(units_.unit_type[i]) & TC_CITIZENSOLDIER)) continue;
 			const uint32_t uid = units_.id[i];
 			cmd_stop(&uid, 1);
+			petra_out_of_plan(uid); // plan -1: the next attack plan takes it (outOfPlan)
 			++workers;
 		}
 	}
@@ -35790,8 +35944,7 @@ void Simulation::petra_manage_critical_ent_guards() {
 		if (it == crit.end()) return true;
 		if (petra_aboard(g.first)) return false;
 		if (land_of((size_t)i) == it->land) {
-			const uint32_t uid = g.first;
-			order_guard(&uid, 1, g.second);
+			guard_after_drop((size_t)i, g.second);
 			return true;
 		}
 		return !petra_passenger(g.first); // its transport failed: picked again
@@ -35833,7 +35986,7 @@ void Simulation::petra_manage_critical_ent_guards() {
 					const uint32_t uid = units_.id[i];
 					const uint16_t own = land_of(i);
 					if (own == c.land) {
-						order_guard(&uid, 1, c.id);
+						guard_after_drop(i, c.id);
 					} else {
 						// The land petra_topo knows, for the ship's crossing.
 						const uint16_t from = petra_land_at(units_.pos_x[i], units_.pos_z[i]), to = petra_land_at(cx, cz);
@@ -35932,7 +36085,8 @@ void Simulation::petra_capture_gaia_relics() {
 			const Building *anchor = nullptr;
 			float best = 1e30f;
 			for (const auto &b : buildings_) {
-				if (b.team != petra_pid_ || !is_civic_centre(b.type) || b.build_progress < 1.0f || b.wrecked) continue;
+				// attackPlan.js Abort: the nearest base anchor, military colonies included.
+				if (b.team != petra_pid_ || !petra_base_anchor_type(b.type) || b.build_progress < 1.0f || b.wrecked) continue;
 				if (uland != 0 && petra_building_land(b, nullptr, uland) != uland) continue;
 				const float d2 = (b.x - units_.pos_x[i]) * (b.x - units_.pos_x[i]) + (b.z - units_.pos_z[i]) * (b.z - units_.pos_z[i]);
 				if (d2 < best) { best = d2; anchor = &b; }
@@ -36629,6 +36783,7 @@ void Simulation::petra_reset_ai_state() {
 	petra_defense_targets_ = PetraDefenseTargets{};
 	petra_queue_heads_ = PetraQueueHeads{};
 	petra_ferried_guards_ = PetraFerriedGuards{};
+	petra_ship_idle_ = PetraShipIdle{};
 	petra_approach_.clear();
 	petra_inaccessible_.clear();
 	petra_base_dropsite_checks_.clear();
@@ -38588,6 +38743,11 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 				if (ar.version >= Simulation::SAVE_VERSION_PETRA_LOST_BASES)
 					io_vec(ar, v.lost_bases, 1u << 16, [&](std::pair<float, float> &p) { ar.pod(p.first); ar.pod(p.second); });
 				else v.lost_bases.clear(); // older saves: lost bases are forgotten
+				if (ar.version >= Simulation::SAVE_VERSION_PETRA_SHIP_IDLE) {
+					ar.pod(v.dock_at_16);
+					if constexpr (Ar::loading)
+						if (v.dock_at_16 > 2) ar.ok = false;
+				} else v.dock_at_16 = 0;
 			} else v = PetraKept{}; // decided again at the next AI turn, from the game as loaded
 		} else if constexpr (std::is_same_v<T, S::PetraQueueHeads>) {
 			if (ar.version >= Simulation::SAVE_VERSION_PETRA_QUEUE_HEADS) {
@@ -38602,6 +38762,17 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 				if constexpr (Ar::loading)
 					if (!std::is_sorted(v.ids.begin(), v.ids.end())) ar.ok = false;
 			} else v.ids.clear(); // older saves: guards on the way are picked again
+		} else if constexpr (std::is_same_v<T, S::PetraShipIdle>) {
+			if (ar.version >= Simulation::SAVE_VERSION_PETRA_SHIP_IDLE) {
+				io_vec(ar, v.ships, 1u << 16, [&](S::PetraShipIdleEntry &e) {
+					ar.pod(e.id); ar.pod(e.x); ar.pod(e.z); ar.pod(e.stationary);
+					if constexpr (Ar::loading)
+						if (e.stationary > 1) ar.ok = false;
+				});
+				if constexpr (Ar::loading)
+					if (std::adjacent_find(v.ships.begin(), v.ships.end(), [](const auto &a, const auto &b) { return a.id >= b.id; }) != v.ships.end())
+						ar.ok = false;
+			} else v.ships.clear(); // older saves: each idle ship waits a turn where it stands again
 		} else if constexpr (std::is_same_v<T, S::PetraDefenseTargets>) {
 			if (ar.version >= Simulation::SAVE_VERSION_PETRA_TARGET_LIST) {
 				io_vec(ar, v.ids, 1u << 16, [&](uint32_t &id) { ar.pod(id); });

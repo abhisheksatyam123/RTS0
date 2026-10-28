@@ -117,3 +117,12 @@ Sources: 0.28 `defenseArmy.js` (DA), `defenseManager.js` (DM), `entityExtend.js`
 - **P5 (open, low, save).** DA:366 keeps `assignedAgainst` across turns and never removes a re-targeted defender's old entry; RTS0 recounts defenders attacking each foe every turn, so it spreads defenders a little more evenly.
 - Nits left as they are: idle defenders are re-assigned at the end of the turn rather than inside `army.update` before new foes join; returnResources runs only before an attack order; RTS0 uses live foe positions where 0.28 caches `foePosition` for up to 5 s.
 
+
+## Pass 4 (2026-10-28): defense events, tracked as G101
+
+Sources: 0.28 `defenseManager.js` checkEvents (DM) and `emergencyManager.js`.
+
+- **E1 (fixed).** DM:586-597 moves an idle or gathering fishing boat out of reach of any attacker with a position, a structure's arrows included (a shooting structure is Ranged: arrow range + 15 m). RTS0 only looked at unit attackers, so a boat fishing under an enemy tower stayed in its fire. Low-medium.
+- **E2 (fixed).** DM:681-687 sends an attacked stone thrower to shelter (garrisonSiegeUnit) and never makes it attack, holder found or not. RTS0's fight-back turned an attacked catapult on its attacker. Low.
+- **E3 (fixed).** DM:608-622 checks the scuttle (destroy an undefendable structure at 50-70% of its capture points) on each Attacked event since the last turn. RTS0 asked for a unit attacking the structure at that moment, so arrows from a tower, or a capturer that had just stopped, never triggered it. Now the turn's events. Low.
+- Open, low: `attackedAllies` counts allied units hit per player (RTS0 counts differently, and keeping 0.28's would need a save change); the emergency unload and the order of the per-turn steps differ slightly.

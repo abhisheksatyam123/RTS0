@@ -191,7 +191,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 132; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 133; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_PETRA_SHIP_IDLE = 133; // each Petra idle ship's last idle position and stationary turn (moveApart)
 	static constexpr uint32_t SAVE_VERSION_PETRA_TARGET_ORDER = 132; // the targetList in discovery order (no longer sorted)
 	static constexpr uint32_t SAVE_VERSION_ATTACK_MOVE_STRUCTURES = 131; // attack-moves at structures only (attack_move_structures_)
 	static constexpr uint32_t SAVE_VERSION_PETRA_NEXT_PLAN = 130; // a Petra plan preparing beside the one in the slot (petra_next_plan_)
@@ -3990,6 +3991,11 @@ private:
 	// waiting for or riding a transport (navalManager.requireTransport); each guards it on landing.
 	struct PetraFerriedGuards { std::vector<std::pair<uint32_t, uint32_t>> ids; }; // (guard, critical entity), by guard
 	PetraFerriedGuards petra_ferried_guards_;
+	// navalManager.js moveApart: each idle ship's last idle position (previousIdlePosition) and
+	// whether it has had its turn there (stationnary), by ship id.
+	struct PetraShipIdleEntry { uint32_t id; float x, z; uint8_t stationary; };
+	struct PetraShipIdle { std::vector<PetraShipIdleEntry> ships; };
+	PetraShipIdle petra_ship_idle_;
 	// basesManager.js basesMap kept between turns: the anchor (civic centre or colony id) that
 	// claimed each of petra_bases_map's tiles (w x w), 0 none. A tile stays with the base that
 	// first claimed it (addTerritoryIndexToBase) until the territory or that anchor is lost.
@@ -4203,6 +4209,7 @@ private:
 	float petra_builder_ratio() const;         // assignToFoundations builderRatio
 	float petra_available_resource(uint8_t r) const; // queueManager.getAvailableResources: stock less every queue's account
 	bool petra_plan_in_transport(const AttackPlan &plan) const;
+	bool petra_plan_transporting(AttackPlan &plan, float base_x, float base_z, uint8_t owner);
 	bool petra_passenger(uint32_t uid) const;
 	bool petra_ferried_guard(uint32_t uid) const; // on its way by sea to guard a critical entity   // booked on one of our transport plans
 	void petra_assign_bombers(); // attackManager.js assignBombers
@@ -4437,7 +4444,7 @@ private:
 	X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_) \
 	X(petra_sent_diplo_) X(petra_started_attacks_) X(petra_defense_build_) X(petra_dropsite_check_) \
 	X(petra_failed_gather_) X(petra_hunt_search_) X(petra_base_dropsite_checks_) X(petra_approach_) X(petra_inaccessible_) \
-	X(petra_kept_) X(petra_move_to_gatherer_) X(petra_supply_) X(petra_room_) X(petra_prospect_) X(petra_targeted_relics_) X(petra_tile_bases_) X(petra_defense_targets_) X(petra_queue_heads_) X(petra_ferried_guards_) X(petra_next_plan_)
+	X(petra_kept_) X(petra_move_to_gatherer_) X(petra_supply_) X(petra_room_) X(petra_prospect_) X(petra_targeted_relics_) X(petra_tile_bases_) X(petra_defense_targets_) X(petra_queue_heads_) X(petra_ferried_guards_) X(petra_next_plan_) X(petra_ship_idle_)
 	struct PetraSlot {
 		bool initialized = false;
 #define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};
