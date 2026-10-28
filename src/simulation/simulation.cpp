@@ -30025,7 +30025,9 @@ uint8_t Simulation::petra_enemy_player(uint8_t kind, bool first, bool *gaia_reli
 		// Gaia, picked once for its relics, stays the enemy of later attacks (it always has entities).
 		const uint8_t current = first ? petra_attack_enemy() : 0xFF;
 		if (current == GAIA_PLAYER && has_victory(VK_RELIC)) return GAIA_PLAYER;
-		if (current < MAX_PLAYERS && !veto[current] && entities[current] > 0) return current;
+		// attackManager.js:548-552: the current enemy stays while it is a live enemy with entities,
+		// however many towers it has (the rush veto bars only a new pick).
+		if (current < MAX_PLAYERS && petra_foe(current) && !is_defeated(current) && entities[current] > 0) return current;
 		float best_d = 1e30f;
 		int best = -1;
 		for (const auto &ours : buildings_) {
@@ -30174,7 +30176,7 @@ uint32_t Simulation::petra_nearest_target(uint8_t kind, bool forced, uint8_t ene
 // one getEnemyPlayer picks, seen from the army's centre once it marches and from our
 // base before. The plan's RTS0 type follows the target: a siege plan against a player
 // with fortifications from the town phase on, a raid on economic structures or units.
-uint32_t Simulation::find_petra_attack_target(float &out_tx, float &out_tz, uint16_t same_land, const AttackPlan *plan, bool must_start) const {
+uint32_t Simulation::find_petra_attack_target(float &out_tx, float &out_tz, uint16_t same_land, const AttackPlan *plan, bool must_start, bool note) const {
 	const AttackPlan &p = plan ? *plan : petra_attack_plan_;
 	float px, pz;
 	petra_attack_home(px, pz);
@@ -30212,6 +30214,7 @@ uint32_t Simulation::find_petra_attack_target(float &out_tx, float &out_tz, uint
 	auto pick_enemy = [&](bool first) {
 		bool gaia_relics = false;
 		const uint8_t e = petra_enemy_player(kind, first, &gaia_relics);
+		if (!note) return e;
 		if (first) petra_note_enemy(e); // with a target player already, currentEnemyPlayer stays
 		if (gaia_relics) {
 			const int wait = 240 - 30 * ((int)petra_config_.difficulty - (int)PETRA_MEDIUM);
@@ -31084,15 +31087,16 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 			bool have_barracks = false, have_tc = false;
 			for (const auto &b : buildings_) {
 				if (b.team != petra_pid_ || b.build_progress < 1.0f) continue;
-				if (b.type == BLD_BARRACKS) have_barracks = true;
+				// getOwnEntitiesByClass("Barracks"): han/academy and mercenary camps too.
+				if (b.type == BLD_BARRACKS || b.type == BLD_ACADEMY || b.type == BLD_MERCENARY_CAMP) have_barracks = true;
 				if (is_civic_centre(b.type)) have_tc = true;
 			}
 			if (!mgr.rushes_set && have_tc) petra_set_rushes();
 			if (petra_config_.difficulty == PETRA_SANDBOX) return;
-			// hasPotentialBase: a civic centre of ours, built or not.
+			// hasPotentialBase: a base anchor of ours (a civic centre or military colony), built or not.
 			bool potential_base = false;
 			for (const auto &b : buildings_)
-				potential_base |= b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked && is_civic_centre(b.type);
+				potential_base |= b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked && petra_base_anchor_type(b.type);
 			const bool researching_town = research_check(petra_pid_, TECH_PHASE_TOWN) == TECH_ERR_IN_PROGRESS;
 			float tx = 0.0f, tz = 0.0f;
 			uint32_t target_id = 0;
@@ -31134,7 +31138,7 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 				plan.target_building_id = 0;
 				// An Attack musters (and trains) without a target; it picks one when it must
 				// start and fails if there is none (attackPlan.js updatePreparation).
-				target_id = find_petra_attack_target(tx, tz, 0, &plan);
+				target_id = find_petra_attack_target(tx, tz, 0, &plan, false, false);
 				if (target_id == 0)
 					if (const auto *base = get_primary_petra_base()) { tx = base->x; tz = base->z; }
 				// targetPlayer stays unset while the plan prepares (an attack request may set it):
@@ -31916,9 +31920,11 @@ void Simulation::petra_retake_civic_centres() {
 			}
 			petra_defense_armies_.erase(petra_defense_armies_.begin() + (ptrdiff_t)a--);
 		}
+		++petra_attack_mgr_.plans_made; // this.totalNumber++, even for a plan aborted for want of units
 		if (plan.squad.empty()) continue;
 		plan.kind = PETRA_ATTACK_ATTACK; // TYPE_DEFAULT
 		plan.type = AttackPlan::PLAN_ASSAULT;
+		plan.target_player = ev.to; // attackPlan.targetPlayer = target.owner(): the captor
 		plan.target_building_id = cc.id;
 		plan.target_x = plan.staging_x = cc.x;
 		plan.target_z = plan.staging_z = cc.z;
@@ -36350,8 +36356,8 @@ void Simulation::petra_change_diplomacy(uint8_t player, uint8_t stance) {
 	          stance == DIPLO_ALLY ? PETRA_STANCE_ALLY : stance == DIPLO_NEUTRAL ? PETRA_STANCE_NEUTRAL : PETRA_STANCE_ENEMY);
 }
 
-// attackManager.js cancelAttacksAgainstPlayer: the plan in preparation forgets the
-// player as its target, and every started attack on that player is aborted (its army
+// attackManager.js cancelAttacksAgainstPlayer: the plans in preparation or gathering forget
+// the player as their target, and every started attack on that player is aborted (its army
 // walks home).
 void Simulation::petra_cancel_attacks_against(uint8_t player) {
 	for (AttackPlan *p : {&petra_attack_plan_, &petra_next_plan_.plan}) {
@@ -36363,6 +36369,10 @@ void Simulation::petra_cancel_attacks_against(uint8_t player) {
 	}
 	for (AttackPlan &plan : petra_started_attacks_)
 		if (plan.target_player == player && plan.state != AttackPlan::REGROUP && plan.state != AttackPlan::UNEXECUTED) {
+			// A plan gathering at its rally point is still an upcoming attack in 0.28: it only
+			// forgets its target player, and its completing step finds the target no longer an
+			// enemy's and goes back to preparation.
+			if (plan.state == AttackPlan::MUSTER && plan.completing) { plan.target_player = 0xFF; continue; }
 			plan.state = AttackPlan::ABORT;
 			plan.state_timer = 0.0f;
 		}
