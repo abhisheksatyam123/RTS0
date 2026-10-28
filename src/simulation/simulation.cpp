@@ -13571,6 +13571,23 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 			as_sealed = false;
 			return clear;
 		};
+		// The same for a full step straight toward its aim, and for the whole line to its aim out to the
+		// widest search range: a sealed builder heads straight for its aim (a builder caught going round a
+		// way its searches find, below).
+		auto aim_step_clear_as_sealed = [&] {
+			const float ax = aim_x[i] - x0, az = aim_z[i] - z0, al = std::sqrt(ax * ax + az * az);
+			if (al <= 1e-4f) return false;
+			const float k = std::min(full_step, al) / al;
+			return clear_as_sealed(x0 + ax * k, z0 + az * k, aim_x[i], aim_z[i], false);
+		};
+		auto aim_line_clear_as_sealed = [&] {
+			const float lx = aim_x[i] - x0, lz = aim_z[i] - z0, ll = std::sqrt(lx * lx + lz * lz);
+			const float lk = ll > RANGE_MAX ? RANGE_MAX / ll : 1.0f;
+			as_sealed = true;
+			const bool clear = !step_blocked(x0 + lx * lk, z0 + lz * lk);
+			as_sealed = false;
+			return clear;
+		};
 		// A unit that reached a waypoint of its short path last tick searches on from there, as 0 A.D.
 		// follows the whole path: heading straight for its aim could take it back to where it was
 		// stuck, such as a dead end between idle units.
@@ -13609,21 +13626,22 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 			// - a step along its path is refused after more than CAUGHT_FAILED obstructed turns in a row
 			//   (here): building steering round a structure beside the crowd can take the memo of the
 			//   dropped path's waypoint, and the loop can run round two ways in turn.
-			// Either way only where the refused step would be clear for a sealed builder, and here also the
-			// step straight for its aim: only its own idle units with no order are in its way, so the seal
-			// frees it on the next tick. A builder refused among farmers, other builders or allied units keeps
-			// 0.28's rule and searches again on its own tick; with the stuck memo it would search only every
-			// fourth turn. The first test fires on one re-find, so it also seals some builders that would have
-			// got on along the way found (in probes of group sends their sites finished a little sooner). Past CAUGHT_FAILED turns it searches
-			// every eighth turn over the widest range anyway, so the memo costs it no search. A formation's
-			// member keeps the rule too (its aim is its slot).
+			// Either way only where the refused step would be clear for a sealed builder: only its own idle
+			// units with no order are in its way, so the seal frees it on the next tick. A builder refused
+			// among farmers, other builders or allied units keeps 0.28's rule and searches again on its own
+			// tick; with the stuck memo it would search only every fourth turn. A sealed builder heads
+			// straight for its aim, so each test also looks ahead along that line. The first fires on a
+			// single re-find, so it looks along the whole line to the aim, out to the widest search range
+			// (RANGE_MAX): with the refused step alone it also sealed builders that would have got on along
+			// the way found. In test_naval's Petra overseas base a house builder beside the civic centre,
+			// sealed so, made straight for its site and was refused there by other builders and gatherers,
+			// which the seal does not let through. It searched again and went the same way round 2.5 s late,
+			// after the house was finished, and Petra's move overseas fell behind with it (the test found 6
+			// workers on the far land at 360 s, against 23 without the seal, where it needs 8). The second
+			// looks one full step ahead: past CAUGHT_FAILED turns the builder searches every eighth turn over
+			// the widest range anyway, so the memo costs it no search. A formation's member keeps the rule
+			// too (its aim is its slot).
 			constexpr uint8_t CAUGHT_FAILED = 12;
-			auto aim_step_clear_as_sealed = [&] {
-				const float ax = aim_x[i] - x0, az = aim_z[i] - z0, al = std::sqrt(ax * ax + az * az);
-				if (al <= 1e-4f) return false;
-				const float k = std::min(full_step, al) / al;
-				return clear_as_sealed(x0 + ax * k, z0 + az * k, aim_x[i], aim_z[i], false);
-			};
 			const bool on_path = memo.key == key || memo.key == relaxed_key;
 			if (on_path && same_aim && builder && !member && failed > CAUGHT_FAILED &&
 					clear_as_sealed(npx[i], npz[i], aim_x[i], aim_z[i], relaxed) && aim_step_clear_as_sealed())
@@ -13783,11 +13801,12 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		if ((w - pos).lengthSq() <= reach * reach) keep = next;
 		// A builder caught going round this way (the obstructed branch above): its step toward its aim was
 		// refused, and the way found is the one whose path it dropped. It takes the stuck memo here instead,
-		// where that step would be clear for a sealed builder.
+		// where that step and the whole line to its aim would be clear for a sealed builder.
 		if (obstructed && dropped && same_aim && builder && !member) {
 			constexpr float SAME_WAYPOINT = 0.05f;
 			const float kx = keep.x - memo.x, kz = keep.y - memo.z;
-			if (kx * kx + kz * kz < SAME_WAYPOINT * SAME_WAYPOINT && clear_as_sealed(step_x, step_z, aim_x[i], aim_z[i], false)) {
+			if (kx * kx + kz * kz < SAME_WAYPOINT * SAME_WAYPOINT && clear_as_sealed(step_x, step_z, aim_x[i], aim_z[i], false) &&
+					aim_line_clear_as_sealed()) {
 				memo = ShortPathMemo{x0, z0, aim.x, aim.y, stuck_key};
 				return;
 			}

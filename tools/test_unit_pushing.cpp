@@ -189,7 +189,9 @@
 //     to a MoveFailed). And builders the rule must leave to 0.28's: one refused among farmers at work
 //     and idle archers on its way to a house, and the civ 13 crowd and a random crowd where the units in
 //     the way are an ally's (the review of a first form of the rule, which took every refused step
-//     along the path as no way: there the first started after 54 s instead of 9, the others never).
+//     along the path as no way: there the first started after 54 s instead of 9, the others never),
+//     and a builder whose search finds the way it dropped but whose line to its site crosses an ally's
+//     idle units (the rule without its test of that line sealed him into the crowd for good).
 #define private public
 #include "simulation/simulation.h"
 #undef private
@@ -2145,6 +2147,31 @@ int main() {
 		CHECK(farming >= 4 && t_farm > 0 && t_farm * DT < 15.0f,
 		      "a builder refused among farmers at work and idle archers keeps 0.28's rule and starts within 15 s");
 		CHECK(t_allied > 0 && t_mixed > 0, "a builder held by an ally's idle units keeps 0.28's rule and gets to its site");
+
+		// A builder the first test must leave alone (layout 253 of the second review's pockets): a spearman
+		// behind his player's idle front layer, with an ally's idle units behind it, sent to a house site 14
+		// east. His step toward the site is refused and his search finds the way whose path he dropped, but
+		// an ally's unit stands by the line to the site, which the seal does not let through. Sealed on the
+		// refused step alone, he walked into the crowd and was still walking in place inside an idle
+		// elephant's body 60 s later; left to 0.28's rule he starts after 7.85 s, as on main.
+		const DumpBld pocket_site{400, 14.0f, 0.0f, BLD_HOUSE, 0.0f};
+		const std::vector<DumpUnit> pocket = {{100, -0.261446446f, 0.100291379f, UNIT_SPEARMAN}, {200, 1.86243105f, -1.03404188f, UNIT_CAVALRY},
+				{201, 3.11612272f, 0.150206089f, A}, {202, 2.97701645f, -1.97784579f, UNIT_ELEPHANT},
+				{203, 1.91776836f, -3.15397692f, A}, {204, 2.51091957f, 1.82539392f, UNIT_CAVALRY},
+				{205, 2.18916273f, 0.618999481f, W}, {206, 1.54490662f, -0.129593611f, UNIT_SPEARMAN},
+				{207, 3.26924944f, -0.925747395f, A}, {300, 5.27125311f, 2.70855737f, W, 2},
+				{301, 6.17623711f, -2.59730315f, UNIT_SPEARMAN, 2}, {302, 4.62031221f, -0.413892031f, A, 2},
+				{303, 5.87819719f, 0.163039684f, W, 2}, {304, 4.82304382f, -2.42948484f, W, 2},
+				{305, 6.25483847f, 2.00253892f, W, 2}, {306, 6.21160889f, -0.776330948f, W, 2},
+				{307, 4.53921318f, -1.43729925f, W, 2}, {308, 4.5368371f, 1.6525104f, A, 2},
+				{309, 4.75416851f, 0.551981926f, UNIT_CAVALRY, 2}};
+		auto ps = dump_scene(CIV_HAN, {pocket_site}, pocket, true);
+		const uint32_t pocket_builder = 100;
+		ps->order_build_or_repair(&pocket_builder, 1, pocket_site.id);
+		const int t_pocket = build_started(*ps, pocket_site.id, 1200);
+		std::printf("  a builder whose line to his site crosses an ally's idle units: started after %.2f s (-1: not in 60 s)\n",
+		            t_pocket < 0 ? -1.0f : t_pocket * DT);
+		CHECK(t_pocket > 0, "a builder whose line to its site crosses an ally's idle units is not sealed there, and gets to its site");
 	}
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
