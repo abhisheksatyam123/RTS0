@@ -14,6 +14,9 @@
 #endif
 #include <winsock2.h>
 #include <ws2tcpip.h>
+// windef.h defines near and far (16-bit pointer keywords): the code uses them as names.
+#undef near
+#undef far
 #else
 #include <sys/types.h>
 #include <sys/socket.h>
