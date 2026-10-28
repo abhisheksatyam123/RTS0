@@ -986,7 +986,9 @@ public:
 	// `avoid` holds ORDER_AVOID_* bits: structures the walk does not stop for.
 	void order_attack_move(const uint32_t *unit_ids, size_t count, float tx, float tz,
 			bool queued = false, bool units_only = false, bool allow_capture = false, uint8_t avoid = 0);
-	void order_patrol(const uint32_t *unit_ids, size_t count, float tx, float tz, bool queued = false);
+	// targets: ORDER_PATROL_UNITS, or ORDER_PATROL_STRUCTURES / _DEFENSIVE (a trigger script's targetClasses).
+	void order_patrol(const uint32_t *unit_ids, size_t count, float tx, float tz, bool queued = false,
+	                  uint8_t targets = ORDER_PATROL_UNITS);
 	bool unit_can_patrol(size_t i) const;
 	void order_build_or_repair(const uint32_t *unit_ids, size_t count, uint32_t building_id, bool queued = false, bool force = true);
 	// 0 A.D. "delete-entities": kills the player's own units and destroys its own

@@ -770,6 +770,13 @@ int main() {
 		run(m, 1.1f); // done at the queue's first second (ProgressTimeout)
 		CHECK(m.players_[0].techs.has(TECH_WOODCUTTING_1));
 		CHECK(civ_bonus_mult(CIV_MACEDONIANS, CIV_BONUS_BUILDING_RESEARCH_TIME, BLD_TOWN_CENTER) == 1.0f);
+		// A map's own civ, set after the reset: the bonus holds from the start, not only after a research.
+		static Simulation j;
+		fresh(j);
+		j.set_team_civ(0, CIV_MACEDONIANS);
+		const uint32_t sh_j = j.spawn_building_world(20.0f, -20.0f, BLD_STOREHOUSE, 0, 1.0f);
+		CHECK(j.cmd_research(0, sh_j, TECH_WOODCUTTING_1));
+		CHECK(queued_duration(j, sh_j) == 0.0f);
 		std::printf("Resource-Rich Economy: storehouse tech %.0f s for Athenians, instant for Macedonians\n",
 				tech_info(TECH_WOODCUTTING_1).research_time);
 	}
