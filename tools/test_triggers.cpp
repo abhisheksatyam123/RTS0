@@ -1220,8 +1220,10 @@ static void check_danubius() {
 		if (w.role >= 2)
 			if (const auto *p = s.get_transport_passengers(w.id)) aboard.insert(aboard.end(), p->begin(), p->end());
 	CHECK(!aboard.empty(), "no soldiers aboard the Gaia ships at 5 minutes");
-	// UngarrisonShipsOrder at 5-7 minutes, the villages' first waves at 6-8.
-	run_to(s, 600.0f);
+	// UngarrisonShipsOrder at 5-7 minutes, the villages' first waves at 6-8. A ship whose point
+	// lies beyond 50 m of shallows lands no one (CheckShipRange forgets the point either way,
+	// as 0.28's does), so the check spans the next order too, 5-7 minutes later.
+	run_to(s, 960.0f);
 	int ashore = 0, patrols = 0;
 	for (uint32_t id : aboard) {
 		const int32_t u = s.lookup_unit(id);
@@ -1229,8 +1231,8 @@ static void check_danubius() {
 	}
 	for (size_t i = 0; i < s.units_.count; ++i)
 		patrols += s.units_.alive[i] && s.units_.team[i] == GAIA_PLAYER && s.units_.order_kind[i] == ORDER_PATROL;
-	CHECK(ashore > 0, "none of the %zu soldiers aboard came ashore by 10 minutes", aboard.size());
-	CHECK(patrols > 0, "no Gaia soldiers patrolling by 10 minutes");
+	CHECK(ashore > 0, "none of the %zu soldiers aboard came ashore by 16 minutes", aboard.size());
+	CHECK(patrols > 0, "no Gaia soldiers patrolling by 16 minutes");
 	if (failures == before)
 		std::printf("Danubius: 2 villages (%d houses, %d temples, %d towers), %d holders garrisoned, %d defenders, %zu aboard, %d ashore, %d patrolling: ok\n",
 		            houses, temples, towers, holders, defenders, aboard.size(), ashore, patrols);
@@ -1309,17 +1311,30 @@ static void check_jebel_barkal() {
 	for (const TriggerWatch &w : s.triggers_.watched) early += w.role == 3;
 	CHECK(early == 0, "%d attackers before 5 minutes", early);
 	run_to(s, 421.0f);
-	int attackers = 0, ordered = 0;
+	int attackers = 0, ordered = 0, elephants = 0, elephants_on_structures = 0, others_on_units = 0, others_patrolling = 0;
 	for (const TriggerWatch &w : s.triggers_.watched) {
 		if (w.role != 3) continue;
 		++attackers;
 		const int32_t u = s.lookup_unit(w.id);
 		ordered += u >= 0 && s.units_.order_kind[u] != ORDER_NONE;
+		if (u < 0 || s.units_.order_kind[u] != ORDER_PATROL) continue;
+		// targetClasses: the elephants "Structure" or "Defensive SiegeEngine Monument Wonder",
+		// everyone else "Unit+!Ship".
+		const uint8_t classes = (s.units_.order_flags[u] & ORDER_PATROL_MASK) >> ORDER_PATROL_SHIFT;
+		if (s.unit_classes_at((size_t)u) & TC_ELEPHANT) {
+			++elephants;
+			elephants_on_structures += classes == ORDER_PATROL_STRUCTURES || classes == ORDER_PATROL_DEFENSIVE_MONUMENTS;
+		} else if (s.formation_group_.empty() || s.formation_group_[u] == 0) {
+			++others_patrolling;
+			others_on_units += classes == ORDER_PATROL_LAND_UNITS;
+		}
 	}
 	CHECK(attackers > 0 && ordered > 0, "first wave by 7 minutes: %d attackers, %d under orders", attackers, ordered);
+	CHECK(elephants_on_structures == elephants, "%d of %d patrolling elephants after structures", elephants_on_structures, elephants);
+	CHECK(others_on_units == others_patrolling, "%d of %d other patrolling attackers after units but ships", others_on_units, others_patrolling);
 	if (failures == before)
-		std::printf("Jebel Barkal: Napata (%d houses, %d CCs, %d fortresses, %d wall pieces, %d gates), %d spawn points, %d patrolling, %d in the first wave: ok\n",
-		            houses, ccs, forts, walls, gates, spawns, patrols, attackers);
+		std::printf("Jebel Barkal: Napata (%d houses, %d CCs, %d fortresses, %d wall pieces, %d gates), %d spawn points, %d patrolling, %d in the first wave (%d elephants after structures): ok\n",
+		            houses, ccs, forts, walls, gates, spawns, patrols, attackers, elephants);
 
 	// Game Setup Trigger Difficulty (getDifficulty()): Very Easy builds Napata with no wall
 	// and fewer defenders, Very Hard with the Kushite wall and more; the triggers get it.

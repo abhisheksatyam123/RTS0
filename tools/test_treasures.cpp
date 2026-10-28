@@ -148,6 +148,51 @@ int main() {
 		CHECK(!s.is_treasure_id(t));
 	}
 
+	// 3d. TreasureCollector.CollectTreasure: a collector that lost the race keeps its order until its
+	//     own CollectTime runs out, and only then looks for the next treasure.
+	{
+		fresh(s);
+		uint32_t a = s.spawn_unit(0.0f, 0.0f, 0, UNIT_SPEARMAN);
+		uint32_t b = s.spawn_unit(0.0f, 1.0f, 0, UNIT_SPEARMAN);
+		uint32_t t = s.spawn_treasure(1.0f, 0.5f, TREASURE_STONE);
+		const float ct = treasure_type_info(TREASURE_STONE).collect_time;
+		s.order_collect_treasure(&a, 1, t);
+		run(s, 0.5f);
+		s.order_collect_treasure(&b, 1, t);
+		for (int k = 0; k < 400 && s.is_treasure_id(t); ++k) run(s, Simulation::FIXED_STEP);
+		CHECK(!s.is_treasure_id(t));
+		const int32_t bi = s.lookup_unit(b);
+		const float left = -s.units_.pack_elapsed[bi];
+		std::printf("lost race: collect time %.2f s, the loser waits %.2f s more\n", ct, left);
+		CHECK(s.units_.order_kind[bi] == ORDER_COLLECT_TREASURE && left > 0.3f && left < 0.6f);
+		run(s, left - 0.15f);
+		CHECK(s.units_.order_kind[s.lookup_unit(b)] == ORDER_COLLECT_TREASURE);
+		run(s, 0.3f);
+		CHECK(s.units_.order_kind[s.lookup_unit(b)] == ORDER_NONE && s.units_.pack_elapsed[s.lookup_unit(b)] == 0.0f);
+	}
+
+	// 3e. The range is checked only when the timer fires: a collector nudged out of reach for a
+	//     moment and back collects on its first timer.
+	{
+		fresh(s);
+		uint32_t a = s.spawn_unit(0.0f, 0.0f, 0, UNIT_SPEARMAN);
+		uint32_t t = s.spawn_treasure(1.0f, 0.5f, TREASURE_STONE);
+		const float ct = treasure_type_info(TREASURE_STONE).collect_time;
+		s.order_collect_treasure(&a, 1, t);
+		run(s, 0.3f);
+		int32_t ai = s.lookup_unit(a);
+		const float ax = s.units_.pos_x[ai], az = s.units_.pos_z[ai];
+		s.units_.pos_x[ai] = ax - 4.0f;
+		run(s, Simulation::FIXED_STEP);
+		ai = s.lookup_unit(a);
+		CHECK(s.units_.pack_elapsed[ai] > 0.3f); // its timer runs on
+		s.units_.pos_x[ai] = ax;
+		s.units_.pos_z[ai] = az;
+		run(s, ct - 0.2f);
+		std::printf("nudged collector: treasure taken on the first timer: %s\n", s.is_treasure_id(t) ? "no" : "yes");
+		CHECK(!s.is_treasure_id(t));
+	}
+
 	// 3c. A treasure's Obstruction/Static blocks foundations on it (a 20 x 10 m shipwreck too).
 	{
 		fresh(s);
@@ -412,6 +457,35 @@ int main() {
 		            s.units_.order_kind[ui], s.units_.action_state[ui]);
 		CHECK(s.units_.order_kind[ui] == ORDER_NONE && s.units_.action_state[ui] == ACTION_IDLE && s.units_.pos_z[ui] < -10.0f);
 		CHECK(s.treasures().size() == 1);
+	}
+
+	// 7d. COLLECTTREASURE.APPROACHING MoveToTargetRange paths round what stands in the way: a
+	//     water channel between the collector and its treasure, with a ford at one end.
+	{
+		static Simulation s;
+		s.set_sim_seed(7);
+		s.reset();
+		s.set_map_half(64.0f);
+		const int res = 65;
+		std::vector<float> h((size_t)res * res);
+		for (int j = 0; j < res; ++j)
+			for (int k = 0; k < res; ++k) {
+				const float x = -64.0f + 128.0f * k / (res - 1), z = -64.0f + 128.0f * j / (res - 1);
+				h[(size_t)j * res + k] = std::fabs(x) < 4.0f && z < 24.0f ? -3.0f : 3.0f;
+			}
+		s.set_terrain_data(h, res, 0.0f);
+		s.begin_bulk_spawn();
+		s.end_bulk_spawn();
+		for (uint8_t p = 0; p < 2; ++p) s.set_player_active(p, true, false);
+		s.spawn_building_world(-40.0f, -40.0f, BLD_TOWN_CENTER, 0, 1.0f);
+		uint32_t u = s.spawn_unit(-10.0f, 0.0f, 0, UNIT_SPEARMAN);
+		const uint32_t t = s.spawn_treasure(10.0f, 0.0f, TREASURE_WOOD);
+		s.order_collect_treasure(&u, 1, t);
+		run(s, 40.0f);
+		const int32_t ui = s.lookup_unit(u);
+		std::printf("treasure across a channel: collector at (%.1f, %.1f), taken %s\n", s.units_.pos_x[ui], s.units_.pos_z[ui],
+		            s.is_treasure_id(t) ? "no" : "yes");
+		CHECK(!s.is_treasure_id(t));
 	}
 
 	// 8. Save/load keeps treasures, ruins caps and the lockstep hash; the Treasures toggle clears them.

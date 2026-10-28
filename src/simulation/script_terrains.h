@@ -56,6 +56,7 @@ enum AreaKind : uint8_t {
 	AREA_PASSAGE,    // corsica.js's clPassage: the plateaus' passages
 	AREA_SETTLEMENT, // corsica.js's clSettlement: each base's CityPatch
 	AREA_SEA,        // not recorded: the tiles below the water line (paintTileClassBasedOnHeight(-Infinity, 0))
+	AREA_CLIFF_HEIGHT, // unknown.js: its landscape's ground from heightCliff (3.12 m) to 40 m, before its bumps and hills
 };
 
 // rmgen LayeredPainter(terrains, widths): a tile `d` tiles in from the area's

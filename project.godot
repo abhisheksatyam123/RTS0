@@ -69,6 +69,26 @@ window/stretch/aspect="expand"
 
 [shader_globals]
 
+rtso_pp_hdr={
+"type": "float",
+"value": 0.0
+}
+rtso_pp_brightness={
+"type": "float",
+"value": 0.0
+}
+rtso_pp_contrast={
+"type": "float",
+"value": 1.0
+}
+rtso_pp_saturation={
+"type": "float",
+"value": 1.0
+}
+rtso_pp_bloom={
+"type": "float",
+"value": 0.2
+}
 rtso_water_effects={
 "type": "float",
 "value": 1.0

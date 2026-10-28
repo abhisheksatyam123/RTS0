@@ -191,7 +191,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 129; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 130; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_PETRA_NEXT_PLAN = 130; // a Petra plan preparing beside the one in the slot (petra_next_plan_)
 	static constexpr uint32_t SAVE_VERSION_TRICKLE_TIMER = 128; // each structure's own trickle timer (Building::trickle_tick)
 	static constexpr uint32_t SAVE_VERSION_PETRA_LOST_BASES = 127; // each Petra's bases kept after their civic centre was lost
 	static constexpr uint32_t SAVE_VERSION_PETRA_ARMY_POSITION_TIME = 129; // each Petra defense army's positionLastUpdate
@@ -990,7 +991,9 @@ public:
 	// `avoid` holds ORDER_AVOID_* bits: structures the walk does not stop for.
 	void order_attack_move(const uint32_t *unit_ids, size_t count, float tx, float tz,
 			bool queued = false, bool units_only = false, bool allow_capture = false, uint8_t avoid = 0);
-	void order_patrol(const uint32_t *unit_ids, size_t count, float tx, float tz, bool queued = false);
+	// targets: ORDER_PATROL_UNITS, or ORDER_PATROL_STRUCTURES / _DEFENSIVE (a trigger script's targetClasses).
+	void order_patrol(const uint32_t *unit_ids, size_t count, float tx, float tz, bool queued = false,
+	                  uint8_t targets = ORDER_PATROL_UNITS);
 	bool unit_can_patrol(size_t i) const;
 	void order_build_or_repair(const uint32_t *unit_ids, size_t count, uint32_t building_id, bool queued = false, bool force = true);
 	// 0 A.D. "delete-entities": kills the player's own units and destroys its own
@@ -1176,6 +1179,16 @@ public:
 	bool dropsite_usable_by(uint8_t player, const Building &b) const;
 	// The same test for unit `e` when it is a mobile dropsite (worker elephant, supply wagon).
 	bool mobile_dropsite_usable_by(uint8_t player, size_t e) const;
+	// UnitAI FindNearestDropsite skips a dropsite that fails CheckTargetVisible: an ally's
+	// structure counts once seen (its mirage), its supply wagon only while in sight.
+	bool dropsite_seen_by(uint8_t player, const Building &b) const {
+		return b.team == player || player >= MAX_PLAYERS || reveal_map_ || los_.cells() == 0 ||
+		       ((b.seen_mask >> player) & 1) || los_visible(player, b.x, b.z);
+	}
+	bool mobile_dropsite_seen_by(uint8_t player, size_t e) const {
+		return units_.team[e] == player || player >= MAX_PLAYERS || reveal_map_ || los_.cells() == 0 ||
+		       los_visible(player, units_.pos_x[e], units_.pos_z[e]);
+	}
 	bool unit_dropsite_shared(uint32_t unit_id) const; // ResourceDropsite IsShared on a unit
 	// 0 A.D. "set-dropsite-sharing" (ResourceDropsite.SetSharing) on one of `player`'s dropsites;
 	// only an owner with Diaspora sees the toggle. False if nothing changed.
@@ -3175,6 +3188,7 @@ private:
 	float unit_damage_to_fauna(size_t i, size_t f) const;
 	void fire_at_fauna(size_t i, size_t f);
 	void fauna_killed(size_t f, size_t i);
+	void collect_fauna_loot(size_t f, uint32_t killer_id, uint8_t killer_player);
 	// The dead animal f's ResourceSupply: food.meat, or food.fish for a whale (fishing ships
 	// gather it, and it does not regrow like a shoal). 0 if it carries no food.
 	uint32_t spawn_carcass(size_t f);
@@ -3716,6 +3730,25 @@ private:
 	} petra_strike_force_;
 
 	AttackPlan petra_attack_plan_; // attackManager.js upcomingAttacks: the plan being prepared
+	// The main plan's own fields that PetraAttackManager holds for petra_attack_plan_.
+	struct PetraPlanMuster {
+		int32_t target_size = 0, min_size = 0;
+		uint16_t dropped_classes = 0, cost_lowered = 0;
+		uint8_t kind = PETRA_ATTACK_ATTACK, attack_name = 0, attack_siege = 0, pad = 0;
+	};
+	// attackManager.js upcomingAttacks holds a Rush and an Attack (or HugeAttack) at once: once
+	// the last rush is made, an Attack prepares beside it (attackManager.js:365-419). The second
+	// one waits here with its own fields, and is swapped into petra_attack_plan_ and
+	// petra_attack_mgr_ while it updates or trains (petra_swap_next_plan); it takes the slot once
+	// the first plan leaves it. (Save v130; never in use before.)
+	struct PetraNextPlan {
+		AttackPlan plan;
+		PetraPlanMuster muster;
+	} petra_next_plan_;
+	void petra_swap_next_plan();
+	// While the next plan updates: the kind of the plan in the slot, so that no second plan of
+	// its group is made (0xFF otherwise).
+	uint8_t petra_beside_kind_ = 0xFF;
 	std::vector<AttackPlan> petra_started_attacks_; // attackManager.js startedAttacks: armies on their way or fighting
 	AttackPlan petra_raid_plan_;
 	PetraAttackManager petra_attack_mgr_; // attackManager.js plan counters and sizes
@@ -3748,6 +3781,7 @@ private:
 	void petra_fight_back(size_t i, int32_t attacker, const std::vector<PetraDefenseArmy> &armies, std::vector<uint32_t> &helped);
 	bool petra_ship_in_plan(uint32_t ship_id) const;
 	size_t petra_go_home(const std::vector<uint32_t> &squad, float x, float z, uint8_t owner, bool order_here, bool attack = false);
+	void petra_abort_plan(AttackPlan &plan, uint8_t transport_owner); // attackPlan.js Abort
 	std::vector<PetraChatLine> petra_chat_;
 	std::unordered_map<uint8_t, PetraDiplomacyRequest> petra_diplomacy_requests_;
 	PetraDiplomacy petra_diplo_;
@@ -3819,7 +3853,6 @@ private:
 	bool petra_raid_target_ok(uint32_t bld_id) const;
 	bool petra_allow_capture(const std::vector<uint32_t> &squad, uint32_t uid, const Building &b) const;
 	void petra_update_capture_strength();
-	void petra_check_captures(const std::vector<uint32_t> &squad, float tx, float tz);
 	void petra_answer_attackers(const std::vector<uint32_t> &squad, float tx, float tz, uint8_t avoid = 0);
 	uint8_t petra_attack_avoid(const AttackPlan &plan, bool siege) const;
 	// attackPlan.js checkTargetObstruction: the enemy structure (a wall, palisade or gate) that
@@ -4013,6 +4046,7 @@ private:
 	uint16_t petra_building_land(const Building &b, const PetraNavalTopo *topo = nullptr, uint16_t prefer = 0) const;
 	uint16_t petra_home_land(float x, float z, const PetraNavalTopo *topo = nullptr) const;
 	uint16_t petra_overseas(const PetraNavalTopo &t, float from_x, float from_z, uint32_t target_id) const;
+	uint16_t petra_plan_prep_sea(const AttackPlan &plan) const; // attackPlan.js constructor overseas
 	uint16_t petra_plan_overseas(float base_x, float base_z, uint32_t target_id, bool any_base = false) const;
 	void petra_lands_around(float x, float z, float half, uint16_t out[8]) const; // a structure's lands, or a unit's
 	void petra_attack_from_lands(uint16_t same_land, uint16_t out[8]) const; // same_land, or the home base's lands
@@ -4231,6 +4265,7 @@ private:
 	bool petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype = BLD_TYPE_COUNT, int clearance = -1) const; // btype: also 0 A.D.'s placement rules; clearance -1: petra_clearance
 	bool petra_spot_free_but_distance(int cell_x, int cell_y, int footprint, uint8_t btype, int clearance = -1) const;
 	bool petra_ring_clear(int cell_x, int cell_y, int footprint, uint8_t clearance = 1) const;
+	bool petra_ring_land(int cell_x, int cell_y, int footprint, uint8_t btype, uint8_t clearance) const;
 	static uint8_t petra_clearance(uint8_t btype); // findGoodPosition's 0, 4 or 8 m gap, as 0, 1, 2
 	bool petra_limit_allows_building(uint8_t btype) const;
 	mutable uint64_t petra_limit_cache_key_ = 0; // derived per tick, never saved
@@ -4345,7 +4380,7 @@ private:
 	X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_) \
 	X(petra_sent_diplo_) X(petra_started_attacks_) X(petra_defense_build_) X(petra_dropsite_check_) \
 	X(petra_failed_gather_) X(petra_hunt_search_) X(petra_base_dropsite_checks_) X(petra_approach_) X(petra_inaccessible_) \
-	X(petra_kept_) X(petra_move_to_gatherer_) X(petra_supply_) X(petra_room_) X(petra_prospect_) X(petra_targeted_relics_) X(petra_tile_bases_) X(petra_defense_targets_) X(petra_queue_heads_) X(petra_ferried_guards_)
+	X(petra_kept_) X(petra_move_to_gatherer_) X(petra_supply_) X(petra_room_) X(petra_prospect_) X(petra_targeted_relics_) X(petra_tile_bases_) X(petra_defense_targets_) X(petra_queue_heads_) X(petra_ferried_guards_) X(petra_next_plan_)
 	struct PetraSlot {
 		bool initialized = false;
 #define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};
@@ -4667,6 +4702,8 @@ private:
 	UnitOrder current_order(size_t i) const;
 	void set_order(size_t i, uint8_t kind, uint8_t flags, uint32_t target, float x, float z);
 	void begin_walk_order(size_t i); // cmd_move's walk: not forced, replaces the queue
+	// UnitMotion StopMoving on a new order: the unit's long path is dropped (the new walk plans its own).
+	void drop_walk_path(size_t i);
 	void drop_orders(size_t i);
 	void replace_orders(size_t i); // drop_orders, but a queued order applied keeps the rest of the queue      // orders UnitAI doesn't model (trade, hunt, board): no order, no queue
 	// Splits a Shift order: busy units get it queued, the rest are returned to run now.
