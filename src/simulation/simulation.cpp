@@ -13202,6 +13202,17 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		if (!units_.alive[i] || is_transport(units_.id[i])) continue;
 		if (units_.action_state[i] == ACTION_MOVE && units_.target_unit_id[i] != 0) {
 			int32_t tidx = lookup_unit(units_.target_unit_id[i]);
+			// UnitAI Order.Garrison on a ship or siege engine destroyed on the way: the target is
+			// gone, FinishOrder (instead of walking on to where it lay).
+			if (tidx >= 0 && !units_.alive[tidx] && units_.action_state[tidx] == ACTION_DYING && units_.order_kind[i] == ORDER_NONE &&
+					(ship_garrison_capacity((size_t)tidx) > 0 || siege_garrison_capacity((size_t)tidx) > 0)) {
+				units_.action_state[i] = ACTION_IDLE;
+				units_.has_order[i] = 0;
+				units_.target_unit_id[i] = 0;
+				units_.vel_x[i] = units_.vel_z[i] = 0.0f;
+				finish_order(i, false);
+				continue;
+			}
 			// GARRISONING enter: a plane that has taken off refuses it (IsGarrisoningAllowed), FinishOrder.
 			if (tidx >= 0 && units_.alive[tidx] && !garrisoning_allowed((size_t)tidx)) {
 				const float rx = px[i] - px[tidx], rz = pz[i] - pz[tidx], rr = transport_loading_reach((size_t)tidx, i);
