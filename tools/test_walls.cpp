@@ -698,7 +698,7 @@ int main() {
 	}
 
 	// 19. tryPlaceWall sends nothing when its first segment is blocked: no lone start tower is
-	// laid or paid for.
+	// laid or paid for. Short of stone is another matter (below).
 	{
 		setup(s, 1000.0f);
 		const auto plan = s.wall_placement(0, -10.0f, 10.0f, 10.0f, 10.0f);
@@ -707,10 +707,15 @@ int main() {
 		const size_t laid = s.cmd_build_wall(0, -10.0f, 10.0f, 10.0f, 10.0f);
 		std::printf("  blocked first segment: %zu pieces, %d towers\n", laid, count_type(s, BLD_WALL_TOWER));
 		CHECK(laid == 0 && count_type(s, BLD_WALL_TOWER) == 0 && s.player(0).res[RES_STONE] == 1000.0f);
-		// Only enough stone for the start tower: nothing either.
+		// Only enough stone for the start tower: SetWallPlacementPreview sends every placeable piece,
+		// affordable or not, and TryConstructWall lays and pays for the tower, then stops at the
+		// segment it can't pay for.
 		setup(s, 60.0f);
 		s.take_session_notices();
-		CHECK(s.cmd_build_wall(0, -10.0f, 10.0f, 10.0f, 10.0f) == 0 && s.player(0).res[RES_STONE] == 60.0f);
+		const size_t lone = s.cmd_build_wall(0, -10.0f, 10.0f, 10.0f, 10.0f);
+		std::printf("  stone for the start tower only: %zu piece laid, %d towers, %.0f stone left\n", lone, count_type(s, BLD_WALL_TOWER),
+				s.player(0).res[RES_STONE]);
+		CHECK(lone == 1 && count_type(s, BLD_WALL_TOWER) == 1 && count_type(s, BLD_WALL_SEGMENT) == 0 && s.player(0).res[RES_STONE] < 60.0f);
 		// Player.js SubtractResourcesOrNotify: "Insufficient resources" with the stone still needed.
 		bool told = false;
 		for (const Simulation::SessionNotice &n : s.take_session_notices())
@@ -914,6 +919,38 @@ int main() {
 				}
 		std::printf("  rams and elephants through 8 m gaps, spearmen through 2 and 3 m ones: %d of %d got across\n", through, tries);
 		CHECK(through == tries);
+	}
+
+	// BuildRestrictions.js Category "Wall": CheckFoundation(passClassName, true) tests terrain at
+	// the centre point only. A long segment whose end hangs over deep water still goes down; one
+	// centred on the water does not.
+	{
+		setup(s, 1000.0f);
+		for (int k = 0; k < 10; ++k) s.tick(Simulation::FIXED_STEP);
+		const float half = 4.5f;
+		auto [cx, cy] = s.nav_grid_.world_to_cell(0.0f, 14.0f);
+		auto [ex, ey] = s.nav_grid_.world_to_cell(0.0f + half - 0.5f, 14.0f);
+		for (int y = cy - 2; y <= cy + 2; ++y)
+			for (int x = cx + 1; x <= ex + 2; ++x) s.nav_grid_.cells.at(x, y) = NAV_WATER; // east of the centre
+		const Simulation::WallPiece over{BLD_WALL_SEGMENT, 0.0f, 14.0f, 0.0f, half, s.player_civ(0)};
+		const Simulation::WallPiece on{BLD_WALL_SEGMENT, 0.0f + half - 0.5f, 14.0f, 0.0f, half, s.player_civ(0)};
+		const auto r_over = s.check_wall_piece(0, over), r_on = s.check_wall_piece(0, on);
+		std::printf("  wall segment with its end over water: %d (centre on land), %d (centre on water)\n", (int)r_over, (int)r_on);
+		CHECK(r_over == Simulation::PLACE_OK && r_on == Simulation::PLACE_TERRAIN);
+	}
+
+	// input.js PickSimilarPlayerEntities(wallSet.templates.tower, ..., exact template): a captured
+	// tower of another civ is no snap target for the player's walls.
+	{
+		setup(s, 1000.0f);
+		const uint32_t own = s.spawn_building_world(-14.0f, -14.0f, BLD_WALL_TOWER, 0, 1.0f);
+		const uint32_t foreign = s.spawn_building_world(14.0f, -14.0f, BLD_WALL_TOWER, 0, 1.0f);
+		for (auto &b : const_cast<std::vector<Simulation::Building> &>(s.buildings()))
+			if (b.id == foreign) b.civ = s.player_civ(0) == CIV_SPARTANS ? CIV_ATHENIANS : CIV_SPARTANS;
+		const uint32_t to_own = s.wall_snap_tower(0, -14.2f, -14.0f, WALLSET_STONE);
+		const uint32_t to_foreign = s.wall_snap_tower(0, 14.2f, -14.0f, WALLSET_STONE);
+		std::printf("  snap onto own tower %s, onto a captured foreign tower %s\n", to_own == own ? "yes" : "no", to_foreign ? "yes" : "no");
+		CHECK(to_own == own && to_foreign == 0);
 	}
 
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);

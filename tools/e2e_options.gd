@@ -188,6 +188,10 @@ func run() -> void:
 	await frames(2)
 	var mixer = page._confirm
 	check(mixer != null and mixer.name == "ColorMixer" and mixer.find_child("Title", true, false).text == "Color", "the colour button opens the mixer")
+	# colormixer.xml: the title, info, channel labels and values are ModernLabelText (bold 14, centred).
+	var mlabels: Array = mixer.find_children("*", "Label", true, false)
+	var modern_label := func(l): return l.get_theme_font("font") is FontVariation and l.get_theme_font_size("font_size") == 14 and l.horizontal_alignment == HORIZONTAL_ALIGNMENT_CENTER
+	check(mlabels.size() == 8 and mlabels.all(modern_label), "the mixer's texts are ModernLabelText")
 	mixer.find_child("Button1", true, false).pressed.emit() # Cancel
 	await frames(2)
 	check(page._confirm == null and ally_edit.text == "0 5 0" and cfg.get_value("gui.session.diplomacycolors.ally") == "0 5 0",
