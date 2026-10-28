@@ -2248,6 +2248,35 @@ static void test_petra_fishing_boat_backs_off() {
 	CHECK(away && d >= reach);
 }
 
+// defenseManager.js checkEvents (DM:586-597): the attacker may be a structure too; a boat
+// under a tower's arrows backs off to the tower's arrow range + 15 m.
+static void test_petra_fishing_boat_backs_off_tower() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+	const uint32_t fish = s.spawn_resource_world(18.0f, 6.0f, RES_FOOD, FISH_FOOD_SUPPLY, RES_SUB_FISH);
+	const uint32_t boat = s.spawn_unit(20.0f, 10.0f, 1, UNIT_FISHING_BOAT, 1.0e5f);
+	s.order_gather(&boat, 1, fish);
+	run(s, 1.0f);
+	const uint32_t tower = s.spawn_building_world(20.0f, 21.0f, BLD_TOWER, 0, 1.0f);
+	const auto &t = s.buildings_[s.building_id_to_idx_.at(tower)];
+	const float reach = s.building_arrow_range(t) + 15.0f * 0.28f, tx = t.x, tz = t.z;
+	const int32_t bi = s.lookup_unit(boat);
+	bool away = false;
+	float d = 0.0f;
+	for (int k = 0; k < 80 && !away; ++k) {
+		run(s, 0.1f);
+		away = s.units_.order_kind[bi] == ORDER_WALK;
+		const float dx = s.units_.order_x[bi] - tx, dz = s.units_.order_z[bi] - tz;
+		d = std::sqrt(dx * dx + dz * dz);
+	}
+	std::printf("Petra fishing boat under a tower: walks off %s, to %.1f from it (its arrow range + 15 m: %.1f)\n", away ? "yes" : "no", d, reach);
+	CHECK(away && d >= reach - 0.01f);
+}
+
 // startingStrategy.js configFirstBase: on a starting land under 25000 m² Petra keeps to one
 // field and lays a corral as well (saveSpace, maxFields 1, needCorral); a finished market
 // lifts the field cap.
@@ -3146,6 +3175,7 @@ int main() {
 	test_petra_land_skips_wreck();
 	test_petra_fishing();
 	test_petra_fishing_boat_backs_off();
+	test_petra_fishing_boat_backs_off_tower();
 	test_petra_small_land_fields();
 	test_petra_need_fish();
 	test_petra_dock_position();
