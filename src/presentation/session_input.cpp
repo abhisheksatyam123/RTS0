@@ -1115,6 +1115,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			// or nothing (action-occupy-turret-disabled).
 			if (armed_turret) {
 				if (turret_target && selection_can_occupy_turret(turret_target)) {
+					// unit_actions.js "occupy-turret": order_garrison (said before a unit at
+					// the holder boards and leaves the world)
+					play_civ_voice("garrison");
 					if (turn_cmds())
 						post_lockstep(12, sel_ptr, sel_n, 0, 0, turret_target, (uint8_t)(qbit | rtso::NET_PARAM_OCCUPY_TURRET));
 					else
@@ -1229,11 +1232,11 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			// Its specificness 20 loses to "repair" (11) and "move" (12): a plain click walks there.
 			const uint32_t clicked_transport_id = transport_under(click_pos.x, click_pos.z);
 			auto board = [&]() {
+				play_civ_voice("garrison"); // unit_actions.js "garrison": order_garrison, before a unit alongside boards
 				if (turn_cmds())
 					post_lockstep(18, sel_ptr, sel_n, 0, 0, clicked_transport_id, qbit);
 				else
 					sim->order_board_transport(sel_ptr, sel_n, clicked_transport_id, queue_shift);
-				play_civ_voice("move");
 			};
 			if (clicked_transport_id != 0 && force_garrison) {
 				board();
@@ -1265,7 +1268,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 						post_lockstep(16, sel_ptr, sel_n, 0, 0, repair_id, qbit);
 					else
 						sim->order_build_or_repair(sel_ptr, sel_n, repair_id, queue_shift);
-					play_civ_voice("build");
+					play_civ_voice("repair");
 					return;
 				}
 			}
@@ -1457,6 +1460,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					const uint32_t field_grain = b.type == rtso::BLD_FIELD ? sim->field_resource_id(b.id) : 0;
 					const bool friendly = b.team == local_player() || sim->is_ally(local_player(), b.team);
 					auto occupy_turret = [&]() {
+						play_civ_voice("garrison"); // unit_actions.js "occupy-turret": order_garrison
 						if (turn_cmds())
 							post_lockstep(12, sel_ptr, sel_n, 0, 0, b.id, (uint8_t)(qbit | rtso::NET_PARAM_OCCUPY_TURRET));
 						else
@@ -1464,7 +1468,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					};
 					if (force_garrison && friendly && selection_can_garrison(b.id)) {
 						// session.garrison is a hotkeyActionCheck: it wins over returning
-						// resources and repairing (unit_actions.js "garrison").
+						// resources and repairing (unit_actions.js "garrison", order_garrison: said
+						// before a unit at the door goes inside and leaves the world).
+						play_civ_voice("garrison");
 						if (turn_cmds())
 							post_lockstep(12, sel_ptr, sel_n, 0, 0, b.id, qbit);
 						else
@@ -1478,7 +1484,8 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 							post_lockstep(16, sel_ptr, sel_n, 0, 0, b.id, qbit);
 						else
 							sim->order_build_or_repair(sel_ptr, sel_n, b.id, queue_shift);
-						play_civ_voice("build");
+						// unit_actions.js "repair": order_build on a foundation, else order_repair
+						play_civ_voice(b.build_progress < 1.0f ? "build" : "repair");
 					} else if (trade_route_click(b, true, queue_shift, nullptr)) {
 						// setup-trade-route has specificness 0: it wins over garrison and capture.
 					} else if (field_grain && able_any(gathers(field_grain))) { // any player's finished field
@@ -1518,7 +1525,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 								post_lockstep(16, sel_ptr, sel_n, 0, 0, b.id, qbit);
 							else
 								sim->order_build_or_repair(sel_ptr, sel_n, b.id, queue_shift);
-							play_civ_voice("build");
+							play_civ_voice(b.build_progress < 1.0f ? "build" : "repair");
 						} else {
 							break; // nothing to do there: walk
 						}
@@ -1539,7 +1546,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 								post_lockstep(16, sel_ptr, sel_n, 0, 0, b.id, qbit);
 							else
 								sim->order_build_or_repair(sel_ptr, sel_n, b.id, queue_shift);
-							play_civ_voice("build");
+							play_civ_voice(b.build_progress < 1.0f ? "build" : b.type == rtso::BLD_FIELD ? "gather" : "repair");
 						} else {
 							break; // "move" (12) beats "garrison" (20) without session.garrison: walk
 						}
