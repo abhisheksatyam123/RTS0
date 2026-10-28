@@ -1454,6 +1454,53 @@ static void test_petra_landed_army_answers_attack() {
 	s.petra_transports_.clear();
 }
 
+// attackManager.js raids are attackPlans too: a raid launched overseas is "transporting"
+// until none of its units is in a transport (UpdateTransporting); it does not attack-move
+// on foot to the beach meanwhile, and fights once ashore.
+static void test_petra_overseas_raid_sails() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+	const uint32_t house = s.spawn_building_world(30.0f, -50.0f, BLD_HOUSE, 0);
+	std::vector<uint32_t> raiders;
+	for (int k = 0; k < 3; ++k) raiders.push_back(s.spawn_unit(-36.0f + 2.0f * k, 26.0f, 1, UNIT_SPEARMAN));
+	run(s, 0.5f);
+	s.petra_pid_ = 1;
+	s.petra_transports_.clear();
+	Simulation::AttackPlan plan;
+	plan.kind = PETRA_ATTACK_RAID;
+	plan.state = Simulation::AttackPlan::WALKING;
+	plan.target_building_id = house;
+	plan.target_player = 0;
+	plan.target_x = 30.0f; plan.target_z = -50.0f;
+	plan.squad = raiders;
+	plan.initial_squad_size = 3;
+	CHECK(s.petra_plan_overseas(-30.0f, 40.0f, house) != 0);
+	s.petra_update_started_raid(plan, -30.0f, 40.0f);
+	size_t booked = 0;
+	for (const auto &tp : s.petra_transports_)
+		if (tp.owner == PETRA_TRANSPORT_RAID) booked += tp.passenger_ids.size();
+	s.petra_update_started_raid(plan, -30.0f, 40.0f);
+	const bool waits = plan.state == Simulation::AttackPlan::WALKING;
+	bool marched = false;
+	for (uint32_t uid : raiders) {
+		const int32_t i = idx(s, uid);
+		if (i >= 0 && s.units().action_state[i] != ACTION_IDLE) marched = true;
+	}
+	// Ashore on the target's land, with no transport left: it fights.
+	s.petra_transports_.clear();
+	for (size_t k = 0; k < raiders.size(); ++k)
+		if (const int32_t i = idx(s, raiders[k]); i >= 0) { s.units_.pos_x[i] = -14.0f + 2.0f * k; s.units_.pos_z[i] = -28.0f; }
+	s.petra_update_started_raid(plan, -30.0f, 40.0f);
+	std::printf("Petra overseas raid: %zu of 3 booked on a ship, waits at sea %s, marched on foot %s, fights ashore %s\n",
+	            booked, waits ? "yes" : "no", marched ? "yes" : "no", plan.state == Simulation::AttackPlan::ATTACKED ? "yes" : "no");
+	CHECK(booked == 3 && waits && !marched);
+	CHECK(plan.state == Simulation::AttackPlan::ATTACKED);
+}
+
 // attackPlan.js constructor and updatePreparation:479: a plan bound overseas asks for one
 // transport ship and takes no unit until that sea has one; then it musters as on land.
 static void test_petra_overseas_plan_waits_for_ship() {
@@ -3083,6 +3130,7 @@ int main() {
 	test_petra_transport_ship_lost();
 	test_petra_transport_waits_for_all();
 	test_petra_landed_army_answers_attack();
+	test_petra_overseas_raid_sails();
 	test_petra_abort_stranded_army();
 	test_petra_overseas_plan_waits_for_ship();
 	test_petra_transport_trapped_passenger();
