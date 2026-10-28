@@ -3832,7 +3832,11 @@ static void test_rush_any_phase() {
 		            plan.target_building_id == store ? (town ? "the storehouse" : "none") : "another", m.rush_number, made, m.plans_made);
 		CHECK(plan.state == Simulation::AttackPlan::MUSTER && m.kind == PETRA_ATTACK_RUSH && m.rush_number == 2 - !town,
 		      town ? "a rush still left is planned in the town phase" : "a rush with no target in sight still musters");
-		CHECK(m.plans_made == made + 1, "the rush counts as a plan made (totalNumber)");
+		// In the town phase the last rush is followed the next turn by an Attack beside it.
+		CHECK(m.plans_made == made + 1 + (town ? 1 : 0), "the rush counts as a plan made (totalNumber)");
+		if (town)
+			CHECK(s->petra_next_plan_.plan.state == Simulation::AttackPlan::MUSTER && s->petra_next_plan_.plan.kind == PETRA_ATTACK_ATTACK,
+			      "an Attack prepares beside the last rush");
 		if (!town) continue;
 		run_for(*s, 30.0f);
 		bool rush = s->petra_attack_mgr_.kind == PETRA_ATTACK_RUSH && plan.state == Simulation::AttackPlan::MUSTER;
@@ -4557,6 +4561,88 @@ static void test_attack_request() {
 	std::printf("  AI 2's requested attack marches: %s, asks its allies again: %s\n", marched ? "yes" : "no", asked_again ? "yes" : "no");
 	CHECK(marched, "the requested attack marches at once");
 	CHECK(!asked_again, "a requested attack asks no one to join it");
+}
+
+// attackManager.js:365-419: once the last rush is made, an Attack is made the next turn in the
+// town phase though that rush still prepares (upcomingAttacks holds both); each trains and
+// takes units of its own, and the Attack takes the preparation slot once the rush leaves it.
+static void test_attack_beside_last_rush() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(7);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 7, 2, 128.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	s->set_player_active(0, true, false);
+	s->set_player_active(1, true, true);
+	s->set_diplomacy(0, 1, Simulation::DIPLO_ENEMY);
+	s->set_diplomacy(1, 0, Simulation::DIPLO_ENEMY);
+	run_for(*s, 5.0f);
+	float bx = 0.0f, bz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { bx = b.x; bz = b.z; }
+	s->spawn_building_world(bx + (bx > 0.0f ? -14.0f : 14.0f), bz, BLD_BARRACKS, 1, 1.0f);
+	s->players_[1].phase = 2;
+	auto &m = s->petra_attack_mgr_;
+	m.rushes_set = 1;
+	m.max_rushes = 1;
+	m.rush_number = 1; // the last rush is made and prepares
+	auto &rush = s->petra_attack_plan_;
+	rush = Simulation::AttackPlan();
+	rush.kind = PETRA_ATTACK_RUSH;
+	rush.state = Simulation::AttackPlan::MUSTER;
+	for (int k = 0; k < 4; ++k) rush.squad.push_back(s->spawn_unit(bx + 6.0f + (float)k, bz + 6.0f, 1, UNIT_SPEARMAN));
+	m.kind = PETRA_ATTACK_RUSH;
+	m.attack_name = m.plans_made++;
+	const uint8_t rush_name = m.attack_name;
+	m.target_size = 40; // far from ready
+	m.min_size = 20;
+	const uint8_t made = m.plans_made;
+	const auto &next = s->petra_next_plan_;
+	for (int t = 0; t < 6 && next.plan.state == Simulation::AttackPlan::UNEXECUTED; ++t) run_ai_turns(*s, 1);
+	std::printf("  beside the rush: next plan state %d kind %d name %d (rush %d), slot kind %d name %d\n",
+	            (int)next.plan.state, (int)next.plan.kind, (int)next.muster.attack_name, (int)rush_name,
+	            (int)s->petra_attack_plan_.kind, (int)m.attack_name);
+	CHECK(next.plan.state == Simulation::AttackPlan::MUSTER && next.plan.kind == PETRA_ATTACK_ATTACK,
+	      "an Attack prepares beside the last rush");
+	CHECK(s->petra_attack_plan_.kind == PETRA_ATTACK_RUSH && s->petra_attack_plan_.state == Simulation::AttackPlan::MUSTER &&
+	      m.kind == PETRA_ATTACK_RUSH && m.attack_name == rush_name, "the rush keeps the slot and its own fields");
+	CHECK(next.muster.attack_name == made && m.plans_made == made + 1 && m.attack_number == 1 && next.muster.target_size > 0,
+	      "the Attack has its own name and sizes");
+	bool shared = false;
+	for (uint32_t uid : next.plan.squad)
+		shared |= std::find(s->petra_attack_plan_.squad.begin(), s->petra_attack_plan_.squad.end(), uid) != s->petra_attack_plan_.squad.end();
+	CHECK(!shared, "no unit is in both plans");
+	// Only one plan of each group: no second Attack while this one prepares.
+	run_ai_turns(*s, 3);
+	CHECK(m.plans_made == made + 1, "no further plan while both prepare");
+
+	// Saved and loaded with its own fields.
+	const std::string path = "/tmp/rtso_petra_next_plan.sav";
+	CHECK(s->save_state(path.c_str()), "save");
+	auto t = std::make_unique<Simulation>();
+	CHECK(t->load_state(path.c_str()), "load");
+	std::remove(path.c_str());
+	CHECK(t->petra_next_plan_.plan.state == next.plan.state && t->petra_next_plan_.plan.kind == next.plan.kind &&
+	      t->petra_next_plan_.muster.attack_name == next.muster.attack_name &&
+	      t->petra_next_plan_.muster.target_size == next.muster.target_size &&
+	      t->petra_next_plan_.plan.squad == next.plan.squad, "the plan beside the slot's survives a save");
+
+	// The rush sets off (forced): the Attack takes the slot with its own fields.
+	const uint8_t attack_name = next.muster.attack_name;
+	const int32_t attack_target = next.muster.target_size;
+	rush.forced = true;
+	bool promoted = false;
+	for (int k = 0; k < 20 && !promoted; ++k) {
+		run_ai_turns(*s, 1);
+		promoted = s->petra_attack_plan_.kind == PETRA_ATTACK_ATTACK && s->petra_attack_plan_.state == Simulation::AttackPlan::MUSTER;
+	}
+	bool rush_started = false;
+	for (const auto &p : s->petra_started_attacks_) rush_started |= p.kind == PETRA_ATTACK_RUSH;
+	std::printf("  rush started %d, Attack in the slot %d (name %d, target %d)\n", (int)rush_started, (int)promoted,
+	            (int)m.attack_name, (int)m.target_size);
+	CHECK(rush_started && promoted && m.kind == PETRA_ATTACK_ATTACK && m.attack_name == attack_name && m.target_size == attack_target,
+	      "the Attack takes the slot once the rush leaves it");
+	CHECK(next.plan.state == Simulation::AttackPlan::UNEXECUTED && next.plan.squad.empty(), "the second place is free again");
 }
 
 // attackPlan.js getPathToTarget, setRallyPoint, updatePreparation "completing" and
@@ -6614,6 +6700,75 @@ static void test_defense_animals() {
 	CHECK(army, "a wolf biting one of ours joins a defense army (checkEnemyUnits, checkEvents)");
 	CHECK(hunted, "the army's defenders go for the wolf (assignUnit)");
 	CHECK(dead && !still, "the wolf is killed and leaves the army");
+}
+
+// defenseManager.js checkEnemyUnits keeps an animal attacking one of ours only when isDangerous
+// says so (close to our structures); far from them it waits for the Attacked event, the first bite.
+static void test_defense_animal_waits_for_bite() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	const float cx = cc->x, cz = cc->z;
+	const uint16_t home = s->petra_land_at(cx, cz);
+	auto far_from_ours = [&](float x, float z) {
+		for (const auto &b : s->buildings_)
+			if (b.team == 1 && b.hp > 0.0f && (x - b.x) * (x - b.x) + (z - b.z) * (z - b.z) < 30.0f * 30.0f) return false;
+		return true;
+	};
+	float wx = 0.0f, wz = 0.0f;
+	bool spot = false;
+	for (float r = 30.0f; r < 90.0f && !spot; r += 2.0f)
+		for (int k = 0; k < 48 && !spot; ++k) {
+			const float a = (float)k * 6.2831853f / 48.0f;
+			const float x = cx + r * std::cos(a), z = cz + r * std::sin(a);
+			if (s->territory_owner_at(x, z) < 0 && s->petra_land_at(x, z) == home && s->petra_land_at(x + 8.0f, z) == home &&
+			    far_from_ours(x, z) && far_from_ours(x + 8.0f, z)) { wx = x; wz = z; spot = true; }
+		}
+	CHECK(spot, "neutral land of ours far from our structures");
+	if (!spot) return;
+	const uint32_t woman = s->spawn_unit(wx, wz, 1, UNIT_FEMALE_CITIZEN, 1.0e4f);
+	const uint32_t wolf = s->spawn_fauna(wx + 8.0f, wz, FAUNA_WOLF);
+	const size_t f = s->fauna_id_to_idx_.at(wolf);
+	auto in_army = [&] {
+		for (const auto &a : s->petra_defense_armies())
+			if (std::find(a.foe_ids.begin(), a.foe_ids.end(), wolf) != a.foe_ids.end()) return true;
+		return false;
+	};
+	// The wolf goes for the woman but is held off before it bites, through several turns that
+	// look at Gaia's units.
+	bool early = false;
+	for (int t = 0; t < 8; ++t) {
+		do {
+			s->fauna_.pos_x[f] = wx + 8.0f;
+			s->fauna_.pos_z[f] = wz;
+			const int32_t w = s->lookup_unit(woman); // Petra's orders don't walk her into it
+			s->units_.pos_x[w] = wx;
+			s->units_.pos_z[w] = wz;
+			if (s->fauna_.behavior[f] != FAUNA_ATTACK || s->fauna_.target_unit_id[f] != woman) s->fauna_start_attack(f, woman);
+			s->tick(Simulation::FIXED_STEP);
+		} while (!s->petra_turn_due(1));
+		s->tick(Simulation::FIXED_STEP);
+		early |= in_army();
+	}
+	// Then it bites.
+	bool army = false;
+	for (int t = 0; t < 6 && !army; ++t) {
+		if (s->fauna_.alive[f] && s->fauna_.behavior[f] != FAUNA_ATTACK) s->fauna_start_attack(f, woman);
+		run_ai_turns(*s, 1);
+		army = in_army();
+	}
+	std::printf("  wolf chasing a woman far from our structures: army before the bite %s, after %s\n",
+	            early ? "yes" : "no", army ? "yes" : "no");
+	CHECK(!early, "an animal attacking ours far from our structures raises no army before it bites");
+	CHECK(army, "its bite raises one (checkEvents Attacked)");
 }
 
 // defenseArmy.js clear: defenders of a disbanded army standing outside our and allied land go
@@ -9740,6 +9895,7 @@ int main(int argc, char **argv) {
 	RUN(test_ai_slots);
 	RUN(test_attack_plans);
 	RUN(test_attack_rally_point);
+	RUN(test_attack_beside_last_rush);
 	RUN(test_attack_stuck_siege);
 	RUN(test_attack_waits_for_each_class);
 	RUN(test_slot_config);
@@ -9848,6 +10004,7 @@ int main(int argc, char **argv) {
 	RUN(test_raids_at_once);
 	RUN(test_defense_ignores_ships);
 	RUN(test_defense_animals);
+	RUN(test_defense_animal_waits_for_bite);
 	RUN(test_defense_clear_destination);
 	RUN(test_defense_switch_to_attack);
 	RUN(test_defense_chase_home_no_attack);

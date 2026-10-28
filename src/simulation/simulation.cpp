@@ -23135,7 +23135,9 @@ void Simulation::petra_manage_military_production(float dt) {
 		!petra_attack_plan_.forced && ship_ready(petra_attack_plan_);
 	const bool raid_musters = petra_raid_plan_.state == AttackPlan::MUSTER &&
 		petra_raid_target_ok(petra_raid_plan_.target_building_id) && ship_ready(petra_raid_plan_);
-	if (!attack_musters && !raid_musters) return;
+	const AttackPlan &next = petra_next_plan_.plan;
+	const bool next_musters = next.state == AttackPlan::MUSTER && !next.completing && !next.forced && ship_ready(next);
+	if (!attack_musters && !raid_musters && !next_musters) return;
 	const bool rush_wants = attack_musters && petra_attack_mgr_.kind == PETRA_ATTACK_RUSH;
 
 	// The classes a template carries (FastMoving is RTS0's TC_CAVALRY: cavalry, camels, chariots).
@@ -23318,10 +23320,19 @@ void Simulation::petra_manage_military_production(float dt) {
 			return;
 		}
 	};
+	// The plan preparing beside the slot's trains with its own fields swapped in.
+	auto train_next = [&] {
+		petra_swap_next_plan();
+		train_for(petra_attack_plan_, petra_attack_mgr_.kind);
+		petra_swap_next_plan();
+	};
+	const bool next_rush = next_musters && next.kind == PETRA_ATTACK_RUSH;
 	if (rush_wants) train_for(petra_attack_plan_, PETRA_ATTACK_RUSH);
+	if (next_rush) train_next();
 	if (raid_musters) train_for(petra_raid_plan_, PETRA_ATTACK_RAID);
 	if (attack_musters && !rush_wants && pop_current(petra_pid_) < pop_max(petra_pid_))
 		train_for(petra_attack_plan_, petra_attack_mgr_.kind);
+	if (next_musters && !next_rush && pop_current(petra_pid_) < pop_max(petra_pid_)) train_next();
 }
 
 // Queue roster unit `tmpl` at one of our buildings, paid from Petra's queue
@@ -23411,6 +23422,11 @@ void Simulation::petra_join_trained_plan(uint8_t pid, uint8_t order_plan, uint8_
 	                        : (parked ? petra_slots_[pid].petra_attack_plan_ : petra_attack_plan_);
 	if (plan.state == AttackPlan::MUSTER && name == (raid ? mgr.raid_name : mgr.attack_name)) {
 		if (std::find(plan.squad.begin(), plan.squad.end(), uid) == plan.squad.end()) plan.squad.push_back(uid);
+		return;
+	}
+	PetraNextPlan &next = parked ? petra_slots_[pid].petra_next_plan_ : petra_next_plan_;
+	if (!raid && next.plan.state == AttackPlan::MUSTER && name == next.muster.attack_name) {
+		if (std::find(next.plan.squad.begin(), next.plan.squad.end(), uid) == next.plan.squad.end()) next.plan.squad.push_back(uid);
 		return;
 	}
 	auto &out = petra_out_of_plan_[pid];
@@ -23632,6 +23648,7 @@ int Simulation::petra_unplanned_workers(int &supports) {
 			if (auto it = std::lower_bound(out.begin(), out.end(), id); it == out.end() || *it != id) out.insert(it, id);
 	};
 	mark(petra_attack_plan_);
+	mark(petra_next_plan_.plan);
 	mark(petra_raid_plan_);
 	for (const AttackPlan &p : petra_started_attacks_) mark(p);
 	auto in_plan = [&](uint32_t id) { return std::binary_search(out.begin(), out.end(), id); };
@@ -23783,7 +23800,8 @@ int Simulation::petra_train_more_workers() {
 	float support_ratio = d < PETRA_EASY ? 0.5f : d < PETRA_MEDIUM ? 0.4f : 0.3f;
 	if (triggers_.building_disabled(petra_pid_, BLD_FIELD)) support_ratio = std::min(support_ratio, 0.1f);
 	// 0.7 while rushes are still to come or one is mustering (upcomingAttacks[Rush]).
-	const bool rush_upcoming = petra_attack_plan_.state == AttackPlan::MUSTER && petra_attack_mgr_.kind == PETRA_ATTACK_RUSH;
+	const bool rush_upcoming = (petra_attack_plan_.state == AttackPlan::MUSTER && petra_attack_mgr_.kind == PETRA_ATTACK_RUSH) ||
+		(petra_next_plan_.plan.state == AttackPlan::MUSTER && petra_next_plan_.plan.kind == PETRA_ATTACK_RUSH);
 	float alpha = petra_attack_mgr_.rush_number < petra_attack_mgr_.max_rushes || rush_upcoming ? 0.7f : 0.85f;
 	if (ceasefire_active())
 		alpha += (1.0f - alpha) * std::min(std::max(ceasefire_remaining() - 120.0f, 0.0f), 180.0f) / 180.0f;
@@ -24425,7 +24443,7 @@ void Simulation::petra_manage_economy(float dt) {
 	// don't take gathering orders here. A plan still mustering keeps its citizen soldiers at work
 	// (attackPlan.js trains them with the worker role; they become attackers when it sets off).
 	std::unordered_set<uint32_t> in_plan;
-	for (const AttackPlan *p : {&petra_attack_plan_, &petra_raid_plan_})
+	for (const AttackPlan *p : {&petra_attack_plan_, &petra_next_plan_.plan, &petra_raid_plan_})
 		if (p->state != AttackPlan::MUSTER || p->completing) in_plan.insert(p->squad.begin(), p->squad.end());
 	for (const AttackPlan &p : petra_started_attacks_) in_plan.insert(p.squad.begin(), p.squad.end());
 	// worker.js update: a defender (plan -2/-3) takes no worker orders; its army assigns it.
@@ -27680,6 +27698,7 @@ void Simulation::petra_manage_naval(float dt) {
 		if (s && s < nseas) want_transport[s] = std::max(want_transport[s], preparing ? 1 : need_ships(kind));
 	};
 	plan_wants(petra_attack_plan_, petra_attack_mgr_.kind);
+	plan_wants(petra_next_plan_.plan, petra_next_plan_.plan.kind);
 	for (const AttackPlan &p : petra_started_attacks_) plan_wants(p, p.kind);
 	plan_wants(petra_raid_plan_, PETRA_ATTACK_RAID);
 	// findEconomicCCLocation: a base on another land keeps a transport ship on the sea between.
@@ -28165,7 +28184,7 @@ int Simulation::petra_accounted_workers(bool queued) const {
 		const auto in = [id](const AttackPlan &p) {
 			return (p.state != AttackPlan::MUSTER || p.completing) && std::find(p.squad.begin(), p.squad.end(), id) != p.squad.end();
 		};
-		if (in(petra_attack_plan_) || in(petra_raid_plan_)) return true;
+		if (in(petra_attack_plan_) || in(petra_next_plan_.plan) || in(petra_raid_plan_)) return true;
 		for (const AttackPlan &p : petra_started_attacks_)
 			if (in(p)) return true;
 		return false;
@@ -29867,7 +29886,8 @@ bool Simulation::petra_unit_target_ok(int32_t t) const {
 bool Simulation::petra_relic_targeted(uint32_t relic_id) const {
 	for (const PetraTargetedRelic &t : petra_targeted_relics_)
 		if (t.relic == relic_id) return true;
-	if (petra_attack_plan_.target_building_id == relic_id || petra_raid_plan_.target_building_id == relic_id) return true;
+	if (petra_attack_plan_.target_building_id == relic_id || petra_raid_plan_.target_building_id == relic_id ||
+	    petra_next_plan_.plan.target_building_id == relic_id) return true;
 	for (const AttackPlan &p : petra_started_attacks_)
 		if (p.target_building_id == relic_id) return true;
 	for (size_t i = 0; i < units_.count; ++i)
@@ -30745,19 +30765,44 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 		}), squad.end());
 	};
 	prune(petra_attack_plan_.squad);
+	prune(petra_next_plan_.plan.squad);
 	for (AttackPlan &plan : petra_started_attacks_) prune(plan.squad);
+	// A plan preparing beside the one in the slot takes the slot once it is free.
+	if (petra_attack_plan_.state == AttackPlan::UNEXECUTED && petra_next_plan_.plan.state != AttackPlan::UNEXECUTED) {
+		petra_swap_next_plan();
+		petra_release_squad(petra_next_plan_.plan.squad);
+		petra_next_plan_ = PetraNextPlan{};
+	}
 	petra_strike_force_.unit_ids = petra_attack_plan_.squad;
 
-	// attackManager.js update: the plan in preparation, which joins the started attacks
-	// once it gathers at its rally point (STATE_COMPLETING is no longer "unexecuted", so the
-	// next plan of its type may be made and train meanwhile), marches or turns back at once;
-	// then each started attack until it ends.
+	// attackManager.js update: the plans in preparation, each of which joins the started
+	// attacks once it gathers at its rally point (STATE_COMPLETING is no longer "unexecuted",
+	// so the next plan of its type may be made and train meanwhile), marches or turns back at
+	// once; then each started attack until it ends.
+	auto leave_slot = [&] {
+		if ((petra_attack_plan_.state != AttackPlan::UNEXECUTED && petra_attack_plan_.state != AttackPlan::MUSTER) ||
+		    petra_attack_plan_.completing) {
+			petra_started_attacks_.push_back(std::move(petra_attack_plan_));
+			petra_attack_plan_ = AttackPlan();
+		}
+	};
+	const uint8_t made = petra_attack_mgr_.plans_made;
 	petra_attack_plan_.state_timer += dt;
 	petra_update_attack_plan(petra_attack_plan_, base_x, base_z);
-	if ((petra_attack_plan_.state != AttackPlan::UNEXECUTED && petra_attack_plan_.state != AttackPlan::MUSTER) ||
-	    petra_attack_plan_.completing) {
-		petra_started_attacks_.push_back(std::move(petra_attack_plan_));
-		petra_attack_plan_ = AttackPlan();
+	leave_slot();
+	// The second upcoming plan (a rush's and an Attack's preparations overlap): made only while
+	// the slot's plan prepares, and not on the turn that made it (one plan a turn).
+	const bool slot_preparing = petra_attack_plan_.state == AttackPlan::MUSTER;
+	if (petra_next_plan_.plan.state != AttackPlan::UNEXECUTED ||
+	    (slot_preparing && petra_attack_mgr_.plans_made == made)) {
+		const uint8_t beside = slot_preparing ? petra_attack_plan_.kind : 0xFF;
+		petra_swap_next_plan();
+		petra_beside_kind_ = beside;
+		petra_attack_plan_.state_timer += dt;
+		petra_update_attack_plan(petra_attack_plan_, base_x, base_z);
+		petra_beside_kind_ = 0xFF;
+		leave_slot();
+		petra_swap_next_plan();
 	}
 	for (size_t k = 0; k < petra_started_attacks_.size(); ++k) {
 		AttackPlan &plan = petra_started_attacks_[k];
@@ -30869,6 +30914,7 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 			// attackManager.js:366: a rush while any are left and a barracks stands, in any
 			// phase (aggressive AIs, at popPhase2 50, do their later rushes in the town phase).
 			if (mgr.rush_number < mgr.max_rushes && have_barracks) {
+				if (petra_beside_kind_ == PETRA_ATTACK_RUSH) return; // unexecutedAttacks.Rush
 				kind = PETRA_ATTACK_RUSH;
 				// A rush needs no target to muster and train; it picks one when it must start
 				// (attackPlan.js chooseTarget), so one with none in sight still counts as a plan.
@@ -30881,6 +30927,8 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 			} else {
 				// From the town phase (or while researching it) with a barracks, or at once with
 				// no base at all: "if we have no base ... nothing else to do than attack".
+				// unexecutedAttacks Attack and HugeAttack: one at a time.
+				if (petra_beside_kind_ == PETRA_ATTACK_ATTACK || petra_beside_kind_ == PETRA_ATTACK_HUGE) return;
 				if (!(have_barracks && (petra_ps().phase >= 2 || researching_town)) && potential_base) return;
 				// attackManager.js: no new Attack or HugeAttack while min(2, 1 + popMax/100) are
 				// under way, nor beside one with 12 or fewer free population slots.
@@ -31691,7 +31739,7 @@ void Simulation::petra_retake_civic_centres() {
 
 bool Simulation::petra_in_attack_squad(uint32_t uid) const {
 	const auto in = [uid](const AttackPlan &p) { return std::find(p.squad.begin(), p.squad.end(), uid) != p.squad.end(); };
-	if (in(petra_attack_plan_)) return true;
+	if (in(petra_attack_plan_) || in(petra_next_plan_.plan)) return true;
 	for (const AttackPlan &p : petra_started_attacks_)
 		if (in(p)) return true;
 	return false;
@@ -31707,7 +31755,7 @@ bool Simulation::petra_attack_can_spare(uint32_t uid, bool decay) const {
 		return ((p.state != AttackPlan::UNEXECUTED && p.state != AttackPlan::MUSTER) || p.completing) &&
 			std::find(p.squad.begin(), p.squad.end(), uid) != p.squad.end();
 	};
-	if (busy(petra_attack_plan_) || busy(petra_raid_plan_)) return false;
+	if (busy(petra_attack_plan_) || busy(petra_next_plan_.plan) || busy(petra_raid_plan_)) return false;
 	for (const AttackPlan &p : petra_started_attacks_)
 		if (busy(p)) return false;
 	return true;
@@ -31718,9 +31766,10 @@ void Simulation::petra_attack_remove_unit(uint32_t uid) {
 	const auto drop = [uid](AttackPlan &p) { p.squad.erase(std::remove(p.squad.begin(), p.squad.end(), uid), p.squad.end()); };
 	bool had = false;
 	const auto has = [uid](const AttackPlan &p) { return std::find(p.squad.begin(), p.squad.end(), uid) != p.squad.end(); };
-	had |= has(petra_attack_plan_) || has(petra_raid_plan_);
+	had |= has(petra_attack_plan_) || has(petra_next_plan_.plan) || has(petra_raid_plan_);
 	for (const AttackPlan &p : petra_started_attacks_) had |= has(p);
 	drop(petra_attack_plan_);
+	drop(petra_next_plan_.plan);
 	drop(petra_raid_plan_);
 	for (AttackPlan &p : petra_started_attacks_) drop(p);
 	auto &sf = petra_strike_force_.unit_ids;
@@ -31776,14 +31825,14 @@ bool Simulation::petra_mustering(uint32_t uid) const {
 	const auto in = [uid](const AttackPlan &p) {
 		return (p.state == AttackPlan::UNEXECUTED || p.state == AttackPlan::MUSTER) && !p.completing && std::find(p.squad.begin(), p.squad.end(), uid) != p.squad.end();
 	};
-	if (uid == petra_scout_unit_id_ || !(in(petra_attack_plan_) || in(petra_raid_plan_))) return false;
+	if (uid == petra_scout_unit_id_ || !(in(petra_attack_plan_) || in(petra_next_plan_.plan) || in(petra_raid_plan_))) return false;
 	for (const AttackPlan &p : petra_started_attacks_)
 		if (std::find(p.squad.begin(), p.squad.end(), uid) != p.squad.end()) return false;
 	return true;
 }
 
 void Simulation::petra_leave_mustering(uint32_t uid) {
-	for (AttackPlan *p : {&petra_attack_plan_, &petra_raid_plan_})
+	for (AttackPlan *p : {&petra_attack_plan_, &petra_next_plan_.plan, &petra_raid_plan_})
 		if ((p->state == AttackPlan::UNEXECUTED || p->state == AttackPlan::MUSTER) && !p->completing &&
 		    std::find(p->squad.begin(), p->squad.end(), uid) != p->squad.end()) {
 			p->squad.erase(std::remove(p->squad.begin(), p->squad.end(), uid), p->squad.end());
@@ -31796,7 +31845,7 @@ void Simulation::petra_leave_mustering(uint32_t uid) {
 // (or completing) and of the started attacks (role "attack").
 std::unordered_set<uint32_t> Simulation::petra_launched_units() const {
 	std::unordered_set<uint32_t> out;
-	for (const AttackPlan *p : {&petra_attack_plan_, &petra_raid_plan_})
+	for (const AttackPlan *p : {&petra_attack_plan_, &petra_next_plan_.plan, &petra_raid_plan_})
 		if (p->state != AttackPlan::MUSTER || p->completing) out.insert(p->squad.begin(), p->squad.end());
 	for (const AttackPlan &p : petra_started_attacks_) out.insert(p.squad.begin(), p.squad.end());
 	return out;
@@ -31930,10 +31979,11 @@ void Simulation::petra_manage_raid(float dt) {
 			if (fast && hunters_kept < 2) { ++hunters_kept; continue; }
 			plan.squad.push_back(uid);
 		}
-		// reassignFastUnit: a main plan still preparing hands one of its units a turn to the
+		// reassignFastUnit: each main plan still preparing hands one of its units a turn to the
 		// raid, the first FastMoving or citizen soldier (hasClasses with a list is an OR).
-		if (!plan.completing && petra_attack_plan_.state == AttackPlan::MUSTER && !petra_attack_plan_.completing) {
-			auto &main = petra_attack_plan_.squad;
+		for (AttackPlan *mp : {&petra_attack_plan_, &petra_next_plan_.plan}) {
+			if (plan.completing || mp->state != AttackPlan::MUSTER || mp->completing) continue;
+			auto &main = mp->squad;
 			for (auto it = main.begin(); it != main.end(); ++it) {
 				const int32_t k = lookup_unit(*it);
 				if (k < 0 || !units_.alive[k] || petra_passenger(*it)) continue;
@@ -32360,6 +32410,7 @@ int Simulation::petra_queue_base_priority(uint8_t q) const {
 			const bool raid = petra_raid_plan_.state == AttackPlan::MUSTER;
 			const bool attack = petra_attack_plan_.state == AttackPlan::MUSTER || !raid;
 			float p = std::max(attack ? kind_priority(petra_attack_mgr_.kind) : 0.0f, raid ? kind_priority(PETRA_ATTACK_RAID) : 0.0f);
+			if (petra_next_plan_.plan.state == AttackPlan::MUSTER) p = std::max(p, kind_priority(petra_next_plan_.plan.kind));
 			if (c.difficulty < PETRA_EASY) p *= 0.4f;
 			else if (c.difficulty < PETRA_MEDIUM) p *= 0.8f;
 			return std::max(1, (int)p) + (q == PETRA_Q_PLAN_CHAMP ? 1 : 0);
@@ -32430,7 +32481,8 @@ void Simulation::petra_refresh_queue_accounts(float dt) {
 	// A mustering plan's TrainingPlan stays in its queue until it starts (attackPlan.js
 	// trainMoreUnits), though the plan skips asking while its trainers are busy or the
 	// population is full; it goes with the plan (removeQueues).
-	const bool mustering = petra_attack_plan_.state == AttackPlan::MUSTER || petra_raid_plan_.state == AttackPlan::MUSTER;
+	const bool mustering = petra_attack_plan_.state == AttackPlan::MUSTER || petra_next_plan_.plan.state == AttackPlan::MUSTER ||
+		petra_raid_plan_.state == AttackPlan::MUSTER;
 	for (int i = 0; i < PETRA_Q_COUNT; ++i) {
 		petra_queue_heads_.age[i] += dt;
 		qm.want_age[i] += dt;
@@ -32743,27 +32795,31 @@ void Simulation::petra_process_attack_requests() {
 // with a completing plan set on another enemy, the answer names that one ("other").
 void Simulation::petra_answer_attack_request(uint8_t source, uint8_t target) {
 	(void)source;
-	AttackPlan &plan = petra_attack_plan_;
 	size_t available = 0;
 	uint8_t other = 0xFF;
-	if (plan.completing) {
-		// A completing plan keeps its target; it counts when that is the requested enemy.
-		if (plan.target_player == target) available = plan.squad.size();
-		else if (plan.target_player < MAX_PLAYERS) other = plan.target_player;
-	} else if (plan.state == AttackPlan::UNEXECUTED || plan.state == AttackPlan::MUSTER) {
-		plan.target_player = target;
-		if (plan.state == AttackPlan::MUSTER) {
-			float tx = 0.0f, tz = 0.0f;
-			plan.target_building_id = 0;
-			if (const uint32_t id = find_petra_attack_target(tx, tz, 0, &plan)) {
-				plan.target_building_id = id;
-				plan.target_x = tx;
-				plan.target_z = tz;
-			}
+	// Each plan in preparation, the one beside the slot's too.
+	auto prepare = [&](AttackPlan &plan) {
+		if (plan.completing) {
+			// A completing plan keeps its target; it counts when that is the requested enemy.
+			if (plan.target_player == target) available += plan.squad.size();
+			else if (plan.target_player < MAX_PLAYERS) other = plan.target_player;
+		} else if (plan.state == AttackPlan::UNEXECUTED || plan.state == AttackPlan::MUSTER) {
 			plan.target_player = target;
-			if (plan.squad.size() > 2) available = plan.squad.size();
+			if (plan.state == AttackPlan::MUSTER) {
+				float tx = 0.0f, tz = 0.0f;
+				plan.target_building_id = 0;
+				if (const uint32_t id = find_petra_attack_target(tx, tz, 0, &plan)) {
+					plan.target_building_id = id;
+					plan.target_x = tx;
+					plan.target_z = tz;
+				}
+				plan.target_player = target;
+				if (plan.squad.size() > 2) available += plan.squad.size();
+			}
 		}
-	}
+	};
+	prepare(petra_attack_plan_);
+	prepare(petra_next_plan_.plan);
 	// Plans gathering at their rally point (out of the preparation slot) keep their target too.
 	for (const AttackPlan &p : petra_started_attacks_) {
 		if (p.state != AttackPlan::MUSTER || !p.completing) continue;
@@ -32779,12 +32835,15 @@ void Simulation::petra_answer_attack_request(uint8_t source, uint8_t target) {
 	}
 	const bool join = available > 12;
 	if (join) { // forceStart each upcoming plan of 3 units or more
-		if (plan.state == AttackPlan::MUSTER && !plan.completing && plan.squad.size() >= 3) {
+		auto force = [&](AttackPlan &plan, int32_t &target_size, int32_t &min_size) {
+			if (plan.state != AttackPlan::MUSTER || plan.completing || plan.squad.size() < 3 || plan.target_player != target) return;
 			plan.forced = true;
 			plan.requested = true;
-			petra_attack_mgr_.target_size = (int)plan.squad.size();
-			petra_attack_mgr_.min_size = (int)plan.squad.size();
-		}
+			target_size = (int)plan.squad.size();
+			min_size = (int)plan.squad.size();
+		};
+		force(petra_attack_plan_, petra_attack_mgr_.target_size, petra_attack_mgr_.min_size);
+		force(petra_next_plan_.plan, petra_next_plan_.muster.target_size, petra_next_plan_.muster.min_size);
 		if (raid_musters && raid.squad.size() >= 3) raid.forced = raid.requested = true;
 	}
 	if (join) petra_say(PETRA_CHAT_ATTACK_JOIN, PETRA_CHAT_ALLIES, target);
@@ -34844,9 +34903,9 @@ void Simulation::petra_manage_defense(float dt) {
 		petra_fight_back(i, a, armies, helped);
 	}
 	// checkEnemyUnits "Keep animals attacking us or our allies": an enemy's or Gaia's animal in
-	// COMBAT whose target is ours or an ally's counts as a foe. One biting ours is answered
-	// from neutral or allied land as any attacker is (checkEvents); one biting an ally's only
-	// where isDangerous says so (close to our structures, a cooperative ally's civic centre).
+	// COMBAT whose target is ours or an ally's counts as a foe where isDangerous says so (close
+	// to our structures, a cooperative ally's civic centre). Elsewhere one going for ours waits
+	// for its first bite (checkEvents Attacked, above).
 	for (size_t f = 0; f < fauna_.count; ++f) {
 		if (!fauna_.alive[f] || fauna_.behavior[f] != FAUNA_ATTACK || !is_hostile(petra_pid_, fauna_owner_[f])) continue;
 		if (!scanned(fauna_owner_[f]) || army_of_foe(fauna_.id[f]) >= 0) continue;
@@ -34854,7 +34913,6 @@ void Simulation::petra_manage_defense(float dt) {
 		int target_owner = -1;
 		if (const int32_t t = lookup_unit(tid); t >= 0) {
 			if (units_.alive[t]) target_owner = units_.team[t];
-			if (target_owner == petra_pid_ && in_attack_squad(tid)) continue;
 		} else if (const auto it = fauna_id_to_idx_.find(tid); it != fauna_id_to_idx_.end()) {
 			target_owner = fauna_owner_[it->second];
 		}
@@ -34863,8 +34921,7 @@ void Simulation::petra_manage_defense(float dt) {
 		const int terr = territory_owner_at(x, z);
 		if (terr >= 0 && (terr >= MAX_PLAYERS || !is_ally(petra_pid_, (uint8_t)terr))) continue; // enemy land
 		const float reach = 6000.0f / 16.0f; // a melee attacker's dist2Min, m² to RTS0 units²
-		const bool dangerous = target_owner == petra_pid_ || (terr == petra_pid_ && near_own_structure_at(x, z, reach)) ||
-		                       dangerous_outside_at(x, z, reach, terr);
+		const bool dangerous = (terr == petra_pid_ && near_own_structure_at(x, z, reach)) || dangerous_outside_at(x, z, reach, terr);
 		if (dangerous) make_into_army(fauna_.id[f]);
 	}
 
@@ -35426,7 +35483,7 @@ bool Simulation::petra_guards_critical_ent(size_t i) const {
 void Simulation::petra_retreat_critical_ent(size_t i, bool emergency, std::vector<int> &incoming) {
 	const uint32_t uid = units_.id[i];
 	// It leaves its attack plan and defense army.
-	for (auto *squad : {&petra_attack_plan_.squad, &petra_raid_plan_.squad})
+	for (auto *squad : {&petra_attack_plan_.squad, &petra_next_plan_.plan.squad, &petra_raid_plan_.squad})
 		squad->erase(std::remove(squad->begin(), squad->end(), uid), squad->end());
 	petra_remove_defender(uid);
 	for (AttackPlan &p : petra_started_attacks_) p.squad.erase(std::remove(p.squad.begin(), p.squad.end(), uid), p.squad.end());
@@ -35653,6 +35710,7 @@ void Simulation::petra_capture_gaia_relics() {
 		else petra_targeted_relics_.push_back({p.target_building_id, 1});
 	};
 	note_plan(petra_attack_plan_);
+	note_plan(petra_next_plan_.plan);
 	for (const AttackPlan &p : petra_started_attacks_) note_plan(p);
 
 	// abortCaptureGaiaRelic / attackPlan.js Abort: an expedition called off withdraws to the
@@ -35703,9 +35761,11 @@ void Simulation::petra_capture_gaia_relics() {
 			if (!can_capture_relic(i, r) || unit_is_ship(units_.unit_type[i])) continue;
 			if (units_.order_kind[i] == ORDER_GARRISON) continue;
 			// A unit of the attack still in preparation may go (victoryManager.js:660-672).
-			const auto &prep = petra_attack_plan_.squad;
-			const bool spare = (petra_attack_plan_.state == AttackPlan::UNEXECUTED || petra_attack_plan_.state == AttackPlan::MUSTER) &&
-			                   std::find(prep.begin(), prep.end(), units_.id[i]) != prep.end() &&
+			auto in_prep = [&](const AttackPlan &p) {
+				return (p.state == AttackPlan::UNEXECUTED || p.state == AttackPlan::MUSTER) &&
+				       std::find(p.squad.begin(), p.squad.end(), units_.id[i]) != p.squad.end();
+			};
+			const bool spare = (in_prep(petra_attack_plan_) || in_prep(petra_next_plan_.plan)) &&
 			                   !petra_is_defender(units_.id[i]) && !petra_passenger(units_.id[i]);
 			if ((!spare && petra_unit_reserved(units_.id[i])) || petra_guards_critical_ent(i)) continue;
 			const float dx = units_.pos_x[i] - relx, dz = units_.pos_z[i] - relz;
@@ -35721,8 +35781,8 @@ void Simulation::petra_capture_gaia_relics() {
 		}
 		// A first expedition too weak to out-capture a hundredth of the points stays home.
 		if (expedition.empty() || (!t.sent && capture < RELIC_CAPTURE_POINTS / 100.0f)) return;
-		auto &prep = petra_attack_plan_.squad;
-		for (uint32_t uid : expedition) prep.erase(std::remove(prep.begin(), prep.end(), uid), prep.end());
+		for (auto *prep : {&petra_attack_plan_.squad, &petra_next_plan_.plan.squad})
+			for (uint32_t uid : expedition) prep->erase(std::remove(prep->begin(), prep->end(), uid), prep->end());
 		order_capture_relic(expedition.data(), expedition.size(), t.relic);
 		t.sent = 1;
 	};
@@ -36090,11 +36150,12 @@ void Simulation::petra_change_diplomacy(uint8_t player, uint8_t stance) {
 // player as its target, and every started attack on that player is aborted (its army
 // walks home).
 void Simulation::petra_cancel_attacks_against(uint8_t player) {
-	if (petra_attack_plan_.target_player == player) {
-		petra_attack_plan_.target_player = 0xFF;
-		if (auto it = building_id_to_idx_.find(petra_attack_plan_.target_building_id);
+	for (AttackPlan *p : {&petra_attack_plan_, &petra_next_plan_.plan}) {
+		if (p->target_player != player) continue;
+		p->target_player = 0xFF;
+		if (auto it = building_id_to_idx_.find(p->target_building_id);
 		    it != building_id_to_idx_.end() && buildings_[it->second].team == player)
-			petra_attack_plan_.target_building_id = 0;
+			p->target_building_id = 0;
 	}
 	for (AttackPlan &plan : petra_started_attacks_)
 		if (plan.target_player == player && plan.state != AttackPlan::REGROUP && plan.state != AttackPlan::UNEXECUTED) {
@@ -36335,6 +36396,7 @@ void Simulation::petra_reset_ai_state() {
 	petra_threat_map_.update_timer = 0.0f;
 	petra_strike_force_ = PetraStrikeForce();
 	petra_attack_plan_ = AttackPlan();
+	petra_next_plan_ = PetraNextPlan{};
 	petra_started_attacks_.clear();
 	petra_raid_plan_ = AttackPlan();
 	petra_raid_plan_.type = AttackPlan::PLAN_RAID;
@@ -36367,6 +36429,19 @@ void Simulation::petra_reset_ai_state() {
 	petra_diplo_ = PetraDiplomacy{};
 	petra_sent_diplo_ = PetraSentDiplomacy{};
 	ai_wonder_victory_timer_ = 0.0f;
+}
+
+void Simulation::petra_swap_next_plan() {
+	auto &m = petra_attack_mgr_;
+	auto &n = petra_next_plan_.muster;
+	std::swap(petra_attack_plan_, petra_next_plan_.plan);
+	std::swap(m.kind, n.kind);
+	std::swap(m.attack_name, n.attack_name);
+	std::swap(m.attack_siege, n.attack_siege);
+	std::swap(m.dropped_classes, n.dropped_classes);
+	std::swap(m.cost_lowered, n.cost_lowered);
+	std::swap(m.target_size, n.target_size);
+	std::swap(m.min_size, n.min_size);
 }
 
 void Simulation::petra_swap_slot(uint8_t pid) {
@@ -38068,6 +38143,9 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		}
 		if constexpr (std::is_same_v<T, S::AttackPlan>) {
 			io_plan(v);
+		} else if constexpr (std::is_same_v<T, S::PetraNextPlan>) {
+			if (ar.version >= S::SAVE_VERSION_PETRA_NEXT_PLAN) { io_plan(v.plan); ar.pod(v.muster); }
+			else v = S::PetraNextPlan{};
 		} else if constexpr (std::is_same_v<T, std::vector<S::AttackPlan>>) {
 			if (ar.version >= SAVE_VERSION_PETRA_STARTED_ATTACKS) io_vec(ar, v, 64, io_plan);
 			else v.clear();
@@ -39747,6 +39825,10 @@ void Simulation::fauna_hit_unit(size_t f, size_t u) {
 	if (invulnerable(units_.id[u]) || is_relic_unit((int32_t)u)) return; // a relic has no Health
 	units_.hp[u] -= dmg;
 	note_attacked(fauna_.id[f], GAIA_PLAYER, units_.id[u], units_.team[u], false, dmg, true);
+	// The Attacked event for the victim's Petra (defenseManager.js checkEvents): stamped as the
+	// next tick's, since this tick's AI turns have already read their events.
+	if (units_.team[u] < MAX_PLAYERS && petra_runs_for(units_.team[u]))
+		petra_ev_attacked_.push_back({(uint32_t)ticks_ + 1, units_.id[u], fauna_.id[f]});
 	if (units_.hp[u] <= 0.0f) {
 		units_.alive[u] = 0;
 		units_.action_state[u] = ACTION_DYING;
