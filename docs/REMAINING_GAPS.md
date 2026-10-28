@@ -116,7 +116,7 @@ Checked and matching: animal stances and target search (GetQueryRange, nearest f
 | FA8 | Petra re-tasked hunters in enemy territory mid-fight. worker.js checks only in UnitAI's GATHER state; the kill and its chase are COMBAT | low | Fixed |
 | FA9 | Petra skipped player livestock walking to its rally point when hunting; getHuntableSupplies has no order filter | nit | Fixed |
 | FA10 | Petra turns an idle citizen cavalryman into a scout circling the map when the hunt runs out (petra_manage_scouting); 0.28 Petra has no scout, and an idle hunter waits and looks again every 20 s | medium | Open (routed) |
-| FA11 | Petra counts an animal going for its unit as dangerous before it bites (any target, ships included). 0.28's checkEnemyUnits needs isDangerous (near its structures or a target list), else waits for the Attacked event, which skips ships | low-medium | Open (routed) |
+| FA11 | Petra counts an animal going for its unit as dangerous before it bites (any target, ships included). 0.28's checkEnemyUnits needs isDangerous (near its structures or a target list), else waits for the Attacked event, which skips ships. RTS0 also never told Petra of animal bites; a bite is now an Attacked event for the victim's AI | low-medium | Fixed (Formations, `test_defense_animal_waits_for_bite`) |
 | FA12 | Idle Petra ships try for a treasure, and move apart from docks, every turn. 0.28's moveApart does it once a ship has stood still for two checks, and not again until it moves | low | Open (routed) |
 | FA13 | Petra recomputes popForDock's small-land test every naval turn; 0.28 sets it once in configFirstBase | nit | Open (routed) |
 
