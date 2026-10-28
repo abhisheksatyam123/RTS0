@@ -3444,6 +3444,60 @@ static void test_army_answers_attackers() {
 	CHECK(helpers == 1, "its nearest squad mate turns on the attacker too (filterNearest counts the unit hit)");
 }
 
+// attackPlan.js:1531-1534, 1669-1678: siege marching on a structure target attack-moves with
+// targetClassesSiege attack ["Structure"], so it walks past enemy soldiers (UnitAI
+// FindWalkAndFightTargets skips what doesn't match). A plain attack-move still fights them.
+static void test_siege_attack_moves_at_structures() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	const float hx = -tx * 0.3f, hz = -tz * 0.3f; // the enemy's side of the map
+	const uint32_t house = s->spawn_building_world(hx, hz, BLD_HOUSE, 0, 1.0f);
+	for (size_t j = 0; j < s->units_.count; ++j)
+		if (s->units_.alive[j] && s->units_.team[j] == 0) { s->units_.alive[j] = 0; s->units_.action_state[j] = ACTION_DYING; }
+	run_for(*s, 0.5f);
+	// 30 m short of the house, well past the siege's 16.8 m structure reach, with a passive enemy
+	// spearman beside it in sight.
+	const float dx = tx - hx, dz = tz - hz, len = std::sqrt(dx * dx + dz * dz);
+	const float sx = hx + dx / len * 30.0f, sz = hz + dz / len * 30.0f;
+	const uint32_t siege = s->spawn_unit(sx, sz, 1, UNIT_SWORDSMAN, 1.0e6f);
+	const uint32_t foe = s->spawn_unit(sx + 2.0f, sz + 2.0f, 0, UNIT_SPEARMAN, 1.0e6f);
+	s->order_set_stance(&foe, 1, STANCE_PASSIVE);
+	// The mechanism, on a soldier: a structures-only attack-move ignores the spearman.
+	s->order_attack_move(&siege, 1, hx, hz, false, false, true, 0, true);
+	run_for(*s, 1.5f);
+	int32_t i = s->lookup_unit(siege);
+	const bool kept = i >= 0 && s->attack_move_structures_only((size_t)i) && s->units_.target_unit_id[i] != foe;
+	s->order_attack_move(&siege, 1, hx, hz);
+	run_for(*s, 1.5f);
+	i = s->lookup_unit(siege);
+	const bool plain_fights = i >= 0 && !s->attack_move_structures_only((size_t)i) && s->units_.target_unit_id[i] == foe;
+	s->order_stop(&siege, 1);
+	// Petra's siege: a ram in an attacking plan at the house.
+	const uint32_t ram = s->spawn_unit(sx - 2.0f, sz - 2.0f, 1, UNIT_SIEGE_RAM, 1.0e6f);
+	auto &plan = s->petra_attack_plan_;
+	plan.squad = {ram};
+	plan.initial_squad_size = 1;
+	plan.target_building_id = house;
+	plan.target_x = hx; plan.target_z = hz;
+	plan.state = Simulation::AttackPlan::ATTACKED;
+	plan.state_timer = 0.0f;
+	run_for(*s, 3.0f);
+	const int32_t r = s->lookup_unit(ram);
+	const bool ram_only = r >= 0 && s->units_.order_kind[r] == ORDER_WALK_AND_FIGHT && s->attack_move_structures_only((size_t)r);
+	std::printf("  attack-move at structures only: walks past a soldier %s, a plain one fights %s, Petra's ram %s (order %d)\n",
+	            kept ? "yes" : "no", plain_fights ? "yes" : "no", ram_only ? "yes" : "no", r >= 0 ? (int)s->units_.order_kind[r] : -1);
+	CHECK(kept, "a structures-only attack-move walks past enemy soldiers");
+	CHECK(plain_fights, "a plain attack-move fights them, and drops the structures-only mark");
+	CHECK(ram_only, "Petra's siege attack-moves at a structure target with structures only");
+}
+
 // attackPlan.js update: an attack's units pick their targets among the targetPlayer's
 // units and structures (getEnemyUnits/getEnemyStructures(targetPlayer)), so an army sent at
 // one enemy doesn't drift onto a third party standing nearer.
@@ -10012,6 +10066,7 @@ int main(int argc, char **argv) {
 	RUN(test_nomad_first_base);
 	RUN(test_entity_limit_placement);
 	RUN(test_army_answers_attackers);
+	RUN(test_siege_attack_moves_at_structures);
 	RUN(test_attack_targets_target_player);
 	RUN(test_siege_prefers_any_gate);
 	RUN(test_raid_sizes_vary);
