@@ -447,6 +447,10 @@ struct PetraKept {
 	// createBase hands the next civic centre on its land that base, through a reset that zeroes
 	// its neededDefenders. The lost anchors' positions, until a new one takes the base (saved v127).
 	std::vector<std::pair<float, float>> lost_bases;
+	// startingStrategy.js configFirstBase: a starting land under 25000 m² docks at 16 population
+	// (popForDock), decided once: 0 not yet (saves before v133: decided at the next naval turn),
+	// 1 no, 2 yes.
+	uint8_t dock_at_16 = 0;
 	static uint8_t at(const std::vector<uint8_t> &v, size_t s) { return s < v.size() ? v[s] : 0; }
 	static void raise(std::vector<uint8_t> &v, size_t s, int n) {
 		if (s >= v.size()) v.resize(s + 1, 0);

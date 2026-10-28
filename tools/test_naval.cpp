@@ -1962,10 +1962,39 @@ static void test_petra_ship_treasure() {
 	const uint32_t wreck = s.spawn_treasure(-10.0f, 0.0f, TREASURE_SHIPWRECK);
 	s.spawn_treasure(10.0f, 19.0f, TREASURE_SHIPWRECK_DEBRIS); // nearer, but on land
 	s.petra_pid_ = 1;
-	s.petra_manage_naval(2.0f); // one naval update (every 2 s)
+	s.petra_manage_naval(2.0f); // a naval update (every 2 s): it notes where the idle ship stands
+	const bool first = s.unit_order(tri).kind == ORDER_COLLECT_TREASURE;
+	s.petra_manage_naval(2.0f); // still standing there: its turn
 	const auto o = s.unit_order(tri);
-	std::printf("Petra ship treasure: order %d target %u (wreck %u)\n", (int)o.kind, o.target, wreck);
+	std::printf("Petra ship treasure: order %d target %u (wreck %u), on the first look %s\n", (int)o.kind, o.target, wreck,
+	            first ? "yes" : "no");
+	CHECK(!first);
 	CHECK(o.kind == ORDER_COLLECT_TREASURE && o.target == wreck);
+}
+
+// navalManager.js moveApart (FA12): an idle ship has its turn once where it stopped (stationnary);
+// a treasure washed up afterwards waits for its next stop.
+static void test_petra_idle_ship_once() {
+	static Simulation s;
+	fresh(s);
+	s.set_player_active(1, true, true);
+	s.spawn_building_world(-40.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	const uint32_t tri = s.spawn_unit(0.0f, 10.0f, 1, UNIT_TRIREME);
+	s.petra_pid_ = 1;
+	s.petra_manage_naval(2.0f);
+	s.petra_manage_naval(2.0f); // its turn here, with nothing to do
+	const uint32_t wreck = s.spawn_treasure(-10.0f, 0.0f, TREASURE_SHIPWRECK);
+	s.petra_manage_naval(2.0f);
+	s.petra_manage_naval(2.0f);
+	const bool waited = s.unit_order(tri).kind != ORDER_COLLECT_TREASURE;
+	// Moved on, it stops somewhere else and has its turn there (Petra's own turns now).
+	const float wood0 = s.player(1).wood();
+	s.order_walk(&tri, 1, 4.0f, 6.0f, false);
+	run(s, 40.0f);
+	std::printf("Petra idle ship: waits where it had its turn %s, takes the treasure after its next stop %s (wreck %u)\n",
+	            waited ? "yes" : "no", s.player(1).wood() > wood0 ? "yes" : "no", wreck);
+	CHECK(waited);
+	CHECK(s.player(1).wood() > wood0);
 }
 
 // Ships drop off at any Naval dropsite (ResourceGatherer.js): the Briton crannog, a civic
@@ -3041,6 +3070,7 @@ int main() {
 	test_ship_treasure();
 	test_ship_round_wreck();
 	test_petra_ship_treasure();
+	test_petra_idle_ship_once();
 	test_crannog_takes_fish();
 	test_ship_leaves_dock_site();
 	test_next_fish_range();

@@ -168,3 +168,14 @@ L12. Repairs and building: the military colony isn't treated as a base anchor.
 - Captured CC: becomes a new base with defenders (sim:19241-19275). A captured unit is just another own unit (0.28 resets its metadata, headquarters.js:177-195).
 - victoryManager cadence (every 10 turns). Relic capture thresholds: -regen, enough at 1/50 of points, expedition up to 1/25, new one needs 1/100 (sim:30722-30784 vs :675-706).
   Own-territory relic ends the new-relic search. Vision rule outside enemy territory. Relics count as critical, with guards 4+5*defensive.
+
+## Pass 2 (2026-10-28): victoryManager.js, tracked as G100
+
+- **V1 (fixed).** attackPlan.js:744 assignUnits skips Support (and units with no attack), so a healer never joins a plan; RTS0's squad loop took healers, so the regicide hero's healers marched off with the army. Medium.
+- **V2 (fixed).** victoryManager.js:108-146 answers every Attacked event on a hurt hero; RTS0 needed an enemy player, so Gaia towers, Gaia attackers and wild animals didn't make it retreat. Medium.
+- **V3 (fixed).** victoryManager.js:559-560: a guard returns its load first, the guard order queued; `petra_guards_critical_ent` counts the queued guard order.
+- **V4 (fixed).** victoryManager.js:379-381: a citizen-soldier guard sent back to work under 20 workers gets plan -1 (`petra_out_of_plan`).
+- **V5 (fixed).** attackPlan.js:2082-2111 Abort withdraws to the nearest base anchor; a called-off relic expedition now counts military colonies too.
+- Open (low): guards of a lost critical entity (removeCriticalEnt, :328-330) aren't marked out of plan, as RTS0 sees no event when the guard order ends; captured relics are walked home on the 10-turn update (0.28: once, at capture); an expedition's rally point isn't kept (save); healers are handed out on the 10-turn update rather than when trained.
+- Kept: after the hero garrisons, RTS0 frees its guards and picks new ones on the next update; 0.28 leaves them walking to the building, counted, for good.
+

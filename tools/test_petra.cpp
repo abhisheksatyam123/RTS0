@@ -3277,6 +3277,79 @@ static void test_regicide_hero_tower_fire() {
 	CHECK(hit && reacted, "a hurt hero under tower fire retreats to heal");
 }
 
+// victoryManager.js checkEvents answers any Attacked event on the hero, Gaia's too: a hurt hero
+// under a Gaia tower's arrows retreats. And attackPlan.js assignUnits skips Support, so a healer
+// (the hero's, or any) never joins a mustering plan.
+static void test_regicide_hero_gaia_fire_and_healers() {
+	{
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(42);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		s->set_victory_condition(VICTORY_REGICIDE);
+		s->set_regicide_garrison(true);
+		run_for(*s, 1.0f);
+		auto &u = s->units_;
+		const uint32_t hero = s->regicide_hero(1);
+		CHECK(hero != 0, "regicide gives AI 1 a hero");
+		if (!hero) return;
+		float tx = 0.0f, tz = 0.0f;
+		for (const auto &b : s->buildings())
+			if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+		const float hx = tx * 0.6f, hz = tz * 0.6f;
+		int32_t h = s->lookup_unit(hero);
+		u.pos_x[h] = hx; u.pos_z[h] = hz;
+		const uint32_t stance_hero = hero;
+		s->order_set_stance(&stance_hero, 1, STANCE_STAND_GROUND);
+		s->spawn_building_world(hx + 5.0f, hz + 5.0f, BLD_SENTRY_TOWER, GAIA_PLAYER, 1.0f);
+		bool hit = false, reacted = false;
+		for (float t = 0.0f; t < 12.0f && !reacted; t += Simulation::FIXED_STEP) {
+			h = s->lookup_unit(hero);
+			if (h < 0 || !u.alive[h]) break;
+			if (u.action_state[h] != ACTION_GARRISONED) u.hp[h] = u.max_hp[h] * 0.6f;
+			s->tick(Simulation::FIXED_STEP);
+			h = s->lookup_unit(hero);
+			if (h < 0) break;
+			hit |= u.attacked_by[h] != 0;
+			reacted = u.order_kind[h] == ORDER_GARRISON || u.action_state[h] == ACTION_GARRISONED || u.stance[h] == STANCE_PASSIVE;
+		}
+		std::printf("  regicide hero under Gaia tower fire: hit %s, retreats %s\n", hit ? "yes" : "no", reacted ? "yes" : "no");
+		CHECK(hit && reacted, "a hurt hero under Gaia fire retreats to heal");
+	}
+	{
+		// A healer and a spearman out of any plan while an Attack musters.
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(42);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		s->set_victory_condition(VICTORY_ENDLESS);
+		run_for(*s, 1.0f);
+		float tx = 0.0f, tz = 0.0f;
+		for (const auto &b : s->buildings())
+			if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+		s->spawn_building_world(tx - 12.0f, tz - 12.0f, BLD_BARRACKS, 1, 1.0f);
+		const uint32_t healer = s->spawn_unit(tx + 6.0f, tz + 6.0f, 1, UNIT_HEALER);
+		const uint32_t spear = s->spawn_unit(tx + 7.0f, tz + 6.0f, 1, UNIT_SPEARMAN);
+		s->petra_pid_ = 1;
+		s->petra_out_of_plan(spear);
+		s->petra_out_of_plan(healer);
+		auto in_plan = [&](uint32_t id) {
+			for (const auto *sq : {&s->petra_attack_plan_.squad, &s->petra_next_plan_.plan.squad})
+				if (std::find(sq->begin(), sq->end(), id) != sq->end()) return true;
+			return false;
+		};
+		bool healer_in = false, spear_in = false;
+		for (int k = 0; k < 30 && !spear_in; ++k) {
+			run_ai_turns(*s, 1);
+			healer_in |= in_plan(healer);
+			spear_in |= in_plan(spear);
+		}
+		std::printf("  attack plans: spearman joins %s, healer joins %s\n", spear_in ? "yes" : "no", healer_in ? "yes" : "no");
+		CHECK(spear_in, "a free soldier joins the plan preparing");
+		CHECK(!healer_in, "a healer never joins an attack plan (Support)");
+	}
+}
+
 // With RegicideGarrison off the hero can't garrison: victoryManager.js
 // pickCriticalEntRetreatLocation sends it home on foot instead (no garrison
 // order that is refused and retried every turn).
@@ -10229,6 +10302,7 @@ int main(int argc, char **argv) {
 	RUN(test_regicide_hero);
 	RUN(test_regicide_hero_no_garrison);
 	RUN(test_regicide_hero_tower_fire);
+	RUN(test_regicide_hero_gaia_fire_and_healers);
 	RUN(test_nomad_first_base);
 	RUN(test_entity_limit_placement);
 	RUN(test_army_answers_attackers);
