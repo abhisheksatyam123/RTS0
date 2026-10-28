@@ -391,10 +391,13 @@ int main(int argc, char **argv) {
 		const int sec = t / 5;
 		Simulation &s = *a;
 		if (save_at >= 0.0 && !c && sec >= (int)(save_at * 60.0)) {
-			const std::string path = "/tmp/soak_" + std::to_string(seed) + "_" + std::to_string(map) + ".sav";
+			// Per map: a sweep runs skirmish (--json) matches side by side, so the map id alone would collide.
+			const std::string path = "/tmp/soak_" + std::to_string(seed) + "_" + (json.empty() ? std::to_string(map) : json) + ".sav";
 			c = std::make_unique<Simulation>();
 			const bool saved = s.save_state(path.c_str());
-			if (!saved || !c->load_state(path.c_str())) {
+			const bool loaded = saved && c->load_state(path.c_str());
+			std::remove(path.c_str()); // a 1-2 MB file per match otherwise piles up over sweeps
+			if (!loaded) {
 				size_t alive = 0, garrisoned = 0, dying = 0, gaia = 0;
 				for (size_t i = 0; i < s.units_.count; ++i) {
 					alive += s.units_.alive[i];
