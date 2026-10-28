@@ -178,6 +178,22 @@ static void test_roster_army() {
 		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
 		s->set_team_civ(1, (uint8_t)civ);
 		s->set_victory_condition(VICTORY_ENDLESS); // keep playing once the idle player is beaten
+		// This small map has one metal mine a player, and the idle player's lies under its
+		// fortresses: Petra's own runs dry around minute 20, before its city army has trained
+		// its champions and siege, and the match then hangs on whether the first siege engines
+		// lived (which shifts with any change to the early game). A richer mine keeps metal coming.
+		{
+			float px = 0.0f, pz = 0.0f, best = 1.0e9f;
+			for (const auto &b : s->buildings())
+				if (b.team == 1 && b.type == BLD_TOWN_CENTER) { px = b.x; pz = b.z; }
+			size_t mine = SIZE_MAX;
+			for (size_t r = 0; r < s->resources_.count; ++r) {
+				if (!s->resources_.alive[r] || s->resources_.type[r] != RES_GOLD) continue;
+				const float d = std::hypot(s->resources_.x[r] - px, s->resources_.z[r] - pz);
+				if (d < best) { best = d; mine = r; }
+			}
+			if (mine != SIZE_MAX) s->resources_.amount[mine] *= 3;
+		}
 		// Garrisoned fortresses (ten more arrows each, BuildingAI) outlast the infantry's first
 		// waves, so the siege (trained some ten minutes into the city phase at 0 A.D.'s gather
 		// rates) still has something to fire at. They stand on dry land: no land unit wades out
