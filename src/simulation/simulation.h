@@ -3173,6 +3173,7 @@ private:
 	float unit_damage_to_fauna(size_t i, size_t f) const;
 	void fire_at_fauna(size_t i, size_t f);
 	void fauna_killed(size_t f, size_t i);
+	void collect_fauna_loot(size_t f, uint32_t killer_id, uint8_t killer_player);
 	// The dead animal f's ResourceSupply: food.meat, or food.fish for a whale (fishing ships
 	// gather it, and it does not regrow like a shoal). 0 if it carries no food.
 	uint32_t spawn_carcass(size_t f);
