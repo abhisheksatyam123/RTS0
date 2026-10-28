@@ -24,3 +24,5 @@ None of these touches simulation state or the save format.
 - Carried over: `openTerms`, LR4, U14.
 
 ## Fix log
+
+- 2026-10-28 #1710 pass 21 gap 1 (a running lobby game short of a player is listed as waiting, and Observe is ticked for it, as the 0.28 lobby bot and JoinButton) merged.
