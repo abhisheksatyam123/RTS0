@@ -916,7 +916,7 @@ int Simulation::pop_max(uint8_t player) const {
 	return limit > 0 ? std::min(cap, limit) : cap;
 }
 
-int Simulation::pop_cap(uint8_t player) const {
+int Simulation::pop_cap(uint8_t player, bool count_defeated) const {
 	// A scenario's own PopulationLimit for this player (SetPerPlayerPopulationCaps) wins.
 	if (player_pop_cap(player) > 0) return player_pop_cap(player);
 	if (pop_cap_ >= 0) return pop_cap_;
@@ -929,7 +929,7 @@ int Simulation::pop_cap(uint8_t player) const {
 	for (const PlayerState &ps : players_) any_active |= ps.active != 0;
 	int live = 0;
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p)
-		if ((any_active ? players_[p].active != 0 : p < 2) && !is_defeated(p) &&
+		if ((any_active ? players_[p].active != 0 : p < 2) && (count_defeated || !is_defeated(p)) &&
 		    (team_cap == 0 || (player < MAX_PLAYERS && players_[p].team == team)))
 			++live;
 	if (team_cap > 0) return std::max(1, (int)std::lround((double)team_cap / std::max(1, live)));
@@ -30052,9 +30052,11 @@ float Simulation::petra_plan_pop_scaling() const {
 
 // config.js setConfig reads gameState.getPopulationMax() once, at the AI's first turn: the
 // player's population cap with its civ bonus (han/maur/pers_population, a starting
-// technology), before any Wonder or relic. `unlimited` stands in for no cap.
+// technology), before any Wonder or relic. `unlimited` stands in for no cap. World and
+// Team Population keep their split among every seated player: PopulationCapManager.js
+// re-splits on a defeat, but Petra's Config never reads the cap again.
 int Simulation::petra_config_max_pop(int unlimited) const {
-	const int cap = pop_cap(petra_pid_);
+	const int cap = pop_cap(petra_pid_, true);
 	if (cap <= 0) return unlimited;
 	return std::max(1, (int)std::lround((float)cap * civ_bonus_mult(civ_of(petra_pid_), CIV_BONUS_POP_CAP)));
 }
@@ -30623,12 +30625,7 @@ void Simulation::petra_attack_home(float &x, float &z) const {
 }
 
 void Simulation::petra_manage_tactical_attacks(float dt) {
-	// headquarters.js update runs the attackManager only with an active base (a built civic
-	// centre) or when the AI can't build units at all.
-	bool active_base = false;
-	for (const auto &b : buildings_)
-		active_base |= b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked && b.build_progress >= 1.0f && is_civic_centre(b.type);
-	if (!active_base && petra_can_build_units()) return;
+	// The caller runs this only inside headquarters.js's attackManager gate.
 	petra_strike_force_.state_timer += dt;
 
 	float base_x, base_z;
@@ -36404,13 +36401,18 @@ void Simulation::tick_petra_ai_player(float dt) {
 	petra_manage_research(dt);
 
 	// 11. Coordinated Tactical Battlegroup Attacks (attackPlan.js) + concurrent raid
+	// headquarters.js:2335 runs attackManager.update (its attacks, raids and bombers) only above
+	// Sandbox and with an active base (any base anchor, a military colony too), or when the AI
+	// can't build units at all.
 	petra_retake_civic_centres();
-	petra_manage_tactical_attacks(dt);
-	if (petra_turn_mod(5)) petra_assign_bombers(); // attackManager.js:439
+	const bool attack_manager = petra_config_.difficulty > PETRA_SANDBOX &&
+			(petra_has_active_base() || !petra_can_build_units());
+	if (attack_manager) petra_manage_tactical_attacks(dt);
+	if (attack_manager && petra_turn_mod(5)) petra_assign_bombers(); // attackManager.js:439
 	petra_move_dropsites_to_gatherers();
 	if (petra_attack_mgr_.gaia_relic_lapse && (int)(petra_timer_ / 2.0f) != (int)((petra_timer_ - dt) / 2.0f))
 		--petra_attack_mgr_.gaia_relic_lapse;
-	petra_manage_raid(dt);
+	if (attack_manager) petra_manage_raid(dt);
 
 	// 11b. Naval transportPlan.js land-sea-land
 	petra_manage_transport(dt);
