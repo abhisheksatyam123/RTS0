@@ -1175,6 +1175,16 @@ public:
 	bool dropsite_usable_by(uint8_t player, const Building &b) const;
 	// The same test for unit `e` when it is a mobile dropsite (worker elephant, supply wagon).
 	bool mobile_dropsite_usable_by(uint8_t player, size_t e) const;
+	// UnitAI FindNearestDropsite skips a dropsite that fails CheckTargetVisible: an ally's
+	// structure counts once seen (its mirage), its supply wagon only while in sight.
+	bool dropsite_seen_by(uint8_t player, const Building &b) const {
+		return b.team == player || player >= MAX_PLAYERS || reveal_map_ || los_.cells() == 0 ||
+		       ((b.seen_mask >> player) & 1) || los_visible(player, b.x, b.z);
+	}
+	bool mobile_dropsite_seen_by(uint8_t player, size_t e) const {
+		return units_.team[e] == player || player >= MAX_PLAYERS || reveal_map_ || los_.cells() == 0 ||
+		       los_visible(player, units_.pos_x[e], units_.pos_z[e]);
+	}
 	bool unit_dropsite_shared(uint32_t unit_id) const; // ResourceDropsite IsShared on a unit
 	// 0 A.D. "set-dropsite-sharing" (ResourceDropsite.SetSharing) on one of `player`'s dropsites;
 	// only an owner with Diaspora sees the toggle. False if nothing changed.
@@ -3835,7 +3845,6 @@ private:
 	bool petra_raid_target_ok(uint32_t bld_id) const;
 	bool petra_allow_capture(const std::vector<uint32_t> &squad, uint32_t uid, const Building &b) const;
 	void petra_update_capture_strength();
-	void petra_check_captures(const std::vector<uint32_t> &squad, float tx, float tz);
 	void petra_answer_attackers(const std::vector<uint32_t> &squad, float tx, float tz, uint8_t avoid = 0);
 	uint8_t petra_attack_avoid(const AttackPlan &plan, bool siege) const;
 	// attackPlan.js checkTargetObstruction: the enemy structure (a wall, palisade or gate) that
@@ -4248,6 +4257,7 @@ private:
 	bool petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype = BLD_TYPE_COUNT, int clearance = -1) const; // btype: also 0 A.D.'s placement rules; clearance -1: petra_clearance
 	bool petra_spot_free_but_distance(int cell_x, int cell_y, int footprint, uint8_t btype, int clearance = -1) const;
 	bool petra_ring_clear(int cell_x, int cell_y, int footprint, uint8_t clearance = 1) const;
+	bool petra_ring_land(int cell_x, int cell_y, int footprint, uint8_t btype, uint8_t clearance) const;
 	static uint8_t petra_clearance(uint8_t btype); // findGoodPosition's 0, 4 or 8 m gap, as 0, 1, 2
 	bool petra_limit_allows_building(uint8_t btype) const;
 	mutable uint64_t petra_limit_cache_key_ = 0; // derived per tick, never saved
@@ -4684,6 +4694,8 @@ private:
 	UnitOrder current_order(size_t i) const;
 	void set_order(size_t i, uint8_t kind, uint8_t flags, uint32_t target, float x, float z);
 	void begin_walk_order(size_t i); // cmd_move's walk: not forced, replaces the queue
+	// UnitMotion StopMoving on a new order: the unit's long path is dropped (the new walk plans its own).
+	void drop_walk_path(size_t i);
 	void drop_orders(size_t i);
 	void replace_orders(size_t i); // drop_orders, but a queued order applied keeps the rest of the queue      // orders UnitAI doesn't model (trade, hunt, board): no order, no queue
 	// Splits a Shift order: busy units get it queued, the rest are returned to run now.

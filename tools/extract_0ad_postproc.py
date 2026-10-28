@@ -1,0 +1,202 @@
+#!/usr/bin/env python3
+"""Generate RTS0's post-processing settings from 0 A.D. 0.28's random map biomes and scripts.
+
+0 A.D. keeps a map's post-processing in its Environment's Postproc block (LightEnv
+m_Brightness, m_Contrast, m_Saturation, m_Bloom and the PostEffect CPostprocManager
+loads): "default" draws the picture as rendered, "hdr" runs shaders/glsl/hdr.fs.
+  * rmgen/environment.js's g_Environment starts every random map at Brightness 0,
+    Contrast 1, Saturation 1, Bloom 0.2 and effect "default";
+  * setBiome copies the biome's Environment.Postproc (rmbiome/generic/*.json);
+  * the script's own setPPEffect(s), setPPBrightness(s), setPPContrast(s) (s + 0.5),
+    setPPSaturation(s) (s * 2) and setPPBloom(s) ((1 - s) * 0.2) override it.
+This writes one row per biome and one per script that calls setBiome with a literal
+or sets any of those, with the values the script ends on. A ternary argument takes
+its else branch (alpine_lakes' isLateSpringBiome picks a biome RTS0 does not have).
+
+Usage:
+  python3 -I tools/extract_0ad_postproc.py --maps PATH [--check]
+
+PATH is 0 A.D.'s maps/random directory (rmbiome/ and rmgen/ beside the scripts).
+Writes src/presentation/postproc_data.h. --check fails if the checked-in file differs.
+"""
+
+import argparse
+import glob
+import json
+import os
+import re
+import sys
+
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+OUT_HEADER = os.path.join(REPO, "src", "presentation", "postproc_data.h")
+# 0 A.D. script names whose RTS0 map id differs (as extract_0ad_map_types.py).
+RTS0_MAP_IDS = {"archipelago": "archipelago_0ad", "mediterranean": "mediterranean_0ad",
+                "oasis": "oasis_0ad", "neareastern_badlands": "nearestern_badlands"}
+DEFAULT = {"effect": "default", "brightness": 0.0, "contrast": 1.0, "saturation": 1.0, "bloom": 0.2}
+SETTERS = {
+    "setPPBrightness": ("brightness", lambda s: s),
+    "setPPContrast": ("contrast", lambda s: s + 0.5),
+    "setPPSaturation": ("saturation", lambda s: s * 2),
+    "setPPBloom": ("bloom", lambda s: (1 - s) * 0.2),
+}
+
+
+def biome_pp(path):
+    pp = json.load(open(path)).get("Environment", {}).get("Postproc")
+    if pp is None:
+        return None
+    out = dict(DEFAULT)
+    for key, name in (("PostprocEffect", "effect"), ("Brightness", "brightness"), ("Contrast", "contrast"),
+                      ("Saturation", "saturation"), ("Bloom", "bloom")):
+        if key in pp:
+            out[name] = pp[key] if name == "effect" else float(pp[key])
+    return out
+
+
+def number(arg):
+    m = re.fullmatch(r".*\?\s*(.+?)\s*:\s*(.+)", arg)
+    if m:
+        arg = m.group(2)
+    try:
+        return float(arg)
+    except ValueError:
+        return None
+
+
+def script_pp(text, biomes, name):
+    """(base, values): base is a biome name, "" (g_Environment) or "*" (Game Setup's biome)."""
+    text = re.sub(r"//[^\n]*", "", text)
+    base = ""
+    m = None
+    for m in re.finditer(r"\bsetBiome\(\s*([^)]*?)\s*\)", text):
+        pass
+    if m:
+        lit = re.fullmatch(r"[\"']([^\"']+)[\"']", m.group(1))
+        base = lit.group(1) if lit else "*"
+    values = {}
+    for m in re.finditer(r"\bsetPPEffect\(\s*[\"']([^\"']+)[\"']\s*\)", text):
+        values["effect"] = m.group(1)
+    for fn, (key, conv) in SETTERS.items():
+        for m in re.finditer(r"\b%s\(\s*([^;]*?)\s*\);" % fn, text):
+            v = number(m.group(1))
+            if v is None:
+                print(f"{name}: {fn}({m.group(1)}) not understood, left out", file=sys.stderr)
+                continue
+            values[key] = conv(v)
+    if base and base != "*":
+        if base not in biomes:
+            print(f"{name}: biome {base} not found, using g_Environment", file=sys.stderr)
+            base = ""
+        else:
+            values = {**biomes[base], **values}
+            base = "="
+    if base == "":
+        if not values:
+            return None
+        values = {**DEFAULT, **values}
+        base = "="
+    if base == "*" and not values:
+        return None
+    return base, values
+
+
+def extract(maps):
+    biomes = {}
+    for path in sorted(glob.glob(os.path.join(maps, "rmbiome", "*", "*.json"))):
+        rel = os.path.relpath(path, os.path.join(maps, "rmbiome"))[:-5]
+        pp = biome_pp(path)
+        if pp:
+            biomes[rel] = pp
+    rows = {}
+    for path in sorted(glob.glob(os.path.join(maps, "*.js"))):
+        name = os.path.basename(path)[:-3]
+        if name.endswith("_triggers"):
+            continue
+        r = script_pp(open(path, encoding="utf-8").read(), biomes, name)
+        if r:
+            rows[RTS0_MAP_IDS.get(name, name)] = r
+    return biomes, rows
+
+
+def f(v):
+    return "kPostprocUnset" if v is None else ("%.6gf" % v if "." in "%.6g" % v or "e" in "%.6g" % v else "%.6g.0f" % v)
+
+
+def c_str(s):
+    return '"%s"' % s if s is not None else "nullptr"
+
+
+def header(biomes, rows):
+    out = ["// Generated by tools/extract_0ad_postproc.py from 0 A.D. 0.28's random map biomes and scripts; do not edit.",
+           "// 0 A.D. data is CC BY-SA 3.0 / GPL-2.0-or-later (see docs/0AD_ATTRIBUTION.md).",
+           "#pragma once",
+           "",
+           "#include <cstring>",
+           "",
+           "namespace rtso {",
+           "",
+           "inline constexpr float kPostprocUnset = -1000.0f;",
+           "",
+           "// LightEnv's post-processing: the PostEffect (\"default\": none, \"hdr\": hdr.fs) and its uniforms.",
+           "// In a map row, nullptr or kPostprocUnset keeps Game Setup's biome's value.",
+           "struct Postproc {",
+           "\tconst char *effect;",
+           "\tfloat brightness, contrast, saturation, bloom;",
+           "};",
+           "",
+           "struct PostprocRow {",
+           "\tconst char *name; // the 0 A.D. biome (rmbiome/<name>.json) or RTS0 map id",
+           "\tPostproc pp;",
+           "};",
+           "",
+           "inline constexpr PostprocRow kBiomePostproc[] = {"]
+    for name, v in biomes.items():
+        out.append("\t{\"%s\", {%s, %s, %s, %s, %s}}," % (name, c_str(v["effect"]), f(v["brightness"]), f(v["contrast"]),
+                                                          f(v["saturation"]), f(v["bloom"])))
+    out += ["};", "",
+            "// Random map scripts: the values each ends on (a literal setBiome's, then its own setPP* calls).",
+            "inline constexpr PostprocRow kMapPostproc[] = {"]
+    for name in sorted(rows):
+        base, v = rows[name]
+        out.append("\t{\"%s\", {%s, %s, %s, %s, %s}}," % (name, c_str(v.get("effect")), f(v.get("brightness")),
+                                                          f(v.get("contrast")), f(v.get("saturation")), f(v.get("bloom"))))
+    out += ["};",
+            "",
+            "inline const Postproc *find_postproc(const PostprocRow *rows, int n, const char *name) {",
+            "\tfor (int i = 0; i < n; ++i)",
+            "\t\tif (!std::strcmp(rows[i].name, name)) return &rows[i].pp;",
+            "\treturn nullptr;",
+            "}",
+            "inline const Postproc *biome_postproc(const char *biome) {",
+            "\treturn find_postproc(kBiomePostproc, (int)(sizeof(kBiomePostproc) / sizeof(kBiomePostproc[0])), biome);",
+            "}",
+            "inline const Postproc *map_postproc(const char *map_id) {",
+            "\treturn find_postproc(kMapPostproc, (int)(sizeof(kMapPostproc) / sizeof(kMapPostproc[0])), map_id);",
+            "}",
+            "",
+            "} // namespace rtso",
+            ""]
+    return "\n".join(out)
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--maps", required=True, help="0 A.D. maps/random directory")
+    ap.add_argument("--check", action="store_true", help="fail if the header would change")
+    args = ap.parse_args()
+    text = header(*extract(args.maps))
+    if args.check:
+        have = open(OUT_HEADER).read() if os.path.exists(OUT_HEADER) else ""
+        if have != text:
+            print(f"{OUT_HEADER} is out of date", file=sys.stderr)
+            return 1
+        print("postproc_data.h is up to date")
+        return 0
+    with open(OUT_HEADER, "w") as fh:
+        fh.write(text)
+    print(f"wrote {OUT_HEADER}", file=sys.stderr)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
