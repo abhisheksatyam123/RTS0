@@ -30329,12 +30329,12 @@ bool Simulation::petra_allow_capture(const std::vector<uint32_t> &squad, uint32_
 	const float health = b.max_hp > 0.0f ? std::clamp(b.hp / b.max_hp, 0.0f, 1.0f) : 1.0f;
 	capture /= 0.1f + 0.9f * health;
 	const float points = std::accumulate(b.capture_points_by_team.begin(), b.capture_points_by_team.end(), 0.0f);
-	const bool fires = building_ai_info(b.type).shoots() && !b.garrisoned_units.empty();
+	// hasDefensiveFire() && isGarrisonHolder() && garrisoned(): garrisoned() is the garrison
+	// array, which JS counts as true even when empty, so any shooting holder takes /50.
+	const bool fires = building_ai_info(b.type).shoots() && b.garrison_cap > 0;
 	return capture > anti + points / (fires ? 50.0f : 80.0f);
 }
 
-// attackPlan.js update: a unit capturing a structure it can't take switches to
-// damaging it (ent.attack(target, false)), then carries on to the attack target.
 // attackPlan.js update, once the army has arrived: it answers Attacked events at
 // once (a soldier hit by a unit while it hacks at a structure turns on that
 // unit; siege keeps shelling), and a soldier left idle goes on to the target,
@@ -30401,10 +30401,11 @@ void Simulation::petra_attack_units(AttackPlan &plan) {
 			members.push_back(i);
 	}
 	// The n squad members nearest unit i that pass the filter.
+	// filterNearest over the plan's units that pass, the unit itself included (it is nearest).
 	auto nearest = [&](int32_t i, size_t n, auto &&pass) {
 		std::vector<std::pair<float, int32_t>> c;
 		for (int32_t j : members)
-			if (j != i && pass(j)) c.push_back({d2(i, j), j});
+			if (pass(j)) c.push_back({j == i ? -1.0f : d2(i, j), j});
 		std::sort(c.begin(), c.end());
 		if (c.size() > n) c.resize(n);
 		return c;
@@ -30432,15 +30433,19 @@ void Simulation::petra_attack_units(AttackPlan &plan) {
 		const int32_t a = by ? lookup_unit(by) : -1;
 		if (a < 0 || !units_.alive[a] || !is_hostile(petra_pid_, units_.team[a])) continue;
 		if (siege(i)) {
-			for (auto &c : nearest(i, 5, [&](int32_t j) { return !siege(j); })) hit(c.second, a);
+			// Units not of class Siege (war elephants are, by isSiegeUnit, and take a place).
+			for (auto &c : nearest(i, 5, [&](int32_t j) { return !(cls(j) & TC_SIEGE); }))
+				if (c.second != i && !siege(c.second)) hit(c.second, a);
 			if (siege(a) && (cls(a) & TC_MELEE) && (cls(i) & TC_MELEE)) hit(i, a);
 		} else if (blocked && !(cls(i) & TC_RANGED) && (cls(a) & TC_RANGED)) {
 			continue; // blocked by walls, melee units don't answer ranged ones (behind the wall)
 		} else if (siege(a)) {
 			for (auto &c : nearest(i, 5, [&](int32_t j) { return (cls(j) & TC_MELEE) != 0; })) hit(c.second, a);
 		} else {
-			for (auto &c : nearest(i, 2, [&](int32_t j) { return !siege(j); }))
-				if (units_.target_unit_id[c.second] != units_.id[a] && target_is_soft(c.second)) hit(c.second, a);
+			// The two nearest are the unit itself and one other (a siege one does not help).
+			for (auto &c : nearest(i, 2, [&](int32_t) { return true; }))
+				if (c.second != i && !siege(c.second) && units_.target_unit_id[c.second] != units_.id[a] && target_is_soft(c.second))
+					hit(c.second, a);
 			if (units_.target_unit_id[i] == units_.id[a]) continue;
 			bool answer = target_is_soft(i);
 			if (!answer) { // a melee attacker draws a unit off a ranged target
@@ -30481,9 +30486,9 @@ void Simulation::petra_attack_units(AttackPlan &plan) {
 		else if (!walls && b.type != BLD_FIELD) v += siege_unit ? 200.0f : 100.0f; // ConquestCritical
 		return v;
 	};
-	auto pick = [&](size_t n, float share) { // randIntExclusive(0, n * share)
-		const int hi = std::max(1, (int)std::ceil((float)n * share));
-		return (size_t)std::min<int>((int)n - 1, petra_rng_.range_int(0, hi - 1));
+	auto pick = [&](size_t n, float share) { // randIntExclusive(0, n * share): floor(random * n * share)
+		const size_t k = (size_t)(petra_rng_.range_float(0.0f, 1.0f) * (float)n * share);
+		return std::min(k, n - 1);
 	};
 	auto best_structure = [&](int32_t i, float range2, bool siege_unit) -> int32_t {
 		const uint16_t land = petra_land_at(units_.pos_x[i], units_.pos_z[i]);
@@ -30534,6 +30539,7 @@ void Simulation::petra_attack_units(AttackPlan &plan) {
 			else if (!siege(i) && shot_by_structure.count(units_.id[i])) maybe = tb->type == BLD_FIELD; // a field under fire
 		}
 		if (!needs && !maybe) continue;
+		bool approaching = false;
 		// Not too soon when not needed: lastAttackPlanUpdateTime 10 s while approaching, else
 		// 5 s, here every 6th or 3rd AI turn (1.6 s) by unit id.
 		if (!needs) {
@@ -30544,7 +30550,7 @@ void Simulation::petra_attack_units(AttackPlan &plan) {
 				const Building &b = buildings_[it->second];
 				tx = b.x; tz = b.z; pad = std::max(b.half_size, b.half_d);
 			}
-			const bool approaching = det::hypot(tx - units_.pos_x[i], tz - units_.pos_z[i]) > units_.attack_range[i] + pad + 1.0f;
+			approaching = det::hypot(tx - units_.pos_x[i], tz - units_.pos_z[i]) > units_.attack_range[i] + pad + 1.0f;
 			const uint32_t every = approaching ? 6u : 3u;
 			if ((petra_played_turn() + units_.id[i]) % every != 0) continue;
 		}
@@ -30585,33 +30591,26 @@ void Simulation::petra_attack_units(AttackPlan &plan) {
 		} else if (blocked && unit_can_target_building((size_t)i, buildings_[building_id_to_idx_.at(plan.target_building_id)].type)) {
 			order_attack_building(&uid, 1, plan.target_building_id, false, false);
 		} else if (far_from_target) {
-			order_attack_move(&uid, 1, plan.target_x, plan.target_z, false, false, true, petra_attack_avoid(plan, false));
+			// One held up approaching its target (maybe walls) attacks everything on the way.
+			const uint8_t avoid = maybe && approaching ? 0 : petra_attack_avoid(plan, false);
+			order_attack_move(&uid, 1, plan.target_x, plan.target_z, false, false, true, avoid);
 		} else if (const int32_t bi = best_structure(i, range2, false); bi >= 0) {
 			attack_structure(i, (size_t)bi);
 		} else if (needs) {
 			// Nothing in reach: help the nearest of the army that is fighting.
+			// Any of it in combat counts, on a unit or a structure.
 			float best = 1e18f;
-			uint32_t foe = 0;
+			uint32_t foe = 0, foe_building = 0;
 			for (int32_t j : members) {
-				if (j == i || units_.action_state[j] != ACTION_ATTACK || units_.target_unit_id[j] == 0) continue;
+				if (j == i || units_.action_state[j] != ACTION_ATTACK) continue;
+				if (units_.target_unit_id[j] == 0 && units_.target_building_id[j] == 0) continue;
 				const float dist2 = d2(i, j);
-				if (dist2 < best) { best = dist2; foe = units_.target_unit_id[j]; }
+				if (dist2 < best) { best = dist2; foe = units_.target_unit_id[j]; foe_building = units_.target_building_id[j]; }
 			}
 			if (foe) order_attack(&uid, 1, foe);
+			else if (const auto it = building_id_to_idx_.find(foe_building); foe_building && it != building_id_to_idx_.end())
+				attack_structure(i, it->second);
 		}
-	}
-}
-
-void Simulation::petra_check_captures(const std::vector<uint32_t> &squad, float tx, float tz) {
-	for (uint32_t uid : squad) {
-		const int32_t idx = lookup_unit(uid);
-		if (idx < 0 || !units_.alive[idx] || !(units_.order_flags[idx] & ORDER_FLAG_ALLOW_CAPTURE)) continue;
-		const uint32_t target = units_.target_building_id[idx];
-		if (target == 0 || units_.action_state[idx] == ACTION_BUILD) continue;
-		auto it = building_id_to_idx_.find(target);
-		if (it == building_id_to_idx_.end() || petra_allow_capture(squad, uid, buildings_[it->second])) continue;
-		order_attack_building(&uid, 1, target, false, false);
-		order_attack_move(&uid, 1, tx, tz, true, false, true);
 	}
 }
 
@@ -31548,7 +31547,6 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 		case AttackPlan::ATTACKED: {
 			petra_strike_force_.state = PetraStrikeForce::ENGAGE;
 
-			petra_attack_units(plan);
 			// A relic target is captured, not hit (attackPlan.js update: ent.attack with
 			// allowCapture): the squad's free units that can capture it go for it.
 			if (const int32_t tr = lookup_unit(plan.target_building_id); is_relic_unit(tr) && units_.alive[tr] && units_.team[tr] != petra_pid_) {
@@ -31598,13 +31596,18 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 				target_alive = petra_unit_target_ok(tu);
 			}
 
-			petra_check_captures(squad, plan.target_x, plan.target_z);
 			if (!target_alive) {
-				// attackPlan.js update: the next target is on the army's own land.
+				// attackPlan.js getAttackAccess: the next target is on the land of the unit nearest
+				// the army's centre.
 				uint16_t army_land = 0;
-				for (uint32_t uid : squad) {
-					const int32_t k = lookup_unit(uid);
-					if (k >= 0 && units_.alive[k] && !unit_is_ship(units_.unit_type[k])) { army_land = petra_land_at(units_.pos_x[k], units_.pos_z[k]); break; }
+				if (float cx, cz; petra_squad_centre(squad, cx, cz)) {
+					float best = 1e18f;
+					for (uint32_t uid : squad) {
+						const int32_t k = lookup_unit(uid);
+						if (k < 0 || !units_.alive[k] || unit_is_ship(units_.unit_type[k])) continue;
+						const float dx = units_.pos_x[k] - cx, dz = units_.pos_z[k] - cz;
+						if (dx * dx + dz * dz < best) { best = dx * dx + dz * dz; army_land = petra_land_at(units_.pos_x[k], units_.pos_z[k]); }
+					}
 				}
 				float tx = 0.0f, tz = 0.0f;
 				const uint8_t was_enemy = plan.target_player;
@@ -31633,12 +31636,14 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 					}
 					if (!idle.empty())
 						order_attack_move(idle.data(), idle.size(), tx, tz, false, false, true, petra_attack_avoid(plan, false));
-					plan.state_timer = 0.0f;
 				} else {
 					plan.state = AttackPlan::ABORT; // Abort: home to the nearest base on its land
 					plan.state_timer = 0.0f;
 				}
 			}
+			// attackPlan.js update runs UpdateTarget before its per-unit loop, which then works
+			// toward the new target.
+			if (plan.state == AttackPlan::ATTACKED) petra_attack_units(plan);
 			break;
 		}
 
@@ -32258,7 +32263,6 @@ void Simulation::petra_update_started_raid(AttackPlan &plan, float base_x, float
 			// A raid fights as any started attack does (attackPlan.js update "" state): hit back,
 			// unit and structure picks, help the nearest.
 			petra_attack_units(plan);
-			petra_check_captures(plan.squad, plan.target_x, plan.target_z);
 		}
 		return;
 	}
