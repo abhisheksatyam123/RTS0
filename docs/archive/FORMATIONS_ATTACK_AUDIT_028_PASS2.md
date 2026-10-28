@@ -7,7 +7,8 @@
 - **P6 fixed**: a new rush has no targetPlayer and notes no current enemy until it must start; a forced rush, or one with siege engines, falls back to defaultTargetFinder (`test_rush_target_player`).
 - **P7 fixed**: while part of an overseas army still sails, the first Attacked event turns its idle landed units on the attacker; it attacks as soon as none of it is in a transport (`test_petra_landed_army_answers_attack` in test_naval).
 - **P1 part 1 fixed**: a completing plan moves to the started attacks at once (still MUSTER + completing) and the next plan is made and trains while it gathers. A completing plan that loses its target there releases its units to the plan in preparation (0.28 prepares it again beside the new one). `launched[]` and the launch chat use the plan's own kind; helping another attack and isDefendable skip completing plans; attack requests count them.
-- **Open**: P1 part 2 (an Attack preparing beside the last rush needs a second preparing plan and a save bump), P5 (overseas preparation).
+- **P3 and P5 fixed** (2026-10-28): Abort frees an army with no rally point or base on its land where it stands; overseas plans wait for a ship before building the army, ask 1 ship until they must start, and complete at the rally base nearest the target for its island's size before sailing. The overseas sea is worked out each turn, not once when the plan is made.
+- **Open**: P1 part 2 (an Attack preparing beside the last rush needs a second preparing plan and a save bump).
 - Line numbers below are from the tree the audit read (main 7c93a723e).
 
 
