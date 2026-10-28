@@ -273,6 +273,17 @@ Pack, flee, stances, turrets and ship ejection against UnitAI.js, Pack.js, Garri
 | O5 | Turret occupants of a structure whose owner ends an alliance step down at once; 0.28's TurretHolder only reacts to an ownership change, so foreign turret units stay on a former ally's wall (a 0.28 bug) | low | Kept |
 | O6 | ~~A sunk or destroyed ship ejects every passenger, and a non-mutual-ally holder disembarks all of them~~ Fixed: only EjectClassesOnDestroy get off (ships: Civilian Infantry Healer Dog; warships: Civilian Infantry Dog; planes none), the rest die aboard; test_naval "alliance ends" | medium | Fixed |
 
+### Petra difficulty and cadence: Compare's thirteenth 0.28 pass (2026-10-28)
+
+Petra's config.js (difficulty, behaviour, personality, population scaling, priorities) and each manager's turn cadence against _petrabot.js and headquarters.js. Everything else checked matches (see the seventh and ninth passes). Owner: Compare
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| PG1 | ~~Petra's attacks ran only while it held a built civic centre; headquarters.js:2335 counts any base anchor, a military colony too (basesManager.js)~~ | low | Fixed: `petra_has_active_base` |
+| PG2 | ~~Bombers and raids ran without attackManager.update's gate (above Sandbox, an active base or no way to build units), so idle siege kept shelling and raids kept going with no base left~~ | low | Fixed: one gate in `tick_petra_ai_player` for attacks, bombers and raids |
+| PG3 | ~~Petra's population-scaled settings (popScaling, worker target, phase, barracks, forge and trader thresholds) re-read World or Team Population's split after each defeat; config.js setConfig reads getPopulationMax once~~ | low | Fixed: `petra_config_max_pop` takes the split among every seated player |
+| PG4 | Garrison holders are checked on a global every-second-turn beat; garrisonManager.js:134 keeps a per-holder holderTimeUpdate set at registration and after each check, so a new holder's first check can come about 1.5 s sooner than in 0.28 | low | Open: Compare (needs a saved per-holder time) |
+
 ### Selection details layout and auras: Compare's twelfth 0.28 pass (2026-10-21)
 
 | # | Gap | Severity | Status |
