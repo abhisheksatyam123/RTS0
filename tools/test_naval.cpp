@@ -1454,6 +1454,39 @@ static void test_petra_landed_army_answers_attack() {
 	s.petra_transports_.clear();
 }
 
+// attackPlan.js constructor and updatePreparation:479: a plan bound overseas asks for one
+// transport ship and takes no unit until that sea has one; then it musters as on land.
+static void test_petra_overseas_plan_waits_for_ship() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+	const uint32_t house = s.spawn_building_world(20.0f, -40.0f, BLD_OUTPOST, 0);
+	std::vector<uint32_t> army;
+	for (int k = 0; k < 6; ++k) army.push_back(s.spawn_unit(-36.0f + 2.0f * k, 30.0f, 1, UNIT_SPEARMAN));
+	s.petra_army_ids_[1] = army;
+	run(s, 0.5f);
+	s.petra_pid_ = 1;
+	Simulation::AttackPlan plan;
+	plan.kind = PETRA_ATTACK_ATTACK;
+	plan.state = Simulation::AttackPlan::MUSTER;
+	plan.target_building_id = house;
+	s.petra_attack_mgr_.kind = PETRA_ATTACK_ATTACK;
+	s.petra_attack_mgr_.target_size = 60;
+	s.petra_attack_mgr_.min_size = 60;
+	const uint16_t sea = s.petra_plan_prep_sea(plan);
+	s.petra_update_attack_plan(plan, -30.0f, 40.0f);
+	const size_t before = plan.squad.size();
+	s.spawn_unit(-30.0f, 8.0f, 1, UNIT_TRIREME);
+	s.petra_update_attack_plan(plan, -30.0f, 40.0f);
+	std::printf("Petra overseas plan in preparation: sea %u, units taken with no ship %zu, with one %zu\n", sea, before, plan.squad.size());
+	CHECK(sea != 0);
+	CHECK(before == 0);
+	CHECK(plan.squad.size() >= army.size());
+}
+
 // attackPlan.js Abort: an army stranded on an island with neither its rally point nor a
 // base of ours stops where it stands and leaves the plan at once (no ship home); with its
 // rally point on that land, it withdraws there.
@@ -2902,6 +2935,7 @@ int main() {
 	test_petra_transport_waits_for_all();
 	test_petra_landed_army_answers_attack();
 	test_petra_abort_stranded_army();
+	test_petra_overseas_plan_waits_for_ship();
 	test_petra_transport_trapped_passenger();
 	test_petra_transport_sunk_at_sea();
 	test_petra_transport_wrong_land();

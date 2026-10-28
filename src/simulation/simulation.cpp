@@ -23093,10 +23093,15 @@ void Simulation::petra_manage_military_production(float dt) {
 	// every targetSize to 0 (attackPlan.js:355), so mustStart holds and updatePreparation only
 	// waits for the batches in training (:531); trainMoreUnits (:548) is for a plan that need
 	// not start yet.
+	// attackPlan.js:479: a plan bound overseas trains nothing while that sea has no transport ship.
+	auto ship_ready = [&](const AttackPlan &p) {
+		const uint16_t sea = petra_plan_prep_sea(p);
+		return !sea || petra_transport_ships_on(sea) > 0;
+	};
 	const bool attack_musters = petra_attack_plan_.state == AttackPlan::MUSTER && !petra_attack_plan_.completing &&
-		!petra_attack_plan_.forced;
+		!petra_attack_plan_.forced && ship_ready(petra_attack_plan_);
 	const bool raid_musters = petra_raid_plan_.state == AttackPlan::MUSTER &&
-		petra_raid_target_ok(petra_raid_plan_.target_building_id);
+		petra_raid_target_ok(petra_raid_plan_.target_building_id) && ship_ready(petra_raid_plan_);
 	if (!attack_musters && !raid_musters) return;
 	const bool rush_wants = attack_musters && petra_attack_mgr_.kind == PETRA_ATTACK_RUSH;
 
@@ -26735,6 +26740,40 @@ uint16_t Simulation::petra_overseas(const PetraNavalTopo &t, float from_x, float
 	return from == to ? 0 : t.sea_between(from, to);
 }
 
+// attackPlan.js constructor overseas: on a naval map, the sea a plan still preparing must
+// cross: its target's, or with none chosen yet, the first enemy structure's, 0 as soon as any
+// enemy structure (or the target) stands on a land with a base of ours. updatePreparation
+// builds no army (assignUnits, trainMoreUnits) while that sea has no transport ship. RTS0
+// works it out each turn rather than once when the plan is made.
+uint16_t Simulation::petra_plan_prep_sea(const AttackPlan &plan) const {
+	uint16_t naval_home = 0;
+	const PetraNavalTopo &topo = petra_classified_topo(naval_home);
+	if (!topo.naval_map) return 0;
+	const PetraBase *pb = get_primary_petra_base();
+	if (!pb) return 0;
+	std::vector<uint16_t> ours;
+	for (const PetraBase &ob : petra_bases_) {
+		auto it = building_id_to_idx_.find(ob.anchor_building_id);
+		if (it == building_id_to_idx_.end()) continue;
+		const Building &a = buildings_[it->second];
+		uint16_t lands[8];
+		petra_lands_around(a.x, a.z, a.half_size, lands);
+		for (uint16_t l : lands)
+			if (l) ours.push_back(l);
+	}
+	uint16_t sea = 0;
+	for (const Building &b : buildings_) {
+		if (b.team >= MAX_PLAYERS || !petra_foe(b.team) || b.hp <= 0.0f || b.wrecked) continue;
+		if (plan.target_building_id && b.id != plan.target_building_id) continue;
+		uint16_t lands[8];
+		petra_lands_around(b.x, b.z, b.half_size, lands);
+		for (uint16_t l : lands)
+			if (l && std::find(ours.begin(), ours.end(), l) != ours.end()) return 0;
+		if (!sea) sea = petra_overseas(topo, pb->x, pb->z, b.id);
+	}
+	return sea;
+}
+
 uint16_t Simulation::petra_plan_overseas(float base_x, float base_z, uint32_t target_id, bool any_base) const {
 	// Cheap first: a land touching both our first base and the target means no sea
 	// to cross, and needs no map scan (attack plans ask on every AI tick).
@@ -27567,10 +27606,13 @@ void Simulation::petra_manage_naval(float dt) {
 		const int n = (kind == PETRA_ATTACK_HUGE) ? 5 : (kind == PETRA_ATTACK_ATTACK ? 3 : 1);
 		return std::max(1, (int)std::ceil(petra_config_pop_scaling() * (float)n));
 	};
+	// The constructor asks for 1 ship on the sea a plan in preparation must cross; chooseTarget,
+	// once the plan must start, for its neededShips.
 	auto plan_wants = [&](const AttackPlan &plan, uint8_t kind) {
 		if (plan.state != AttackPlan::MUSTER && plan.state != AttackPlan::WALKING) return;
-		const uint16_t s = petra_overseas(topo, home_x, home_z, plan.target_building_id);
-		if (s && s < nseas) want_transport[s] = std::max(want_transport[s], need_ships(kind));
+		const bool preparing = plan.state == AttackPlan::MUSTER && !plan.completing;
+		const uint16_t s = preparing ? petra_plan_prep_sea(plan) : petra_overseas(topo, home_x, home_z, plan.target_building_id);
+		if (s && s < nseas) want_transport[s] = std::max(want_transport[s], preparing ? 1 : need_ships(kind));
 	};
 	plan_wants(petra_attack_plan_, petra_attack_mgr_.kind);
 	for (const AttackPlan &p : petra_started_attacks_) plan_wants(p, p.kind);
@@ -30855,9 +30897,26 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 				// waitingForTransport: this plan's units still being ferried to the rally point hold it.
 				if (petra_plan_in_transport(plan)) break;
 				if (plan.state_timer < plan.completing_time && petra_plan_has_force_order(plan)) break;
+				// StartAttack overseas: the army sails from the rally point (requireTransport per
+				// unit, splitTransport once a ship is full: one shipful boards now, the WALKING
+				// state ferries whoever is left) and gathers where it lands.
+				if (plan.path_x.empty()) {
+					if (const uint16_t sea = petra_plan_overseas(base_x, base_z, plan.target_building_id, true); sea) {
+						if (!petra_start_transport(squad, plan.staging_x, plan.staging_z, plan.target_x, plan.target_z, sea, PETRA_TRANSPORT_ATTACK))
+							break; // no free ship yet
+						const PetraTransportPlan &tp = petra_transports_.back(); // the one just started
+						petra_start_march(plan);
+						plan.staging_x = petra_strike_force_.staging_x = tp.drop_x;
+						plan.staging_z = petra_strike_force_.staging_z = tp.drop_z;
+						break;
+					}
+				}
 				petra_start_march(plan);
 				break;
 			}
+			// attackPlan.js updatePreparation:479: bound overseas, the plan waits for a transport
+			// ship on that sea before it takes or trains any unit.
+			if (const uint16_t sea = petra_plan_prep_sea(plan); sea && petra_transport_ships_on(sea) == 0) break;
 			const auto &mgr = petra_attack_mgr_;
 			// assignUnits: worker-role citizen soldiers past the first `keep` (8 for a rush, else
 			// 6 + 4 per enemy + 8 x defensive, times popScaling) and past the first 4 of their base
@@ -31019,7 +31078,6 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 				// neededShips per plan: attackPlan.js setMinimalTransportShips). Each army
 				// sails on its own ships (navalManager.js transportPlans, several per owner).
 				const uint16_t overseas = petra_plan_overseas(base_x, base_z, target_id, true);
-				if (overseas && petra_transport_ships_on(overseas) == 0) return;
 
 				if (!overseas) {
 					// attackPlan.js chooseTarget: the rally point starts at our base on the
@@ -31107,32 +31165,66 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 					break;
 				}
 
-				float sx = base_x * 0.65f, sz = base_z * 0.65f;
-				pick_petra_safe_staging(base_x, base_z, tx, tz, sx, sz);
-				plan.staging_x = sx;
-				plan.staging_z = sz;
-				petra_strike_force_.staging_x = sx;
-				petra_strike_force_.staging_z = sz;
-
+				// Overseas (attackPlan.js chooseTarget): the rally point is the anchor of our base
+				// nearest the target for the size of its island (distance / sqrt(region size)).
+				// The army completes there as on land: loads returned, then a walk to the rally
+				// point, those on another land ferried to it; StartAttack ships it once done.
+				const PetraNavalTopo &topo = petra_topo();
+				float rx = base_x, rz = base_z;
+				uint16_t rally_land = petra_land_at(base_x, base_z);
 				{
-					// attackPlan.js "transporting": the army sails, and gathers where it lands
-					// (requireTransport per unit, splitTransport once a ship is full: one
-					// shipful boards now, the WALKING state ferries whoever is left).
-					if (!petra_start_transport(squad, base_x, base_z, tx, tz, overseas, PETRA_TRANSPORT_ATTACK)) return; // no free ship
-					const PetraTransportPlan &tp = petra_transports_.back(); // the one just started
-					plan.staging_x = petra_strike_force_.staging_x = tp.drop_x;
-					plan.staging_z = petra_strike_force_.staging_z = tp.drop_z;
+					float best = 1e30f;
+					for (const PetraBase &pb : petra_bases_) {
+						auto it = building_id_to_idx_.find(pb.anchor_building_id);
+						if (it == building_id_to_idx_.end()) continue;
+						const Building &a = buildings_[it->second];
+						const uint16_t land = petra_building_land(a, &topo);
+						const float size = land < topo.land_size.size() ? (float)topo.land_size[land] : 1.0f;
+						const float d = ((a.x - tx) * (a.x - tx) + (a.z - tz) * (a.z - tz)) / std::sqrt(std::max(1.0f, size));
+						if (d < best) { best = d; rx = a.x; rz = a.z; rally_land = land; }
+					}
 				}
-				// chatLaunchAttack: tell our allies whom we attack.
-				petra_say(plan.kind == PETRA_ATTACK_HUGE ? PETRA_CHAT_HUGE_ATTACK : PETRA_CHAT_ATTACK,
-				          PETRA_CHAT_ALLIES, petra_owner_of(plan.target_building_id), 0, 0, 0, tx, tz);
+				plan.path_x.clear();
+				plan.path_z.clear();
+				plan.staging_x = petra_strike_force_.staging_x = rx;
+				plan.staging_z = petra_strike_force_.staging_z = rz;
+				std::vector<uint32_t> straight;
+				std::map<uint16_t, std::vector<uint32_t>> away;
+				for (uint32_t uid : squad) {
+					const int32_t k = lookup_unit(uid);
+					if (k < 0 || !units_.alive[k]) continue;
+					const uint16_t at = petra_land_at(units_.pos_x[k], units_.pos_z[k]);
+					if (at && rally_land && at != rally_land) { away[at].push_back(uid); continue; }
+					const uint32_t drop = petra_defender_dropsite((size_t)k);
+					if (!drop) { straight.push_back(uid); continue; }
+					order_return_resource(&uid, 1, drop, false);
+					order_walk(&uid, 1, rx, rz, true);
+				}
+				if (!straight.empty()) order_walk(straight.data(), straight.size(), rx, rz, false);
+				for (auto &[land, ids] : away) {
+					// requireTransport to the rally point; those no ship takes leave the plan.
+					const uint16_t sea = topo.sea_between(land, rally_land);
+					std::vector<uint32_t> ferried;
+					if (sea) {
+						float ax = 0.0f, az = 0.0f;
+						for (uint32_t uid : ids) { const int32_t k = lookup_unit(uid); ax += units_.pos_x[k]; az += units_.pos_z[k]; }
+						ax /= (float)ids.size();
+						az /= (float)ids.size();
+						const size_t nplans = petra_transports_.size();
+						if (petra_start_transport(ids, ax, az, rx, rz, sea, PETRA_TRANSPORT_ATTACK) && petra_transports_.size() > nplans)
+							ferried = petra_transports_.back().passenger_ids;
+					}
+					for (uint32_t uid : ids)
+						if (std::find(ferried.begin(), ferried.end(), uid) == ferried.end()) {
+							squad.erase(std::remove(squad.begin(), squad.end(), uid), squad.end());
+							petra_out_of_plan(uid);
+						}
+				}
+				plan.completing = true;
+				plan.completing_time = plan.state_timer + (mgr.kind == PETRA_ATTACK_RUSH || plan.forced ? 40.0f : 60.0f);
 				// attackPlan.js updatePreparation: warn our allies so that they can help.
 				if (!plan.requested && plan.target_player < MAX_PLAYERS)
 					petra_attack_requests_.push_back({(uint32_t)ticks_ + 1, petra_pid_, plan.target_player, {}}); // posted for the next turns
-				++petra_attack_mgr_.launched[plan.kind];
-				plan.initial_squad_size = squad.size();
-				plan.state = AttackPlan::WALKING;
-				plan.state_timer = 0.0f;
 				petra_strike_force_.state = PetraStrikeForce::MARCH;
 			}
 			break;
@@ -31751,6 +31843,8 @@ void Simulation::petra_manage_raid(float dt) {
 			return;
 		}
 		const bool naval = petra_plan_overseas(base_x, base_z, plan.target_building_id) != 0;
+		// attackPlan.js updatePreparation:479: no units are taken while the sea has no transport ship.
+		if (const uint16_t sea = petra_plan_prep_sea(plan); sea && petra_transport_ships_on(sea) == 0) return;
 		// attackPlan.js assignUnits for a raid: every available FastMoving unit (champion
 		// cavalry and mounted heroes too) but the first two, kept home to hunt. A raid over water
 		// takes any land soldier, up to its size. A unit in another plan is not available.
