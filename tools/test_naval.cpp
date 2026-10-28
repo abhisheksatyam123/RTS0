@@ -1649,6 +1649,26 @@ static void test_petra_transport_trapped_passenger() {
 	CHECK(sailed_at >= 0.0f && sailed_at < 80.0f); // 120 s at the beach, plus the ship's approach, before
 }
 
+// UnitAI Order.Garrison: a walker on its way to board a ship whose ship is sunk gives up the
+// order (the target is gone, FinishOrder) instead of walking on toward where it lay.
+static void test_board_ship_sunk_on_the_way() {
+	static Simulation s;
+	fresh(s);
+	const uint32_t ship = s.spawn_unit(-30.0f, 8.0f, 0, UNIT_TRIREME);
+	const uint32_t walker = s.spawn_unit(-34.0f, 40.0f, 0, UNIT_SPEARMAN);
+	s.order_board_transport(&walker, 1, ship);
+	run(s, 1.0f);
+	s.units_.hp[idx(s, ship)] = 0.0f;
+	s.units_.alive[idx(s, ship)] = 0;
+	s.units_.action_state[idx(s, ship)] = ACTION_DYING;
+	run(s, 20.0f);
+	const int32_t w = idx(s, walker);
+	const bool idle = w >= 0 && s.units().alive[w] && s.units().action_state[w] == ACTION_IDLE && s.units_.target_unit_id[w] == 0;
+	std::printf("Board a ship sunk on the way: walker %s (action %d, target %u)\n", idle ? "idle" : "still walking",
+	            w >= 0 ? (int)s.units().action_state[w] : -1, w >= 0 ? s.units_.target_unit_id[w] : 0u);
+	CHECK(idle);
+}
+
 // navalManager.checkEvents: a transport ship sunk while sailing sets its infantry down on the
 // nearest shore; those not on the destination's land ask for another transport, which takes
 // them across instead of the plan ending.
@@ -3134,6 +3154,7 @@ int main() {
 	test_petra_abort_stranded_army();
 	test_petra_overseas_plan_waits_for_ship();
 	test_petra_transport_trapped_passenger();
+	test_board_ship_sunk_on_the_way();
 	test_petra_transport_sunk_at_sea();
 	test_petra_transport_wrong_land();
 	test_petra_ferry_stance();
