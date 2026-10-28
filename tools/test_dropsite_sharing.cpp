@@ -308,6 +308,74 @@ int main() {
 		CHECK(to_wagon && r.player_resource(0, RES_WOOD) == wood0 + 5 && r.units_.pos_x[k] > 0.0f);
 	}
 
+	{
+		// UnitAI FindNearestDropsite skips what fails CheckTargetVisible: with Diaspora, an ally's
+		// supply wagon out of her player's sight and an ally's storehouse her player has never seen
+		// are passed over for her own, further dropsite. Once seen, the storehouse is hers to use
+		// (its mirage), the wagon only while in sight.
+		static Simulation v;
+		v.set_sim_seed(5);
+		v.reset();
+		v.set_player_active(0, true, false);
+		v.set_player_active(1, true, false);
+		v.set_player_team(0, 0);
+		v.set_player_team(1, 0);
+		v.player(0).techs.set(TECH_UNLOCK_SHARED_DROPSITES);
+		const uint32_t own = v.spawn_unit(-60.0f, 0.0f, 0, UNIT_WAGON);
+		const uint32_t ally = v.spawn_unit(40.0f, 0.0f, 1, UNIT_WAGON);
+		v.tick(Simulation::FIXED_STEP);
+		const int32_t k = v.lookup_unit(v.spawn_unit(10.0f, 0.0f, 0, UNIT_FEMALE_CITIZEN));
+		v.tick(Simulation::FIXED_STEP);
+		const int32_t aj = v.lookup_unit(ally);
+		std::printf("  hidden ally wagon: seen %d, nearest %u (own %u, ally %u)\n", (int)v.los_visible(0, 40.0f, 0.0f),
+				v.nearest_dropsite((size_t)k), own, ally);
+		CHECK(!v.los_visible(0, v.units_.pos_x[aj], v.units_.pos_z[aj]));
+		CHECK(v.nearest_dropsite((size_t)k) == own);
+		v.units_.res_type_carried[k] = RES_WOOD;
+		v.units_.carry[k] = 10;
+		v.units_.action_state[k] = ACTION_RETURN_DROPSITE;
+		v.tick(Simulation::FIXED_STEP);
+		CHECK(std::fabs(v.units_.target_x[k] + 60.0f) < 2.0f);
+		// In her sight: the ally's wagon is the nearer pick.
+		v.units_.pos_x[k] = 34.0f;
+		v.units_.action_state[k] = ACTION_RETURN_DROPSITE;
+		v.units_.target_x[k] = v.units_.target_z[k] = 99.0f;
+		run(v, 1.0f);
+		CHECK(v.los_visible(0, v.units_.pos_x[aj], v.units_.pos_z[aj]));
+		CHECK(v.nearest_dropsite((size_t)k) == ally);
+
+		// A structure: an ally's storehouse never seen is skipped, one seen once is used.
+		const uint32_t store = v.spawn_building_world(-10.0f, 60.0f, BLD_STOREHOUSE, 1, 1.0f);
+		Simulation::Building *sb = nullptr;
+		for (auto &b : v.buildings_)
+			if (b.id == store) sb = &b;
+		sb->seen_mask = 0;
+		v.units_.pos_x[k] = -10.0f;
+		v.units_.pos_z[k] = 40.0f;
+		v.units_.action_state[k] = ACTION_IDLE;
+		CHECK(!v.los_visible(0, -10.0f, 60.0f));
+		CHECK(v.nearest_dropsite((size_t)k) == own);
+		sb->seen_mask = 1u << 0;
+		CHECK(v.nearest_dropsite((size_t)k) == store);
+	}
+
+	{
+		// ResourceDropsite.Init: an upgraded structure is a new entity, shared again
+		// (Transform.js ChangeEntityTemplate copies no sharing).
+		static Simulation u;
+		u.set_sim_seed(5);
+		u.reset();
+		u.set_player_active(0, true, false);
+		const uint32_t cc = u.spawn_building_world(0.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
+		CHECK(u.cmd_set_dropsite_sharing(0, cc, false));
+		for (auto &b : u.buildings_)
+			if (b.id == cc) {
+				b.upgrade_to = BLD_IMPERIAL_COURT;
+				u.finish_upgrade(b);
+				CHECK(b.type == BLD_IMPERIAL_COURT && b.dropsite_shared);
+			}
+	}
+
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }

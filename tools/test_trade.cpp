@@ -105,6 +105,20 @@ static void test_barter() {
 	// Only 100 or 500 (DEAL_AMOUNT, BATCH_SIZE deals); the same pair is now dearer.
 	CHECK(!s.cmd_barter(0, RES_WOOD, RES_STONE, 200));
 	CHECK(!s.cmd_barter(0, RES_WOOD, RES_WOOD, 100));
+	{
+		// Short of what is sold: TrySubtractResources notifies "Insufficient resources" with
+		// the amount missing, and nothing changes.
+		s.take_session_notices();
+		const int food = s.player_resource(0, RES_FOOD);
+		s.player(0).res[RES_FOOD] = 60.5f;
+		CHECK(!s.cmd_barter(0, RES_FOOD, RES_STONE, 100));
+		const auto notes = s.take_session_notices();
+		CHECK(notes.size() == 1 && notes[0].kind == Simulation::SessionNotice::TEXT &&
+		      notes[0].tech == Simulation::SessionNotice::TEXT_INSUFFICIENT_RESOURCES && notes[0].player == 0 &&
+		      notes[0].amounts[RES_FOOD] == 40 && notes[0].amounts[RES_STONE] == 0);
+		CHECK(s.stone() == 1082);
+		s.player(0).res[RES_FOOD] = (float)food;
+	}
 	const int bought = (int)std::lround(88.36 / 111.64 * 500.0); // 396
 	CHECK(s.barter_quote(RES_WOOD, RES_STONE, 500) == bought);
 	CHECK(s.cmd_barter(0, RES_WOOD, RES_STONE, 500));
@@ -203,6 +217,16 @@ static void test_trade_gain() {
 	g = s.calculate_trade_gain(a, b, 0);
 	CHECK(g.market1 == (int)std::lround(long_route * (0.2 * 1.2 + 0.1))); // Commercial Treaty adds after the multiply
 	CHECK(g.market2 == (int)std::lround(long_route * 0.2 * 1.2)); // the ally's bonus is unchanged
+	// The Carthaginian 0.1 is on the cart/market and cart/dock templates: a captured
+	// Carthaginian market keeps it, a Carthaginian's captured foreign market has none.
+	s.set_team_civ(0, CIV_ATHENIANS);
+	a.civ = CIV_CARTHAGINIANS;
+	g = s.calculate_trade_gain(a, b, 0);
+	CHECK(g.market1 == (int)std::lround(long_route * 0.4));
+	s.set_team_civ(0, CIV_CARTHAGINIANS);
+	a.civ = CIV_ATHENIANS;
+	g = s.calculate_trade_gain(a, b, 0);
+	CHECK(g.market1 == (int)std::lround(long_route * 0.3));
 }
 
 // Civic centres behind both markets, so neither market stands on neutral land and decays
