@@ -437,6 +437,25 @@ static void test_ship_trade_gain_mid_voyage() {
 // G11: 0 A.D. Commands.js "spy-request" bribes any bribable unit of the target player,
 // including garrisoned ones (shut in a structure or aboard a ship alike: both keep
 // ACTION_GARRISONED with alive 0).
+// Commands.js "spy-request" skips a bribable entity that already shares its vision with the
+// briber (ShareVisionWith): a merchant ship carrying the briber's units (VisionSharing
+// CheckVisionSharings) is no candidate, so with no other the bribe fails.
+static void test_bribe_skips_ship_carrying_briber() {
+	static Simulation s;
+	fresh(s);
+	s.spawn_building_world(0.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
+	const uint32_t ship = s.spawn_unit(30.0f, 0.0f, 0, UNIT_MERCHANT_SHIP);
+	const uint32_t rider = s.spawn_unit(-30.0f, 0.0f, 1, UNIT_FEMALE_CITIZEN);
+	s.transport_passengers_[ship].push_back(rider);
+	s.set_player_resources(1, 1000, 1000, 1000, 1000);
+	s.complete_research(1, TECH_UNLOCK_SPIES);
+	const Simulation::BribeResult r = s.cmd_bribe(1, 0);
+	std::printf("  bribe when the only merchant ship carries the briber's unit: %s\n", r == Simulation::BRIBE_NO_UNITS ? "no bribable units" : "bribed");
+	CHECK(r == Simulation::BRIBE_NO_UNITS);
+	s.transport_passengers_[ship].clear();
+	CHECK(s.cmd_bribe(1, 0) == Simulation::BRIBE_OK);
+}
+
 static void test_bribe_garrisoned_trader() {
 	static Simulation s;
 	fresh(s);
@@ -733,6 +752,7 @@ int main() {
 	test_garrisoned_trader_gain();
 	test_ship_trade_gain_mid_voyage();
 	test_bribe_garrisoned_trader();
+	test_bribe_skips_ship_carrying_briber();
 	test_setup_trade_clicks();
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;

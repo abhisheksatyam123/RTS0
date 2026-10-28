@@ -130,7 +130,8 @@ public:
 	void begin(const uint8_t *los, int res, float map_half);
 	// seen_before: the sim's Fogging seen bit (Building::seen_mask) for a structure this cache has
 	// no copy of, after a load, a rejoin or a new viewer: its mirage starts from how it stands now.
-	void add_building(const FoggedBuilding &live, bool allied, bool seen_before = false);
+	// `own`: the viewer's own structure (a shared-vision ally's is allied but not own).
+	void add_building(const FoggedBuilding &live, bool allied, bool seen_before = false, bool own = true);
 	void add_resource(const FoggedResource &live);
 	void add_treasure(const FoggedTreasure &live);
 	void end();

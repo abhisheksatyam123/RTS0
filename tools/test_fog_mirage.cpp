@@ -152,6 +152,51 @@ static void test_building_mirages() {
 			"structure captured by the viewer shows live and drops its mirage");
 }
 
+// Visibility.js GetVisibility, Corpse: a destroyed structure (rubble) is RetainInFog for its owner
+// only. Another player who saw it fall sees nothing there once it is in fog, and a shared-vision
+// ally only while in sight. One destroyed out of sight keeps its standing mirage.
+static void test_corpse_visibility() {
+	FogMirages m;
+	Grid4 g;
+	g.fill(Simulation::FOW_VISIBLE);
+	FoggedBuilding fallen = bld(1, 0, 0, 1, 0.0f);
+	fallen.wrecked = true;
+	FoggedBuilding standing = bld(2, 2, 2, 1, 1000.0f);
+	m.begin(g.c, 4, 8.0f);
+	m.add_building(fallen, false, true, false);
+	m.add_building(standing, false, true, false);
+	m.end();
+	CHECK(find_b(m, 1) && find_b(m, 1)->wrecked, "an enemy structure falling in sight shows");
+	g.set(0, 0, Simulation::FOW_EXPLORED);
+	g.set(2, 2, Simulation::FOW_EXPLORED);
+	FoggedBuilding fell_unseen = standing;
+	fell_unseen.wrecked = true;
+	fell_unseen.hp = 0.0f;
+	m.begin(g.c, 4, 8.0f);
+	m.add_building(fallen, false, true, false);
+	m.add_building(fell_unseen, false, true, false);
+	m.end();
+	CHECK(!find_b(m, 1), "seen fallen, then in fog: no rubble mirage");
+	CHECK(find_b(m, 2) && find_b(m, 2)->miraged && !find_b(m, 2)->wrecked, "fallen out of sight: the standing mirage stays");
+	m.begin(g.c, 4, 8.0f);
+	m.add_building(fallen, false, true, false);
+	m.end();
+	CHECK(!find_b(m, 1), "and it does not come back on a later frame");
+	FogMirages a;
+	a.begin(g.c, 4, 8.0f);
+	a.add_building(fallen, true, true, false); // a shared-vision ally's rubble out of sight
+	a.add_building(bld(3, 2, 2, 0, 0.0f), true, true, true);
+	a.end();
+	CHECK(!find_b(a, 1), "an ally's rubble out of sight is hidden");
+	FogMirages o;
+	FoggedBuilding mine = fallen;
+	mine.team = 0;
+	o.begin(g.c, 4, 8.0f);
+	o.add_building(mine, true, true, true);
+	o.end();
+	CHECK(find_b(o, 1) && find_b(o, 1)->wrecked, "the owner's own rubble stays in the fog");
+}
+
 static void test_resource_mirages() {
 	FogMirages m;
 	Grid4 g;
@@ -536,6 +581,7 @@ static void test_track_all() {
 
 int main() {
 	test_building_mirages();
+	test_corpse_visibility();
 	test_resource_mirages();
 	test_treasure_mirages();
 	test_los_bitmap();
