@@ -5637,6 +5637,7 @@ void Simulation::finish_upgrade(Building &b) {
 	b.has_rally_point = false;
 	b.rally_more.clear();
 	b.autoqueue = false;
+	b.dropsite_shared = true; // ResourceDropsite.Init: shared = Sharable (not copied either)
 	b.max_hp = structure_max_hp(to, b.team);
 	b.aura_hp_mult = 1.0f; // the next aura pass applies the new structure's own
 	b.hp = b.max_hp * health_level;
@@ -6281,7 +6282,14 @@ bool Simulation::cmd_barter(uint8_t player_id, ResourceType sell, ResourceType b
 	const int received = barter_quote(sell, buy, amount);
 	if (received <= 0 || !can_barter(player_id)) return false;
 	PlayerState &ps = players_[player_id];
-	if (ps.res[sell] < (float)amount) return false;
+	if (ps.res[sell] < (float)amount) {
+		// TrySubtractResources -> SubtractResourcesOrNotify: "Insufficient resources" with
+		// what is missing (GetNeededResources: Math.ceil(amount - the player's stock)).
+		SessionNotice need{SessionNotice::TEXT, player_id, 0, SessionNotice::TEXT_INSUFFICIENT_RESOURCES, {}};
+		need.amounts[sell] = (int32_t)std::ceil((float)amount - ps.res[sell]);
+		note_session(need);
+		return false;
+	}
 	ps.res[sell] -= (float)amount;
 	ps.used[sell] += (float)amount; // Barter.js pays through TrySubtractResources: counted as used
 	ps.res[buy] += (float)received;
@@ -6461,14 +6469,14 @@ Simulation::TradeGain Simulation::calculate_trade_gain(const Building &from, con
 	g.trader = trader_gain_at((double)from.x - (double)to.x, (double)from.z - (double)to.z, trader_owner, trader_type);
 	if (from.team != to.team) {
 		// Market.js GetInternationalBonus: the market's own InternationalBonus (0.2, plus
-		// Carthage's template 0.1) with its owner's modifications: Commercial Treaty adds 0.1,
+		// 0.1 on Carthaginian templates, whoever owns them) with its owner's modifications: Commercial Treaty adds 0.1,
 		// Han's Silk Road technology and their allies' Silk Road team bonus multiply by 1.2.
 		// GetTechModifiedProperty applies every multiply first, then the adds.
 		auto bonus = [&](const Building &m) {
 			const uint8_t owner = m.team;
 			if (owner >= MAX_PLAYERS || m.type >= BLD_TYPE_COUNT) return MARKET_INTERNATIONAL_BONUS;
 			const TechMods &tm = tech_mods(owner);
-			return (MARKET_INTERNATIONAL_BONUS + (double)civ_info(civ_of(owner)).international_bonus_add) *
+			return (MARKET_INTERNATIONAL_BONUS + (double)civ_info(structure_template_civ(m)).international_bonus_add) *
 			               (double)tm.bld_international_mul[m.type] * (double)team_bonus_mult(owner, TEAM_BONUS_TRADE_INTERNATIONAL) +
 			       (double)tm.bld_international_add[m.type];
 		};
@@ -15421,7 +15429,7 @@ void Simulation::tick_gather(float dt) {
 			}
 			// The finished structure takes this worker's load.
 			const auto takes_load = [&](const Building &b) {
-				if (b.build_progress < 1.0f || !dropsite_usable_by(uteam, b)) return false;
+				if (b.build_progress < 1.0f || !dropsite_usable_by(uteam, b) || !dropsite_seen_by(uteam, b)) return false;
 				if (units_.unit_type[i] == UNIT_FISHING_BOAT) return is_naval_dropsite(b.type); // boats can only reach docks
 				if (is_civic_centre(b.type) || civ_building_is_dropsite(b.type)) return true;
 				if (b.type == BLD_STOREHOUSE && units_.res_type_carried[i] != RES_FOOD) return true;
@@ -15448,7 +15456,7 @@ void Simulation::tick_gather(float dt) {
 				if (!kept && units_.unit_type[i] != UNIT_FISHING_BOAT) {
 					float near_d2 = 1e9f;
 					for (uint32_t e : mobile_drops) {
-						if (!mobile_dropsite_usable_by(uteam, e)) continue;
+						if (!mobile_dropsite_usable_by(uteam, e) || !mobile_dropsite_seen_by(uteam, e)) continue;
 						const float ex = units_.pos_x[e] - tx0, ez = units_.pos_z[e] - tz0;
 						const float step = 2.0f * unit_walk_speed(e) * dt + 0.01f;
 						const float d2 = ex * ex + ez * ez;
@@ -15484,7 +15492,7 @@ void Simulation::tick_gather(float dt) {
 			}
 			if (!kept && units_.unit_type[i] != UNIT_FISHING_BOAT) {
 				for (uint32_t e : mobile_drops) {
-					if (!mobile_dropsite_usable_by(uteam, e)) continue;
+					if (!mobile_dropsite_usable_by(uteam, e) || !mobile_dropsite_seen_by(uteam, e)) continue;
 					const float half = unit_collision_radius(units_.unit_type[e]);
 					const float gx = std::max(0.0f, std::fabs(units_.pos_x[i] - units_.pos_x[e]) - half);
 					const float gz = std::max(0.0f, std::fabs(units_.pos_z[i] - units_.pos_z[e]) - half);
@@ -21953,7 +21961,7 @@ uint32_t Simulation::nearest_dropsite(size_t i) const {
 	uint32_t best = 0;
 	float best_d2 = 0.0f;
 	for (const Building &b : buildings_) {
-		if (!dropsite_accepts(i, b)) continue;
+		if (!dropsite_accepts(i, b) || !dropsite_seen_by(units_.team[i], b)) continue;
 		// UnitAI.FindNearestDropsite: by the distance to the footprint (DistanceToPoint).
 		const nav::Vec2 gap = nav::footprint_gap(b, units_.pos_x[i], units_.pos_z[i]);
 		const float d2 = gap.x * gap.x + gap.y * gap.y;
@@ -21964,7 +21972,8 @@ uint32_t Simulation::nearest_dropsite(size_t i) const {
 	if (units_.unit_type[i] == UNIT_FISHING_BOAT) return best;
 	for (size_t e = 0; e < units_.count; ++e) {
 		if (e == i || !units_.alive[e] || !unit_is_mobile_dropsite(units_.unit_type[e]) ||
-				units_.action_state[e] == ACTION_GARRISONED || !mobile_dropsite_usable_by(units_.team[i], e))
+				units_.action_state[e] == ACTION_GARRISONED || !mobile_dropsite_usable_by(units_.team[i], e) ||
+				!mobile_dropsite_seen_by(units_.team[i], e))
 			continue;
 		const float half = unit_collision_radius(units_.unit_type[e]);
 		const float gx = std::max(0.0f, std::fabs(units_.pos_x[i] - units_.pos_x[e]) - half);

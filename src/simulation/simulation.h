@@ -1175,6 +1175,16 @@ public:
 	bool dropsite_usable_by(uint8_t player, const Building &b) const;
 	// The same test for unit `e` when it is a mobile dropsite (worker elephant, supply wagon).
 	bool mobile_dropsite_usable_by(uint8_t player, size_t e) const;
+	// UnitAI FindNearestDropsite skips a dropsite that fails CheckTargetVisible: an ally's
+	// structure counts once seen (its mirage), its supply wagon only while in sight.
+	bool dropsite_seen_by(uint8_t player, const Building &b) const {
+		return b.team == player || player >= MAX_PLAYERS || reveal_map_ || los_.cells() == 0 ||
+		       ((b.seen_mask >> player) & 1) || los_visible(player, b.x, b.z);
+	}
+	bool mobile_dropsite_seen_by(uint8_t player, size_t e) const {
+		return units_.team[e] == player || player >= MAX_PLAYERS || reveal_map_ || los_.cells() == 0 ||
+		       los_visible(player, units_.pos_x[e], units_.pos_z[e]);
+	}
 	bool unit_dropsite_shared(uint32_t unit_id) const; // ResourceDropsite IsShared on a unit
 	// 0 A.D. "set-dropsite-sharing" (ResourceDropsite.SetSharing) on one of `player`'s dropsites;
 	// only an owner with Diaspora sees the toggle. False if nothing changed.
