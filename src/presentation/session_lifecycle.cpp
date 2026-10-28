@@ -454,7 +454,7 @@ void RtsoMain::_ready() {
 
 	voice_btn = memnew(Button);
 	voice_btn->set_custom_minimum_size(Vector2(72, 28));
-	voice_btn->set_text("Voice: EN");
+	voice_btn->set_text("Voice: Civ");
 	voice_btn->add_theme_font_size_override("font_size", 12);
 	voice_btn->connect("pressed", Callable(this, "_on_voice_button_pressed"));
 	voice_btn->set_visible(false); // set in Game Setup; 0 A.D.'s top panel has no setup controls
@@ -1348,7 +1348,7 @@ void RtsoMain::_process(double delta) {
 		const Vector3 focus = cam_rig->get_target_pos();
 		session_audio_.set_listener(focus.x, focus.z);
 	}
-	session_audio_.tick(sim, local_player(), match_elapsed_time(), true);
+	session_audio_.tick(sim, local_player(), match_elapsed_time());
 	session_audio_.tick_combat(sim, local_player(), attacks, sim->take_fauna_strikes(), match_elapsed_time());
 	update_music_state();
 
