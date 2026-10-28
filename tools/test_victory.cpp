@@ -790,6 +790,8 @@ int main() {
 		CHECK(sim.world_pop_cap() == 600 && sim.pop_cap() == 150 && sim.pop_cap_setting() == -600);
 		sim.defeated_mask_ |= 1u << 3;
 		CHECK(sim.pop_cap() == 200);
+		// Petra's config.js reads getPopulationMax once: its split stays among every seated player.
+		CHECK(sim.pop_cap(0, true) == 150);
 		CHECK(sim.pop_max(0) <= 200);
 		sim.set_pop_cap(300);
 		CHECK(sim.world_pop_cap() == 0 && sim.pop_cap() == 300);

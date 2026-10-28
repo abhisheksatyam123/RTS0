@@ -1,0 +1,507 @@
+{
+ "greek": {
+  "female": {
+   "attack": [
+    "voice/greek/civ/civ_female_attack_1.ogg",
+    "voice/greek/civ/civ_female_attack_2.ogg"
+   ],
+   "build": [
+    "voice/greek/civ/civ_female_build_1.ogg",
+    "voice/greek/civ/civ_female_build_2.ogg"
+   ],
+   "collect_treasure": [
+    "voice/greek/civ/civ_female_gather_together_1.ogg",
+    "voice/greek/civ/civ_female_gather_together_2.ogg"
+   ],
+   "fish": [
+    "voice/greek/civ/civ_female_fish_1.ogg",
+    "voice/greek/civ/civ_female_fish_2.ogg"
+   ],
+   "garrison": [
+    "voice/greek/civ/civ_female_garrison_1.ogg",
+    "voice/greek/civ/civ_female_garrison_2.ogg"
+   ],
+   "gather": [
+    "voice/greek/civ/civ_female_gather_together_1.ogg",
+    "voice/greek/civ/civ_female_gather_together_2.ogg"
+   ],
+   "go_out_against": [
+    "voice/greek/civ/civ_female_go_out_against_1.ogg",
+    "voice/greek/civ/civ_female_go_out_against_2.ogg"
+   ],
+   "heal": [
+    "voice/greek/civ/civ_female_heal_1.ogg",
+    "voice/greek/civ/civ_female_heal_2.ogg"
+   ],
+   "herd": [
+    "voice/greek/civ/civ_female_herd_1.ogg",
+    "voice/greek/civ/civ_female_herd_2.ogg"
+   ],
+   "hunt": [
+    "voice/greek/civ/civ_female_hunt_1.ogg"
+   ],
+   "march": [
+    "voice/greek/civ/civ_female_march_1.ogg",
+    "voice/greek/civ/civ_female_march_2.ogg"
+   ],
+   "my_lord": [
+    "voice/greek/civ/civ_female_my_lord_1.ogg",
+    "voice/greek/civ/civ_female_my_lord_2.ogg"
+   ],
+   "repair": [
+    "voice/greek/civ/civ_female_repair_1.ogg",
+    "voice/greek/civ/civ_female_repair_2.ogg"
+   ],
+   "retreat": [
+    "voice/greek/civ/civ_female_retreat_1.ogg",
+    "voice/greek/civ/civ_female_retreat_2.ogg"
+   ],
+   "select": [
+    "voice/greek/civ/civ_female_what_is_it_1.ogg",
+    "voice/greek/civ/civ_female_what_is_it_2.ogg",
+    "voice/greek/civ/civ_female_what_is_it_3.ogg",
+    "voice/greek/civ/civ_female_my_lord_1.ogg",
+    "voice/greek/civ/civ_female_my_lord_2.ogg"
+   ],
+   "walk": [
+    "voice/greek/civ/civ_female_walk_1.ogg",
+    "voice/greek/civ/civ_female_walk_2.ogg",
+    "voice/greek/civ/civ_female_march_1.ogg",
+    "voice/greek/civ/civ_female_march_2.ogg"
+   ],
+   "what_is_it": [
+    "voice/greek/civ/civ_female_what_is_it_1.ogg",
+    "voice/greek/civ/civ_female_what_is_it_2.ogg",
+    "voice/greek/civ/civ_female_what_is_it_3.ogg"
+   ],
+   "work_land": [
+    "voice/greek/civ/civ_female_work_land_1.ogg",
+    "voice/greek/civ/civ_female_work_land_2.ogg"
+   ]
+  },
+  "male": {
+   "ack": [
+    "voice/greek/civ/civ_male_Asyouwish_1.ogg"
+   ],
+   "attack": [
+    "voice/greek/civ/civ_male_attack_10.ogg"
+   ],
+   "build": [
+    "voice/greek/civ/civ_male_Imcoming_1.ogg"
+   ],
+   "collect_treasure": [
+    "voice/greek/civ/civ_male_Asyouwish_1.ogg"
+   ],
+   "garrison": [
+    "voice/greek/civ/civ_male_Asyouwish_1.ogg"
+   ],
+   "gather": [
+    "voice/greek/civ/civ_male_Asyouwish_1.ogg"
+   ],
+   "go_out_against": [
+    "voice/greek/civ/civ_male_attack_10.ogg"
+   ],
+   "heal": [
+    "voice/greek/civ/civ_male_Asyouwish_1.ogg"
+   ],
+   "repair": [
+    "voice/greek/civ/civ_male_Asyouwish_1.ogg"
+   ],
+   "select": [
+    "voice/greek/civ/civ_male_yes_1.ogg"
+   ],
+   "trade": [
+    "voice/greek/civ/civ_male_Asyouwish_1.ogg"
+   ],
+   "walk": [
+    "voice/greek/civ/civ_male_Asyouwish_1.ogg"
+   ]
+  }
+ },
+ "latin": {
+  "female": {
+   "attack": [
+    "voice/latin/civ/civ_female_attack_1.ogg"
+   ],
+   "build": [
+    "voice/latin/civ/civ_female_build_1.ogg"
+   ],
+   "collect_treasure": [
+    "voice/latin/civ/civ_female_gather_together_1.ogg"
+   ],
+   "fish": [
+    "voice/latin/civ/civ_female_fish_1.ogg"
+   ],
+   "garrison": [
+    "voice/latin/civ/civ_female_garrison_1.ogg"
+   ],
+   "gather": [
+    "voice/latin/civ/civ_female_gather_together_1.ogg"
+   ],
+   "go_out_against": [
+    "voice/latin/civ/civ_female_go_out_against_1.ogg"
+   ],
+   "heal": [
+    "voice/latin/civ/civ_female_heal_1.ogg"
+   ],
+   "herd": [
+    "voice/latin/civ/civ_female_herd_1.ogg"
+   ],
+   "hunt": [
+    "voice/latin/civ/civ_female_hunt_1.ogg"
+   ],
+   "march": [
+    "voice/latin/civ/civ_female_walk_1.ogg"
+   ],
+   "my_lord": [
+    "voice/latin/civ/civ_female_my_lord_1.ogg"
+   ],
+   "repair": [
+    "voice/latin/civ/civ_female_repair_1.ogg"
+   ],
+   "retreat": [
+    "voice/latin/civ/civ_female_walk_1.ogg"
+   ],
+   "select": [
+    "voice/latin/civ/civ_female_what_is_it_1.ogg",
+    "voice/latin/civ/civ_female_hello_1.ogg"
+   ],
+   "walk": [
+    "voice/latin/civ/civ_female_walk_1.ogg"
+   ],
+   "what_is_it": [
+    "voice/latin/civ/civ_female_what_is_it_1.ogg"
+   ],
+   "work_land": [
+    "voice/latin/civ/civ_female_work_land_1.ogg"
+   ]
+  },
+  "male": {
+   "attack": [
+    "voice/latin/civ/civ_male_attack_1.ogg",
+    "voice/latin/civ/civ_male_fight_1.ogg"
+   ],
+   "build": [
+    "voice/latin/civ/civ_male_build_1.ogg"
+   ],
+   "collect_treasure": [
+    "voice/latin/civ/civ_male_gather_together_1.ogg"
+   ],
+   "fish": [
+    "voice/latin/civ/civ_male_fish_1.ogg"
+   ],
+   "garrison": [
+    "voice/latin/civ/civ_male_garrison_1.ogg"
+   ],
+   "gather": [
+    "voice/latin/civ/civ_male_gather_together_1.ogg"
+   ],
+   "go_out_against": [
+    "voice/latin/civ/civ_male_go_out_against_1.ogg"
+   ],
+   "heal": [
+    "voice/latin/civ/civ_male_heal_1.ogg"
+   ],
+   "herd": [
+    "voice/latin/civ/civ_male_herd_1.ogg"
+   ],
+   "hunt": [
+    "voice/latin/civ/civ_male_hunt_1.ogg"
+   ],
+   "march": [
+    "voice/latin/civ/civ_male_march_1.ogg"
+   ],
+   "my_lord": [
+    "voice/latin/civ/civ_male_my_lord_1.ogg"
+   ],
+   "repair": [
+    "voice/latin/civ/civ_male_repair_1.ogg"
+   ],
+   "retreat": [
+    "voice/latin/civ/civ_male_retreat_1.ogg"
+   ],
+   "select": [
+    "voice/latin/civ/civ_male_what_is_it_1.ogg",
+    "voice/latin/civ/civ_male_hello_1.ogg"
+   ],
+   "trade": [
+    "voice/latin/civ/civ_male_march_1.ogg"
+   ],
+   "walk": [
+    "voice/latin/civ/civ_male_walk_1.ogg",
+    "voice/latin/civ/civ_male_march_1.ogg"
+   ],
+   "what_is_it": [
+    "voice/latin/civ/civ_male_what_is_it_1.ogg"
+   ],
+   "work_land": [
+    "voice/latin/civ/civ_male_work_land_1.ogg"
+   ]
+  }
+ },
+ "napatan": {
+  "female": {
+   "attack": [
+    "voice/napatan/civ/civ_female_attack_01.ogg",
+    "voice/napatan/civ/civ_female_attack_02.ogg",
+    "voice/napatan/civ/civ_female_attack_03.ogg"
+   ],
+   "build": [
+    "voice/napatan/civ/civ_female_build_01.ogg",
+    "voice/napatan/civ/civ_female_build_02.ogg",
+    "voice/napatan/civ/civ_female_build_03.ogg"
+   ],
+   "collect_treasure": [
+    "voice/napatan/civ/civ_female_gather_01.ogg",
+    "voice/napatan/civ/civ_female_gather_02.ogg"
+   ],
+   "fish": [
+    "voice/napatan/civ/civ_female_fish_01.ogg",
+    "voice/napatan/civ/civ_female_fish_02.ogg",
+    "voice/napatan/civ/civ_female_fish_03.ogg"
+   ],
+   "garrison": [
+    "voice/napatan/civ/civ_female_garrison_01.ogg",
+    "voice/napatan/civ/civ_female_garrison_02.ogg",
+    "voice/napatan/civ/civ_female_garrison_03.ogg"
+   ],
+   "gather": [
+    "voice/napatan/civ/civ_female_gather_01.ogg",
+    "voice/napatan/civ/civ_female_gather_02.ogg"
+   ],
+   "go_out_against": [
+    "voice/napatan/civ/civ_female_go_out_against_01.ogg",
+    "voice/napatan/civ/civ_female_go_out_against_02.ogg"
+   ],
+   "heal": [
+    "voice/napatan/civ/civ_female_heal_01.ogg",
+    "voice/napatan/civ/civ_female_heal_02.ogg",
+    "voice/napatan/civ/civ_female_heal_03.ogg"
+   ],
+   "herd": [
+    "voice/napatan/civ/civ_female_herd_01.ogg",
+    "voice/napatan/civ/civ_female_herd_02.ogg"
+   ],
+   "hunt": [
+    "voice/napatan/civ/civ_female_hunt_01.ogg",
+    "voice/napatan/civ/civ_female_hunt_02.ogg",
+    "voice/napatan/civ/civ_female_hunt_03.ogg"
+   ],
+   "march": [
+    "voice/napatan/civ/civ_female_march_01.ogg"
+   ],
+   "my_lord": [
+    "voice/greek/civ/civ_female_my_lord_1.ogg",
+    "voice/greek/civ/civ_female_my_lord_2.ogg"
+   ],
+   "repair": [
+    "voice/napatan/civ/civ_female_repair_01.ogg",
+    "voice/napatan/civ/civ_female_repair_02.ogg",
+    "voice/napatan/civ/civ_female_repair_03.ogg"
+   ],
+   "retreat": [
+    "voice/napatan/civ/civ_female_retreat_01.ogg",
+    "voice/napatan/civ/civ_female_retreat_02.ogg"
+   ],
+   "select": [
+    "voice/napatan/civ/civ_female_what_is_it_01.ogg",
+    "voice/napatan/civ/civ_female_what_is_it_02.ogg",
+    "voice/napatan/civ/civ_female_what_is_it_03.ogg",
+    "voice/napatan/civ/civ_female_my_lord_01.ogg"
+   ],
+   "walk": [
+    "voice/napatan/civ/civ_female_walk_01.ogg",
+    "voice/napatan/civ/civ_female_walk_02.ogg",
+    "voice/napatan/civ/civ_female_march_01.ogg"
+   ],
+   "what_is_it": [
+    "voice/greek/civ/civ_female_what_is_it_1.ogg",
+    "voice/greek/civ/civ_female_what_is_it_2.ogg",
+    "voice/greek/civ/civ_female_what_is_it_3.ogg"
+   ],
+   "work_land": [
+    "voice/napatan/civ/civ_female_work_land_01.ogg",
+    "voice/napatan/civ/civ_female_work_land_02.ogg"
+   ]
+  },
+  "male": {
+   "attack": [
+    "voice/napatan/civ/civ_male_attack_01.ogg",
+    "voice/napatan/civ/civ_male_attack_02.ogg",
+    "voice/napatan/civ/civ_male_attack_03.ogg",
+    "voice/napatan/civ/civ_male_attack_04.ogg",
+    "voice/napatan/civ/civ_male_attack_05.ogg",
+    "voice/napatan/civ/civ_male_go_out_against_01.ogg",
+    "voice/napatan/civ/civ_male_go_out_against_02.ogg"
+   ],
+   "build": [
+    "voice/napatan/civ/civ_male_build_01.ogg",
+    "voice/napatan/civ/civ_male_build_02.ogg",
+    "voice/napatan/civ/civ_male_build_03.ogg"
+   ],
+   "collect_treasure": [
+    "voice/napatan/civ/civ_male_gather_01.ogg",
+    "voice/napatan/civ/civ_male_gather_02.ogg"
+   ],
+   "garrison": [
+    "voice/napatan/civ/civ_male_garrison_01.ogg",
+    "voice/napatan/civ/civ_male_garrison_02.ogg",
+    "voice/napatan/civ/civ_male_garrison_03.ogg"
+   ],
+   "gather": [
+    "voice/napatan/civ/civ_male_gather_01.ogg",
+    "voice/napatan/civ/civ_male_gather_02.ogg"
+   ],
+   "go_out_against": [
+    "voice/napatan/civ/civ_male_go_out_against_01.ogg",
+    "voice/napatan/civ/civ_male_go_out_against_02.ogg"
+   ],
+   "heal": [
+    "voice/napatan/civ/civ_male_heal_01.ogg",
+    "voice/napatan/civ/civ_male_heal_02.ogg"
+   ],
+   "repair": [
+    "voice/napatan/civ/civ_male_repair_01.ogg",
+    "voice/napatan/civ/civ_male_repair_02.ogg",
+    "voice/napatan/civ/civ_male_repair_03.ogg",
+    "voice/napatan/civ/civ_male_repair_04.ogg"
+   ],
+   "select": [
+    "voice/napatan/civ/civ_male_my_lord_01.ogg"
+   ],
+   "trade": [
+    "voice/napatan/civ/civ_male_my_lord_01.ogg"
+   ],
+   "walk": [
+    "voice/napatan/civ/civ_male_walk_01.ogg",
+    "voice/napatan/civ/civ_male_walk_02.ogg",
+    "voice/napatan/civ/civ_male_walk_03.ogg"
+   ]
+  }
+ },
+ "persian": {
+  "female": {
+   "attack": [
+    "voice/persian/civ/civ_female_attack_1.ogg",
+    "voice/persian/civ/civ_female_to_war_1.ogg",
+    "voice/persian/civ/civ_female_forward_2.ogg"
+   ],
+   "build": [
+    "voice/persian/civ/civ_female_build_1.ogg"
+   ],
+   "collect_treasure": [
+    "voice/persian/civ/civ_female_gather_1.ogg"
+   ],
+   "fish": [
+    "voice/persian/civ/civ_female_fish_1.ogg"
+   ],
+   "forward": [
+    "voice/persian/civ/civ_female_forward_1.ogg",
+    "voice/persian/civ/civ_female_forward_2.ogg"
+   ],
+   "garrison": [
+    "voice/persian/civ/civ_female_garrison_1.ogg"
+   ],
+   "gather": [
+    "voice/persian/civ/civ_female_gather_1.ogg"
+   ],
+   "heal": [
+    "voice/persian/civ/civ_female_heal_1.ogg"
+   ],
+   "hunt": [
+    "voice/persian/civ/civ_female_hunt_1.ogg"
+   ],
+   "mine": [
+    "voice/persian/civ/civ_female_mine_1.ogg"
+   ],
+   "repair": [
+    "voice/persian/civ/civ_female_repair_1.ogg"
+   ],
+   "select": [
+    "voice/persian/civ/civ_female_hello_1.ogg",
+    "voice/persian/civ/civ_female_hello_2.ogg",
+    "voice/persian/civ/civ_female_ready_1.ogg",
+    "voice/persian/civ/civ_female_my_king_1.ogg",
+    "voice/persian/civ/civ_female_what_is_it_1.ogg",
+    "voice/persian/civ/civ_female_your_soldier_1.ogg",
+    "voice/persian/civ/civ_female_orders_1.ogg",
+    "voice/persian/civ/civ_female_yes_1.ogg"
+   ],
+   "walk": [
+    "voice/persian/civ/civ_female_I_will_go_1.ogg",
+    "voice/persian/civ/civ_female_by_your_order_1.ogg",
+    "voice/persian/civ/civ_female_my_king_1.ogg",
+    "voice/persian/civ/civ_female_forward_1.ogg",
+    "voice/persian/civ/civ_female_forward_2.ogg"
+   ],
+   "what_is_it": [
+    "voice/persian/civ/civ_female_what_is_it_1.ogg"
+   ],
+   "wood": [
+    "voice/persian/civ/civ_female_wood_1.ogg"
+   ],
+   "work_land": [
+    "voice/persian/civ/civ_female_work_land_1.ogg"
+   ]
+  },
+  "male": {
+   "attack": [
+    "voice/persian/civ/civ_male_attack_1.ogg"
+   ],
+   "build": [
+    "voice/persian/civ/civ_male_build_1.ogg"
+   ],
+   "collect_treasure": [
+    "voice/persian/civ/civ_male_gather_1.ogg"
+   ],
+   "fish": [
+    "voice/persian/civ/civ_male_fish_1.ogg"
+   ],
+   "garrison": [
+    "voice/persian/civ/civ_male_garrison_1.ogg"
+   ],
+   "gather": [
+    "voice/persian/civ/civ_male_gather_1.ogg"
+   ],
+   "heal": [
+    "voice/persian/civ/civ_male_heal_1.ogg"
+   ],
+   "hunt": [
+    "voice/persian/civ/civ_male_hunt_1.ogg"
+   ],
+   "mine": [
+    "voice/persian/civ/civ_male_mine_1.ogg"
+   ],
+   "repair": [
+    "voice/persian/civ/civ_male_repair_1.ogg"
+   ],
+   "select": [
+    "voice/persian/civ/civ_male_hello_1.ogg",
+    "voice/persian/civ/civ_male_hello_2.ogg",
+    "voice/persian/civ/civ_male_ready_1.ogg",
+    "voice/persian/civ/civ_male_my_king_1.ogg",
+    "voice/persian/civ/civ_male_what_is_it_1.ogg",
+    "voice/persian/civ/civ_male_your_soldier_1.ogg",
+    "voice/persian/civ/civ_male_orders_1.ogg",
+    "voice/persian/civ/civ_male_yes_1.ogg"
+   ],
+   "trade": [
+    "voice/persian/civ/civ_male_I_will_go_1.ogg",
+    "voice/persian/civ/civ_male_by_your_order_1.ogg"
+   ],
+   "walk": [
+    "voice/persian/civ/civ_male_I_will_go_1.ogg",
+    "voice/persian/civ/civ_male_by_your_order_1.ogg",
+    "voice/persian/civ/civ_male_my_king_1.ogg",
+    "voice/persian/civ/civ_male_forward_1.ogg",
+    "voice/persian/civ/civ_male_forward_2.ogg"
+   ],
+   "wood": [
+    "voice/persian/civ/civ_male_wood_1.ogg"
+   ],
+   "work_land": [
+    "voice/persian/civ/civ_male_work_land_1.ogg"
+   ]
+  }
+ }
+}

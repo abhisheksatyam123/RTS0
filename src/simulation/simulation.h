@@ -1377,7 +1377,7 @@ public:
 	static constexpr int MAX_TEAM_POP = 10000;  // 0 A.D. team_population_capacities.json
 	static constexpr int TEAM_POP_FLAG = 100000;
 	int pop_cap() const { return pop_cap(PETRA_PLAYER); }
-	int pop_cap(uint8_t player) const; // this player's share of the population limit, 0 = unlimited
+	int pop_cap(uint8_t player, bool count_defeated = false) const; // this player's share of the population limit, 0 = unlimited; count_defeated: World/Team Population split as at the start
 	int pop_cap_setting() const { return pop_cap_; }
 	void set_pop_cap_setting(int setting); // restores pop_cap_setting(), clamped to a valid one
 	int world_pop_cap() const { return pop_cap_ < 0 && pop_cap_ > -TEAM_POP_FLAG ? -pop_cap_ : 0; }
