@@ -12,6 +12,9 @@
 //   - Han rice paddies take 3 farmers; the Ptolemaic team food trickle reaches allies without buildings.
 //   - ResourceSupply.AddGatherer: a full field keeps its farmers; a newcomer is turned away.
 //   - FINDINGNEWTARGET drops off a load before a queued order only if it is of the order's type.
+//   - PerformGather out of range stops gathering (OutOfRange) and StartGathering restarts the
+//     timer back at the supply; the unit keeps its slot meanwhile.
+//   - AddGatherer at APPROACHING: of the units on their way to a supply, the first sent keeps a place.
 //   g++ -std=c++20 -O2 -Isrc tools/test_gather_parity.cpp src/simulation/simulation.cpp \
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
 //       src/network/net_host.cpp -lpthread -o /tmp/test_gather_parity && /tmp/test_gather_parity
@@ -694,6 +697,75 @@ int main() {
 		std::printf("  carrying wood, turned away from berries: %s, order %d, %d wood\n", returned ? "went to drop it" : "walked on",
 				(int)s.units_.order_kind[i], s.units_.carry[i]);
 		CHECK(!returned && s.units_.order_kind[i] == ORDER_WALK && s.units_.carry[i] == 5);
+	}
+
+
+	// 25. ResourceGatherer.PerformGather: a gatherer pushed out of reach is noticed at the timer's
+	// next unit (StopGathering "OutOfRange"); back in reach before then, nothing changes. After it,
+	// she walks back and StartGathering sets a fresh timer, keeping her slot all the while.
+	{
+		static Simulation s;
+		fresh(s);
+		s.set_explore_map(true);
+		const uint32_t mine = s.spawn_resource_world(0.0f, 0.0f, RES_STONE, 5000);
+		const size_t r = s.res_id_to_idx_.at(mine);
+		s.resources_.max_gatherers[r] = 1;
+		const uint32_t w = s.spawn_unit(1.2f, 0.0f, 0, UNIT_FEMALE_CITIZEN);
+		s.order_gather(&w, 1, mine);
+		run(s, 1.0f);
+		const int32_t i = s.lookup_unit(w);
+		const float rate = s.units_.gather_rate[i];
+		const float interval = 1.0f / rate;
+		// A short push: back before the timer's next unit.
+		const float hx = s.units_.pos_x[i], hz = s.units_.pos_z[i];
+		while (s.units_.attack_timer[i] > 0.2f * interval) s.tick(Simulation::FIXED_STEP);
+		const float timer = s.units_.attack_timer[i];
+		s.units_.pos_x[i] = hx + 8.0f;
+		s.tick(Simulation::FIXED_STEP);
+		s.units_.pos_x[i] = hx;
+		s.units_.pos_z[i] = hz;
+		s.tick(Simulation::FIXED_STEP);
+		const bool kept = s.units_.gather_rate[i] == rate &&
+				std::fabs(s.units_.attack_timer[i] - timer - 2.0f * Simulation::FIXED_STEP) < 1e-4f;
+		// A long push: held away past the timer's unit.
+		const uint32_t other = s.spawn_unit(-12.0f, 0.0f, 0, UNIT_FEMALE_CITIZEN);
+		bool stopped = false;
+		for (int k = 0; k < (int)(1.5f * interval / Simulation::FIXED_STEP) && !stopped; ++k) {
+			s.units_.pos_x[i] = hx + 8.0f;
+			s.tick(Simulation::FIXED_STEP);
+			stopped = s.units_.gather_rate[i] < 0.0f;
+		}
+		s.order_gather(&other, 1, mine); // full while she walks back
+		run(s, 6.0f);
+		const int32_t o = s.lookup_unit(other);
+		const bool back = s.units_.target_resource_id[i] == mine && s.units_.gather_rate[i] > 0.0f;
+		std::printf("  pushed gatherer: short push %s, long push %s, back at work %s, newcomer %s\n", kept ? "kept the timer" : "restarted",
+				stopped ? "stopped gathering" : "gathered on", back ? "yes" : "no",
+				s.units_.target_resource_id[o] == mine ? "took her slot" : "is turned away");
+		CHECK(kept && stopped && back && s.units_.target_resource_id[o] != mine);
+	}
+
+
+	// 26. ResourceSupply.AddGatherer at APPROACHING enter: the places at a supply go in the order
+	// the units set out, so one sent first keeps its place against later ones lower in unit order.
+	{
+		static Simulation s;
+		fresh(s);
+		s.set_explore_map(true);
+		const uint32_t bush = s.spawn_resource_world(0.0f, 0.0f, RES_FOOD, 200);
+		s.resources_.max_gatherers[s.res_id_to_idx_.at(bush)] = 2;
+		const uint32_t b = s.spawn_unit(-20.0f, 2.0f, 0, UNIT_FEMALE_CITIZEN);
+		const uint32_t c = s.spawn_unit(-20.0f, -2.0f, 0, UNIT_FEMALE_CITIZEN);
+		const uint32_t a = s.spawn_unit(-20.0f, 0.0f, 0, UNIT_FEMALE_CITIZEN);
+		s.order_gather(&a, 1, bush);
+		run(s, 0.5f);
+		const uint32_t later[2] = {b, c};
+		s.order_gather(later, 2, bush);
+		run(s, 0.5f);
+		const auto on = [&](uint32_t id) { return s.units_.target_resource_id[s.lookup_unit(id)] == bush; };
+		std::printf("  first sent to a bush for 2: %s; the two sent after: %d keep it\n", on(a) ? "keeps its place" : "turned away",
+				(int)on(b) + (int)on(c));
+		CHECK(on(a) && (int)on(b) + (int)on(c) == 1);
 	}
 
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);

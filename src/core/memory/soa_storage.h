@@ -89,6 +89,10 @@ struct UnitSoA {
 	// gathering), kept until it leaves; a field's diminishing returns are those at the start.
 	float *gather_rate = nullptr;
 	uint32_t *gather_res = nullptr;
+	// ResourceSupply.AddGatherer: the supply this unit holds a place at (from APPROACHING on) and
+	// when it took it (Simulation::gather_claim_seq_), so the first to come keeps it.
+	uint32_t *gather_claim_res = nullptr;
+	uint32_t *gather_claim = nullptr;
 	float *patrol_wait = nullptr; // PATROL.CHECKINGWAYPOINT: seconds surveyed at the waypoint (0 = walking)
 	// UnitAI COMBAT: the unit or animal this unit was last in attack range of (ATTACKING), 0 for none.
 	// Chasing that target after it (CHASING) runs while it flees; approaching a new one walks.
@@ -118,7 +122,7 @@ struct UnitSoA {
 		FREE(pack_state); FREE(pack_elapsed);
 		FREE(order_kind); FREE(order_flags); FREE(order_target); FREE(order_x); FREE(order_z); FREE(order_x2); FREE(order_z2); FREE(attacked_by); FREE(work_kind); FREE(work_target);
 		FREE(xp_partial); FREE(hunt_fauna); FREE(short_path); FREE(motion);
-		FREE(aura_hp_mult); FREE(flee_from); FREE(flee_dist); FREE(gather_rate); FREE(gather_res); FREE(patrol_wait); FREE(chase_target);
+		FREE(aura_hp_mult); FREE(flee_from); FREE(flee_dist); FREE(gather_rate); FREE(gather_res); FREE(gather_claim_res); FREE(gather_claim); FREE(patrol_wait); FREE(chase_target);
 		FREE(heading_x); FREE(heading_z);
 		#undef FREE
 		cap = count = 0;
@@ -196,6 +200,8 @@ struct UnitSoA {
 		realloc_aligned(flee_dist, c * sizeof(float));
 		realloc_aligned(gather_rate, c * sizeof(float));
 		realloc_aligned(gather_res, c * sizeof(uint32_t));
+		realloc_aligned(gather_claim_res, c * sizeof(uint32_t));
+		realloc_aligned(gather_claim, c * sizeof(uint32_t));
 		realloc_aligned(patrol_wait, c * sizeof(float));
 		realloc_aligned(chase_target, c * sizeof(uint32_t));
 		realloc_aligned(heading_x, c * sizeof(float));
@@ -253,6 +259,8 @@ struct UnitSoA {
 		flee_dist[i] = 0.0f;
 		gather_rate[i] = 0.0f;
 		gather_res[i] = 0;
+		gather_claim_res[i] = 0;
+		gather_claim[i] = 0;
 		patrol_wait[i] = 0.0f;
 		chase_target[i] = 0;
 		heading_x[i] = 0.0f; heading_z[i] = 1.0f;
@@ -316,6 +324,8 @@ struct UnitSoA {
 			flee_dist[idx] = flee_dist[last];
 			gather_rate[idx] = gather_rate[last];
 			gather_res[idx] = gather_res[last];
+			gather_claim_res[idx] = gather_claim_res[last];
+			gather_claim[idx] = gather_claim[last];
 			patrol_wait[idx] = patrol_wait[last];
 			chase_target[idx] = chase_target[last];
 			heading_x[idx] = heading_x[last]; heading_z[idx] = heading_z[last];
