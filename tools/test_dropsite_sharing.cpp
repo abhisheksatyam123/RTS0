@@ -112,6 +112,7 @@ int main() {
 		const int32_t k = m.lookup_unit(m.spawn_unit(x, z, 0, UNIT_FEMALE_CITIZEN));
 		m.units_.res_type_carried[k] = RES_WOOD;
 		m.units_.carry[k] = 10;
+		m.tick(0.25f); // her sight first (LOS updates at 4 Hz): FindNearestDropsite skips the unseen
 		m.units_.action_state[k] = ACTION_RETURN_DROPSITE;
 		m.tick(Simulation::FIXED_STEP);
 		for (uint32_t d : drops) {
@@ -337,7 +338,7 @@ int main() {
 		v.tick(Simulation::FIXED_STEP);
 		CHECK(std::fabs(v.units_.target_x[k] + 60.0f) < 2.0f);
 		// In her sight: the ally's wagon is the nearer pick.
-		v.units_.pos_x[k] = 34.0f;
+		v.units_.pos_x[k] = 39.0f;
 		v.units_.action_state[k] = ACTION_RETURN_DROPSITE;
 		v.units_.target_x[k] = v.units_.target_z[k] = 99.0f;
 		run(v, 1.0f);

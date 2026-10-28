@@ -211,12 +211,6 @@ static void test_trade_gain() {
 	s.set_team_civ(0, CIV_CARTHAGINIANS);
 	g = s.calculate_trade_gain(a, b, 0);
 	CHECK(g.market1 == (int)std::lround(long_route * 0.4));
-	CHECK(tech_info(TECH_SILK_ROAD).prerequisite == TECH_TRADE_GAIN_02 && tech_info(TECH_SILK_ROAD).civ_mask == (1u << CIV_HAN));
-	s.set_team_civ(0, CIV_HAN);
-	s.complete_research(0, TECH_SILK_ROAD);
-	g = s.calculate_trade_gain(a, b, 0);
-	CHECK(g.market1 == (int)std::lround(long_route * (0.2 * 1.2 + 0.1))); // Commercial Treaty adds after the multiply
-	CHECK(g.market2 == (int)std::lround(long_route * 0.2 * 1.2)); // the ally's bonus is unchanged
 	// The Carthaginian 0.1 is on the cart/market and cart/dock templates: a captured
 	// Carthaginian market keeps it, a Carthaginian's captured foreign market has none.
 	s.set_team_civ(0, CIV_ATHENIANS);
@@ -227,6 +221,13 @@ static void test_trade_gain() {
 	a.civ = CIV_ATHENIANS;
 	g = s.calculate_trade_gain(a, b, 0);
 	CHECK(g.market1 == (int)std::lround(long_route * 0.3));
+	a.civ = CIV_COUNT;
+	CHECK(tech_info(TECH_SILK_ROAD).prerequisite == TECH_TRADE_GAIN_02 && tech_info(TECH_SILK_ROAD).civ_mask == (1u << CIV_HAN));
+	s.set_team_civ(0, CIV_HAN);
+	s.complete_research(0, TECH_SILK_ROAD);
+	g = s.calculate_trade_gain(a, b, 0);
+	CHECK(g.market1 == (int)std::lround(long_route * (0.2 * 1.2 + 0.1))); // Commercial Treaty adds after the multiply
+	CHECK(g.market2 == (int)std::lround(long_route * 0.2 * 1.2)); // the ally's bonus is unchanged
 }
 
 // Civic centres behind both markets, so neither market stands on neutral land and decays
