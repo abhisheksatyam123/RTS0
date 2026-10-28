@@ -31490,43 +31490,7 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 
 		case AttackPlan::ABORT: {
 			petra_strike_force_.state = PetraStrikeForce::MUSTER;
-			// attackPlan.js Abort: an army withdraws to its rally point when that is on its own
-			// land, or to a nearer base of ours there (one it captured on the way included),
-			// else home.
-			float home_x = base_x, home_z = base_z;
-			{
-				float ax = 0.0f, az = 0.0f;
-				int n = 0;
-				for (uint32_t uid : squad) {
-					const int32_t k = lookup_unit(uid);
-					if (k >= 0 && units_.alive[k] && !unit_is_ship(units_.unit_type[k])) { ax += units_.pos_x[k]; az += units_.pos_z[k]; ++n; }
-				}
-				if (n > 0) {
-					ax /= (float)n; az /= (float)n;
-					const uint16_t land = petra_land_at(ax, az);
-					float best = 1e30f;
-					if ((plan.staging_x != 0.0f || plan.staging_z != 0.0f) && petra_land_at(plan.staging_x, plan.staging_z) == land) {
-						best = (plan.staging_x - ax) * (plan.staging_x - ax) + (plan.staging_z - az) * (plan.staging_z - az);
-						home_x = plan.staging_x;
-						home_z = plan.staging_z;
-					}
-					for (const PetraBase &pb : petra_bases_) {
-						auto it = building_id_to_idx_.find(pb.anchor_building_id);
-						if (it == building_id_to_idx_.end()) continue;
-						const Building &a = buildings_[it->second];
-						if (a.team != petra_pid_ || a.hp <= 0.0f || a.wrecked || petra_building_land(a, nullptr, land) != land) continue;
-						const float d = (a.x - ax) * (a.x - ax) + (a.z - az) * (a.z - az);
-						if (d <= best) { best = d; home_x = a.x; home_z = a.z; }
-					}
-				}
-			}
-			if (!squad.empty()) {
-				petra_go_home(squad, home_x, home_z, PETRA_TRANSPORT_ATTACK, true);
-			}
-			plan.state = AttackPlan::REGROUP;
-			plan.retreat_x = home_x;
-			plan.retreat_z = home_z;
-			plan.state_timer = 0.0f;
+			petra_abort_plan(plan, PETRA_TRANSPORT_ATTACK);
 			break;
 		}
 	}
@@ -31983,15 +31947,63 @@ bool Simulation::petra_raid_walk(AttackPlan &plan) {
 	return arrived;
 }
 
+// attackPlan.js Abort: an army withdraws to its rally point when that is on its own land,
+// or to the nearest base of ours there (one it captured on the way included). With neither,
+// its units just stop where they stand. Every unit leaves the plan at once (removeUnit):
+// stranded on another island, it is free for the next plan, which ships it to its rally
+// point. RTS0's REGROUP releases the units as they reach the withdrawal point's land.
+void Simulation::petra_abort_plan(AttackPlan &plan, uint8_t transport_owner) {
+	float ax = 0.0f, az = 0.0f;
+	int n = 0;
+	for (uint32_t uid : plan.squad) {
+		const int32_t k = lookup_unit(uid);
+		if (k >= 0 && units_.alive[k] && !unit_is_ship(units_.unit_type[k])) { ax += units_.pos_x[k]; az += units_.pos_z[k]; ++n; }
+	}
+	bool found = false;
+	float home_x = 0.0f, home_z = 0.0f;
+	if (n > 0) {
+		ax /= (float)n; az /= (float)n;
+		const uint16_t land = petra_land_at(ax, az);
+		float best = 1e30f;
+		if ((plan.staging_x != 0.0f || plan.staging_z != 0.0f) && petra_land_at(plan.staging_x, plan.staging_z) == land) {
+			best = (plan.staging_x - ax) * (plan.staging_x - ax) + (plan.staging_z - az) * (plan.staging_z - az);
+			home_x = plan.staging_x;
+			home_z = plan.staging_z;
+			found = true;
+		}
+		for (const PetraBase &pb : petra_bases_) {
+			auto it = building_id_to_idx_.find(pb.anchor_building_id);
+			if (it == building_id_to_idx_.end()) continue;
+			const Building &a = buildings_[it->second];
+			if (a.team != petra_pid_ || a.hp <= 0.0f || a.wrecked || petra_building_land(a, nullptr, land) != land) continue;
+			const float d = (a.x - ax) * (a.x - ax) + (a.z - az) * (a.z - az);
+			if (d <= best) { best = d; home_x = a.x; home_z = a.z; found = true; }
+		}
+	}
+	plan.state_timer = 0.0f;
+	if (!found) {
+		std::vector<uint32_t> standing;
+		for (uint32_t uid : plan.squad)
+			if (const int32_t k = lookup_unit(uid); k >= 0 && units_.alive[k] && !petra_passenger(uid)) standing.push_back(uid);
+		if (!standing.empty()) cmd_stop(standing.data(), standing.size()); // stopMoving
+		petra_release_squad(plan.squad);
+		plan.initial_squad_size = 0;
+		plan.target_building_id = 0;
+		plan.state = AttackPlan::UNEXECUTED;
+		return;
+	}
+	if (!plan.squad.empty()) petra_go_home(plan.squad, home_x, home_z, transport_owner, true);
+	plan.state = AttackPlan::REGROUP;
+	plan.retreat_x = home_x;
+	plan.retreat_z = home_z;
+}
+
 // A started raid (attackPlan.js update for a Raid): it fights its target, then the next of the
 // targetList, and goes home once none is left.
 void Simulation::petra_update_started_raid(AttackPlan &plan, float base_x, float base_z) {
 	if (plan.state == AttackPlan::ABORT) {
-		plan.state = AttackPlan::REGROUP;
-		plan.retreat_x = base_x;
-		plan.retreat_z = base_z;
-		plan.state_timer = 0.0f;
-		if (!plan.squad.empty()) petra_go_home(plan.squad, base_x, base_z, PETRA_TRANSPORT_RAID, true);
+		petra_abort_plan(plan, PETRA_TRANSPORT_RAID);
+		if (plan.state == AttackPlan::UNEXECUTED) plan.type = AttackPlan::PLAN_RAID;
 		return;
 	}
 	if (plan.state == AttackPlan::WALKING || plan.state == AttackPlan::ATTACKED) {
@@ -32030,12 +32042,9 @@ void Simulation::petra_update_started_raid(AttackPlan &plan, float base_x, float
 				plan.target_z = tz;
 				order_attack_move(plan.squad.data(), plan.squad.size(), tx, tz, false, false, true, petra_attack_avoid(plan, false));
 			} else {
-				plan.state = AttackPlan::REGROUP;
-				plan.retreat_x = base_x;
-				plan.retreat_z = base_z;
-				plan.state_timer = 0.0f;
-				if (!plan.squad.empty())
-					petra_go_home(plan.squad, base_x, base_z, PETRA_TRANSPORT_RAID, true);
+				// No target left: Abort.
+				petra_abort_plan(plan, PETRA_TRANSPORT_RAID);
+				if (plan.state == AttackPlan::UNEXECUTED) plan.type = AttackPlan::PLAN_RAID;
 			}
 		} else {
 			plan.state = AttackPlan::ATTACKED;
