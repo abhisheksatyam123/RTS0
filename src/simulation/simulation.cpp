@@ -31672,47 +31672,7 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 			// UpdateTransporting: done once none of this army is in a transport any more. Until
 			// then, the first Attacked event on one of its units turns the idle landed ones on
 			// the attacker.
-			if (sailed && petra_plan_in_transport(plan) && petra_plan_overseas(base_x, base_z, plan.target_building_id)) {
-				for (const auto &[target, attacker] : petra_turn_attacks_) {
-					if (std::find(squad.begin(), squad.end(), target) == squad.end()) continue;
-					const int32_t a = lookup_unit(attacker);
-					if (lookup_unit(target) < 0 || (a < 0 && !building_id_to_idx_.count(attacker))) continue;
-					for (uint32_t uid : squad) {
-						const int32_t k = lookup_unit(uid);
-						if (k < 0 || !units_.alive[k] || units_.action_state[k] != ACTION_IDLE) continue;
-						if (petra_passenger(uid) || petra_aboard(uid)) continue;
-						if (a >= 0) order_attack(&uid, 1, attacker);
-						else {
-							const Building &b = buildings_[building_id_to_idx_.at(attacker)];
-							order_attack_building(&uid, 1, attacker, false, petra_allow_capture(squad, uid, b));
-						}
-					}
-					break;
-				}
-				return; // still at sea
-			}
-			// navalManager.js requireTransport: the ship comes back for those still on
-			// our land (a failed transport leaves them, as a plan without ships does).
-			if (sailed && petra_plan_overseas(base_x, base_z, plan.target_building_id)) {
-				const PetraNavalTopo &topo = petra_topo();
-				const uint32_t target_id = plan.target_building_id;
-				const uint16_t overseas = petra_overseas(topo, base_x, base_z, target_id);
-				auto tit = building_id_to_idx_.find(target_id);
-				if (overseas && tit != building_id_to_idx_.end()) {
-					const uint16_t there = petra_building_land(buildings_[tit->second], &topo);
-					std::vector<uint32_t> left;
-					for (uint32_t uid : squad) {
-						const int32_t idx = lookup_unit(uid);
-						if (idx >= 0 && units_.alive[idx] && petra_land_at(units_.pos_x[idx], units_.pos_z[idx]) != there)
-							left.push_back(uid);
-					}
-					if (!left.empty() && petra_start_transport(left, base_x, base_z, plan.target_x,
-					                                           plan.target_z, overseas, PETRA_TRANSPORT_ATTACK)) {
-						plan.state_timer = 0.0f;
-						return;
-					}
-				}
-			}
+			if (sailed && petra_plan_transporting(plan, base_x, base_z, PETRA_TRANSPORT_ATTACK)) return;
 
 			// attackPlan.js update: an attack goes on while any of its army lives (no retreat
 			// on losses or danger); the plan ends once its army is gone.
@@ -32550,6 +32510,9 @@ void Simulation::petra_update_started_raid(AttackPlan &plan, float base_x, float
 				petra_go_home(plan.squad, base_x, base_z, PETRA_TRANSPORT_RAID, true);
 			return;
 		}
+		// A raid overseas sails as an attack does ("transporting"), then fights.
+		if (plan.state == AttackPlan::WALKING && plan.path_x.empty() && petra_plan_transporting(plan, base_x, base_z, PETRA_TRANSPORT_RAID))
+			return;
 		// A raid marching along its path fights only once it arrives (attackPlan.js update
 		// "walking" state, then "arrived").
 		if (plan.state == AttackPlan::WALKING && !plan.path_x.empty()) {
@@ -33420,6 +33383,9 @@ void Simulation::petra_fight_back(size_t i, int32_t a, const std::vector<PetraDe
 	if (unit_is_ship(units_.unit_type[i]) || petra_passenger(uid) || units_.action_state[i] == ACTION_GARRISONED) return;
 	for (const PetraDefenseArmy &army : armies)
 		if (std::find(army.defender_ids.begin(), army.defender_ids.end(), uid) != army.defender_ids.end()) return;
+	// checkEvents (DM:681-687): an attacked stone thrower is only sent to shelter
+	// (garrisonSiegeUnit, petra_manage_garrisons), holder found or not.
+	if ((unit_tech_classes(units_.unit_type[i]) & TC_STONETHROWER).any()) return;
 	auto support = [&](size_t k) {
 		return (unit_classes_at(k) & (TC_CIVILIAN | TC_HEALER | TC_TRADER)).any() ||
 		       unit_gather_class(units_.unit_type[k], units_.tmpl[k]) == GATHER_SUPPORT;
@@ -34723,10 +34689,18 @@ bool Simulation::petra_structure_defended(const Building &b) const {
 // isn't defendable, or with no base anchor of ours on its land, is destroyed while we hold
 // 50-70% of its capture points, rather than left to the enemy capturing it.
 void Simulation::petra_scuttle_undefendable() {
+	// The Attacked events since our last turn (DM:608-622): any hit or capture attempt,
+	// from a unit, a structure's arrows or a siege engine out of sight.
+	std::vector<uint32_t> attacked;
+	for (const auto &[target, attacker] : petra_turn_attacks_)
+		if (building_id_to_idx_.count(target)) attacked.push_back(target);
+	if (attacked.empty()) return;
+	std::sort(attacked.begin(), attacked.end());
+	attacked.erase(std::unique(attacked.begin(), attacked.end()), attacked.end());
 	std::vector<uint32_t> scuttle;
-	for (const Building &b : buildings_) {
+	for (uint32_t id : attacked) {
+		const Building &b = buildings_[building_id_to_idx_.at(id)];
 		if (b.team != petra_pid_ || b.wrecked || b.hp <= 0.0f || b.build_progress < 1.0f || b.max_capture_points <= 0.0f) continue;
-		if (structure_attacker(b.id, petra_pid_) < 0) continue; // the Attacked event
 		if (petra_structure_defended(b)) continue;
 		float total = 0.0f;
 		for (float cp : b.capture_points_by_team) total += cp;
@@ -34836,6 +34810,49 @@ void Simulation::petra_manage_garrisons() {
 
 // attackPlan.js waitingForTransport / UpdateTransporting: one of this plan's units has a
 // transport (waiting for its ship or aboard), whatever the other attacks' ferries do.
+// attackPlan.js UpdateTransporting, for a plan that sails to its target: it waits while any
+// of its army is in a transport, and the first Attacked event on one of its units turns the
+// idle landed ones on the attacker. navalManager.js requireTransport: the ship comes back for
+// those still off the target's land (a failed transport leaves them, as a plan without ships
+// does). True while the plan waits.
+bool Simulation::petra_plan_transporting(AttackPlan &plan, float base_x, float base_z, uint8_t owner) {
+	auto &squad = plan.squad;
+	if (!petra_plan_overseas(base_x, base_z, plan.target_building_id)) return false;
+	if (petra_plan_in_transport(plan)) {
+		for (const auto &[target, attacker] : petra_turn_attacks_) {
+			if (std::find(squad.begin(), squad.end(), target) == squad.end()) continue;
+			const int32_t a = lookup_unit(attacker);
+			if (lookup_unit(target) < 0 || (a < 0 && !building_id_to_idx_.count(attacker))) continue;
+			for (uint32_t uid : squad) {
+				const int32_t k = lookup_unit(uid);
+				if (k < 0 || !units_.alive[k] || units_.action_state[k] != ACTION_IDLE) continue;
+				if (petra_passenger(uid) || petra_aboard(uid)) continue;
+				if (a >= 0) order_attack(&uid, 1, attacker);
+				else {
+					const Building &b = buildings_[building_id_to_idx_.at(attacker)];
+					order_attack_building(&uid, 1, attacker, false, petra_allow_capture(squad, uid, b));
+				}
+			}
+			break;
+		}
+		return true; // still at sea
+	}
+	const PetraNavalTopo &topo = petra_topo();
+	const uint32_t target_id = plan.target_building_id;
+	const uint16_t overseas = petra_overseas(topo, base_x, base_z, target_id);
+	auto tit = building_id_to_idx_.find(target_id);
+	if (!overseas || tit == building_id_to_idx_.end()) return false;
+	const uint16_t there = petra_building_land(buildings_[tit->second], &topo);
+	std::vector<uint32_t> left;
+	for (uint32_t uid : squad) {
+		const int32_t idx = lookup_unit(uid);
+		if (idx >= 0 && units_.alive[idx] && petra_land_at(units_.pos_x[idx], units_.pos_z[idx]) != there) left.push_back(uid);
+	}
+	if (left.empty() || !petra_start_transport(left, base_x, base_z, plan.target_x, plan.target_z, overseas, owner)) return false;
+	plan.state_timer = 0.0f;
+	return true;
+}
+
 bool Simulation::petra_plan_in_transport(const AttackPlan &plan) const {
 	for (uint32_t uid : plan.squad)
 		if (petra_passenger(uid) || petra_aboard(uid)) return true;
@@ -35243,19 +35260,32 @@ void Simulation::petra_manage_defense(float dt) {
 		// checkEvents: an idle or gathering fishing boat moves out of its attacker's reach,
 		// its ranged range + 15 m (25 m from a melee attacker), x0.28.
 		if (units_.unit_type[i] == UNIT_FISHING_BOAT) {
+			// Any attacker with a position (DM:586-597): a unit, or a structure's arrows (a
+			// shooting structure is Ranged: its arrow range + 15 m).
 			const int32_t a = lookup_unit(attacker);
-			if (a < 0 || !units_.alive[a] || is_ally(petra_pid_, units_.team[a])) continue;
+			float ax = 0.0f, az = 0.0f, range = 0.0f;
+			if (a >= 0) {
+				if (!units_.alive[a] || is_ally(petra_pid_, units_.team[a])) continue;
+				ax = units_.pos_x[a]; az = units_.pos_z[a];
+				range = (unit_tech_classes(units_.unit_type[a]) & TC_RANGED).any() ? units_.attack_range[a] + 15.0f * 0.28f : 25.0f * 0.28f;
+			} else if (const auto bit = building_id_to_idx_.find(attacker); bit != building_id_to_idx_.end()) {
+				const Building &ab = buildings_[bit->second];
+				if (ab.wrecked || (ab.team < MAX_PLAYERS && is_ally(petra_pid_, ab.team))) continue;
+				ax = ab.x; az = ab.z;
+				range = building_arrow_range(ab) + 15.0f * 0.28f;
+			} else {
+				continue;
+			}
 			const bool gathering = units_.action_state[i] == ACTION_IDLE || units_.action_state[i] == ACTION_GATHER ||
 			                       units_.action_state[i] == ACTION_RETURN_DROPSITE || units_.order_kind[i] == ORDER_GATHER;
 			if (!gathering) continue;
-			const float range = (unit_tech_classes(units_.unit_type[a]) & TC_RANGED).any() ? units_.attack_range[a] + 15.0f * 0.28f : 25.0f * 0.28f;
-			const float dx = units_.pos_x[i] - units_.pos_x[a], dz = units_.pos_z[i] - units_.pos_z[a];
+			const float dx = units_.pos_x[i] - ax, dz = units_.pos_z[i] - az;
 			const float d = std::sqrt(dx * dx + dz * dz);
 			if (d >= range) continue;
 			// moveToRange(range, range + 5): straight away from the attacker.
 			const float to = range + 2.5f * 0.28f, ux = d > 1e-3f ? dx / d : 1.0f, uz = d > 1e-3f ? dz / d : 0.0f;
 			const uint32_t uid = units_.id[i];
-			order_walk(&uid, 1, units_.pos_x[a] + ux * to, units_.pos_z[a] + uz * to, false);
+			order_walk(&uid, 1, ax + ux * to, az + uz * to, false);
 			continue;
 		}
 		if (unit_is_ship(units_.unit_type[i])) continue; // "TODO integrate other ships later"
