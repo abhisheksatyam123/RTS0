@@ -1789,7 +1789,7 @@ func _on_game_selected() -> void:
 	_join_ip.text = ""
 	_join_ip.placeholder_text = "From the lobby"
 	# 0 A.D. lets a running game be joined only to watch it.
-	_observe.button_pressed = r.get("state", "init") == "running"
+	_observe.button_pressed = str(r.get("state", "init")) != "init"
 	_say("Selected %s%s." % [str(r.get("name", r.get("id", ""))),
 		", which needs a password" if int(r.get("password", 0)) else ""])
 
