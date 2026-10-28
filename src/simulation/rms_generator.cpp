@@ -14036,6 +14036,61 @@ void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed, uint8_t type) {
 		paint_patches(paint_layers);
 		paint_bands(true);
 	}
+	// latium.js paints each tile from the lowest, highest and spread of its four corners' heights (metres):
+	// sea depths, corals, wet rocks and beaches by height, cliffs where the corners differ (by 2.9 m, or 2.5 m,
+	// or a cliff top 2.9 m over the lowest corner round it), then dirt, dry grass, shrubs and their cliff and
+	// rock variants on Noise2D patches of the grass. Its forests are RTS0's groves (their floor kept).
+	if (type == MAP_LATIUM && own) {
+		RmsRng nrng(seed ^ 0x4C4154u);
+		const misc_maps::Noise2D n8(nrng, misc_maps::scale_f(13, 52, half)), n9(nrng, misc_maps::scale_f(26, 104, half));
+		std::vector<float> corner((size_t)(res + 1) * (size_t)(res + 1));
+		for (int vz = 0; vz <= res; ++vz)
+			for (int vx = 0; vx <= res; ++vx)
+				corner[(size_t)vz * (size_t)(res + 1) + (size_t)vx] = (sim.get_terrain_height(-half + (float)vx * cell, -half + (float)vz * cell) - water) / metre;
+		auto at = [&](int vx, int vz) { return corner[(size_t)vz * (size_t)(res + 1) + (size_t)vx]; };
+		static const char *const kGrass[] = {"medit_grass_field_dry", "medit_grass_field_brown", "medit_grass_field_b"};
+		static const char *const kShrubs[] = {"medit_grass_shrubs", "medit_grass_flowers"};
+		static const char *const kCliff[] = {"medit_cliff_italia", "medit_cliff_italia", "medit_cliff_italia_grass"};
+		// [tDirtCliff, tGrassCliff, tGrassCliff, tGrassRock, tCliff], tCliff's own pick folded in.
+		static const char *const kCliffTop[] = {"medit_cliff_italia", "medit_cliff_italia_grass", "medit_cliff_italia_grass", "medit_rocks_grass",
+		                                        "medit_cliff_italia"};
+		for (int tz = 0; tz < res; ++tz)
+			for (int tx = 0; tx < res; ++tx) {
+				const size_t j = (size_t)tz * (size_t)res + (size_t)tx;
+				if (!free_tile(j)) continue;
+				const float c[4] = {at(tx, tz), at(tx + 1, tz), at(tx, tz + 1), at(tx + 1, tz + 1)};
+				const float min_h = std::min(std::min(c[0], c[1]), std::min(c[2], c[3])), max_h = std::max(std::max(c[0], c[1]), std::max(c[2], c[3]));
+				const float diff = max_h - min_h;
+				float min_adj = min_h;
+				if (max_h > 15.0f)
+					for (int nz = std::max(tz - 1, 0); nz <= std::min(tz + 2, res); ++nz)
+						for (int nx = std::max(tx - 1, 0); nx <= std::min(tx + 2, res); ++nx) min_adj = std::min(min_adj, at(nx, nz));
+				const char *one = nullptr;
+				const char *const *list = kGrass;
+				int n = 3;
+				if (max_h < -12.0f) one = "medit_sea_depths";
+				else if (max_h < -8.8f) one = "medit_sea_coral_deep";
+				else if (max_h < -4.7f) one = "medit_sea_coral_plants";
+				else if (max_h < -2.8f) one = "medit_rocks_wet";
+				else if (max_h < 0.9f && min_h < 0.35f) one = "medit_sand_wet";
+				else if (max_h < 1.5f && min_h < 0.9f) one = "medit_sand";
+				else if (max_h < 2.3f && min_h < 1.3f) one = "medit_rocks_grass";
+				if (diff > 2.9f && min_h > -7.0f) { one = nullptr; list = kCliff; n = 3; }
+				else if ((diff > 2.5f && min_h > -5.0f) || (max_h - min_adj > 2.9f && min_h > 0.0f)) {
+					one = nullptr;
+					if (min_h < -1.0f) { list = kCliff; n = 3; }
+					else if (min_h < 0.5f) one = "medit_dirt";
+					else { list = kCliffTop; n = 5; }
+				} else if (!one) {
+					const float fx = (float)tx / ((float)res + 1.0f), fz = (float)tz / ((float)res + 1.0f);
+					const float g = (n8.get(fx, fz) + 0.6f * n9.get(fx, fz)) / 1.6f;
+					if (g < 0.3f) one = diff > 1.2f ? "medit_cliff_italia" : "medit_dirt";
+					else if (g < 0.34f) { if (diff > 1.2f) one = "medit_cliff_italia_grass"; } // tGrassDry is tGrass's own names
+					else if (g > 0.61f) { if (diff > 1.2f) one = "medit_rocks_grass"; else { list = kShrubs; n = 2; } }
+				}
+				t.tiles[j] = one ? index_of(one) : pick(list, n, tx, tz, 14);
+			}
+	}
 	// A tile's terrain blends over neighbours of lower priority, which the renderer
 	// takes as the name's index. rmgen gives each terrain the index of its first use,
 	// so paint order decides: the main terrain first, then water and shores, player
