@@ -12147,12 +12147,11 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		const uint8_t ttype = units_.unit_type[ti];
 		auto rit = trader_routes_.find(uid);
 		if (units_.action_state[ti] != ACTION_TRADE || rit == trader_routes_.end()) {
-			// An AI's (or unseated player's) idle trader looks for a route, at most every 20 ticks. A
-			// seated human's trades only when ordered (UnitAI.js Order.Trade).
-			// Petra's merchant ships without the trader role are its transports.
-			if (owner < MAX_PLAYERS && !(players_[owner].active && !players_[owner].is_ai) && units_.action_state[ti] == ACTION_IDLE && !units_.has_order[ti] && (ticks_ + uid) % 20 == 0 &&
-			    !(ttype == UNIT_MERCHANT_SHIP && petra_runs_for(owner) &&
-			      !std::binary_search(petra_trade_ships_[owner].begin(), petra_trade_ships_[owner].end(), uid)))
+			// An unseated player's idle trader looks for a route, at most every 20 ticks. A seated
+			// human's trades only when ordered (UnitAI.js Order.Trade), and Petra's only when its
+			// tradeManager gives it a route (updateTrader): one it has none for stays idle.
+			(void)ttype;
+			if (owner < MAX_PLAYERS && !players_[owner].active && !petra_runs_for(owner) && units_.action_state[ti] == ACTION_IDLE && !units_.has_order[ti] && (ticks_ + uid) % 20 == 0)
 				order_trade_auto(&uid, 1);
 			continue;
 		}
@@ -26376,6 +26375,55 @@ void Simulation::petra_manage_trading(float dt) {
 		return true;
 	});
 
+	uint16_t home_land = 0;
+	const PetraNavalTopo &topo = petra_classified_topo(home_land);
+	auto trader_access = [&](size_t i, bool ship) {
+		const float tx = units_.pos_x[i], tz = units_.pos_z[i];
+		return ship ? petra_ship_sea(i) : topo.naval_map ? petra_land_at(tx, tz) : petra_access_at(tx, tz);
+	};
+	// checkTrader (tradeManager.js:578-611), for each trader on a market or diplomacy event: one
+	// whose route is no longer the best for its land (or sea) drops it, and updateTrader gives it
+	// the new one below. With no route at all, a land trader walks to within 15 m of its closest
+	// base (getBestBase: one on another land or without an anchor counts 5e7 farther) when that
+	// base is on its own land; any other one stops where it is.
+	if (trade_event) {
+		for (size_t i = 0; i < units_.count; ++i) {
+			if (!units_.alive[i] || units_.team[i] != petra_pid_ || !unit_is_trader(units_.unit_type[i])) continue;
+			const bool ship = units_.unit_type[i] == UNIT_MERCHANT_SHIP;
+			const uint32_t uid = units_.id[i];
+			if (ship && (!petra_trade_ship(uid) || petra_ship_in_plan(uid))) continue;
+			auto cur = trader_routes_.find(uid);
+			if (cur == trader_routes_.end() || units_.action_state[i] == ACTION_GARRISONED || petra_aboard(uid)) continue;
+			const uint16_t access = trader_access(i, ship);
+			if (petra_route_for(routes, access, ship)) continue; // the update below moves it to that route
+			trader_routes_.erase(cur);
+			trader_leg_.erase(uid);
+			trader_route_points_.erase(uid);
+			trader_route_idx_.erase(uid);
+			const float tx = units_.pos_x[i], tz = units_.pos_z[i];
+			const PetraBase *home = nullptr;
+			float best = 0.0f;
+			uint16_t home_access = 0;
+			for (const PetraBase &pb : petra_bases_) {
+				auto ait = building_id_to_idx_.find(pb.anchor_building_id);
+				if (ait == building_id_to_idx_.end() || buildings_[ait->second].build_progress < 1.0f) continue; // onlyConstructedBase
+				const uint16_t pa = topo.naval_map ? petra_land_at(pb.x, pb.z) : petra_access_at(pb.x, pb.z);
+				const float dx = pb.x - tx, dz = pb.z - tz;
+				const float d2 = dx * dx + dz * dz + (pa != access ? 5e7f / 16.0f : 0.0f);
+				if (home && d2 > best) continue;
+				home = &pb;
+				best = d2;
+				home_access = pa;
+			}
+			if (!ship && home && home_access == access) {
+				const float dx = home->x - tx, dz = home->z - tz;
+				if (dx * dx + dz * dz > 15.0f / 4.0f * 15.0f / 4.0f) cmd_move(&uid, 1, home->x, home->z);
+				continue;
+			}
+			cmd_stop(&uid, 1);
+		}
+	}
+
 	if (routes.best.gain > 0) {
 		// checkRoutes: tell our allies once about a route with each of them (warnedAllies).
 		uint8_t partner = petra_owner_of(routes.best.source);
@@ -26385,10 +26433,7 @@ void Simulation::petra_manage_trading(float dt) {
 			petra_sent_diplo_.warned_trade |= (uint8_t)(1u << partner);
 		}
 		// updateTrader and checkTrader: a trader on another route than the best one for
-		// its land (or sea) is moved to it, an idle one is given it; with none, a land
-		// trader heads back to its base.
-		uint16_t home_land = 0;
-		const PetraNavalTopo &topo = petra_classified_topo(home_land);
+		// its land (or sea) is moved to it, an idle one is given it.
 		int traders = 0, sea_traders = 0;
 		PetraHuntScan treasure_scan;
 		bool treasure_scanned = false;
@@ -26407,15 +26452,12 @@ void Simulation::petra_manage_trading(float dt) {
 				if (!treasure_scanned) { petra_treasures_taken(treasure_scan); treasure_scanned = true; }
 				if (petra_gather_treasure(i, treasure_scan, true)) continue;
 			}
-			const float tx = units_.pos_x[i], tz = units_.pos_z[i];
-			const uint16_t access = ship ? petra_ship_sea(i) : topo.naval_map ? petra_land_at(tx, tz) : petra_access_at(tx, tz);
+			const uint16_t access = trader_access(i, ship);
 			const PetraTradeRoute *r = petra_route_for(routes, access, ship);
 			if (r && !ship && r->land != access) {
-				// updateTrader: a land trader with no route on its own land asks the navalManager
-				// for a ship to the nearer end of the best route (requireTransport).
-				// RTS0's idle traders take any route on their own (order_trade_auto), one they
-				// can't walk here: that counts as idle too.
-				if ((units_.action_state[i] == ACTION_IDLE || units_.action_state[i] == ACTION_TRADE) && !petra_passenger(uid)) {
+				// updateTrader: an idle land trader with no route on its own land asks the
+				// navalManager for a ship to the nearer end of the best route (requireTransport).
+				if (units_.action_state[i] == ACTION_IDLE && !petra_passenger(uid)) {
 					auto ita = building_id_to_idx_.find(r->source), itb = building_id_to_idx_.find(r->target);
 					if (ita != building_id_to_idx_.end() && itb != building_id_to_idx_.end()) {
 						const Building &s = buildings_[ita->second], &t = buildings_[itb->second];
@@ -26441,24 +26483,7 @@ void Simulation::petra_manage_trading(float dt) {
 			// checkTrader runs only on a market or diplomacy event (checkEvents): until then a
 			// trader keeps the route it trades on, whatever has become of it.
 			if (!idle && !trade_event) continue;
-			if (!r) {
-				// checkTrader: the closest base (getBestBase) if it is on the trader's own land, else
-				// the trader stays put. updateTrader leaves an idle one without a route where it is.
-				if (!ship && has_route && trade_event) {
-					const PetraBase *home = nullptr;
-					float best = 0.0f;
-					for (const PetraBase &pb : petra_bases_) {
-						if (!pb.anchor_building_id) continue;
-						const float dx = pb.x - tx, dz = pb.z - tz, d2 = dx * dx + dz * dz;
-						if (home && d2 >= best) continue;
-						home = &pb;
-						best = d2;
-					}
-					const uint16_t home_access = !home ? 0 : topo.naval_map ? petra_land_at(home->x, home->z) : petra_access_at(home->x, home->z);
-					if (home && home_access == access && best > 15.0f / 4.0f * 15.0f / 4.0f) cmd_move(&uid, 1, home->x, home->z);
-				}
-				continue;
-			}
+			if (!r) continue; // updateTrader leaves an idle one without a route where it is (checkTrader above)
 			auto ita = building_id_to_idx_.find(r->source), itb = building_id_to_idx_.find(r->target);
 			if (ita == building_id_to_idx_.end() || itb == building_id_to_idx_.end()) continue;
 			const Building &s = buildings_[ita->second], &t = buildings_[itb->second];
@@ -26473,7 +26498,7 @@ void Simulation::petra_manage_trading(float dt) {
 		// them of the best route's kind.
 		// Traders in training count toward the target (tradeManager.js:53-64) but don't block the
 		// next plan: one every 5th AI turn. RTS0's trader plan is that turn's attempt to pay for
-		// it (petra_try_pay keeps the queue's want while it waits).
+		// it (petra_try_pay keeps the queue's want while it waits, and it is tried again each turn).
 		const int live_traders = traders; // this.traders: units with the trader role only
 		for (const Building &b : buildings_) {
 			if (b.team != petra_pid_) continue;
@@ -26505,7 +26530,11 @@ void Simulation::petra_manage_trading(float dt) {
 				switched = true;
 			}
 		}
-		if (!switched && petra_turn_mod(5) && !(traders >= target && of_kind >= target / 2) && pop_current(petra_pid_) < pop_max(petra_pid_)) {
+		// queues.trader: a trader plan waiting for its resources starts on any AI turn once paid for.
+		const PetraQueueAccount &trader_want = petra_queues_.wants[PETRA_Q_TRADER];
+		const bool trader_queued = petra_queues_.want_age[PETRA_Q_TRADER] <= PetraQueueManager::want_ttl(PETRA_Q_TRADER) &&
+		                           trader_want.food + trader_want.wood + trader_want.gold + trader_want.stone > 0.0f;
+		if (!switched && (petra_turn_mod(5) || trader_queued) && !(traders >= target && of_kind >= target / 2) && pop_current(petra_pid_) < pop_max(petra_pid_)) {
 			const uint8_t kind = sea_route ? UNIT_MERCHANT_SHIP : UNIT_TRADER;
 			const uint16_t tmpl = civ_default_template(civ_of(petra_pid_), kind);
 			// queueplanTraining.js:47-52: the trader trains in the base of the route's end that is ours

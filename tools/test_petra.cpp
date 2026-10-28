@@ -3051,6 +3051,41 @@ static void test_market_dock_route() {
 	s->petra_manage_trading(Simulation::FIXED_STEP);
 	std::printf("  fleeing trader: still fleeing %d, carrying %d\n", s->units_.action_state[k] == ACTION_FLEE, (int)s->units_.carry[k]);
 	CHECK(s->units_.action_state[k] == ACTION_FLEE && s->units_.carry[k] == 7, "a fleeing trader is not sent back to trade");
+
+	// checkTrader (tradeManager.js:578-611): the dock goes, so no route is left; on that event the
+	// land trader drops its route and walks to its base on its land, or stops.
+	const uint32_t t2 = s->spawn_unit(mx - 6.0f, mz + 6.0f, 1, UNIT_TRADER);
+	s->order_trade(&t2, 1, market, dock);
+	s->petra_manage_trading(Simulation::FIXED_STEP);
+	for (auto &b : s->buildings_) if (b.id == dock) b.hp = 0.0f;
+	s->petra_manage_trading(Simulation::FIXED_STEP);
+	const int32_t k2 = s->lookup_unit(t2);
+	const bool dropped = !s->trader_routes_.count(t2);
+	std::printf("  no route left: trader route dropped %d, state %d (order %d)\n", dropped, (int)s->units_.action_state[k2], (int)s->units_.order_kind[k2]);
+	CHECK(dropped && s->units_.action_state[k2] != ACTION_TRADE, "a trader with no route left drops it and heads home or stops");
+}
+
+// tradeManager.js updateTrader: Petra's traders trade only on the routes it gives them. On Very
+// Easy it runs no trade manager, so an idle trader stays idle (no engine pick of a route).
+static void test_petra_trader_waits_for_route() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 128.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	s->set_petra_difficulty(1, PETRA_VERY_EASY);
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	const float len = std::sqrt(tx * tx + tz * tz);
+	s->spawn_building_world(tx + 12.0f, tz, BLD_MARKET, 1, 1.0f);
+	s->spawn_building_world(tx - tx / len * 40.0f, tz - tz / len * 40.0f, BLD_MARKET, 1, 1.0f);
+	const uint32_t trader = s->spawn_unit(tx + 8.0f, tz + 8.0f, 1, UNIT_TRADER);
+	run_for(*s, 10.0f);
+	const int32_t k = s->lookup_unit(trader);
+	std::printf("  Very Easy Petra's idle trader: route %d, state %d\n", (int)s->trader_routes_.count(trader), (int)s->units_.action_state[k]);
+	CHECK(!s->trader_routes_.count(trader) && s->units_.action_state[k] == ACTION_IDLE, "Petra's idle trader waits for a route from its trade manager");
 }
 
 static void test_civ_structures() {
@@ -9910,6 +9945,7 @@ int main(int argc, char **argv) {
 	RUN(test_market_prospection);
 	RUN(test_market_prospection_events);
 	RUN(test_market_dock_route);
+	RUN(test_petra_trader_waits_for_route);
 	RUN(test_civ_structures);
 	RUN(test_emergency);
 	RUN(test_regicide_hero);

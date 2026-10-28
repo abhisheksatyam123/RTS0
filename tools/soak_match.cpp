@@ -5,7 +5,7 @@
 //   - idle under order: ACTION_IDLE with an order kind set for 30 s;
 //   - hits nothing: ACTION_ATTACK on one target for 60 s while the target's
 //     health never drops (no one is hurting it, this unit included); an automatic
-//     fight on a structure across water is left out, as 0.28 does the same;
+//     fight on a unit or structure across water is left out, as 0.28 does the same;
 //   - siege that never fires: a siege engine with 120 s in ACTION_ATTACK and
 //     no drop in any of its targets' health while it attacked;
 //   - garrisoned for good: inside a holder for 15 min;
@@ -391,10 +391,13 @@ int main(int argc, char **argv) {
 		const int sec = t / 5;
 		Simulation &s = *a;
 		if (save_at >= 0.0 && !c && sec >= (int)(save_at * 60.0)) {
-			const std::string path = "/tmp/soak_" + std::to_string(seed) + "_" + std::to_string(map) + ".sav";
+			// Per map: a sweep runs skirmish (--json) matches side by side, so the map id alone would collide.
+			const std::string path = "/tmp/soak_" + std::to_string(seed) + "_" + (json.empty() ? std::to_string(map) : json) + ".sav";
 			c = std::make_unique<Simulation>();
 			const bool saved = s.save_state(path.c_str());
-			if (!saved || !c->load_state(path.c_str())) {
+			const bool loaded = saved && c->load_state(path.c_str());
+			std::remove(path.c_str()); // a 1-2 MB file per match otherwise piles up over sweeps
+			if (!loaded) {
 				size_t alive = 0, garrisoned = 0, dying = 0, gaia = 0;
 				for (size_t i = 0; i < s.units_.count; ++i) {
 					alive += s.units_.alive[i];
@@ -602,10 +605,17 @@ int main(int argc, char **argv) {
 		}
 		// 0.28 UnitAI also keeps re-picking an unreachable structure it sees for an automatic
 		// fight (likelyFailure, then FINDINGNEWTARGET), so that one is expected, not a finding.
-		auto auto_fight_across_water = [&](size_t i, uint32_t tb) {
-			if (!tb || s.units_.order_kind[i] != ORDER_NONE) return false;
+		auto auto_fight_across_water = [&](size_t i, uint32_t tu, uint32_t tb) {
+			if (s.units_.order_kind[i] != ORDER_NONE) return false; // a player's (forced) attack still counts
+			if (tu) { // a unit target: the two on different terrain lands (0.28 picks it again just the same)
+				const int32_t j = s.lookup_unit(tu);
+				if (j < 0) return false;
+				const uint16_t ua = s.petra_access_at(s.units_.pos_x[i], s.units_.pos_z[i]);
+				const uint16_t ta = s.petra_access_at(s.units_.pos_x[j], s.units_.pos_z[j]);
+				return ua && ta && ua != ta;
+			}
 			auto bit = s.building_id_to_idx_.find(tb);
-			return bit != s.building_id_to_idx_.end() && !s.petra_same_land(i, s.buildings_[bit->second]);
+			return tb && bit != s.building_id_to_idx_.end() && !s.petra_same_land(i, s.buildings_[bit->second]);
 		};
 		auto report = [&](size_t i, Track &k, int kind, const char *what, const char *extra) {
 			if (k.reported[kind]) return;
@@ -673,7 +683,7 @@ int main(int argc, char **argv) {
 					k.tgt_cp = std::min(k.tgt_cp, cp);
 					k.no_hurt_s = 0;
 					if (hurt && is_siege(s.units_.unit_type[i])) k.siege_hurt = true;
-				} else if (++k.no_hurt_s == 60 && !auto_fight_across_water(i, tb)) {
+				} else if (++k.no_hurt_s == 60 && !auto_fight_across_water(i, tu, tb)) {
 					char buf[160];
 					float tdist = -1.0f;
 					const char *tk = "bld";
