@@ -1027,7 +1027,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				if (turn_cmds())
 					post_lockstep(1, sel_ptr, sel_n, click_pos.x, click_pos.z, 0, qbit);
 				else {
-					apply_default_formation(sel_ptr, sel_n);
+					apply_default_formation(sel_ptr, sel_n, queue_shift);
 					sim->order_walk(sel_ptr, sel_n, click_pos.x, click_pos.z, queue_shift, true);
 					sim->order_fauna_walk(local_player(), sel_ptr, sel_n, click_pos.x, click_pos.z);
 				}
@@ -1193,7 +1193,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					post_lockstep(11, sel_ptr, sel_n, click_pos.x, click_pos.z, 0, qbit);
 				else
 					{
-						apply_default_formation(sel_ptr, sel_n);
+						apply_default_formation(sel_ptr, sel_n, queue_shift);
 						sim->order_patrol(sel_ptr, sel_n, click_pos.x, click_pos.z, queue_shift);
 					}
 				// unit_actions.js PlaySound("order_patrol"): 0.28's units have no such sound group.

@@ -1743,6 +1743,51 @@ static void test_petra_ferry_stance() {
 	CHECK(landed >= (int)aboard && after == unit_default_stance(UNIT_TRIREME));
 }
 
+// transportPlan.js onBoarding nTry[shipId]: a ship stopped short of its boarding point is sent
+// there again, and on its second failed try goes for another point. Its tries last while it
+// sails back (they reset only with a new point), so a ship stopped short every time it is
+// sent off doesn't head for the same blocked point for good.
+static void test_petra_ship_boarding_retry() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.set_player_resources(1, 5000, 5000, 5000, 5000);
+	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+	const uint32_t ship = s.spawn_unit(50.0f, 0.0f, 1, UNIT_TRIREME);
+	std::vector<uint32_t> crew;
+	for (int k = 0; k < 4; ++k) crew.push_back(s.spawn_unit(-24.0f + 2.0f * k, 26.0f, 1, UNIT_SPEARMAN));
+	run(s, 0.5f);
+	CHECK(s.petra_start_transport(crew, -20.0f, 30.0f, -20.0f, -40.0f, 0, PETRA_TRANSPORT_ATTACK));
+	run(s, 0.5f);
+	const float px = s.petra_transport_plans().empty() ? 0.0f : s.petra_transport_plans()[0].pickup_x;
+	const float pz = s.petra_transport_plans().empty() ? 0.0f : s.petra_transport_plans()[0].pickup_z;
+	// Something (another ship lying at the point) holds it 10 units short: it pushes on for
+	// 4 s, then gives up and stops there.
+	float stuck = 0.0f, hx = 0.0f, hz = 0.0f;
+	bool moved_on = false;
+	for (int k = 0; k < 60 * 20 && !moved_on; ++k) {
+		run(s, Simulation::FIXED_STEP);
+		const int32_t si = idx(s, ship);
+		if (si < 0 || s.petra_transport_plans().empty()) break;
+		const float dx = s.units().pos_x[si] - px, dz = s.units().pos_z[si] - pz;
+		if (s.units().action_state[si] == ACTION_MOVE && dx * dx + dz * dz < 10.0f * 10.0f) {
+			if (stuck == 0.0f) { hx = s.units().pos_x[si]; hz = s.units().pos_z[si]; }
+			s.units_.pos_x[si] = hx;
+			s.units_.pos_z[si] = hz;
+			stuck += Simulation::FIXED_STEP;
+			if (stuck >= 4.0f) s.cmd_stop(&ship, 1);
+		} else {
+			stuck = 0.0f;
+		}
+		const auto &tp = s.petra_transport_plans()[0];
+		moved_on = tp.state == PetraTransportPlan::BOARDING && (tp.pickup_x != px || tp.pickup_z != pz);
+	}
+	std::printf("Petra ship stopped short on every leg: tries another boarding point %s\n", moved_on ? "yes" : "no");
+	CHECK(moved_on);
+}
+
 // navalManager.checkEvents: survivors of a ship sunk while sailing, set down on two lands (the
 // north shore and the islet), each ask for a transport (requireTransport) and all reach the
 // destination.
@@ -2986,6 +3031,7 @@ int main() {
 	test_petra_transport_sunk_at_sea();
 	test_petra_transport_wrong_land();
 	test_petra_ferry_stance();
+	test_petra_ship_boarding_retry();
 	test_petra_sunk_survivors_two_lands();
 	test_petra_laden_ship_lands();
 	test_petra_merchantman_transport();

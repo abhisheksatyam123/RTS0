@@ -2509,6 +2509,61 @@ void Simulation::rebuild_nav_grid() {
 	++nav_terrain_stamp_;
 }
 
+namespace {
+// The keys of the tile pass's static obstructions: the kind, then the entity id, then which part of it.
+enum TileObsKind : uint64_t { K_BUILDING = 1, K_GATE_SIDE, K_SCENERY, K_MINE, K_FLORA, K_TREASURE };
+// A static obstruction as the tile pass lists it (NavGrid::TileObstruction): centred on (x, z), hu
+// along u = (ux, uz) and hv across it; one square with the map has u = (1, 0) (nav/footprint.h) and
+// its half sizes along x and z.
+NavGrid::TileObstruction tile_obstruction(uint64_t kind, uint32_t id, uint32_t part, float x, float z, float ux, float uz, float hu,
+		float hv) {
+	NavGrid::TileObstruction o;
+	o.key = (kind << 56) | ((uint64_t)id << 2) | part;
+	o.x = x;
+	o.z = z;
+	if (std::fabs(uz) < 1e-6f) {
+		ux = 1.0f;
+		uz = 0.0f;
+	} else if (std::fabs(ux) < 1e-6f) {
+		ux = 1.0f;
+		uz = 0.0f;
+		std::swap(hu, hv);
+	}
+	o.ux = ux;
+	o.uz = uz;
+	o.hu = hu;
+	o.hv = hv;
+	return o;
+}
+} // namespace
+
+void Simulation::list_structure_tile_obstructions(std::vector<NavGrid::TileObstruction> &list) const {
+	auto put = [&](uint64_t kind, uint32_t id, uint32_t part, float x, float z, float ux, float uz, float hu, float hv) {
+		list.push_back(tile_obstruction(kind, id, part, x, z, ux, uz, hu, hv));
+	};
+	list.clear();
+	for (const auto &b : buildings_) {
+		const nav::Vec2 u = nav::footprint_u(b);
+		// An unlocked gate's sides still block pathfinding: only its Door is switched (Gate.js).
+		if (is_gate_type(b.type) && !b.wrecked && b.build_progress >= 0.99f && !blocks_pathfinding(b)) {
+			uint32_t side = 0;
+			for_each_gate_side(b, [&](float x, float z, float hu, float hv) { put(K_GATE_SIDE, b.id, side++, x, z, u.x, u.y, hu, hv); });
+			continue;
+		}
+		// A committed foundation blocks movement too (Foundation.js Commit sets its obstruction); a wreck doesn't.
+		if (b.wrecked || (b.build_progress < 0.99f && !b.committed) || !blocks_pathfinding(b)) continue;
+		put(K_BUILDING, b.id, 0, b.x, b.z, u.x, u.y, b.hu, b.hv);
+	}
+	for (const Scenery &sc : scenery_)
+		put(K_SCENERY, sc.id, 0, sc.x, sc.z, det::cos(sc.angle), -det::sin(sc.angle), sc.half_w, sc.half_d);
+	for (size_t r = 0; r < resources_.count; ++r) {
+		nav::Footprint m;
+		if (!resources_.alive[r] || resources_.amount[r] <= 0 || !mine_footprint(r, m)) continue;
+		put(K_MINE, resources_.id[r], 0, m.x, m.z, m.ux, m.uz, m.hu, m.hv);
+	}
+	std::sort(list.begin(), list.end(), [](const NavGrid::TileObstruction &a, const NavGrid::TileObstruction &b) { return a.key < b.key; });
+}
+
 // The static obstructions the nodes of the long paths on the terrain tiles keep units off
 // (NavGrid::set_tile_obstructions), as CCmpObstructionManager::Rasterize puts the static shapes
 // that BlockPathfinding onto 0.28's navcells. With `structures`, the ones rebuild_nav_grid closes
@@ -2590,51 +2645,12 @@ void Simulation::sync_tile_obstructions(bool structures) {
 	if (!structures && gaia_listed) return;
 
 	std::vector<TileObs> &list = tile_obs_scratch_;
-	// Keys: the kind, then the entity id, then which part of it.
-	enum : uint64_t { K_BUILDING = 1, K_GATE_SIDE, K_SCENERY, K_MINE, K_FLORA, K_TREASURE };
 	auto put = [&](uint64_t kind, uint32_t id, uint32_t part, float x, float z, float ux, float uz, float hu, float hv) {
-		TileObs o;
-		o.key = (kind << 56) | ((uint64_t)id << 2) | part;
-		o.x = x;
-		o.z = z;
-		// Square with the map: u = (1, 0) (nav/footprint.h), the half sizes along x and z.
-		if (std::fabs(uz) < 1e-6f) {
-			ux = 1.0f;
-			uz = 0.0f;
-		} else if (std::fabs(ux) < 1e-6f) {
-			ux = 1.0f;
-			uz = 0.0f;
-			std::swap(hu, hv);
-		}
-		o.ux = ux;
-		o.uz = uz;
-		o.hu = hu;
-		o.hv = hv;
-		list.push_back(o);
+		list.push_back(tile_obstruction(kind, id, part, x, z, ux, uz, hu, hv));
 	};
 	auto by_key = [](const TileObs &a, const TileObs &b) { return a.key < b.key; };
 	if (structures) {
-		list.clear();
-		for (const auto &b : buildings_) {
-			const nav::Vec2 u = nav::footprint_u(b);
-			// An unlocked gate's sides still block pathfinding: only its Door is switched (Gate.js).
-			if (is_gate_type(b.type) && !b.wrecked && b.build_progress >= 0.99f && !blocks_pathfinding(b)) {
-				uint32_t side = 0;
-				for_each_gate_side(b, [&](float x, float z, float hu, float hv) { put(K_GATE_SIDE, b.id, side++, x, z, u.x, u.y, hu, hv); });
-				continue;
-			}
-			// A committed foundation blocks movement too (Foundation.js Commit sets its obstruction); a wreck doesn't.
-			if (b.wrecked || (b.build_progress < 0.99f && !b.committed) || !blocks_pathfinding(b)) continue;
-			put(K_BUILDING, b.id, 0, b.x, b.z, u.x, u.y, b.hu, b.hv);
-		}
-		for (const Scenery &sc : scenery_)
-			put(K_SCENERY, sc.id, 0, sc.x, sc.z, det::cos(sc.angle), -det::sin(sc.angle), sc.half_w, sc.half_d);
-		for (size_t r = 0; r < resources_.count; ++r) {
-			nav::Footprint m;
-			if (!resources_.alive[r] || resources_.amount[r] <= 0 || !mine_footprint(r, m)) continue;
-			put(K_MINE, resources_.id[r], 0, m.x, m.z, m.ux, m.uz, m.hu, m.hv);
-		}
-		std::sort(list.begin(), list.end(), by_key);
+		list_structure_tile_obstructions(list);
 		nav_grid_.set_tile_obstructions(NavGrid::TILE_OBS_STRUCTURES, list);
 	}
 	if (gaia_listed) return;
@@ -7687,7 +7703,7 @@ void Simulation::formation_disband(size_t ci) {
 	formation_refresh_groups();
 }
 
-void Simulation::formation_remove_units(const uint32_t *unit_ids, size_t count) {
+void Simulation::formation_remove_units(const uint32_t *unit_ids, size_t count, bool rearrange) {
 	// Commands.js RemoveFromFormation -> Formation.js RemoveMembers: below
 	// RequiredMemberCount the formation disbands, else the rest re-form, but only while it
 	// rearranges: FORMATIONCONTROLLER IDLE and MEMBER SetRearrange(false), so a death in a
@@ -7708,6 +7724,7 @@ void Simulation::formation_remove_units(const uint32_t *unit_ids, size_t count) 
 			formation_disband(ci);
 			continue;
 		}
+		if (!rearrange) continue;
 		fc.has_offsets = 0;
 		if (fc.order != FORDER_IDLE && fc.order != FORDER_MEMBER) formation_move_members_into(ci, true, false);
 	}
@@ -7807,6 +7824,9 @@ void Simulation::formation_move_members_into(size_t ci, bool move_center, bool f
 		if (idx < 0 || !units_.alive[idx]) continue;
 		const uint8_t st = units_.action_state[idx];
 		if (!force && st != ACTION_IDLE && st != ACTION_MOVE && st != ACTION_ATTACK_MOVE) continue;
+		// Order.FormationWalk: a packable member of an idle controller stays put rather than
+		// pack, "as that would unpack us" (an unpacked engine isn't walked back into line).
+		if (fc.order == FORDER_IDLE && !pack_state_can_move(units_.pack_state[idx])) continue;
 		s.following = 1;
 		float wx, wz;
 		formation_slot_world(fc.x, fc.z, fc.rot, s.x, s.y, wx, wz);
@@ -7881,11 +7901,8 @@ std::vector<size_t> Simulation::formation_controllers_for(const uint32_t *unit_i
 					want = fc.tmpl;
 					result.push_back((size_t)ctrls[0]);
 				} else if (can_move_into_formation(sel.data(), sel.size(), want)) {
-					// Formation.js LoadFormation: same controller, new template. Members that
-					// cannot use it leave.
-					std::vector<uint32_t> leave;
-					for (uint32_t id : fc.members)
-						if (!unit_can_use_formation(id, want)) leave.push_back(id);
+					// Formation.js LoadFormation: same controller, new template. SetMembers keeps
+					// every member, those that can't use the template too.
 					fc.tmpl = want;
 					fc.has_offsets = 0;
 					formation_refresh_groups();
@@ -7893,13 +7910,7 @@ std::vector<size_t> Simulation::formation_controllers_for(const uint32_t *unit_i
 						const int32_t idx = lookup_unit(id);
 						if (idx >= 0) units_.formation[idx] = want;
 					}
-					const size_t keep = (size_t)ctrls[0];
-					const uint32_t keep_id = fc.id;
-					if (!leave.empty()) formation_remove_units(leave.data(), leave.size());
-					for (size_t ci = 0; ci < formations_.size(); ++ci)
-						if (formations_[ci].id == keep_id) { result.push_back(ci); break; }
-					(void)keep;
-					for (uint32_t id : leave) individual.push_back(id);
+					result.push_back((size_t)ctrls[0]);
 					return result;
 				}
 			} else if (!force_template) {
@@ -7928,7 +7939,7 @@ std::vector<size_t> Simulation::formation_controllers_for(const uint32_t *unit_i
 			formed.push_back(id);
 		}
 	}
-	if (!leaving.empty()) formation_remove_units(leaving.data(), leaving.size());
+	if (!leaving.empty()) formation_remove_units(leaving.data(), leaving.size(), false); // Order.LeaveFormation
 	if (individual.size() == sel.size()) return {};
 	if (!result.empty()) {
 		// The reused controller may have moved in formations_ when others disbanded.
@@ -8008,12 +8019,34 @@ std::vector<size_t> Simulation::formation_controllers_for(const uint32_t *unit_i
 	return result;
 }
 
-void Simulation::order_set_formation(const uint32_t *unit_ids, size_t count, uint8_t formation) {
+void Simulation::order_set_formation(const uint32_t *unit_ids, size_t count, uint8_t formation, bool queued) {
 	// Commands.js "formation" -> GetFormationUnitAIs(forceTemplate) -> UnitAI MoveIntoFormation:
 	// the units form up where they stand. The null formation (or one unit) leaves formations.
 	if (count == 0 || formation >= FORMATION_COUNT) return;
+	if (formation == FORMATION_NONE && queued && count > 1) {
+		// LeaveFormation(true) is queued behind each member's orders, and the controller's
+		// FormationWalk keeps it (UnitAI ReplaceOrder): a whole formation that is busy finishes
+		// its orders in shape, then breaks up and its members carry on with what was queued.
+		for (uint32_t fid : formation_whole_ids(unit_ids, count))
+			for (FormationController &fc : formations_) {
+				if (fc.id != fid || (fc.order == FORDER_IDLE && fc.queue.empty())) continue;
+				UnitOrder leave;
+				leave.pad = FORMATION_QUEUE_LEAVE;
+				if (fc.queue.size() < 64) fc.queue.push_back(leave);
+			}
+		std::vector<uint32_t> now;
+		for (size_t k = 0; k < count; ++k) {
+			const uint32_t fid = formation_of_unit(unit_ids[k]);
+			const FormationController *fc = nullptr;
+			for (const FormationController &f : formations_)
+				if (f.id == fid) fc = &f;
+			if (!fc || fc->queue.empty() || fc->queue.back().pad != FORMATION_QUEUE_LEAVE) now.push_back(unit_ids[k]);
+		}
+		if (!now.empty()) formation_remove_units(now.data(), now.size(), now.size() == 1);
+		return;
+	}
 	if (formation == FORMATION_NONE || count == 1) {
-		formation_remove_units(unit_ids, count);
+		formation_remove_units(unit_ids, count, count == 1); // a lone unit: RemoveFromFormation
 		return;
 	}
 	std::vector<uint32_t> individual;
@@ -8446,6 +8479,22 @@ void Simulation::tick_formations(float dt) {
 			const UnitOrder o = fc.queue.front();
 			fc.queue.erase(fc.queue.begin());
 			const std::vector<uint32_t> members = fc.members;
+			if (o.pad == FORMATION_QUEUE_LEAVE) {
+				// A queued LeaveFormation: the members leave, and the orders queued behind it
+				// become each member's own (Order.LeaveFormation, then their queue).
+				const std::vector<UnitOrder> rest = fc.queue;
+				formation_remove_units(members.data(), members.size(), false);
+				for (uint32_t uid : members) {
+					if (lookup_unit(uid) < 0 || rest.empty()) continue;
+					apply_order(uid, rest.front());
+					if (rest.size() > 1 && lookup_unit(uid) >= 0) {
+						std::vector<UnitOrder> &q = order_queues_[uid];
+						q.insert(q.end(), rest.begin() + 1, rest.end());
+						if (q.size() > 64) q.resize(64);
+					}
+				}
+				break;
+			}
 			formation_apply_order(members, o);
 			break;
 		}
@@ -9911,12 +9960,19 @@ void Simulation::clear_resources_near(float x, float z, float r) {
 }
 
 size_t Simulation::place_starting_walls(uint8_t player, float x, float z, int map_tiles, uint8_t walls, float orientation,
-		uint32_t seed) {
+		uint32_t seed, bool off_steep) {
 	if (player >= MAX_PLAYERS || civ_of(player) != CIV_IBERIANS || map_tiles <= 128) return 0;
-	if (walls == STARTING_WALLS_FORTRESS) return place_generic_fortress(player, x, z, 20.0f, seed);
+	if (walls == STARTING_WALLS_FORTRESS) {
+		if (!off_steep || !fortress_crosses_steep(x, z, 20.0f, seed)) return place_generic_fortress(player, x, z, 20.0f, seed);
+		walls = STARTING_WALLS_TOWERS;
+	}
 	if (walls != STARTING_WALLS_TOWERS) return 0;
 	// placePolygonalWall(position, 15, ["entry"], "tower", civ, playerID, orientation, 7): a tower at
 	// each of 7 corners; an "entry" has no template, so nothing stands between them.
+	const float th = wallset_info(WALLSET_STONE).tower_half;
+	// off_steep: what a tower must not shut a way between, the towers laid so far joining it.
+	std::vector<NavGrid::TileObstruction> obs;
+	if (off_steep) list_structure_tile_obstructions(obs);
 	const bool bulk = bulk_spawn_;
 	bulk_spawn_ = true;
 	size_t placed = 0;
@@ -9924,9 +9980,20 @@ size_t Simulation::place_starting_walls(uint8_t player, float x, float z, int ma
 	for (int i = 0; i < 7; ++i) {
 		const float a = orientation - 0.5f * step + (float)i * step;
 		const float px = x + 15.0f * det::cos(a), pz = z + 15.0f * det::sin(a);
-		if (std::fabs(px) > map_half_ - 1.0f || std::fabs(pz) > map_half_ - 1.0f) continue;
-		if (get_terrain_height(px, pz) < terrain_water_height_ + 0.15f) continue;
-		spawn_wall_piece({BLD_WALL_TOWER, px, pz, -a, wallset_info(WALLSET_STONE).tower_half}, player, 1.0f);
+		if (!map_wall_site_ok(px, pz)) continue;
+		const WallPiece tower{BLD_WALL_TOWER, px, pz, -a, th};
+		if (!off_steep) {
+			spawn_wall_piece(tower, player, 1.0f);
+			++placed;
+			continue;
+		}
+		if (nav_grid_.near_steep_tile(px, pz, th)) continue;
+		const Building fp = wall_piece_footprint(tower);
+		const nav::Vec2 u = nav::footprint_u(fp);
+		const NavGrid::TileObstruction t = tile_obstruction(K_BUILDING, 0, 0, fp.x, fp.z, u.x, u.y, fp.hu, fp.hv);
+		if (nav_grid_.tile_obs_parts_ground(t, obs, 0) || nav_grid_.tile_obs_parts_ground(t, obs, 1)) continue;
+		place_map_wall_piece(tower, player);
+		obs.push_back(t);
 		++placed;
 	}
 	bulk_spawn_ = bulk;
@@ -9934,9 +10001,12 @@ size_t Simulation::place_starting_walls(uint8_t player, float x, float z, int ma
 	return placed;
 }
 
+bool Simulation::map_wall_site_ok(float x, float z) const {
+	return !(std::fabs(x) > map_half_ - 1.0f || std::fabs(z) > map_half_ - 1.0f || get_terrain_height(x, z) < terrain_water_height_ + 0.15f);
+}
+
 bool Simulation::place_map_wall_piece(const WallPiece &p, uint8_t player) {
-	if (std::fabs(p.x) > map_half_ - 1.0f || std::fabs(p.z) > map_half_ - 1.0f) return false;
-	if (get_terrain_height(p.x, p.z) < terrain_water_height_ + 0.15f) return false;
+	if (!map_wall_site_ok(p.x, p.z)) return false;
 	// template_gaia_flora's DeleteUponConstruction: trees and bushes under the piece go.
 	const float c = det::cos(p.rot), sn = -det::sin(p.rot);
 	for (float u = -p.half_w; u <= p.half_w + 1e-3f; u += 0.5f)
@@ -10018,10 +10088,16 @@ size_t Simulation::place_custom_fortress(uint8_t player, float x, float z, float
 	return placed;
 }
 
-size_t Simulation::place_generic_fortress(uint8_t player, float x, float z, float radius, uint32_t seed,
-		float irregularity, int gate_every, int max_tries, uint8_t style) {
-	const WallSetInfo &ws = wallset_info(WALLSET_STONE);
-	const bool styled = style < WALL_STYLE_COUNT;
+namespace {
+struct FortressCorner {
+	float x, z;
+};
+// placeGenericFortress's outline (wall_builder.js): the corners, relative to the centre, of the closed
+// walk round it a wall's length `pd` at a time, each corner pushed in or out at random by up to
+// `irregularity` of it; of `max_tries` tries the one whose last wall overlaps the first least (a try
+// starts where the previous one stopped). The draws come from `seed` alone.
+std::vector<FortressCorner> generic_fortress_outline(float radius, uint32_t seed, float irregularity, int max_tries,
+		float overlap, float pd) {
 	uint64_t state = (uint64_t)seed * 0x9E3779B97F4A7C15ull + 0x2545F4914F6CDD1Dull;
 	auto rnd = [&state]() { // splitmix64, [0, 1)
 		uint64_t v = (state += 0x9E3779B97F4A7C15ull);
@@ -10030,16 +10106,9 @@ size_t Simulation::place_generic_fortress(uint8_t player, float x, float z, floa
 		v ^= v >> 31;
 		return (float)((double)(v >> 11) * (1.0 / 9007199254740992.0));
 	};
-	struct V { float x, z; };
+	using V = FortressCorner;
 	auto polar = [](float r, float a) { return V{r * det::cos(a), r * det::sin(a)}; };
 	auto dist = [](V a, V b) { return det::hypot(a.x - b.x, a.z - b.z); };
-	// getWallLength(style, ["long", "tower"]): each element's length less the tower overlap.
-	const float overlap = styled ? (float)wall_overlap<double>(style) : ws.min_overlap * ws.tower_length;
-	const float pd = styled ? (float)wall_length<double>(style, {WallElementName{WALL_EL_LONG}, WallElementName{}})
-	                        : (ws.lengths[0] - overlap) + (ws.tower_length - overlap);
-	// Walk round the centre a wall's length at a time, each corner pushed in or out at random,
-	// until the outline closes; keep the try whose last wall overlaps the first least. As in
-	// placeGenericFortress, a try starts where the previous one stopped.
 	const float start_angle = rnd() * 2.0f * 3.14159265f;
 	V off = polar(radius, start_angle);
 	float angle = start_angle;
@@ -10066,6 +10135,59 @@ size_t Simulation::place_generic_fortress(uint8_t player, float x, float z, floa
 			if (pts.size() > 1000) break; // a radius too small to close on
 		}
 	}
+	return best;
+}
+// getWallLength(style, ["long", "tower"]): each element's length less the tower overlap (`pd`), and
+// that overlap; without a style (WALL_STYLE_COUNT), the generic stone set's.
+void generic_fortress_lengths(uint8_t style, float &overlap, float &pd) {
+	const WallSetInfo &ws = wallset_info(WALLSET_STONE);
+	const bool styled = style < WALL_STYLE_COUNT;
+	overlap = styled ? (float)wall_overlap<double>(style) : ws.min_overlap * ws.tower_length;
+	pd = styled ? (float)wall_length<double>(style, {WallElementName{WALL_EL_LONG}, WallElementName{}})
+	            : (ws.lengths[0] - overlap) + (ws.tower_length - overlap);
+}
+// The middle of the wall from corner a to corner b, where the unstyled ring lays it.
+FortressCorner fortress_wall_mid(FortressCorner a, FortressCorner b) {
+	const float wa = det::atan2(b.z - a.z, b.x - a.x), d = det::hypot(a.x - b.x, a.z - b.z);
+	return {a.x + 0.5f * d * det::cos(wa), a.z + 0.5f * d * det::sin(wa)};
+}
+} // namespace
+
+// An RTS0 rule for RTS0's own maps (place_starting_walls' off_steep). 0.28's placeStartingWalls
+// (player.js) lays placeGenericFortress wherever the map script puts the base; these maps have no
+// 0.28 script. On Acropolis Heights seed 3 the ring round player 0's civic centre ran up the cliff
+// beside it, and its lowland walls, whose gates all open onto steep ground, shut the base in: stuck
+// returners, builders and foundations. The test walks the outline place_generic_fortress would lay
+// (its defaults, unstyled), corner to corner: each tower it lays (at a corner) by a tower's half
+// width, and each long wall or gate it lays (along a side, from its middle) over the whole side by
+// that and steep_sample_pad, its first corner by the point test. Pieces it leaves out (off the map,
+// in water) don't count.
+bool Simulation::fortress_crosses_steep(float x, float z, float radius, uint32_t seed) const {
+	if (!nav_grid_.any_steep_tile()) return false;
+	const float r = wallset_info(WALLSET_STONE).tower_half, rs = r + nav_grid_.steep_sample_pad();
+	float overlap, pd;
+	generic_fortress_lengths(WALL_STYLE_COUNT, overlap, pd);
+	const std::vector<FortressCorner> best =
+			generic_fortress_outline(radius, seed, GENERIC_FORTRESS_IRREGULARITY, GENERIC_FORTRESS_TRIES, overlap, pd);
+	const size_t n = best.size();
+	for (size_t i = 0; i < n; ++i) {
+		const FortressCorner a{x + best[i].x, z + best[i].z}, b{x + best[(i + 1) % n].x, z + best[(i + 1) % n].z};
+		const FortressCorner mid = fortress_wall_mid(a, b);
+		const bool tower = map_wall_site_ok(a.x, a.z), wall = map_wall_site_ok(mid.x, mid.z);
+		if ((tower || wall) && nav_grid_.near_steep_tile(a.x, a.z, r)) return true;
+		if (wall && nav_grid_.segment_near_steep_tile(a.x, a.z, b.x, b.z, rs)) return true;
+	}
+	return false;
+}
+
+size_t Simulation::place_generic_fortress(uint8_t player, float x, float z, float radius, uint32_t seed,
+		float irregularity, int gate_every, int max_tries, uint8_t style) {
+	const WallSetInfo &ws = wallset_info(WALLSET_STONE);
+	const bool styled = style < WALL_STYLE_COUNT;
+	using V = FortressCorner;
+	float overlap, pd;
+	generic_fortress_lengths(style, overlap, pd);
+	const std::vector<V> best = generic_fortress_outline(radius, seed, irregularity, max_tries, overlap, pd);
 	if (best.empty()) return 0;
 	const bool bulk = bulk_spawn_;
 	bulk_spawn_ = true;
@@ -10093,7 +10215,7 @@ size_t Simulation::place_generic_fortress(uint8_t player, float x, float z, floa
 		// The wall from this corner to the next: every gate_every-th a gate, else a long wall.
 		const V a{x + best[i].x, z + best[i].z}, b{x + best[(i + 1) % n].x, z + best[(i + 1) % n].z};
 		const float wa = det::atan2(b.z - a.z, b.x - a.x);
-		const V mid{a.x + 0.5f * dist(a, b) * det::cos(wa), a.z + 0.5f * dist(a, b) * det::sin(wa)};
+		const V mid = fortress_wall_mid(a, b);
 		const bool gate = gate_every > 0 && (int)((i + 1) % (size_t)gate_every) == 0;
 		place({gate ? (uint8_t)BLD_GATE : ws.segment, mid.x, mid.z, -wa, 0.5f * ws.lengths[0]});
 		// The tower at this corner, turned along the wall from the previous corner to the next.
@@ -13054,6 +13176,16 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 	// units' action_state (unit_running); before avoid_idle_units, which reads it too (obstructs).
 	for (size_t i = 0; i < n; ++i) {
 		if (!arrived[i]) continue;
+		// Formation.js SetFinishedEntity: a member at its slot turns to the formation's front.
+		if (units_.formation[i] != FORMATION_NONE && !formations_.empty()) {
+			const uint32_t fid = formation_of_unit(units_.id[i]);
+			for (const FormationController &fc : formations_)
+				if (fc.id == fid) {
+					units_.heading_x[i] = det::sin(fc.rot);
+					units_.heading_z[i] = det::cos(fc.rot);
+					break;
+				}
+		}
 		has[i] = 0;
 		units_.action_state[i] = ACTION_IDLE;
 		units_.waypoint_cur[i] = 0;
@@ -13337,12 +13469,15 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		const uint8_t owner = units_.team[i];
 		// A builder on its way to its site whose last short path search, among the crowd-scale squares
 		// and then the smaller ones, found no way from where it still stands toward the same aim (the
-		// stuck memo, `no_way` below): see obstructs.
+		// stuck memo, `no_way` below), or that was caught going round a way its searches find (the
+		// obstructed branch below): see obstructs. With `as_sealed` a step is tested as if it were one.
+		const bool builder = units_.action_state[i] == ACTION_BUILD && units_.target_building_id[i] != 0;
+		const bool member = !formations_.empty() && (size_t)i < formation_group_.size() && formation_group_[i] != 0;
 		const ShortPathMemo &last = units_.short_path[i];
 		const float lsx = x0 - last.x, lsz = z0 - last.z, lax = aim_x[i] - last.aim_x, laz = aim_z[i] - last.aim_z;
-		const bool sealed_builder = units_.action_state[i] == ACTION_BUILD && units_.target_building_id[i] != 0 &&
-				last.key == stuck_key && lsx * lsx + lsz * lsz < 0.25f &&
+		const bool sealed_builder = builder && last.key == stuck_key && lsx * lsx + lsz * lsz < 0.25f &&
 				lax * lax + laz * laz <= nav::SHORT_PATH_AIM_SLACK * nav::SHORT_PATH_AIM_SLACK;
+		bool as_sealed = false;
 		auto obstructs = [&](int32_t j) {
 			// A unit standing still obstructs one that moves, as in 0.28 (ControlGroupMovementObstructionFilter,
 			// ICmpObstructionManager.h:406-429, CCmpUnitMotion.h:840-851): only its own control group lets a
@@ -13369,7 +13504,8 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 			// centre), so farther out the returner walks round them, as in 0.28. Units on other tasks, other
 			// players' units and the walk back to the supply keep 0.28's rule.
 			// The same deviation lets a sealed builder (sealed_builder) through its own player's units that
-			// stand idle with no order, and only while its searches find no way from where it stands. The
+			// stand idle with no order, and only while its searches find no way from where it stands, or once
+			// it is caught going round a way they find (civ 13's market builder, below). The
 			// soldiers a civic centre unloads stand round it with the workers among them, and a worker sent
 			// from there to build stood in that pocket for good (Stats' e2e_human_path, 2026-10: builders of
 			// civs 0, 2, 4, 6, 9 and 11 never started): the crowd shuts every way out among the crowd-scale
@@ -13380,7 +13516,8 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 			// OutOfRange -> APPROACHING, UnitAI.js:3087-3090, 3109-3113, 3140-3142): the build order stands
 			// for good. Once the builder is 0.5 off the spot it searches by 0.28's rule again; a body in its
 			// way still slides it round (separation), and every other unit's walk keeps the rule.
-			if (sealed_builder && units_.team[j] == owner && units_.action_state[j] == ACTION_IDLE && !units_.has_order[j])
+			if ((sealed_builder || as_sealed) && units_.team[j] == owner && units_.action_state[j] == ACTION_IDLE &&
+					!units_.has_order[j])
 				return false;
 			if (!returning || units_.team[j] != owner) return true;
 			return !((units_.action_state[j] == ACTION_IDLE && !units_.has_order[j]) ||
@@ -13427,6 +13564,31 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 			if (l <= 0.0f || l >= probe) return step_blocked(ex, ez, relaxed);
 			return step_blocked(x0 + dx / l * probe, z0 + dz / l * probe, relaxed);
 		};
+		// Whether a step would be clear for a sealed builder: only its own player's units that stand idle
+		// with no order are in its way (obstructs).
+		auto clear_as_sealed = [&](float ex, float ez, float to_x, float to_z, bool relaxed) {
+			as_sealed = true;
+			const bool clear = !full_step_blocked(ex, ez, to_x, to_z, relaxed);
+			as_sealed = false;
+			return clear;
+		};
+		// The same for a full step straight toward its aim, and for the whole line to its aim out to the
+		// widest search range: a sealed builder heads straight for its aim (a builder caught going round a
+		// way its searches find, below).
+		auto aim_step_clear_as_sealed = [&] {
+			const float ax = aim_x[i] - x0, az = aim_z[i] - z0, al = std::sqrt(ax * ax + az * az);
+			if (al <= 1e-4f) return false;
+			const float k = std::min(full_step, al) / al;
+			return clear_as_sealed(x0 + ax * k, z0 + az * k, aim_x[i], aim_z[i], false);
+		};
+		auto aim_line_clear_as_sealed = [&] {
+			const float lx = aim_x[i] - x0, lz = aim_z[i] - z0, ll = std::sqrt(lx * lx + lz * lz);
+			const float lk = ll > RANGE_MAX ? RANGE_MAX / ll : 1.0f;
+			as_sealed = true;
+			const bool clear = !step_blocked(x0 + lx * lk, z0 + lz * lk);
+			as_sealed = false;
+			return clear;
+		};
 		// A unit that reached a waypoint of its short path last tick searches on from there, as 0 A.D.
 		// follows the whole path: heading straight for its aim could take it back to where it was
 		// stuck, such as a dead end between idle units.
@@ -13436,9 +13598,11 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		const bool from_corner = (memo.key == corner_key || memo.key == relaxed_corner_key) && same_aim;
 		// A step on a path that was searched among the smaller squares is tested against them.
 		const bool relaxed = (memo.key == relaxed_key || memo.key == relaxed_corner_key) && same_aim;
+		const bool dropped = memo.key == 0; // no path (one dropped below keeps its waypoint), not a corner
 		if (memo.key == corner_key || memo.key == relaxed_corner_key) memo.key = 0;
 		const uint8_t failed = units_.motion[i].failed;
 		const bool obstructed = full_step_blocked(npx[i], npz[i], aim_x[i], aim_z[i], relaxed);
+		const float step_x = npx[i], step_z = npz[i]; // the step move_units gave it
 		bool no_way = false;
 		if (obstructed) {
 			// Obstructed: the unit stays put this tick. One within reach of its task is where 0 A.D.'s
@@ -13446,7 +13610,45 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 			// The way to its waypoint is blocked now. So is the way along a short path it keeps round trees
 			// or steep ground (nav::kept_path_key): 0.28's HandleObstructedMove replaces the short path the
 			// unit follows with a new one (CCmpUnitMotion.h:1436-1441).
-			if (memo.key == key || memo.key == relaxed_key || nav::is_kept_path_key(memo.key, short_path_key_)) memo.key = 0;
+			// A builder caught going round a way its searches find takes the stuck memo where it stands, as
+			// when its search finds no way, and is a sealed builder from the next tick (obstructs). RTS0
+			// deviation, with sealed_builder's. Civ 13's market builder in Stats' e2e_human_path (2026-10)
+			// went round such a loop for good, in BUILD with its long path and no velocity. Its search found
+			// a way down a slit between two crowd-scale squares and through the body of a unit whose square
+			// held it (a ray that starts inside a square is never blocked by it). Walking into that body,
+			// separation slid it off the path, as 0.28 never does (a moving unit and a standing one are never
+			// pushed apart: CCmpUnitMotion_System.cpp:673-687), and its next step entered the square beside
+			// the slit and was refused here. 0.28 would keep the unit there and search again from it
+			// (HandleObstructedMove, CCmpUnitMotion.h:1369, 1397-1398, 1441-1446); RTS0 drops the path and
+			// heads straight for its aim, back to where it searched, and finds the same way. The builder is
+			// caught when:
+			// - its search from where a step toward its aim was refused finds the way whose path it dropped
+			//   (the memo keeps that path's waypoint with key 0; below, after the search), or
+			// - a step along its path is refused after more than CAUGHT_FAILED obstructed turns in a row
+			//   (here): building steering round a structure beside the crowd can take the memo of the
+			//   dropped path's waypoint, and the loop can run round two ways in turn.
+			// Either way only where the refused step would be clear for a sealed builder: only its own idle
+			// units with no order are in its way, so the seal frees it on the next tick. A builder refused
+			// among farmers, other builders or allied units keeps 0.28's rule and searches again on its own
+			// tick; with the stuck memo it would search only every fourth turn. A sealed builder heads
+			// straight for its aim, so each test also looks ahead along that line. The first fires on a
+			// single re-find, so it looks along the whole line to the aim, out to the widest search range
+			// (RANGE_MAX): with the refused step alone it also sealed builders that would have got on along
+			// the way found. In test_naval's Petra overseas base a house builder beside the civic centre,
+			// sealed so, made straight for its site and was refused there by other builders and gatherers,
+			// which the seal does not let through. It searched again and went the same way round 2.5 s late,
+			// after the house was finished, and Petra's move overseas fell behind with it (the test found 6
+			// workers on the far land at 360 s, against 23 without the seal, where it needs 8). The second
+			// looks one full step ahead: past CAUGHT_FAILED turns the builder searches every eighth turn over
+			// the widest range anyway, so the memo costs it no search. A formation's member keeps the rule
+			// too (its aim is its slot).
+			constexpr uint8_t CAUGHT_FAILED = 12;
+			const bool on_path = memo.key == key || memo.key == relaxed_key;
+			if (on_path && same_aim && builder && !member && failed > CAUGHT_FAILED &&
+					clear_as_sealed(npx[i], npz[i], aim_x[i], aim_z[i], relaxed) && aim_step_clear_as_sealed())
+				memo = ShortPathMemo{x0, z0, aim_x[i], aim_z[i], stuck_key};
+			else if (on_path || nav::is_kept_path_key(memo.key, short_path_key_))
+				memo.key = 0;
 			npx[i] = x0;
 			npz[i] = z0;
 			units_.vel_x[i] = units_.vel_z[i] = 0.0f;
@@ -13565,7 +13767,6 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		// while the relaxed memo keeps its aim, and a member's aim is its formation slot, which moves every
 		// tick. Such a path would leave it inside a standing unit's crowd-scale square with the memo gone,
 		// where the plain step test no longer stops it crossing the unit's body (test_unit_pushing 22).
-		const bool member = !formations_.empty() && (size_t)i < formation_group_.size() && formation_group_[i] != 0;
 		bool relaxed_path = false;
 		if (!found && !squares.empty() && !member) {
 			thread_local std::vector<nav::ShortPathSquare> relaxed_squares;
@@ -13599,6 +13800,18 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		if ((w - pos).lengthSq() < 1e-8f) w = next;
 		nav::Vec2 keep = w;
 		if ((w - pos).lengthSq() <= reach * reach) keep = next;
+		// A builder caught going round this way (the obstructed branch above): its step toward its aim was
+		// refused, and the way found is the one whose path it dropped. It takes the stuck memo here instead,
+		// where that step and the whole line to its aim would be clear for a sealed builder.
+		if (obstructed && dropped && same_aim && builder && !member) {
+			constexpr float SAME_WAYPOINT = 0.05f;
+			const float kx = keep.x - memo.x, kz = keep.y - memo.z;
+			if (kx * kx + kz * kz < SAME_WAYPOINT * SAME_WAYPOINT && clear_as_sealed(step_x, step_z, aim_x[i], aim_z[i], false) &&
+					aim_line_clear_as_sealed()) {
+				memo = ShortPathMemo{x0, z0, aim.x, aim.y, stuck_key};
+				return;
+			}
+		}
 		const nav::Vec2 to = w - pos;
 		const float len = to.length();
 		if (len < 1e-4f) return;
@@ -30366,7 +30579,7 @@ bool Simulation::petra_squad_centre(const std::vector<uint32_t> &squad, float &c
 bool Simulation::petra_defense_target(const Building &b) const {
 	if (!petra_foe(b.team) || b.hp <= 0.0f || b.wrecked) return false;
 	const auto &ids = petra_defense_targets_.ids;
-	return std::binary_search(ids.begin(), ids.end(), b.id);
+	return std::find(ids.begin(), ids.end(), b.id) != ids.end();
 }
 
 bool Simulation::petra_raid_target_ok(uint32_t bld_id) const {
@@ -31981,21 +32194,17 @@ bool Simulation::petra_unit_reserved(uint32_t uid) const {
 uint32_t Simulation::find_petra_raid_target(float &out_tx, float &out_tz) const {
 	float bx = 36.0f, bz = 36.0f;
 	if (const auto *base = get_primary_petra_base()) { bx = base->x; bz = base->z; }
-	// defenseManager.js targetList (petra_defense_target), nearest to the base first
-	// (attackManager.js raids them with cavalry).
-	uint32_t best = 0;
-	float best_d = 1e18f;
-	for (const auto &b : buildings_) {
-		if (!petra_defense_target(b)) continue;
-		const float dsq = (b.x - bx) * (b.x - bx) + (b.z - bz) * (b.z - bz);
-		if (dsq < best_d) {
-			best_d = dsq;
-			best = b.id;
-			out_tx = b.x;
-			out_tz = b.z;
-		}
+	// attackManager.js:425-433: the first enemy structure of defenseManager.js targetList, in
+	// the order the structures were found.
+	(void)bx; (void)bz;
+	for (const uint32_t id : petra_defense_targets_.ids) {
+		const auto it = building_id_to_idx_.find(id);
+		if (it == building_id_to_idx_.end() || !petra_defense_target(buildings_[it->second])) continue;
+		out_tx = buildings_[it->second].x;
+		out_tz = buildings_[it->second].z;
+		return id;
 	}
-	return best;
+	return 0;
 }
 
 // attackManager.js raidTargetEntity / attackPlan.js "Raid": a few cavalry
@@ -33652,6 +33861,10 @@ void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt, std::vec
 					order_walk(&tp.ship_id, 1, tp.pickup_x, tp.pickup_z, false);
 				}
 				next.push_back({tp.ship_id, units_.pos_x[sidx], units_.pos_z[sidx], tries});
+			} else if (!ship_ready) {
+				// Sent there again, it keeps its tries on the way (nTry resets only with a new point).
+				auto it = std::find_if(tp.boarding.begin(), tp.boarding.end(), [&](const auto &o) { return o.uid == tp.ship_id; });
+				if (it != tp.boarding.end()) next.push_back(*it);
 			}
 			tp.boarding = std::move(next);
 			tp.passenger_ids = std::move(keep);
@@ -34867,7 +35080,11 @@ void Simulation::petra_manage_defense(float dt) {
 		if (petra_army_capturing(a)) return; // only a "default" army
 		// Sandbox runs no attackManager (headquarters.js:2335): such a plan would never march.
 		if (petra_config_.difficulty == PETRA_SANDBOX) return;
-		for (const Building &b : buildings_) {
+		const std::vector<uint32_t> list = petra_defense_targets_.ids; // targetList, in its order
+		for (const uint32_t tid : list) {
+			const auto tit = building_id_to_idx_.find(tid);
+			if (tit == building_id_to_idx_.end()) continue;
+			const Building &b = buildings_[tit->second];
 			if (!defense_target(b)) continue;
 			const uint16_t land = petra_land_at(b.x, b.z);
 			bool near = false;
@@ -35215,7 +35432,7 @@ void Simulation::petra_manage_defense(float dt) {
 		const int terr = territory_owner_at(units_.pos_x[i], units_.pos_z[i]);
 		if (terr >= 0 && (terr >= MAX_PLAYERS || !is_ally(petra_pid_, (uint8_t)terr))) continue;
 		auto &ids = petra_defense_targets_.ids;
-		bool target = std::binary_search(ids.begin(), ids.end(), b.id);
+		bool target = std::find(ids.begin(), ids.end(), b.id) != ids.end();
 		if (!target && terr == petra_pid_) target = true;
 		else if (!target && (is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY)) {
 			for (const Building &o : buildings_) {
@@ -35225,7 +35442,7 @@ void Simulation::petra_manage_defense(float dt) {
 			}
 		}
 		if (!target) continue;
-		if (!std::binary_search(ids.begin(), ids.end(), b.id)) ids.insert(std::lower_bound(ids.begin(), ids.end(), b.id), b.id);
+		if (std::find(ids.begin(), ids.end(), b.id) == ids.end()) ids.push_back(b.id); // targetList.push
 		make_into_army(units_.id[i]);
 	}
 
@@ -35444,8 +35661,7 @@ void Simulation::petra_manage_defense(float dt) {
 				float fx, fz;
 				petra_army_foe_pos(best_foe, fx, fz);
 				const uint16_t own = petra_land_at(units_.pos_x[idx], units_.pos_z[idx]), there = petra_land_at(fx, fz);
-				if (own && there && own != there) {
-					++against[best_foe];
+				if (own && there && own != there) { // not assigned against it meanwhile (DA:363-370)
 					petra_require_defense_transport(uid, own, there, fx, fz);
 					continue;
 				}
@@ -38535,8 +38751,14 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		} else if constexpr (std::is_same_v<T, S::PetraDefenseTargets>) {
 			if (ar.version >= Simulation::SAVE_VERSION_PETRA_TARGET_LIST) {
 				io_vec(ar, v.ids, 1u << 16, [&](uint32_t &id) { ar.pod(id); });
-				if constexpr (Ar::loading)
-					if (!std::is_sorted(v.ids.begin(), v.ids.end())) ar.ok = false;
+				if constexpr (Ar::loading) {
+					// v132 keeps discovery order, each id once; older saves kept it sorted.
+					std::vector<uint32_t> sorted = v.ids;
+					std::sort(sorted.begin(), sorted.end());
+					if (std::adjacent_find(sorted.begin(), sorted.end()) != sorted.end() ||
+							(ar.version < Simulation::SAVE_VERSION_PETRA_TARGET_ORDER && sorted != v.ids))
+						ar.ok = false;
+				}
 			} else v.ids.clear(); // older saves: structures are seen being built again
 		} else if constexpr (std::is_same_v<T, S::PetraTileBases>) {
 			// The claimed tiles only (index, anchor), in index order.
@@ -38917,7 +39139,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		s.attack_move_structures_.clear();
 	}
 
-	// v132: the last place handed out at a supply (gather_claim_seq_).
+	// v133: the last place handed out at a supply (gather_claim_seq_).
 	if (ar.version >= Simulation::SAVE_VERSION_GATHER_CLAIMS) ar.pod(s.gather_claim_seq_);
 	else if constexpr (Ar::loading) s.gather_claim_seq_ = 0;
 

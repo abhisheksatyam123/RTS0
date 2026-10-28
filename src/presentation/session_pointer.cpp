@@ -700,7 +700,7 @@ bool RtsoMain::minimap_unit_order(Vector2 world_pos) {
 		if (turn_cmds())
 			post_lockstep(11, sel_ptr, sel_n, world_pos.x, world_pos.y, 0, qbit);
 		else {
-			apply_default_formation(sel_ptr, sel_n);
+			apply_default_formation(sel_ptr, sel_n, queued);
 			sim->order_patrol(sel_ptr, sel_n, world_pos.x, world_pos.y, queued);
 		}
 		// "order_patrol" has no sound group in 0.28, so the order is silent.
@@ -708,7 +708,7 @@ bool RtsoMain::minimap_unit_order(Vector2 world_pos) {
 		if (turn_cmds())
 			post_lockstep(1, sel_ptr, sel_n, world_pos.x, world_pos.y, 0, qbit);
 		else {
-			apply_default_formation(sel_ptr, sel_n);
+			apply_default_formation(sel_ptr, sel_n, queued);
 			sim->order_walk(sel_ptr, sel_n, world_pos.x, world_pos.y, queued, true);
 		}
 		play_civ_voice("move");

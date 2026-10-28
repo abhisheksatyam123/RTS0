@@ -113,6 +113,7 @@ Sources: 0.28 `defenseArmy.js` (DA), `defenseManager.js` (DM), `entityExtend.js`
 - **P2 (fixed).** DM:430-462 walks `getOwnUnits()` in creation order ("TODO could sort them by distance"); RTS0 sorted candidates by distance to the nearest army. Now by unit id. Medium-low.
 - **P3 (fixed).** DM:636-642 runs makeIntoArmy for whoever hits any of our entities, structures included, unless the structure is undefended (DM:608-622). RTS0 only took unit targets, so a raider hitting buildings waited for its owner's scan turn (up to nbPlayers-1 AI turns). Now structure hits count where `petra_structure_defended` (shared with the scuttle check). Low-medium.
 - **P4 (fixed).** DA:332-334 gives 8 defenders to a foe that `isSiegeUnit` (EE:4-7: Siege or Elephant+Melee); RTS0 used siege engines only. Low.
+- **P5b (fixed).** A defender sent for a ferry across water no longer counts against its foe that turn (DA:363-370 pushes to assignedAgainst only when it attacks).
 - **P5 (open, low, save).** DA:366 keeps `assignedAgainst` across turns and never removes a re-targeted defender's old entry; RTS0 recounts defenders attacking each foe every turn, so it spreads defenders a little more evenly.
 - Nits left as they are: idle defenders are re-assigned at the end of the turn rather than inside `army.update` before new foes join; returnResources runs only before an attack order; RTS0 uses live foe positions where 0.28 caches `foePosition` for up to 5 s.
 

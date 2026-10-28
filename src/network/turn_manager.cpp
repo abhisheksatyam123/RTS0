@@ -1761,7 +1761,7 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		} else if (c.cmd_type == 7) { // Stance
 			sim.order_set_stance(ids, n, c.param);
 		} else if (c.cmd_type == 8) { // Formation
-			sim.order_set_formation(ids, n, c.param);
+			sim.order_set_formation(ids, n, (uint8_t)(c.param & ~NET_PARAM_QUEUED), queued);
 		} else if (c.cmd_type == 9) { // Research
 			sim.cmd_research(pl, c.target_id, c.param, c.target_x == 1.0f);
 		} else if (c.cmd_type == 10) { // Attack-move

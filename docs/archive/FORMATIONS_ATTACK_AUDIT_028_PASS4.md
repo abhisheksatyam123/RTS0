@@ -12,7 +12,7 @@ Audit of 2026-10-28 against main 227e15c80, tracked as G97 in `docs/REMAINING_GA
 
 ## Open
 
-- **O1 raid target order** (AM:425-433): 0.28 raids the first enemy entry of targetList in discovery order; RTS0 the one nearest the main base. `petra_defense_targets_` is kept sorted by id, so this needs a save change. Low.
+- **O1 raid target order** (AM:425-433): 0.28 raids the first enemy entry of targetList in discovery order; RTS0 the one nearest the main base. `petra_defense_targets_` is kept sorted by id, so this needs a save change. Low. **Fixed** (save 132): `petra_defense_targets_` keeps discovery order (targetList.push), raids and switchToAttack walk it in that order.
 - **O2 raid cadence**: a gathering raid holds back the next raid until it marches (0.28 doesn't count it as unexecuted), and a raid whose target failed is replaced after 6 s rather than the same turn. Low.
 - **O3 plan names**: relic expeditions (victoryManager.js:714) don't take a plan name, so later plans' siege class (name % 3) can differ. Nit.
 - **O4 turn order**: plans are made before started attacks update (0.28 after, AM:363), and ally attack requests are answered outside the attackManager gate, so a Sandbox AI answers in chat where 0.28 is silent. One AI turn. Nit.
