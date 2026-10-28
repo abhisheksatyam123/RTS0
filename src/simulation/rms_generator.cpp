@@ -681,19 +681,14 @@ void RmsGenerator::synth_continental(HeightmapGrid &hm, RmsRng &rng, float &wate
 	// 3. Central Meandering River with Walkable Ford
 	std::vector<std::pair<float, float>> river_pts;
 	float half = hm.map_half;
-	// Point-symmetric about the centre, with the ford at the river's middle, so no
-	// diagonal start sits nearer the only crossing (slot 1 won 69% of 2-player games).
-	river_pts.push_back({-half * 0.85f, -half * 0.75f});
-	river_pts.push_back({-half * 0.45f, -half * 0.40f});
-	river_pts.push_back({-half * 0.15f, -half * 0.10f});
+	river_pts.push_back({-half * 0.85f, -half * 0.70f});
+	river_pts.push_back({-half * 0.40f, -half * 0.30f});
+	river_pts.push_back({-half * 0.10f, -half * 0.05f});
 	river_pts.push_back({half * 0.15f, half * 0.10f});
 	river_pts.push_back({half * 0.45f, half * 0.40f});
 	river_pts.push_back({half * 0.85f, half * 0.75f});
 
-	float river_len = 0.0f;
-	for (size_t i = 1; i < river_pts.size(); ++i)
-		river_len += det::hypot(river_pts[i].first - river_pts[i - 1].first, river_pts[i].second - river_pts[i - 1].second);
-	float ford_dist = 0.5f * (river_len - 8.0f);
+	float ford_dist = half * 0.75f;
 	hm.carve_spline_path(river_pts, 4.0f, 2.0f, water_h, ford_dist, 8.0f);
 
 	// 4. Smoothing passes
