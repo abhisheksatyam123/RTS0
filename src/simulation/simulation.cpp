@@ -7405,9 +7405,11 @@ void Simulation::order_attack_move(const uint32_t *unit_ids, size_t count, float
 
 // 0 A.D. UnitAI Patrol: walk-and-fight between where the unit stands and (tx, tz), at units only
 // (unit_actions.js g_PatrolTargets ["Unit"]).
-void Simulation::order_patrol(const uint32_t *unit_ids, size_t count, float tx, float tz, bool queued) {
+void Simulation::order_patrol(const uint32_t *unit_ids, size_t count, float tx, float tz, bool queued, uint8_t targets) {
 	AiCommandScope ai_cmd(*this, AiCommandEvent::PATROL, unit_ids, count, 0, tx, tz);
-	UnitOrder o; o.kind = ORDER_PATROL; o.flags = ORDER_FLAG_FORCE | ORDER_FLAG_UNITS_ONLY; o.x = tx; o.z = tz;
+	UnitOrder o; o.kind = ORDER_PATROL; o.x = tx; o.z = tz;
+	const bool units = targets == ORDER_PATROL_UNITS || targets == ORDER_PATROL_LAND_UNITS || targets == ORDER_PATROL_WARSHIPS;
+	o.flags = (uint8_t)(ORDER_FLAG_FORCE | (units ? ORDER_FLAG_UNITS_ONLY : 0) | ((targets << ORDER_PATROL_SHIFT) & ORDER_PATROL_MASK));
 	const std::vector<uint32_t> now = split_queued(unit_ids, count, o, queued);
 	// Formations patrol as a whole (FORMATIONCONTROLLER PATROL); the rest walk on their own.
 	const std::vector<uint32_t> rest = !queued && !formations_.empty() ? formation_take_patrol(now, tx, tz) : now;
@@ -8321,7 +8323,7 @@ void Simulation::formation_apply_order(const std::vector<uint32_t> &members, con
 		case ORDER_WALK: order_walk(ids, n, o.x, o.z); break;
 		case ORDER_WALK_AND_FIGHT: order_attack_move(ids, n, o.x, o.z, false, (o.flags & ORDER_FLAG_UNITS_ONLY) != 0, capture,
 		                                             o.flags & (ORDER_AVOID_MASK | ORDER_AVOID_ECONOMY)); break;
-		case ORDER_PATROL: order_patrol(ids, n, o.x, o.z); break;
+		case ORDER_PATROL: order_patrol(ids, n, o.x, o.z, false, (o.flags & ORDER_PATROL_MASK) >> ORDER_PATROL_SHIFT); break;
 		case ORDER_ATTACK: order_attack(ids, n, o.target); break;
 		case ORDER_ATTACK_BUILDING: order_attack_building(ids, n, o.target, false, capture); break;
 		case ORDER_GATHER: order_gather(ids, n, o.target); break;
@@ -16747,10 +16749,18 @@ void Simulation::tick_combat(float dt) {
 			const PrefProfile &my_prefs = unit_preferences(units_.tmpl[i], units_.unit_type[i]).prefs;
 			uint16_t best_pref = 0x100; // above PREF_NONE: any target beats none
 			float best_unit_d2 = 0.0f;
+			// A trigger script's patrol targetClasses (Napata's and Danubius's attackers).
+			const uint8_t patrol_targets = units_.order_kind[i] == ORDER_PATROL
+					? (uint8_t)((units_.order_flags[i] & ORDER_PATROL_MASK) >> ORDER_PATROL_SHIFT) : (uint8_t)ORDER_PATROL_UNITS;
 
 			grid.visit_radius(pxi, pzi, scan_range, [&](int32_t j) {
 				if (!units_.alive[j] || !can_attack(my_team, units_.team[j])) return;
 				if (!unit_can_target(i, (size_t)j)) return; // Attack.js RestrictedClasses
+				if (patrol_targets != ORDER_PATROL_UNITS) {
+					if (patrol_targets == ORDER_PATROL_LAND_UNITS ? unit_is_ship(units_.unit_type[j])
+					    : patrol_targets != ORDER_PATROL_WARSHIPS || !(unit_classes_at((size_t)j) & TC_WARSHIP))
+						return;
+				}
 				float dx = pxi - units_.pos_x[j];
 				float dz = pzi - units_.pos_z[j];
 				float d2 = dx * dx + dz * dz;
@@ -16783,6 +16793,10 @@ void Simulation::tick_combat(float dt) {
 					if (!can_attack(my_team, b.team) && !(capture && !friendly && can_capture_building(my_team, b))) return;
 					if (!capture && !unit_can_target_building(i, b.type)) return;
 					if (units_.order_kind[i] == ORDER_WALK_AND_FIGHT && attack_move_avoids(units_.order_flags[i], b.type)) return;
+					if (patrol_targets == ORDER_PATROL_DEFENSIVE_MONUMENTS && !(building_tech_classes(b.type) & (TC_DEFENSIVE | TC_WONDER)) &&
+							b.type != BLD_MONUMENT)
+						return;
+					if (patrol_targets == ORDER_PATROL_DEFENSIVE && !(building_tech_classes(b.type) & TC_DEFENSIVE)) return;
 					// SetupAttackRangeQuery: "Do not compensate for entity sizes", so a structure
 					// is in the query, and ranked, by its centre.
 					const float cx = b.x - pxi, cz = b.z - pzi;
@@ -20194,7 +20208,7 @@ void Simulation::apply_order(uint32_t uid, const UnitOrder &o) {
 			order_attack_move(&uid, 1, o.x, o.z, false, (o.flags & ORDER_FLAG_UNITS_ONLY) != 0, capture,
 			                  o.flags & (ORDER_AVOID_MASK | ORDER_AVOID_ECONOMY));
 			break;
-		case ORDER_PATROL: order_patrol(&uid, 1, o.x, o.z); break;
+		case ORDER_PATROL: order_patrol(&uid, 1, o.x, o.z, false, (o.flags & ORDER_PATROL_MASK) >> ORDER_PATROL_SHIFT); break;
 		case ORDER_ATTACK: {
 			// Order.Attack -> APPROACHING: MoveToTargetAttackRange fails on a target hidden in
 			// the fog (CheckTargetVisible), and the order is skipped (FinishOrder).
@@ -43286,7 +43300,7 @@ void Simulation::trigger_elephantine_init() {
 // Ships respawn every few minutes, attack the nearest warship and patrol the river; they are
 // filled with soldiers and unload them on a bank where players hold defensive structures. The
 // Gaia villages send out waves of their own. Left out: the ritual animations (RTS0 has no
-// scripted animation) and the unit AI's "targetClasses" filter on patrols.
+// scripted animation), and "Unit+!Ship" on patrols in formation, which take any unit.
 namespace {
 // The script's TriggerWatch roles: a village civic centre, a ship, and a ship sent to unload
 // on the left or right bank (its player byte holds the unload point's index).
@@ -43463,7 +43477,10 @@ void Simulation::danubius_attack_and_patrol(const std::vector<uint32_t> &ids, ui
 		if (p.ref == ref) pts.push_back(&p);
 	for (size_t i = pts.size(); i > 1; --i) std::swap(pts[i - 1], pts[(size_t)sim_rng_.range_int(0, (int)i - 1)]); // shuffleArray
 	for (size_t i = 0; i < pts.size() && (int)i < kDanubiusPatrolCount; ++i)
-		order_patrol(attackers.data(), attackers.size(), pts[i]->x, pts[i]->z, true);
+		order_patrol(attackers.data(), attackers.size(), pts[i]->x, pts[i]->z, true,
+		             target == DANUBIUS_TARGET_DEFENSIVE ? ORDER_PATROL_DEFENSIVE
+		             : target == DANUBIUS_TARGET_SHIP     ? ORDER_PATROL_WARSHIPS
+		                                                  : ORDER_PATROL_LAND_UNITS);
 }
 
 void Simulation::trigger_danubius_init() {
@@ -43692,8 +43709,8 @@ void Simulation::trigger_danubius_ownership(const TriggerEventData &data) {
 // maps/random/jebel_barkal_triggers.js: Napata's champions patrol its paths in groups that
 // come back when wiped out, and its structures send ever greater waves at the players; each
 // structure the players take or destroy spawns no more. Left out: the healers' ritual
-// animations (RTS0 has no scripted animation), the unit AI's "targetClasses" filter on
-// patrols, and the attack countdown (0 A.D. shows it to observers only).
+// animations (RTS0 has no scripted animation), "Unit+!Ship" on patrols in formation (they
+// take any unit), and the attack countdown (0 A.D. shows it to observers only).
 namespace {
 // TriggerWatch roles: a structure soldiers spawn at, a patrol soldier (its player byte holds
 // its group) and an attacker.
@@ -43900,7 +43917,7 @@ void Simulation::trigger_jebel_barkal_city_patrol() {
 		order_set_formation(ids.data(), ids.size(), kJebelFormations[sim_rng_.range_int(0, (int)std::size(kJebelFormations) - 1)]);
 		std::vector<const TriggerPoint *> order = path_points;
 		for (size_t i = order.size(); i > 1; --i) std::swap(order[i - 1], order[(size_t)sim_rng_.range_int(0, (int)i - 1)]);
-		for (const TriggerPoint *p : order) order_patrol(ids.data(), ids.size(), p->x, p->z, true);
+		for (const TriggerPoint *p : order) order_patrol(ids.data(), ids.size(), p->x, p->z, true, ORDER_PATROL_LAND_UNITS);
 	}
 	triggers_.set_timeout((uint32_t)std::lround(jebel_by_time(minutes, 5.0f, 3.0f) * 60000.0f), TRIGGER_ACTION_JEBEL_BARKAL_CITY_PATROL);
 }
@@ -43943,13 +43960,11 @@ void Simulation::trigger_jebel_barkal_attack() {
 		for (uint8_t p : players) {
 			const Target target = !elephants ? TARGET_UNITS : (sim_rng_.range_int(0, 1) ? TARGET_STRUCTURES : TARGET_DEFENSIVE);
 			std::vector<std::pair<float, float>> mine;
-			if (target != TARGET_STRUCTURES)
-				for (size_t i = 0; i < units_.count; ++i) {
-					if (!units_.alive[i] || units_.team[i] != p) continue;
-					const TechClasses c = unit_classes_at(i);
-					if (target == TARGET_UNITS ? !unit_is_ship(units_.unit_type[i]) : (c & TC_SIEGE) != 0)
+			// No unit is Defensive, Monument or Wonder, nor has 0.28 a SiegeEngine class.
+			if (target == TARGET_UNITS)
+				for (size_t i = 0; i < units_.count; ++i)
+					if (units_.alive[i] && units_.team[i] == p && !unit_is_ship(units_.unit_type[i]))
 						mine.push_back({units_.pos_x[i], units_.pos_z[i]});
-				}
 			if (target != TARGET_UNITS)
 				for (const Building &b : buildings_) {
 					if (b.team != p || b.hp <= 0.0f || b.wrecked) continue;
@@ -44038,7 +44053,10 @@ void Simulation::trigger_jebel_barkal_attack() {
 				for (const auto &group : groups) {
 					const auto &from = i == 0 || patrol_points.empty() ? targets : patrol_points;
 					const auto &pos = from[(size_t)sim_rng_.range_int(0, (int)from.size() - 1)];
-					order_patrol(group.data(), group.size(), pos.first, pos.second, true);
+					// The command's targetClasses() is drawn again: the elephants pick a list each leg.
+					const uint8_t classes = row.formation ? ORDER_PATROL_LAND_UNITS
+							: sim_rng_.range_int(0, 1) ? ORDER_PATROL_STRUCTURES : ORDER_PATROL_DEFENSIVE_MONUMENTS;
+					order_patrol(group.data(), group.size(), pos.first, pos.second, true, classes);
 				}
 		}
 	}
