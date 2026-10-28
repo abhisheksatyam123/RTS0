@@ -116,11 +116,13 @@ MAX_TEXT = 500
 # 0.28 lobby ChatPanel.xml: the chat input takes at most 1024 characters.
 MAX_CHAT = 1024
 STATUSES = ("available", "away", "playing")
-ROOM_STATES = ("init", "running")
+# XpartaMuPP change_game_state: a running game with fewer players than it
+# started with is "waiting" (for someone to rejoin).
+ROOM_STATES = ("init", "waiting", "running")
 PUNCH_KEEP = 16         # joiner endpoints kept per game
 PUNCH_TIMEOUT = 30.0    # seconds a joiner endpoint stays listed
 PRIVATE_ROOM_KEYS = ("seen", "punch", "next_punch", "local_ip", "local_port", "base", "owner", "poster_ip",
-                     "tickets")
+                     "tickets", "players_init")
 TICKET_TIMEOUT = 60.0   # seconds a joiner's lobby ticket stays redeemable
 LISTED_HIDDEN_KEYS = PRIVATE_ROOM_KEYS + ("host_ip", "host_port")
 STUN_MAGIC_COOKIE = 0x2112A442
@@ -716,6 +718,10 @@ class Lobby:
         }
         if room["state"] not in ROOM_STATES:
             room["state"] = "init"
+        # XpartaMuPP keeps nbp-init from the game's setup-time registration.
+        room["players_init"] = room["players"] if room["state"] == "init" else old.get("players_init", room["players"])
+        if room["state"] != "init":
+            room["state"] = "waiting" if room["players"] < room["players_init"] else "running"
         if room["mods"] is None:
             del room["mods"]  # a host that sends no mods (an older RTS0)
         public = {k: v for k, v in room.items() if k not in PRIVATE_ROOM_KEYS}
