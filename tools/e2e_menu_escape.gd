@@ -64,7 +64,9 @@ func run() -> void:
 	check(box != null and current_scene == opts, "with unsaved changes Escape asks first")
 	await escape() # the question's No
 	check(msgbox() == null and current_scene == opts, "and Escape on the question keeps the page")
-	opts.cfg.set_value(key, old)
+	# ConfigDB_HasChanges stays set until a save or reload, even with the old value back.
+	opts._on_revert()
+	check(opts.cfg.get_value(key) == old, "Revert reloads the saved value")
 	await escape()
 	await frames(5)
 	check(current_scene != opts and current_scene.scene_file_path.ends_with("main_menu.tscn"), "without changes Escape goes back to the main menu")

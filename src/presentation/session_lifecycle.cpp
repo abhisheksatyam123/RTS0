@@ -1195,9 +1195,12 @@ void RtsoMain::_process(double delta) {
 			const int64_t t = std::max<int64_t>(0, ms) / 1000;
 			return t < 3600 ? vformat("%02d:%02d", t / 60, t % 60) : vformat("%02d:%02d:%02d", t / 3600, t / 60 % 60, t % 60);
 		};
-		String txt;
+		// GuiInterface.AddTimeNotification keeps every countdown sorted by end time, latest first
+		// (the map's, the text notices, the wonder, relic, Last Man Standing and ceasefire ones),
+		// so each line is collected with the time it has left and sorted at the end.
+		std::vector<std::pair<int64_t, String>> lines;
+		auto add_line = [&](int64_t left_ms, const String &l) { lines.emplace_back(left_ms, l); };
 		for (const rtso::TimeNotification *n : sim->time_notifications_for(local_player())) {
-			if (!txt.is_empty()) txt += "\n";
 			// TimeNotificationOverlay: the message translated, then its parameters
 			// ("\x1fname=value" after the format) and %(time)s, the time left (timeToString).
 			const PackedStringArray parts = String::utf8(n->text).split(String::chr(0x1f));
@@ -1206,21 +1209,16 @@ void RtsoMain::_process(double delta) {
 				const int eq = parts[k].find("=");
 				if (eq > 0) line = line.replace("%(" + parts[k].substr(0, eq) + ")s", parts[k].substr(eq + 1));
 			}
-			if (line.contains("%(time)s")) {
-				const uint32_t now = sim->trigger_state().time_ms;
-				line = line.replace("%(time)s", time_to_string(n->end_ms > now ? (int64_t)(n->end_ms - now) : 0));
-			}
-			txt += line.replace("[", "[lb]"); // a map's text, not markup
+			const uint32_t tnow = sim->trigger_state().time_ms;
+			const int64_t left_ms = n->end_ms > tnow ? (int64_t)(n->end_ms - tnow) : 0;
+			if (line.contains("%(time)s")) line = line.replace("%(time)s", time_to_string(left_ms));
+			add_line(left_ms, line.replace("[", "[lb]")); // a map's text, not markup
 		}
 		{
-			// GetTimeNotifications sorts by end time, latest first.
 			const uint32_t now = (uint32_t)std::lround(sim->game_time() * 1000.0f);
 			text_notices_.erase(std::remove_if(text_notices_.begin(), text_notices_.end(),
 					[now](const TextNotice &t) { return t.end_ms <= now || t.end_ms > now + 10000; }), text_notices_.end());
-			for (auto it = text_notices_.rbegin(); it != text_notices_.rend(); ++it) {
-				if (!txt.is_empty()) txt += "\n";
-				txt += it->text;
-			}
+			for (auto it = text_notices_.rbegin(); it != text_notices_.rend(); ++it) add_line((int64_t)it->end_ms - now, it->text);
 			if (spawn_notified_.size() > 64) spawn_notified_.clear();
 		}
 		// WonderVictory.js and CaptureTheRelic.js time notifications, worded for the local
@@ -1228,12 +1226,14 @@ void RtsoMain::_process(double delta) {
 		{
 			const uint8_t me = local_player();
 			auto clock = [&](float s) { return time_to_string((int64_t)(s * 1000.0f)); };
-			auto add = [&](const String &l) { if (!txt.is_empty()) txt += "\n"; txt += l; };
+			int64_t left_ms = 0;
+			auto add = [&](const String &l) { add_line(left_ms, l); };
 			// One set of lines per wonder, for the allies it started with (defeated ones too).
 			if (sim->has_victory(rtso::VK_WONDER) && !sim->is_game_over())
 				for (const auto &w : sim->buildings()) {
 					const uint8_t p = w.wonder_owner;
 					if (w.type != rtso::BLD_WONDER || p >= rtso::MAX_PLAYERS || w.wonder_hold <= 0.0f || sim->is_defeated(p)) continue;
+					left_ms = (int64_t)((sim->wonder_duration() - w.wonder_hold) * 1000.0f);
 					const String left = clock(sim->wonder_duration() - w.wonder_hold);
 					const uint8_t allies = w.wonder_allies;
 					const String who = colored_player_name(p);
@@ -1245,8 +1245,9 @@ void RtsoMain::_process(double delta) {
 							: "%(_player_)s owns a Wonder and will win in %(time)s."), {{"_player_", who}, {"time", left}}));
 				}
 			// EndGameManager.AlliedVictoryCheck: under Last Man Standing, once only mutual
-			// allies are left, "Last remaining player wins." (a 12-hour time notification).
-			if (sim->last_man_standing() && sim->victory_conditions() && !sim->is_game_over()) {
+			// allies are left, "Last remaining player wins." (a 12-hour time notification). Only
+			// without allied victory (LockTeams || !LastManStanding, Setup.js).
+			if (!sim->allied_victory() && sim->victory_conditions() && !sim->is_game_over()) {
 				int left = 0;
 				bool allied = true;
 				for (uint8_t a = 0; a < rtso::MAX_PLAYERS; ++a) {
@@ -1255,6 +1256,7 @@ void RtsoMain::_process(double delta) {
 					for (uint8_t b = a + 1; b < rtso::MAX_PLAYERS; ++b)
 						if (((sim->participant_mask() >> b) & 1) && !sim->is_defeated(b) && !(sim->is_ally(a, b) && sim->is_ally(b, a))) allied = false;
 				}
+				left_ms = 12 * 3600 * 1000;
 				if (left > 1 && allied) add(rtso::tr0("Last remaining player wins."));
 			}
 			if (sim->has_victory(rtso::VK_RELIC) && !sim->is_game_over() && sim->relic_victory_timer() > 0.0f && !sim->relics().empty()) {
@@ -1264,6 +1266,7 @@ void RtsoMain::_process(double delta) {
 				const uint8_t side = sim->relic_countdown_players();
 				if (owner < rtso::MAX_PLAYERS && side) {
 					const bool team = (side & (side - 1)) != 0;
+					left_ms = (int64_t)((sim->relic_duration() - sim->relic_victory_timer()) * 1000.0f);
 					const String left = clock(sim->relic_duration() - sim->relic_victory_timer());
 					if (me < rtso::MAX_PLAYERS && ((side >> me) & 1))
 						add(rtso::sprintf0(rtso::tr0(team ? "You and your allies have captured all relics and will win in %(time)s."
@@ -1278,11 +1281,14 @@ void RtsoMain::_process(double delta) {
 		// "You can attack now!" for 5 s.
 		if (sim->ceasefire_seconds() > 0.0f) {
 			const float left = sim->ceasefire_seconds() - sim->game_time();
-			String line;
-			if (left > 0.0f && left <= 10.0f) line = rtso::sprintf0(rtso::tr0("You can attack in %(time)s"), {{"time", time_to_string((int64_t)(left * 1000.0f))}});
-			else if (left <= 0.0f && left > -5.0f) line = rtso::tr0("You can attack now!");
-			if (!line.is_empty()) txt += (txt.is_empty() ? "" : "\n") + line;
+			if (left > 0.0f && left <= 10.0f)
+				add_line((int64_t)(left * 1000.0f), rtso::sprintf0(rtso::tr0("You can attack in %(time)s"), {{"time", time_to_string((int64_t)(left * 1000.0f))}}));
+			else if (left <= 0.0f && left > -5.0f) add_line((int64_t)((left + 5.0f) * 1000.0f), rtso::tr0("You can attack now!"));
 		}
+		std::stable_sort(lines.begin(), lines.end(), [](const auto &a, const auto &b) { return a.first > b.first; });
+		String txt;
+		for (const auto &l : lines) txt += (txt.is_empty() ? "" : "\n") + l.second;
+
 		// Each line ends in "\n" (TimeNotificationOverlay.js), so the last sits a line up.
 		if (!txt.is_empty()) txt = "[center][b]" + txt + "\n[/b][/center]";
 		if (time_notification_label_->get_text() != txt) time_notification_label_->set_text(txt);

@@ -101,6 +101,19 @@ func run() -> void:
 	check(not page._controls.has("locale"), "no Language option (0.28 keeps it in the main menu)")
 	page._on_revert()
 	check(cfg.get_value("fog") == "true" and page._controls["fog"][1].button_pressed, "Revert goes back to the saved value")
+	# ConfigDB_HasChanges / ConfigDB_Reload: a change made elsewhere (the FPS counter's
+	# toggle writes without saving) turns Revert on, and Revert undoes it from user.cfg.
+	cfg.set_value("overlay.fps", "true")
+	page._update_buttons()
+	check(page.has_unsaved_changes() and not btn_revert.disabled, "a change made outside the page turns Revert on")
+	page._on_revert()
+	check(cfg.get_value("overlay.fps") == "false" and btn_revert.disabled, "and Revert undoes it")
+	var aniso_row: Array = page._controls["textures.maxanisotropy"]
+	check(aniso_row[1].get_item_tooltip(0) == "Disabled", "anisotropic filter items carry 0.28's tooltips")
+	cfg.set_value("renderer.scale", "0.6")
+	page._load_controls()
+	check(page._controls["renderer.scale"][1].get_selected() == -1, "an unlisted value selects nothing")
+	page._on_revert()
 	cfg.set_value("lobby.login", "alice")
 	page._on_reset()
 	check(page._confirm != null and page._confirm.message.contains("erase your saved settings"), "Reset asks first")
@@ -311,7 +324,10 @@ func run() -> void:
 	var overlay = m.find_child("Options", true, false)
 	check(overlay != null and overlay.overlay and current_scene == m, "the pause menu opens the options over the game")
 	if overlay:
-		overlay._on_close()
+		# ConfigDB_HasChanges: the values changed above without a save count as unsaved
+		# changes here too, so Close asks first; Yes (_close) closes and keeps them.
+		check(overlay.has_unsaved_changes(), "changes made outside the page count as unsaved")
+		overlay._close()
 		await frames(3)
 	check(m.find_child("Options", true, false) == null, "Close returns to the game")
 	# Phones (or -mobiledefaults) start cheaper; desktop keeps 0 A.D.'s defaults.

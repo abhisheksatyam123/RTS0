@@ -104,6 +104,7 @@ static uint8_t map_structure_off(const String &tmpl) {
 	if (tmpl.ends_with("uffington_horse"))
 		return rtso::Simulation::STRUCT_OFF_GARRISON | rtso::Simulation::STRUCT_OFF_RESEARCH | rtso::Simulation::STRUCT_OFF_TRAIN |
 				rtso::Simulation::STRUCT_OFF_BLOCK;
+	if (tmpl.get_file().begins_with("tent_")) return rtso::Simulation::STRUCT_NOT_CRITICAL; // template_structure_special
 	return 0;
 }
 

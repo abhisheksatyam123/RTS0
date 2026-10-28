@@ -41,6 +41,7 @@ public:
 	void add_item(const String &text, int id = -1);
 	void add_icon_item(const Ref<Texture2D> &icon, const String &text, int id = -1);
 	void select(int index);
+	void deselect();
 	void set_item_tooltip(int index, const String &tooltip); // shown on hover in the open list
 	godot::String get_item_tooltip(int index) const;
 	// setStringTags(caption, {color}): the item's text colour, in the list and on the button.

@@ -181,6 +181,7 @@ struct State {
 	bool loaded = false;
 	std::map<std::string, std::string> values; // user values for known keys
 	uint32_t generation = 1;
+	bool changes = false; // ConfigDB_HasChanges("user"): set since the last save or reload
 	// CFG_COMMAND: the command line's values (Config.cpp ProcessCommandLineArgs), above the
 	// user's and never saved.
 	bool command_parsed = false;
@@ -319,6 +320,8 @@ double get_number(const std::string &key) { return std::atof(get(key).c_str()); 
 void set(const std::string &key, const std::string &value) {
 	ensure_loaded();
 	State &s = state();
+	auto it = s.values.find(key);
+	if (value != (it != s.values.end() ? it->second : std::string(default_value(key)))) s.changes = true;
 	if (value == default_value(key)) s.values.erase(key);
 	else s.values[key] = value;
 	++s.generation;
@@ -326,6 +329,7 @@ void set(const std::string &key, const std::string &value) {
 
 void reset_all() {
 	ensure_loaded();
+	if (!state().values.empty()) state().changes = true;
 	state().values.clear();
 	++state().generation;
 }
@@ -333,10 +337,13 @@ void reset_all() {
 void reload() {
 	state().loaded = false;
 	ensure_loaded();
+	state().changes = false;
 	++state().generation;
 }
 
 uint32_t generation() { return state().generation; }
+
+bool has_changes() { return state().changes; }
 
 bool audio_disabled() {
 	ensure_loaded();
@@ -374,6 +381,7 @@ bool save() {
 	Ref<FileAccess> f = FileAccess::open(kPath, FileAccess::WRITE);
 	if (f.is_null()) return false;
 	f->store_string(String::utf8((settings_cfg() + hotkeys).c_str()));
+	state().changes = false;
 	return true;
 }
 
@@ -397,6 +405,7 @@ void RtsoUserConfig::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("reload"), &RtsoUserConfig::reload);
 	ClassDB::bind_method(D_METHOD("save"), &RtsoUserConfig::save);
 	ClassDB::bind_method(D_METHOD("get_generation"), &RtsoUserConfig::get_generation);
+	ClassDB::bind_method(D_METHOD("has_changes"), &RtsoUserConfig::has_changes);
 	ClassDB::bind_method(D_METHOD("get_keys"), &RtsoUserConfig::get_keys);
 	ClassDB::bind_method(D_METHOD("is_audio_disabled"), &RtsoUserConfig::is_audio_disabled);
 	ClassDB::bind_method(D_METHOD("set_command_args", "args"), &RtsoUserConfig::set_command_args);
@@ -413,6 +422,7 @@ void RtsoUserConfig::reset_all() { rtso::user_config::reset_all(); }
 void RtsoUserConfig::reload() { rtso::user_config::reload(); }
 bool RtsoUserConfig::save() { return rtso::user_config::save(); }
 int RtsoUserConfig::get_generation() const { return (int)rtso::user_config::generation(); }
+bool RtsoUserConfig::has_changes() const { return rtso::user_config::has_changes(); }
 bool RtsoUserConfig::is_audio_disabled() const { return rtso::user_config::audio_disabled(); }
 void RtsoUserConfig::set_command_args(const PackedStringArray &args) { rtso::user_config::set_command_args(args); }
 
