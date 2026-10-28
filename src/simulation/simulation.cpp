@@ -22497,6 +22497,7 @@ bool Simulation::petra_can_place(int cell_x, int cell_y, int footprint, uint8_t 
 	if (!petra_ring_clear(cell_x, cell_y, footprint, clearance >= 0 ? (uint8_t)clearance : petra_clearance(btype))) return false;
 	return btype >= BLD_TYPE_COUNT || (!triggers_.building_disabled(petra_pid_, btype) &&
 	                                   check_placement(petra_pid_, cell_x, cell_y, btype) == PLACE_OK &&
+	                                   petra_ring_land(cell_x, cell_y, footprint, btype, clearance >= 0 ? (uint8_t)clearance : petra_clearance(btype)) &&
 	                                   petra_limit_allows_building(btype)); // EntityLimits
 }
 
@@ -22506,7 +22507,28 @@ bool Simulation::petra_spot_free_but_distance(int cell_x, int cell_y, int footpr
 		return false;
 	if (triggers_.building_disabled(petra_pid_, btype) || !petra_limit_allows_building(btype)) return false;
 	const PlacementResult r = check_placement(petra_pid_, cell_x, cell_y, btype);
-	return r == PLACE_OK || r == PLACE_DISTANCE;
+	return (r == PLACE_OK || r == PLACE_DISTANCE) &&
+			petra_ring_land(cell_x, cell_y, footprint, btype, clearance >= 0 ? (uint8_t)clearance : petra_clearance(btype));
+}
+
+// mapModule.js createObstructionMap: a tile that isn't "building-land" (water, a steep slope) is an
+// obstruction, and findGoodPosition keeps the structure's whole radius (obstructionRadius + 4, or
+// + 8 m for a fortress, arsenal or elephant stable) off obstructions. So a land structure's gap
+// round it is open land as well as free of buildings: one whose gap reached a shore or a cliff
+// could seal a pocket of land its builders then never left.
+bool Simulation::petra_ring_land(int cell_x, int cell_y, int footprint, uint8_t btype, uint8_t clearance) const {
+	if (!clearance || btype >= BLD_TYPE_COUNT || nav_grid_.cells.blank()) return true;
+	if (build_restriction(btype, civ_of(petra_pid_)).placement != PLACE_LAND) return true;
+	const float gap = clearance < 2 ? GRID * 0.5f : GRID;
+	const float x0 = cell_x * GRID - gap, z0 = cell_y * GRID - gap;
+	const float x1 = (cell_x + footprint) * GRID + gap, z1 = (cell_y + footprint) * GRID + gap;
+	auto [nx0, ny0] = nav_grid_.world_to_cell(x0 + 0.01f, z0 + 0.01f);
+	auto [nx1, ny1] = nav_grid_.world_to_cell(x1 - 0.01f, z1 - 0.01f);
+	for (int y = ny0; y <= ny1; ++y)
+		for (int x = nx0; x <= nx1; ++x)
+			if (!nav_grid_.cells.inside(x, y)) return false;
+			else if (const uint8_t c = nav_grid_.cells.at(x, y); c == NAV_WATER || c == NAV_SHALLOW || nav_grid_.is_steep(x, y)) return false;
+	return true;
 }
 
 // queueplanBuilding.js findGoodPosition's gap round a structure (obstructionRadius + 0, 4 or 8 m):
