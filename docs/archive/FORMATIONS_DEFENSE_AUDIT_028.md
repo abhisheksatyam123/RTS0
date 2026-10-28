@@ -105,7 +105,7 @@ Militia: neither tree has anything by that name. The closest things are the emer
 - isNearInvadingArmy 12000 m².
 - CC-captured retake (range 150).
 
-## Pass 3 (2026-10-28): defense armies, tracked as G95
+## Pass 3 (2026-10-28): defense armies, tracked as G96
 
 Sources: 0.28 `defenseArmy.js` (DA), `defenseManager.js` (DM), `entityExtend.js` (EE).
 
