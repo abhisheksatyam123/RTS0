@@ -901,6 +901,20 @@ enum : uint8_t {
 	ORDER_AVOID_WALLS = 3,          // Palisade, Wall
 	ORDER_AVOID_ECONOMY = 0x80      // House, Storehouse, Farmstead, Field, Forge
 };
+// A patrol keeps its targetClasses (Commands.js "patrol" targetClasses.attack) in bits 5-7:
+// units, as the session's g_PatrolTargets ["Unit"] sends, or a trigger script's lists. No
+// 0.28 template has the SiegeEngine class (siege is "Siege") and no unit is Defensive, so
+// the structure lists take no units.
+enum : uint8_t {
+	ORDER_PATROL_SHIFT = 5,
+	ORDER_PATROL_MASK = 0xE0,
+	ORDER_PATROL_UNITS = 0,              // "Unit"
+	ORDER_PATROL_STRUCTURES = 1,         // "Structure"
+	ORDER_PATROL_DEFENSIVE_MONUMENTS = 2,// "Defensive SiegeEngine Monument Wonder"
+	ORDER_PATROL_LAND_UNITS = 3,         // "Unit+!Ship"
+	ORDER_PATROL_DEFENSIVE = 4,          // "Defensive"
+	ORDER_PATROL_WARSHIPS = 5            // "Warship"
+};
 
 // One order: the unit's current one (in the SoA) or a Shift-queued one. No padding.
 struct UnitOrder {
