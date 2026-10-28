@@ -27,6 +27,8 @@
 
 #include <godot_cpp/classes/audio_stream_player.hpp>
 #include <godot_cpp/classes/dir_access.hpp>
+#include <godot_cpp/classes/file_access.hpp>
+#include <godot_cpp/classes/json.hpp>
 #include <godot_cpp/classes/node.hpp>
 #include <godot_cpp/core/memory.hpp>
 #include <godot_cpp/variant/packed_string_array.hpp>
@@ -90,7 +92,8 @@ inline const char *voice_language(uint8_t civ) {
 enum class VoiceKind : uint8_t { NONE, MALE, FEMALE, DOG, HORSE, ELEPHANT };
 
 // Phenotype of a unit type: template_unit_support_female_citizen and archer
-// maidens are female; siege, ships and traders have no voice in 0 A.D.
+// maidens are female; siege and ships have no voice in 0 A.D. (traders say
+// order_trade too, template_unit_support_trader.xml).
 inline VoiceKind voice_kind(uint8_t unit_type) {
 	switch (unit_type) {
 		case UNIT_FEMALE_CITIZEN: case UNIT_ARCHER_MAIDEN: return VoiceKind::FEMALE;
@@ -102,30 +105,36 @@ inline VoiceKind voice_kind(uint8_t unit_type) {
 	}
 }
 
-// 0 A.D. voice sound group names (select, order_walk, order_attack, ...) mapped
-// to the line stems each language folder has, most specific first.
-inline const std::vector<const char *> &voice_stems(const std::string &action) {
-	static const std::unordered_map<std::string, std::vector<const char *>> m = {
-		{"select", {"what_is_it", "hello", "my_lord", "my_king", "yes", "ready", "your_soldier", "Asyouwish"}},
-		{"move", {"walk", "march", "forward", "I_will_go", "Imcoming", "by_your_order", "yes"}},
-		{"attack", {"attack", "go_out_against", "fight", "to_war"}},
-		{"build", {"build"}},
-		{"repair", {"repair", "build"}},
-		{"gather", {"gather", "work_land", "gather_together", "wood", "mine"}},
-		// 0.28 collect_treasure: greek male As_you_wish, greek female and latin gather_together, persian/kushite gather.
-		{"collect_treasure", {"Asyouwish", "gather_together", "gather"}},
-		{"farm", {"work_land", "gather"}},
-		{"fish", {"fish", "gather"}},
-		{"hunt", {"hunt", "gather"}},
-		{"herd", {"herd", "gather"}},
-		{"garrison", {"garrison"}},
-		{"heal", {"heal"}},
-		{"retreat", {"retreat", "walk"}},
-		{"trained", {"ready", "yes", "my_lord", "what_is_it", "hello"}},
+// The 0.28 voice group (voice/{lang}/civ/civ_{phenotype}_<group>.xml) a unit's
+// template names for an order (template_unit*.xml SoundGroups, unit_actions.js):
+// select, order_walk, order_attack(_move), order_build, order_repair, order_gather,
+// order_garrison, order_heal, order_trade, order_collect_treasure. nullptr: no such group.
+inline const char *voice_group_of(const std::string &action) {
+	static const std::unordered_map<std::string, const char *> m = {
+		{"select", "select"}, {"move", "walk"}, {"attack", "attack"}, {"build", "build"},
+		{"repair", "repair"}, {"gather", "gather"}, {"farm", "gather"}, {"fish", "gather"},
+		{"hunt", "gather"}, {"herd", "gather"}, {"garrison", "garrison"}, {"heal", "heal"},
+		{"trade", "trade"}, {"collect_treasure", "collect_treasure"},
 	};
-	static const std::vector<const char *> none;
 	auto it = m.find(action);
-	return it == m.end() ? none : it->second;
+	return it == m.end() ? nullptr : it->second;
+}
+
+// The clips each 0.28 voice group lists, under assets/audio/ (data/voice_groups.json,
+// tools/extract_voice_groups.py); empty when the language has no such group.
+inline const std::vector<godot::String> &voice_group_clips(const char *lang, bool female, const char *group) {
+	static auto &cache = *new std::unordered_map<std::string, std::vector<godot::String>>(); // leaked: no Godot dtor after exit
+	static godot::Dictionary *root = nullptr;
+	if (!root) root = new godot::Dictionary(godot::JSON::parse_string(
+			godot::FileAccess::get_file_as_string("res://data/voice_groups.json")));
+	const std::string key = std::string(lang) + (female ? "|female|" : "|male|") + group;
+	auto it = cache.find(key);
+	if (it != cache.end()) return it->second;
+	std::vector<godot::String> &out = cache[key];
+	const godot::Dictionary sexes = root->get(lang, godot::Dictionary());
+	const godot::Array clips = godot::Dictionary(sexes.get(female ? "female" : "male", godot::Dictionary())).get(group, godot::Array());
+	for (int i = 0; i < clips.size(); ++i) out.push_back(godot::String(kAudioRoot) + godot::String(clips[i]));
+	return out;
 }
 
 // A unit's death group: its roster template's, else its UnitType's generic template's;
@@ -228,21 +237,12 @@ public:
 			const char *pre = action == "select" ? "elephant_select" : action == "attack" ? "elephant_attack" : "elephant_order";
 			return play_group("actor/fauna/animal", pre, 0.8f);
 		}
-		const std::string dir = std::string("voice/") + voice_language(civ) + "/civ";
-		const char *sex = kind == VoiceKind::FEMALE ? "civ_female_" : "civ_male_";
-		for (const char *stem : voice_stems(action)) {
-			const std::string pre = std::string(sex) + stem + "_";
-			if (play_group(dir.c_str(), pre.c_str(), 1.0f)) return true;
-		}
-		// A language without this phenotype's line: borrow the other phenotype's,
-		// then Greek's (the fullest set).
-		const char *other = kind == VoiceKind::FEMALE ? "civ_male_" : "civ_female_";
-		for (const char *stem : voice_stems(action))
-			if (play_group(dir.c_str(), (std::string(other) + stem + "_").c_str(), 1.0f)) return true;
-		if (std::string(voice_language(civ)) != "greek")
-			for (const char *stem : voice_stems(action))
-				if (play_group("voice/greek/civ", (std::string(sex) + stem + "_").c_str(), 1.0f)) return true;
-		return false;
+		// An order plays one of its 0.28 group's clips, or nothing when the language
+		// has no such group for this phenotype (no woman trades).
+		const char *group = voice_group_of(action);
+		if (!group) return false;
+		const auto &clips = voice_group_clips(voice_language(civ), kind == VoiceKind::FEMALE, group);
+		return !clips.empty() && play_path(clips[rng_() % clips.size()], 1.0f);
 	}
 
 	// sel_<structure> (interface/select/building).
@@ -264,7 +264,7 @@ public:
 	// Diffs the world each frame for events 0 A.D. sends as messages: structures
 	// finished, techs researched, units trained and units killed. Feeds
 	// BattleDetection with the damage `me` deals to other players (counted by the sim).
-	void tick(const Simulation *sim, uint8_t me, double t, bool voices_on) {
+	void tick(const Simulation *sim, uint8_t me, double t) {
 		if (!sim) return;
 		if (me != seat_) {
 			seat_ = me;
@@ -333,7 +333,7 @@ public:
 				if (!known_.insert(id).second) continue; // back out of a garrison
 				if (fire && uv.team[i] == me && !trained_this_frame_) {
 					trained_this_frame_ = true;
-					play_trained(sim->player_civ(me), uv.unit_type[i], voices_on);
+					play_trained(uv.unit_type[i]);
 				}
 				continue;
 			}
@@ -703,8 +703,9 @@ private:
 	// elephant_trained for elephants, complete_kennel for dogs, siege_select for the
 	// Germans' wagon, ram_trained (ram_move.ogg) for siege engines (template_unit_siege.xml
 	// and template_unit_siege_{ram,tower}.xml; the bolt shooter and stone thrower inherit
-	// it); alarm_create_infantry (fs_gravel) for the male civilian.
-	void play_trained(uint8_t civ, uint8_t type, bool voices_on) {
+	// it); alarm_create_infantry (fs_gravel) for the male civilian. No voice line: these
+	// groups are all 0.28 plays for a new unit.
+	void play_trained(uint8_t type) {
 		switch (type) {
 			case UNIT_FEMALE_CITIZEN: play_group("interface/alarm", "alarmcreatefemale", 1.0f); break;
 			case UNIT_TRADER: play_group("interface/alarm", "alarmcreateworker", 1.0f); break;
@@ -725,7 +726,6 @@ private:
 				break;
 			default: play_group("actor/singlesteps", "fs_gravel", 1.0f); break;
 		}
-		if (voices_on) play_voice(civ, type, "trained");
 	}
 
 	// Health.js PlaySound("death"): group g where the entity died, while the viewer sees it.

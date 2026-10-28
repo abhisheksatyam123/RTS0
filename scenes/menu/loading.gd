@@ -16,6 +16,7 @@ extends CanvasLayer
 
 const MATCH_SCENE := "res://scenes/main.tscn"
 const DATA := "res://data/reference/loading.json"
+const MODERN := preload("res://scenes/common/modern_theme.gd")
 const ART := "res://assets/textures/ui/loading/"
 ## ProgressBar.prototype.ConfigKey: show the stage instead of the percentage.
 const DESCRIPTION_KEY := "gui.loadingscreen.progressdescription"
@@ -217,12 +218,8 @@ func _build() -> void:
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(root)
-	var bg := TextureRect.new()
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	bg.texture = _tex("background-tile.png")
-	bg.stretch_mode = TextureRect.STRETCH_TILE
-	bg.modulate = Color(0.35, 0.35, 0.35)
-	root.add_child(bg)
+	# loading.xml: the page is a ModernWindow.
+	root.add_child(MODERN.window())
 
 	# ProgressBar.xml: 512 x 32 at the top centre, the bar 56..456 inside.
 	var bar := Control.new()
@@ -264,7 +261,7 @@ func _build() -> void:
 	_bar_text.size = Vector2(_bar_width, 32)
 	_bar_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_bar_text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_outlined(_bar_text, 14)
+	_label_text(_bar_text) # LoadingBarText: sans-bold-stroke-14
 	bar.add_child(_bar_text)
 
 	# TitleDisplay.xml: between the bar and the tip.
@@ -281,7 +278,10 @@ func _build() -> void:
 	title_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_outlined(title_label, 26)
+	# LargeTitleText: sans-bold-24, no stroke.
+	title_label.add_theme_font_override("font", MODERN.bold_font())
+	title_label.add_theme_font_size_override("font_size", 24)
+	title_label.add_theme_color_override("font_color", Color.WHITE)
 	root.add_child(title_label)
 
 	# TipDisplay.xml: one tip from a category weighted for single- or multiplayer.
@@ -307,11 +307,8 @@ func _build() -> void:
 	quote_label.offset_right = 448
 	quote_label.offset_top = 230
 	quote_label.offset_bottom = -16
-	_outlined(quote_label, 14)
+	_label_text(quote_label) # LoadingText: sans-bold-stroke-14, left and top
 	root.add_child(quote_label)
 
-func _outlined(l: Label, size: int) -> void:
-	l.add_theme_font_size_override("font_size", size)
-	l.add_theme_color_override("font_color", Color.WHITE)
-	l.add_theme_color_override("font_outline_color", Color.BLACK)
-	l.add_theme_constant_override("outline_size", 4)
+func _label_text(l: Label) -> void:
+	MODERN.label_text(l)
