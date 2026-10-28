@@ -149,6 +149,9 @@ public:
 	};
 
 	static bool generate(Simulation &sim, const Config &config);
+	// Tests only: Continental keeps its old lopsided river and ford, so the fixed
+	// test_petra scenarios on Continental don't move when that map is retuned.
+	static inline bool continental_legacy_river = false;
 	// Paints the per-tile terrain textures (Simulation::set_terrain_tiles) of a
 	// generated map from its biome's 0 A.D. terrains (terrain_biomes.h): water,
 	// shore and shore blend by height, cliffs and hills by slope, forest floor
