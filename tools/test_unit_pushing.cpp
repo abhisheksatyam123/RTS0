@@ -227,6 +227,26 @@
 //     the circle round the waypoint after it, as HandleObstructedMove pops a long waypoint within
 //     skipbeyond (:1421-1426), or, past the last but one, takes the far search, with the point kept after
 //     its stretch; without the step it kept its path.
+// 38. A spearman Petra sent into its civic centre after a fight on Stats' Islands soak (main 56515ffc3,
+//     seed 2, unit 812), the army it fought with standing idle round it: the bay's shore, as the game's
+//     navcells laid it, the civic centre beyond the bay, a barracks east of the 20 m of land between
+//     them, and 11 of the idle javelineers and spearmen standing in that strip, each under its id in
+//     the game. On the shore the water's clearance bars every step but one, into an idle javelineer's
+//     square; every search, among the crowd-scale squares and among the smaller ones, finds no way,
+//     and GARRISON.APPROACHING keeps its order (UnitAI.js:3272-3289): it stood there with its order for
+//     100 s, until Petra moved that javelineer. Now a unit on its way into a structure whose searches
+//     find no way from where it stands walks through its own player's units that stand idle with no
+//     order, as a builder does (27, 35). It gets in, and the crowd stands as it does without it. The
+//     same strip of an ally's units still holds it (0.28's rule): it never walks through their bodies.
+//     And the guards a review of a first form of the rule called for: a spearman behind his player's
+//     idle block (7 or 12 columns, 3 rows) with 2 rows of an ally's idle units behind it, sent into a
+//     civic centre beyond them with a way round both. Sealed, he searched with his own units out of the
+//     way and found a way round the ally's rows, but walked that path by 0.28's rule: his next step was
+//     refused by his own units, he searched again, found no way, was sealed and sent back at the ally's
+//     rows, for good (never in after 300 s, where main takes him round in 10 s and 13.5 s). A walker
+//     now follows a path its sealed search found as a sealed one: he gets in within 2 s of main's time
+//     and never walks through the ally's bodies, and a builder there, which main's seal held the same
+//     way, starts.
 #define private public
 #include "simulation/simulation.h"
 #undef private
@@ -2530,6 +2550,180 @@ int main() {
 		      "the search reaches 0.28's 20 m, so a waypoint just past a palm wall gets a way to its circle, the rest kept after it");
 		CHECK(step_sub_ok && step_far_ok,
 		      "a unit inside the circle round its next waypoint searches to the one after it, or past the last but one takes the far search");
+	}
+	{
+		// 38. The shore round the spearman (Islands, seed 2, at 1316 s): the game's 2-unit navcells, centres x 39
+		// to 59 (columns) and z 79 down to 63 (rows); # deep water, ~ shallow, ^ steep, . land. Land beyond.
+		static const char *SHORE[] = {
+				".....^.....", ".....###...", ".~~~####~..", "########~..", "#######~~..",
+				"#######~...", "######~....", "#####~~....", "####~......"};
+		constexpr int SHORE_X0 = 39, SHORE_Z0 = 79, SHORE_W = 11, SHORE_H = 9;
+		// A navcell's class comes from the height at its centre (NavGrid::set_water_from_heights): deep water
+		// below the water's 1.0 less 2 m plus the margin, shallow up to the margin above it. Heights on each
+		// side of a centre are the mean of the centres round them, so no tile but a ^ one is steep.
+		auto centre = [&](int x, int z) {
+			if (x < SHORE_X0 || x > SHORE_X0 + 2 * (SHORE_W - 1) || z > SHORE_Z0 || z < SHORE_Z0 - 2 * (SHORE_H - 1)) return 1.75f;
+			const char c = SHORE[(SHORE_Z0 - z) / 2][(x - SHORE_X0) / 2];
+			return c == '#' ? 0.5f : c == '~' ? 1.05f : c == '^' ? 4.0f : 1.75f;
+		};
+		constexpr UnitType J = UNIT_ARCHER, S = UNIT_SPEARMAN; // Gaul javelineers and spearmen
+		const std::vector<DumpUnit> strip = {{1292, 55.4050f, 72.2584f, J}, {882, 54.2004f, 73.0709f, J}, {1143, 57.4113f, 72.3859f, J},
+				{1294, 57.3094f, 71.0474f, J}, {1228, 58.8601f, 71.7921f, J}, {1185, 55.1814f, 74.3980f, S},
+				{1713, 56.9905f, 73.9893f, S}, {1288, 58.6060f, 73.5643f, S}, {908, 58.1683f, 76.5368f, S},
+				{880, 56.9448f, 77.5362f, J}, {791, 54.2149f, 77.9698f, S}};
+		// The scene: player 0 Gaul, the strip's units player `crowd` (2 an ally), the spearman at (53.87, 71.58)
+		// unless `no_walker`.
+		auto shore_scene = [&](uint8_t crowd, bool no_walker) {
+			auto s = std::make_unique<Simulation>();
+			s->set_sim_seed(5);
+			s->reset();
+			s->set_map_half(128.0f);
+			constexpr int RES = 257;
+			std::vector<float> h((size_t)RES * RES);
+			for (int j = 0; j < RES; ++j)
+				for (int i = 0; i < RES; ++i) {
+					const int x = i - 128, z = j - 128;
+					const bool ox = (x & 1) != 0, oz = (z & 1) != 0;
+					h[(size_t)j * RES + i] = ox && oz ? centre(x, z)
+					                       : ox      ? 0.5f * (centre(x, z - 1) + centre(x, z + 1))
+					                       : oz      ? 0.5f * (centre(x - 1, z) + centre(x + 1, z))
+					                                 : 0.25f * (centre(x - 1, z - 1) + centre(x + 1, z - 1) + centre(x - 1, z + 1) +
+					                                            centre(x + 1, z + 1));
+				}
+			s->set_terrain_data(h, RES, 1.0f);
+			s->begin_bulk_spawn();
+			s->end_bulk_spawn();
+			s->set_team_civ(0, CIV_GAULS);
+			s->set_team_civ(1, CIV_SPARTANS);
+			s->set_team_civ(2, CIV_GAULS);
+			s->set_mutual_ally(0, 2);
+			s->next_id_ = 5000;
+			s->spawn_building_world(-70.0f, -70.0f, BLD_TOWN_CENTER, 1, 1.0f);
+			s->next_id_ = 5100;
+			s->spawn_building_world(-70.0f, 70.0f, BLD_TOWN_CENTER, 2, 1.0f);
+			s->next_id_ = 972;
+			s->spawn_building_world(44.0f, 82.0f, BLD_TOWN_CENTER, 0, 1.0f);
+			s->next_id_ = 1044;
+			s->spawn_building_world(62.0f, 72.0f, BLD_BARRACKS, 0, 1.0f);
+			s->rebuild_nav_grid();
+			for (const DumpUnit &u : strip) {
+				s->next_id_ = u.id;
+				s->spawn_unit(u.x, u.z, crowd, u.type);
+			}
+			if (!no_walker) {
+				s->next_id_ = 812;
+				s->spawn_unit(53.8745f, 71.5770f, 0, UNIT_SPEARMAN);
+			}
+			s->next_id_ = 6000;
+			return s;
+		};
+		struct ShoreRun {
+			int in = -1;        // the tick it got into the civic centre, -1 not in 30 s
+			float body = 1e9f;  // its least distance to a strip unit, over their bodies' radius sum
+		};
+		auto shore_run = [&](Simulation &s) {
+			ShoreRun r;
+			const uint32_t w = 812, cc = 972;
+			s.order_garrison(&w, 1, cc); // before the first tick: two idle units would push each other
+			for (int t = 1; t <= 600; ++t) {
+				s.tick(DT);
+				const int wi = idx(s, w);
+				if (s.units_.action_state[wi] == ACTION_GARRISONED) {
+					r.in = t;
+					break;
+				}
+				for (const DumpUnit &u : strip) {
+					const int j = idx(s, u.id);
+					r.body = std::min(r.body, dist(s, wi, j) / (unit_collision_radius(s.units_.unit_type[wi]) +
+							unit_collision_radius(s.units_.unit_type[j])));
+				}
+			}
+			return r;
+		};
+		auto own = shore_scene(0, false);
+		const int w0 = idx(*own, 812);
+		auto cell_at = [&](float x, float z) {
+			const auto [cx, cy] = own->nav_grid_.world_to_cell(x, z);
+			return (int)own->nav_grid_.cells.at(cx, cy);
+		};
+		const float wx = own->units_.pos_x[w0], wz = own->units_.pos_z[w0];
+		const bool laid = cell_at(wx, wz) == NAV_SHALLOW && cell_at(wx, wz + 1.0f) == NAV_WATER &&
+				own->land_step_barred(wx, wz, wx, wz + 0.5f, own->unit_clearance_at(w0));
+		const ShoreRun r_own = shore_run(*own);
+		// The crowd stands as it does without the spearman (Push never mixes moving and idle).
+		auto still = shore_scene(0, true);
+		for (int k = 0; k < (r_own.in < 0 ? 600 : r_own.in); ++k) still->tick(DT);
+		float moved = 0.0f;
+		for (const DumpUnit &u : strip) {
+			const int j = idx(*own, u.id), jj = idx(*still, u.id);
+			moved = std::max(moved, std::hypot(own->units_.pos_x[j] - still->units_.pos_x[jj], own->units_.pos_z[j] - still->units_.pos_z[jj]));
+		}
+		auto ally = shore_scene(2, false);
+		const ShoreRun r_ally = shore_run(*ally);
+		std::printf("  a spearman on the bay's shore sent into its civic centre past its idle army: in after %.2f s (-1: not in 30 s), "
+		            "the crowd within %.3f of where it stands without him; past an ally's: in after %.2f s, %.2f of the bodies' radius "
+		            "sum from them at the closest\n", r_own.in < 0 ? -1.0f : r_own.in * DT, moved, r_ally.in < 0 ? -1.0f : r_ally.in * DT,
+		            r_ally.body);
+		CHECK(laid, "the spearman stands in the shallows, deep water north of him: no step north");
+		CHECK(r_own.in > 0, "a unit on its way into a structure, its way shut by its player's idle units, gets through them and in");
+		CHECK(r_own.in > 0 && moved < 0.01f, "and walking through them pushes none of the idle crowd aside");
+		CHECK(r_ally.body >= 0.99f, "an ally's idle units keep 0.28's rule: the unit never walks through their bodies");
+
+		// Guards (the review of a first form of the rule, which walked a path that its sealed search found by
+		// 0.28's rule): on test 22's flat map, a spearman 6 south of a block of his player's idle spearmen
+		// (cols x 3, 1.45 apart, centred 4 north of him), 2 rows of an ally's spearmen behind it (2 wider),
+		// sent into a civic centre 18 north of him, a way round both on either side. Sealed at the block's
+		// edge, he walked into it, was refused by the ally's rows and searched sealed; walked by 0.28's rule
+		// the path's next step was refused by his own units, the search from there found no way and the seal
+		// sent him back at the ally's rows, for good (never in after 300 s; main, where the seal never takes
+		// a garrison walk, takes him round in 10.00 s with 7 columns and 13.50 s with 12). Now he follows that
+		// path sealed, and gets in about when main does, never through an ally's body. A builder sent to a
+		// house site there, which main's seal holds the same way (never started after 300 s), starts.
+		struct MixedRun {
+			int in = -1;            // the tick it got in (garrisoned, or the house begun), -1 not in 30 s
+			float ally = 1e9f;      // its least distance to an ally's unit, over their bodies' radius sum
+		};
+		auto mixed_run = [&](int cols, bool build) {
+			std::vector<DumpUnit> units;
+			const float sp = 1.45f, x0 = -0.5f * sp * (cols - 1), z0 = 4.0f - sp;
+			uint32_t id = 1000;
+			for (int r = 0; r < 3; ++r)
+				for (int k = 0; k < cols; ++k) units.push_back({id++, x0 + k * sp, z0 + r * sp, S});
+			for (int r = 0; r < 2; ++r)
+				for (int k = 0; k < cols + 2; ++k) units.push_back({id++, x0 + (k - 1) * sp, z0 + (3 + r) * sp, S, 2});
+			units.push_back({3000, 0.0f, -6.0f, S});
+			const DumpBld target = build ? DumpBld{900, 0.0f, 16.0f, BLD_HOUSE, 0.0f} : DumpBld{900, 0.0f, 18.0f, BLD_TOWN_CENTER, 1.0f};
+			auto s = dump_scene(CIV_ATHENIANS, {target}, units, true);
+			const uint32_t w = 3000;
+			if (build) s->order_build_or_repair(&w, 1, target.id);
+			else s->order_garrison(&w, 1, target.id);
+			MixedRun r;
+			for (int t = 1; t <= 600; ++t) {
+				s->tick(DT);
+				const int wi = idx(*s, w);
+				if (build ? s->buildings_[s->building_id_to_idx_.at(target.id)].build_progress > 0.0f
+				          : s->units_.action_state[wi] == ACTION_GARRISONED) {
+					r.in = t;
+					break;
+				}
+				for (const DumpUnit &u : units) {
+					if (u.team != 2) continue;
+					const int j = idx(*s, u.id);
+					r.ally = std::min(r.ally, dist(*s, wi, j) / (unit_collision_radius(s->units_.unit_type[wi]) +
+							unit_collision_radius(s->units_.unit_type[j])));
+				}
+			}
+			return r;
+		};
+		const MixedRun m7 = mixed_run(7, false), m12 = mixed_run(12, false), mb = mixed_run(7, true);
+		std::printf("  past his idle block and an ally's rows: 7 columns in after %.2f s (main 10.00), %.2f of the bodies' radius sum "
+		            "from the ally's units at the closest; 12 columns in after %.2f s (main 13.50), %.2f; a builder started after %.2f s "
+		            "(-1: not in 30 s)\n", m7.in < 0 ? -1.0f : m7.in * DT, m7.ally, m12.in < 0 ? -1.0f : m12.in * DT, m12.ally,
+		            mb.in < 0 ? -1.0f : mb.in * DT);
+		CHECK(m7.in > 0 && m7.in * DT <= 12.0f && m12.in > 0 && m12.in * DT <= 15.5f,
+		      "a unit sealed past its idle units, refused by an ally's behind them, gets in within 2 s of main's time");
+		CHECK(m7.ally >= 0.99f && m12.ally >= 0.99f, "and never walks through the ally's bodies there");
+		CHECK(mb.in > 0, "a builder held so by main's seal gets to its site");
 	}
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
