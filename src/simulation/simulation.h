@@ -3821,13 +3821,17 @@ private:
 	bool petra_plan_has_force_order(const AttackPlan &plan) const;
 	// must_start: the pick when a plan in preparation sets off (attackPlan.js chooseTarget at
 	// mustStart), where an Attack without siege takes only an undefended structure.
-	uint32_t find_petra_attack_target(float &out_tx, float &out_tz, uint16_t same_land = 0, const AttackPlan *plan = nullptr, bool must_start = false) const;
+	// note: false for the provisional pick when a plan is made, which keeps currentEnemyPlayer
+	// and the Gaia-relic wait as they are (0.28 asks getEnemyPlayer only in chooseTarget).
+	uint32_t find_petra_attack_target(float &out_tx, float &out_tz, uint16_t same_land = 0, const AttackPlan *plan = nullptr,
+	                                  bool must_start = false, bool note = true) const;
 	uint8_t petra_enemy_player(uint8_t kind, bool first = true, bool *gaia_relics = nullptr) const;
 	uint32_t petra_nearest_target(uint8_t kind, bool forced, uint8_t enemy, float px, float pz, uint16_t same_land, float &out_tx, float &out_tz) const;
 	uint32_t find_petra_raid_target(float &out_tx, float &out_tz) const;
 	bool petra_defense_target(const Building &b) const; // defenseManager.js targetList
 	uint8_t petra_target_owner(uint32_t id) const;
-	bool petra_defendable(float x, float z) const; // headquarters.js isDefendable
+	bool petra_defendable(float x, float z) const;
+	bool petra_structure_defended(const Building &b) const; // DM:608-612: not blinking-and-undefendable, a base anchor on its land // headquarters.js isDefendable
 	void petra_scuttle_undefendable();
 	uint32_t petra_help_attack_target(const AttackPlan &plan, uint16_t land, float &tx, float &tz) const;
 	uint32_t find_petra_rush_target(float &out_tx, float &out_tz, uint8_t prefer = 0xFF, const float *from = nullptr, uint16_t land = 0,
@@ -3989,6 +3993,8 @@ private:
 	uint8_t petra_most_needed_resource();
 	float petra_trade_timer_ = 0.0f;
 	float petra_naval_timer_ = 0.0f;
+	// RTS0's old map-circling scout, which 0.28 doesn't have: no longer picked, kept in the save
+	// layout; one loaded from an older save goes back to hunting.
 	float petra_scout_timer_ = 0.0f;
 	uint32_t petra_scout_unit_id_ = 0;
 	float petra_scout_angle_ = 0.0f;
@@ -3996,7 +4002,6 @@ private:
 
 	void update_petra_bases(float dt);
 	void update_petra_threat_map(float dt);
-	void petra_manage_scouting(float dt);
 	void petra_manage_economy(float dt);
 	void petra_manage_trading(float dt);
 	void petra_manage_naval(float dt);
@@ -4146,6 +4151,12 @@ private:
 	// A defense army's foe that is still about: a living unit, or an animal neither dead nor
 	// penned (defenseManager.js checkEnemyUnits keeps animals attacking us or our allies).
 	bool petra_army_foe_pos(uint32_t fid, float &x, float &z) const;
+	// entityExtend.js canAttackTarget for a defense army's foe: may unit i attack unit or animal
+	// fid at all (Attack RestrictedClasses: rams and ships reach no land animal)?
+	bool petra_can_hit_foe(size_t i, uint32_t fid) const {
+		if (const int32_t fi = lookup_unit(fid); fi >= 0) return unit_can_target(i, (size_t)fi);
+		return units_.unit_type[i] != UNIT_SIEGE_RAM && !unit_is_ship(units_.unit_type[i]);
+	}
 	float petra_fauna_strength(size_t f) const; // getMaxStrength, x3 for an elephant (evaluateStrength)
 	bool petra_army_capturing(const PetraDefenseArmy &army) const; // getType() == "capturing"
 	float petra_enemy_capture_points(const Building &b) const;
