@@ -192,6 +192,41 @@
 //     along the path as no way: there the first started after 54 s instead of 9, the others never),
 //     and a builder whose search finds the way it dropped but whose line to its site crosses an ally's
 //     idle units (the rule without its test of that line sealed him into the crowd for good).
+// 36. Workers in a palm grove whose storehouse lies 75 m off (Stats' soak, bahrain seed 3, about 1020 s:
+//     p3's grove and storehouse, where returners stood with their loads for good) get round the grove and
+//     drop their loads, one of them ordered to gather again every 1.6 s as Petra's worker update does. The
+//     goal's centre lies beyond 56 m, out of the short path's reach, and RTS0's long path there runs
+//     straight through the palms (8 m navcells): obstructed_short_path did nothing, MoveFailed sent the
+//     worker at the same storehouse again, and the re-sent one never even got that far. 0.28's long path
+//     goes round the trees (1 m navcells); RTS0's stand-in on the third failed turn is a short path toward
+//     the goal within 56 m. Every path such a search lays ends in the storehouse's range (within a
+//     navcell) or at the storehouse, and a game saved on the way and loaded hashes as the original: one
+//     saved while both women walk the paths their far third turns laid, and one saved after.
+// 37. Two walls of palms 22 units apart and a goal 40 units off, beyond both: the first far search's box
+//     clamps the goal between the walls, which the vertex pathfinder counts as reached, so its path ends
+//     about 15 units short. The way on is kept after it (the walk's own path, or the storehouse), so the
+//     unit is not taken to have reached the end of a long path that falls short: a walk arrives instead
+//     of ending at the second wall, a returner drops its load with its failed turns never past 10, and so
+//     does one Petra orders to gather again every 1.6 s, whose path to the storehouse that order keeps.
+//     That order drops a path she has walked to its end, as 0.28's StopMoving does: one that ends where
+//     she stands, about 38 units short of the storehouse's range, held her at the first wall for as long
+//     as the orders came (the guard took it for the storehouse out of reach, and each order reset her
+//     failed turns before MoveFailed); she drops her load within 60 s.
+//     A walk 65 units off whose own path bends round two fortresses past the first wall takes the
+//     sub-goal search instead (HandleObstructedMove's short path to a circle round the next long
+//     waypoint, CCmpUnitMotion.h:1416-1442): its third failed turn lays a way round the wall to that
+//     circle (radius 1 unit at the third turn; the search reaches 0.28's 20 m, or the waypoint plus 1 m
+//     when that is farther) with the rest of the walk's path after it, and the walk arrives. Before, it
+//     stood at the wall until MoveFailed.
+//     RANGE and STEP call that third failed turn's search alone, on a path set by hand (a spearman 1.5
+//     units west of a palm wall, his point 60 units east). With the held path's next waypoint 2.5 to 4
+//     units east of him (1 to 2.5 past walls 5 to 9 palms long), the search reaches 0.28's 20 m (5 units)
+//     and its path ends on the waypoint's circle with the rest kept, all 9 times; a range of the waypoint
+//     plus 1 m alone ends there 3 times. A unit already inside the circle round its next waypoint
+//     (obstructed_long_path's re-plan on the same turn can start the path within a unit of it) heads for
+//     the circle round the waypoint after it, as HandleObstructedMove pops a long waypoint within
+//     skipbeyond (:1421-1426), or, past the last but one, takes the far search, with the point kept after
+//     its stretch; without the step it kept its path.
 #define private public
 #include "simulation/simulation.h"
 #undef private
@@ -363,6 +398,77 @@ static std::unique_ptr<Simulation> dump_scene(uint8_t civ, const std::vector<Dum
 	}
 	s->next_id_ = 6000;
 	return s;
+}
+
+// Tests 36 and 37: the path a unit holds, to tell the tick its third failed turn laid a new one.
+static bool same_path(const WaypointPath &a, const WaypointPath &b) {
+	if (a.count != b.count || a.has_goal != b.has_goal) return false;
+	for (int k = 0; k < a.count; ++k)
+		if (a.xs[k] != b.xs[k] || a.zs[k] != b.zs[k]) return false;
+	return true;
+}
+
+// Whether unit i is on its third failed turn (ALTERNATE_PATH_TYPE_DELAY) with the centre of what it walks
+// to (cx, cz) beyond 56 m, where obstructed_short_path's far-goal and sub-goal searches run.
+static bool far_alternate_turn(const Simulation &s, int i, float cx, float cz) {
+	return s.units_.motion[i].failed == 3 && std::hypot(cx - s.units_.pos_x[i], cz - s.units_.pos_z[i]) + 0.25f > 14.0f;
+}
+
+// How far (x, z) lies from a returner's range round dropsite b (task_range_goal: the footprint grown by
+// (1.5 + r) * 2/3, r the unit's radius).
+static float drop_range_gap(const Simulation::Building &b, uint8_t unit_type, float x, float z) {
+	const float ux = b.uz == 0.0f ? 1.0f : b.ux, uz = b.uz;
+	const float grow = (1.5f + unit_collision_radius(unit_type)) * (2.0f / 3.0f);
+	const float rx = x - b.x, rz = z - b.z;
+	const float a = std::fabs(rx * ux + rz * uz) - (b.hu + grow), c = std::fabs(-rx * uz + rz * ux) - (b.hv + grow);
+	return std::hypot(std::max(a, 0.0f), std::max(c, 0.0f));
+}
+
+// Test 37's RANGE and STEP: a spearman at (-20, -20) walking to the point 60 units east, a wall of palms
+// 1.5 units east of him (z -h..h about him), and the path he holds to his point set by hand (`held`,
+// relative to him, its first waypoint next). His third failed turn's search (obstructed_short_path) is
+// called alone, and the path he holds after it is returned, relative to him.
+static WaypointPath third_turn_path(int h, const std::vector<nav::Vec2> &held) {
+	constexpr float OX = -20.0f, OZ = -20.0f;
+	auto s = std::make_unique<Simulation>();
+	setup(*s);
+	for (int k = -h; k <= h; ++k)
+		s->spawn_resource_world(1.5f + OX, (float)k + OZ, RES_WOOD, 300, RES_SUB_NONE, 0, FLORA_TREE_CRETAN_DATE_PALM_PATCH);
+	const uint32_t w = s->spawn_unit(OX, OZ, 0, UNIT_SPEARMAN, 150.0f);
+	s->spawn_unit(OX + 30.0f, OZ + 30.0f, 0, UNIT_FEMALE_CITIZEN, 150.0f);
+	s->tick(DT);
+	s->order_walk(&w, 1, OX + 60.0f, OZ, false, true);
+	const int i = idx(*s, w);
+	s->units_.pos_x[i] = OX;
+	s->units_.pos_z[i] = OZ;
+	WaypointPath &wp = s->unit_paths_[i];
+	wp.clear();
+	for (const nav::Vec2 &p : held) wp.push_back(p.x + OX, p.y + OZ);
+	wp.has_goal = true;
+	wp.goal_x = s->units_.target_x[i];
+	wp.goal_z = s->units_.target_z[i];
+	wp.cur = 0;
+	s->units_.waypoint_cur[i] = 0;
+	s->units_.waypoint_count[i] = (int16_t)wp.count;
+	s->units_.motion[i].failed = 3;
+	s->obstructed_short_path((size_t)i, 3);
+	WaypointPath out = s->unit_paths_[i];
+	for (int k = 0; k < out.count; ++k) {
+		out.xs[k] -= OX;
+		out.zs[k] -= OZ;
+	}
+	return out;
+}
+
+// Whether `path` ends with held[from..] and the waypoint before that lies on the circle of radius 1 unit
+// (the third turn's sub-goal circle) round held[from], within 0.01.
+static bool ends_on_circle_with_rest(const WaypointPath &path, const std::vector<nav::Vec2> &held, int from) {
+	const int rest = (int)held.size() - from;
+	if (path.count <= rest) return false;
+	for (int k = 0; k < rest; ++k)
+		if (path.xs[path.count - rest + k] != held[from + k].x || path.zs[path.count - rest + k] != held[from + k].y) return false;
+	const int e = path.count - rest - 1;
+	return std::fabs(std::hypot(path.xs[e] - held[from].x, path.zs[e] - held[from].y) - 1.0f) <= 0.01f;
 }
 
 // The tick on which construction of `site` began (its progress above 0) within `ticks`, else -1.
@@ -2172,6 +2278,258 @@ int main() {
 		std::printf("  a builder whose line to his site crosses an ally's idle units: started after %.2f s (-1: not in 60 s)\n",
 		            t_pocket < 0 ? -1.0f : t_pocket * DT);
 		CHECK(t_pocket > 0, "a builder whose line to its site crosses an ally's idle units is not sealed there, and gets to its site");
+	}
+	{
+		// 36. Bahrain seed 3, about 1020 s: p3's grove (the 20 palms the trace listed, 4 m squares but one
+		// of 1.6 m) and its storehouse at (57, 67), moved by an even (OX, OZ) into player 0's territory, so
+		// the navcells lie as they did. Two women with full wood loads from where units 5055 and 7683 stood
+		// in the grove, 18.6 units from the storehouse's centre; the second is ordered to gather again every
+		// 32 ticks while she returns. The second game is saved after 20 s and loaded, the third after 3 s,
+		// while both women walk the paths their far third turns laid (the first game checks that they do).
+		static const float grove[][3] = {
+			{67.5f, 51.5f, 0.5f}, {66.5f, 51.5f, 0.5f}, {68.5f, 51.5f, 0.5f}, {67.5f, 52.5f, 0.5f}, {66.5f, 52.5f, 0.5f},
+			{69.5f, 52.5f, 0.5f}, {70.5f, 53.5f, 0.5f}, {71.5f, 52.5f, 0.5f}, {73.5f, 53.5f, 0.5f}, {75.5f, 53.5f, 0.2f},
+			{67.5f, 55.5f, 0.5f}, {66.5f, 55.5f, 0.5f}, {69.5f, 55.5f, 0.5f}, {70.5f, 55.5f, 0.5f}, {70.5f, 54.5f, 0.5f},
+			{71.5f, 55.5f, 0.5f}, {72.5f, 54.5f, 0.5f}, {74.5f, 54.5f, 0.5f}, {71.5f, 56.5f, 0.5f}, {72.5f, 57.5f, 0.5f}};
+		static const float start[2][2] = {{71.11f, 54.83f}, {70.79f, 52.79f}};
+		constexpr float OX = -96.0f, OZ = -102.0f;
+		constexpr int SAVE_AT[3] = {0, 400, 60}, HASH_AT = 1200, TICKS = 2400;
+		int drop[2] = {-1, -1}, installs = 0, short_ends = 0;
+		uint32_t hash[3] = {0, 0, 0};
+		bool loaded[3] = {true, false, false};
+		// At SAVE_AT[2] in the first game: each woman, still full, walks the last path a far third turn laid
+		// her, with waypoints left.
+		bool mid_far[2] = {false, false};
+		WaypointPath far_laid[2];
+		for (int run = 0; run < 3; ++run) {
+			auto s = std::make_unique<Simulation>();
+			setup(*s);
+			const uint32_t store = s->spawn_building_world(57.0f + OX, 67.0f + OZ, BLD_STOREHOUSE, 0, 1.0f);
+			for (const auto &p : grove)
+				s->spawn_resource_world(p[0] + OX, p[1] + OZ, RES_WOOD, 300, RES_SUB_NONE, 0,
+						p[2] < 0.3f ? FLORA_TREE_DATE_PALM : FLORA_TREE_CRETAN_DATE_PALM_PATCH);
+			// The tree the women are sent to, beyond the grove; a woman far off, as separation() runs only
+			// with two units or more.
+			const uint32_t tree = s->spawn_resource_world(79.5f + OX, 55.5f + OZ, RES_WOOD, 300, RES_SUB_NONE, 0, FLORA_TREE_DATE_PALM);
+			s->spawn_unit(-10.0f, -10.0f, 0, UNIT_FEMALE_CITIZEN, 150.0f);
+			uint32_t ws[2];
+			int32_t load[2];
+			for (int k = 0; k < 2; ++k) {
+				ws[k] = s->spawn_unit(start[k][0] + OX, start[k][1] + OZ, 0, UNIT_FEMALE_CITIZEN, 150.0f);
+				const int wi = idx(*s, ws[k]);
+				s->units_.res_type_carried[wi] = RES_WOOD;
+				s->units_.carry[wi] = load[k] = s->carry_cap((size_t)wi, RES_WOOD);
+			}
+			s->order_gather(ws, 2, tree); // a full worker returns the load first
+			WaypointPath prev[2];
+			for (int t = 1; t <= (run == 0 ? TICKS : HASH_AT); ++t) {
+				if (run > 0 && t == SAVE_AT[run] + 1) {
+					const std::string path = temp_save_path();
+					auto copy = std::make_unique<Simulation>();
+					loaded[run] = !path.empty() && s->save_state(path.c_str()) && copy->load_state(path.c_str());
+					std::remove(path.c_str());
+					if (!loaded[run]) break;
+					s = std::move(copy); // the loaded game goes on in its place
+				}
+				const int i1 = idx(*s, ws[1]);
+				if (t % 32 == 0 && s->units_.action_state[i1] == ACTION_RETURN_DROPSITE) s->order_gather(&ws[1], 1, tree);
+				s->tick(DT);
+				if (t == HASH_AT) hash[run] = TurnManager().compute_sim_hash(*s);
+				if (run != 0) continue;
+				const Simulation::Building &b = s->buildings_[s->building_id_to_idx_.at(store)];
+				for (int k = 0; k < 2; ++k) {
+					const int i = idx(*s, ws[k]);
+					if (drop[k] < 0 && s->units_.carry[i] < load[k]) drop[k] = t;
+					const WaypointPath &wp = s->unit_paths_[i];
+					if (drop[k] < 0 && s->units_.action_state[i] == ACTION_RETURN_DROPSITE && wp.count > 0 &&
+							!same_path(wp, prev[k]) && far_alternate_turn(*s, i, b.x, b.z)) {
+						// D2: the path ends in the range (within a navcell) or at the storehouse.
+						const float lx = wp.xs[wp.count - 1], lz = wp.zs[wp.count - 1];
+						++installs;
+						far_laid[k] = wp;
+						if (drop_range_gap(b, s->units_.unit_type[i], lx, lz) > 2.0f &&
+								(lx != s->units_.target_x[i] || lz != s->units_.target_z[i]))
+							++short_ends;
+					}
+					if (t == SAVE_AT[2])
+						mid_far[k] = drop[k] < 0 && s->units_.carry[i] == load[k] && far_laid[k].count > 0 &&
+								same_path(wp, far_laid[k]) && s->units_.waypoint_cur[i] < wp.count;
+					prev[k] = wp;
+				}
+			}
+		}
+		std::printf("  palm grove 75 m from the storehouse (Stats, bahrain seed 3): unit 5055's spot drops after %.2f s, 7683's "
+		            "(ordered to gather every 1.6 s) after %.2f s (-1: not in 120 s); %d paths laid on far third turns, %d of "
+		            "them ending short with no way on; after %.2f s each walks the far path laid her: %d %d; hash after 60 s %08x, "
+		            "saved after 20 s and loaded %08x, saved after %.2f s and loaded %08x\n",
+		            drop[0] < 0 ? -1.0f : drop[0] * DT, drop[1] < 0 ? -1.0f : drop[1] * DT, installs, short_ends, SAVE_AT[2] * DT,
+		            (int)mid_far[0], (int)mid_far[1], hash[0], hash[1], SAVE_AT[2] * DT, hash[2]);
+		CHECK(drop[0] > 0 && drop[1] > 0,
+		      "workers in a palm grove 75 m from their storehouse, one ordered to gather again every 1.6 s, get round it and drop their loads");
+		CHECK(short_ends == 0, "every path a far third turn lays them ends in the storehouse's range or at the storehouse");
+		CHECK(loaded[1] && hash[0] == hash[1], "a game saved on the way and loaded hashes as the original 40 s later");
+		CHECK(mid_far[0] && mid_far[1] && loaded[2] && hash[0] == hash[2],
+		      "and so does one saved while both women walk the paths their far third turns laid");
+	}
+	{
+		// 37. Walls W1 (x = 4) and W2 (x = 26) of 21 palms each, z -10 to 10, 1 unit apart; their point 40
+		// units east of the start, moved by (OX, OZ). The first far search, from W1's west face, shifts its
+		// box toward the goal by 8.4 units and clamps the goal into it by W2. Player 0's civic centre stands
+		// 25 units beyond the storehouse, so the storehouse is the returners' pick and in the territory.
+		// SUBGOAL: W1 alone, two fortresses at (18, -8) and (18, 0), and a walk to (65, 0), so the walk's
+		// own path (cmd_move's find_path, which does not see the palms) bends round them at (21, 3).
+		constexpr float OX = -40.0f, OZ = -40.0f, GX = 40.0f + OX, GZ = OZ, SUB_GX = 65.0f + OX;
+		// SPENT: as RESENT, but she starts on a path to the storehouse walked to its end, which ends where she
+		// stands (as a search's path does once she has been pushed back from its end).
+		enum Run { WALK, RETURNER, RESENT, SPENT, SUBGOAL, RUNS };
+		static const char *const names[RUNS] = {"a spearman walked to the point", "a woman taking a full load to a storehouse there",
+			"the woman, ordered to gather again every 1.6 s",
+			"the woman, ordered to gather again every 1.6 s, holding a path walked to its end where she stands",
+			"a spearman walked 65 units, his path bent by two fortresses"};
+		int done[RUNS], max_failed[RUNS], first_n[RUNS];
+		float first_x[RUNS], first_z[RUNS], end_x[RUNS], end_z[RUNS];
+		bool first_round[RUNS];
+		// SUBGOAL's first third-turn path: whether it ends with the rest of the path the walk held, and how far
+		// the waypoint before that rest (the search's end) lies from the held path's next waypoint.
+		bool sub_tail = false;
+		float sub_gap = -1.0f;
+		int sub_held_n = 0;
+		for (int run = 0; run < RUNS; ++run) {
+			const float gx = run == SUBGOAL ? SUB_GX : GX;
+			auto s = std::make_unique<Simulation>();
+			s->set_sim_seed(4242);
+			s->reset();
+			s->spawn_building_world(65.0f + OX, run == SUBGOAL ? 30.0f + OZ : OZ, BLD_TOWN_CENTER, 0, 1.0f);
+			s->spawn_building_world(52.0f, 52.0f, BLD_TOWN_CENTER, 1, 1.0f);
+			for (int k = -10; k <= 10; ++k) {
+				s->spawn_resource_world(4.0f + OX, (float)k + OZ, RES_WOOD, 300, RES_SUB_NONE, 0, FLORA_TREE_CRETAN_DATE_PALM_PATCH);
+				if (run != SUBGOAL)
+					s->spawn_resource_world(26.0f + OX, (float)k + OZ, RES_WOOD, 300, RES_SUB_NONE, 0, FLORA_TREE_CRETAN_DATE_PALM_PATCH);
+			}
+			if (run == SUBGOAL)
+				for (float fz : {-8.0f, 0.0f}) s->spawn_building_world(18.0f + OX, fz + OZ, BLD_FORTRESS, 0, 1.0f);
+			// The point the way on leads to: the walk's own, or the storehouse's centre.
+			end_x[run] = gx;
+			end_z[run] = GZ;
+			uint32_t store_id = 0;
+			if (run == RETURNER || run == RESENT || run == SPENT) {
+				store_id = s->spawn_building_world(GX, GZ, BLD_STOREHOUSE, 0, 1.0f);
+				const Simulation::Building &b = s->buildings_[s->building_id_to_idx_.at(store_id)];
+				end_x[run] = b.x;
+				end_z[run] = b.z;
+			}
+			const uint32_t tree = s->spawn_resource_world(OX - 6.0f, OZ, RES_WOOD, 300); // the gather order's tree, west
+			s->spawn_unit(65.0f + OX, 20.0f + OZ, 0, UNIT_FEMALE_CITIZEN, 150.0f); // separation() runs with two units
+			const uint32_t w = s->spawn_unit(OX, OZ, 0, run == WALK || run == SUBGOAL ? UNIT_SPEARMAN : UNIT_FEMALE_CITIZEN, 150.0f);
+			int32_t load = 0;
+			if (run == WALK || run == SUBGOAL) {
+				s->order_walk(&w, 1, gx, GZ, false, true);
+				if (run == SUBGOAL) sub_held_n = s->unit_paths_[idx(*s, w)].count;
+			} else {
+				const int wi = idx(*s, w);
+				s->units_.res_type_carried[wi] = RES_WOOD;
+				s->units_.carry[wi] = load = s->carry_cap((size_t)wi, RES_WOOD);
+				s->order_gather(&w, 1, tree); // a full worker returns the load first
+				if (run == SPENT) {
+					s->tick(DT); // tick_gather turns her back to the storehouse
+					const int i = idx(*s, w);
+					WaypointPath &wp = s->unit_paths_[i];
+					wp.clear();
+					wp.push_back(s->units_.pos_x[i], s->units_.pos_z[i]);
+					wp.has_goal = true;
+					wp.goal_x = s->units_.target_x[i];
+					wp.goal_z = s->units_.target_z[i];
+					wp.cur = 1;
+					s->units_.waypoint_cur[i] = 1;
+					s->units_.waypoint_count[i] = 1;
+					std::printf("  the path she holds ends %.2f units from the storehouse's range\n",
+					            drop_range_gap(s->buildings_[s->building_id_to_idx_.at(store_id)], s->units_.unit_type[i], wp.xs[0], wp.zs[0]));
+				}
+			}
+			done[run] = -1;
+			max_failed[run] = 0;
+			first_n[run] = 0;
+			first_x[run] = first_z[run] = 0.0f;
+			first_round[run] = false;
+			WaypointPath prev = s->unit_paths_[idx(*s, w)];
+			for (int t = 1; t <= 1800 && done[run] < 0; ++t) {
+				const int i0 = idx(*s, w);
+				if ((run == RESENT || run == SPENT) && t % 32 == 0 && s->units_.action_state[i0] == ACTION_RETURN_DROPSITE)
+					s->order_gather(&w, 1, tree);
+				const int prev_cur = s->units_.waypoint_cur[i0];
+				s->tick(DT);
+				const int i = idx(*s, w);
+				max_failed[run] = std::max<int>(max_failed[run], s->units_.motion[i].failed);
+				if (run == WALK || run == SUBGOAL ? std::hypot(s->units_.pos_x[i] - gx, s->units_.pos_z[i] - GZ) <= Simulation::ARRIVE_DIST
+				                                  : s->units_.carry[i] < load)
+					done[run] = t;
+				// The first path a far third turn lays that goes round W1 (a waypoint past its end) and has a
+				// way on after it.
+				const WaypointPath &wp = s->unit_paths_[i];
+				if (first_n[run] == 0 && wp.count >= 2 && !same_path(wp, prev) && far_alternate_turn(*s, i, gx, GZ)) {
+					first_n[run] = wp.count;
+					first_x[run] = wp.xs[wp.count - 1];
+					first_z[run] = wp.zs[wp.count - 1];
+					for (int k = 0; k + 1 < wp.count; ++k) first_round[run] = first_round[run] || std::fabs(wp.zs[k] - OZ) >= 10.5f;
+					const int rest = prev.count - prev_cur; // the held path's waypoints from its next one on
+					if (run == SUBGOAL && prev_cur >= 0 && rest >= 1 && wp.count > rest) {
+						sub_tail = true;
+						for (int k = 0; k < rest; ++k)
+							sub_tail = sub_tail && wp.xs[wp.count - rest + k] == prev.xs[prev_cur + k] &&
+									wp.zs[wp.count - rest + k] == prev.zs[prev_cur + k];
+						const int e = wp.count - rest - 1;
+						sub_gap = std::hypot(wp.xs[e] - prev.xs[prev_cur], wp.zs[e] - prev.zs[prev_cur]);
+					}
+				}
+				prev = wp;
+			}
+			std::printf("  %s: %s: %s after %.2f s (-1: not in 90 s), failed turns at most %d; "
+			            "first far path %d waypoints, round W1 %d, ending at (%.2f, %.2f)\n",
+			            run == SUBGOAL ? "a palm wall, the point 65 units off" : "palm walls 22 apart, the point 40 units off",
+			            names[run], run == WALK || run == SUBGOAL ? "arrives" : "drops the load", done[run] < 0 ? -1.0f : done[run] * DT,
+			            max_failed[run], first_n[run], (int)first_round[run], first_x[run] - OX, first_z[run] - OZ);
+		}
+		std::printf("  the bent walk held a path of %d waypoints; its first third-turn path ends with the rest of it %d, the search's "
+		            "end %.3f from the held path's next waypoint (-1: no such path)\n", sub_held_n, (int)sub_tail, sub_gap);
+		CHECK(done[WALK] > 0 && done[WALK] * DT <= 60.0f, "a walk to a point beyond two palm walls gets there within 60 s");
+		CHECK(done[RETURNER] > 0 && done[RETURNER] * DT <= 60.0f && max_failed[RETURNER] <= 10,
+		      "a returner gets its load to a storehouse beyond them within 60 s, never 10 turns obstructed in a row");
+		for (int run : {(int)WALK, (int)RETURNER})
+			CHECK(first_round[run] && first_x[run] == end_x[run] && first_z[run] == end_z[run],
+			      "the first far path round the near wall, cut short by the search box, keeps the way on to the point");
+		CHECK(done[RESENT] > 0 && done[RESENT] * DT <= 90.0f, "and so does a returner ordered to gather again every 1.6 s, within 90 s");
+		CHECK(done[SPENT] > 0 && done[SPENT] * DT <= 60.0f,
+		      "her order drops a path to the storehouse walked to its end short of it, and she drops her load within 60 s");
+		CHECK(done[SUBGOAL] > 0 && done[SUBGOAL] * DT <= 60.0f, "a walk 65 units off whose path bends past a palm wall gets there within 60 s");
+		CHECK(sub_held_n >= 2 && first_round[SUBGOAL] && sub_tail && std::fabs(sub_gap - 1.0f) <= 0.01f,
+		      "its third failed turn lays a way round the wall to the circle round its path's next waypoint, the rest of that path after it");
+		// RANGE: the held path's next waypoint d units east of him, past a palm wall of half-height h.
+		int range_ok = 0, range_n = 0;
+		for (float d : {2.5f, 3.0f, 4.0f})
+			for (int h : {2, 3, 4}) {
+				const std::vector<nav::Vec2> held = {nav::Vec2(d, 0.0f), nav::Vec2(60.0f, 0.0f)};
+				range_ok += ends_on_circle_with_rest(third_turn_path(h, held), held, 0);
+				++range_n;
+			}
+		// STEP: he stands inside the circle round his next waypoint (0.5, 0), with (3, 0) after it, or only
+		// his point.
+		const std::vector<nav::Vec2> step_sub = {nav::Vec2(0.5f, 0.0f), nav::Vec2(3.0f, 0.0f), nav::Vec2(60.0f, 0.0f)};
+		const std::vector<nav::Vec2> step_far = {nav::Vec2(0.5f, 0.0f), nav::Vec2(60.0f, 0.0f)};
+		const WaypointPath sub_path = third_turn_path(3, step_sub), far_path = third_turn_path(3, step_far);
+		const bool step_sub_ok = ends_on_circle_with_rest(sub_path, step_sub, 1);
+		const bool step_far_ok = far_path.count >= 3 && far_path.xs[far_path.count - 1] == 60.0f && far_path.zs[far_path.count - 1] == 0.0f &&
+				far_path.xs[far_path.count - 2] > 2.0f;
+		std::printf("  a palm wall 1.5 units east, the point 60 units east, the third failed turn's search on a path set by hand: "
+		            "the next waypoint 2.5-4 units east, past the wall, %d of %d paths end on its circle with the rest kept; standing "
+		            "inside the circle round the next waypoint, %d waypoints to the circle round the one after it (%d), %d "
+		            "waypoints to the point by a far stretch ending (%.2f, %.2f) (%d)\n",
+		            range_ok, range_n, sub_path.count, (int)step_sub_ok, far_path.count,
+		            far_path.count >= 2 ? far_path.xs[far_path.count - 2] : 0.0f, far_path.count >= 2 ? far_path.zs[far_path.count - 2] : 0.0f,
+		            (int)step_far_ok);
+		CHECK(range_n > 0 && range_ok == range_n,
+		      "the search reaches 0.28's 20 m, so a waypoint just past a palm wall gets a way to its circle, the rest kept after it");
+		CHECK(step_sub_ok && step_far_ok,
+		      "a unit inside the circle round its next waypoint searches to the one after it, or past the last but one takes the far search");
 	}
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;

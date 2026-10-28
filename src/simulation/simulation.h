@@ -2851,8 +2851,47 @@ private:
 	bool follows_long_path(size_t i) const;
 	void obstructed_long_path(size_t i, uint8_t failed);
 	// HandleObstructedMove's short path (ComputePathToGoal) for a land unit's walk whose way trees or
-	// structures block: kept as the unit's path to its goal (unit_paths_).
-	void obstructed_short_path(size_t i, uint8_t failed);
+	// structures block: kept as the unit's path to its goal (unit_paths_). With `beyond_queue`, a far or
+	// sub-goal search the unit is due (its goal's centre beyond 56 m) is queued there, not run
+	// (run_beyond_searches). `searched` gets the number of trees, bushes and treasures a search ran among.
+	void obstructed_short_path(size_t i, uint8_t failed, std::vector<uint32_t> *beyond_queue = nullptr,
+			size_t *searched = nullptr);
+	// The far and sub-goal searches motion_feedback queued on a turn's end (`queue`, unit indices), run once
+	// every unit's turn has been judged, in an order that changes from turn to turn (`turn`), until they have
+	// searched among BEYOND_SEARCH_BUDGET trees, bushes and treasures; a unit left over searches on a later
+	// third failed turn if its order still stands (MoveFailed ends a walk's). The queue is emptied.
+	void run_beyond_searches(std::vector<uint32_t> &queue, uint64_t turn);
+	// About one search across a grove that fills the box its trees are culled from (some 1000 palms, 2-4 ms
+	// of CPU); palms in rows cost more a tree (210 in rows 3 units apart took about 6 ms). The far and
+	// sub-goal searches of Stats' soaks (bahrain seed 3, peloponnese seed 1) ran among 140 at most, and
+	// those of one turn among 340 at most, so the budget leaves them as they were.
+	static constexpr size_t BEYOND_SEARCH_BUDGET = 1000;
+	// RequestShortPath (CCmpUnitMotion.h:1844-1864) as RTS0's HandleObstructedMove stand-ins ask it: among
+	// structures and the trees, bushes and treasures in the box (no units; avoid_idle_units goes round those),
+	// from where unit i stands to `goal` within `range`, leaving out structure `ignore`. `path` is the way to
+	// the goal, or, when the search cannot reach it, to the vertex nearest it (VertexPathfinder.cpp:753-754,
+	// 855-886), or empty. The result is the vertex pathfinder's `reached`: true also when the goal lies
+	// outside the search box, which the search shifts toward a far goal, and the path ends at the point it
+	// clamped into the box (vertex_pathfinder.h:720-729, 948-956, 1017). Callers that need to know whether
+	// the path ends on the goal test `goal.distance(path.back())`.
+	bool obstructed_search(size_t i, const nav::ShortPathGoal &goal, float range, uint32_t ignore,
+			std::vector<nav::Vec2> &path, size_t *searched = nullptr) const;
+	enum : int { kTailNone, kTailHeld, kTailTarget };
+	// Unit i's path to its target becomes `path` followed by `tail`:
+	//   kTailNone   nothing;
+	//   kTailHeld   the held path's waypoints from `from` to its end;
+	//   kTailTarget the target point (tx, tz).
+	// When the 64 slots (WaypointPath::MAX_WP) cannot hold them all, `path` is cut first and the tail's last
+	// waypoint always takes the last slot. has_goal names (tx, tz), cur = 0, and the steering memo is dropped.
+	void take_short_path(size_t i, const std::vector<nav::Vec2> &path, int tail, int from);
+	// A new path replaces the short path the steering kept, and any note that a search from here found no
+	// way. A path round idle units stays avoid_idle_units'.
+	void drop_steering_memo(size_t i);
+	// A task path, or a path a search gave a task, that ends within this of the task's range goal leads
+	// into it; farther off, it falls short. One navcell: an end MakeGoalReachable moved to a navcell centre
+	// that near is a goal RTS0's 8 m navcells cannot tell from a reachable one (chase_falls_short leaves
+	// the same). A walk's goal is its point, and walk_falls_short keeps 1 unit.
+	static constexpr float TASK_FALLS_SHORT_SLACK = 2.0f;
 	// The range unit i's task is done in, as CCmpUnitMotion::ComputeGoal shapes a move to a target's
 	// range, and the structure it is the range round (`building`), which the way there doesn't go round.
 	// `mobile_drop(x, z)` is the index of a supply wagon or worker elephant at (x, z) to drop at, or -1.
