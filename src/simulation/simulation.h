@@ -3743,6 +3743,7 @@ private:
 	void petra_fight_back(size_t i, int32_t attacker, const std::vector<PetraDefenseArmy> &armies, std::vector<uint32_t> &helped);
 	bool petra_ship_in_plan(uint32_t ship_id) const;
 	size_t petra_go_home(const std::vector<uint32_t> &squad, float x, float z, uint8_t owner, bool order_here, bool attack = false);
+	void petra_abort_plan(AttackPlan &plan, uint8_t transport_owner); // attackPlan.js Abort
 	std::vector<PetraChatLine> petra_chat_;
 	std::unordered_map<uint8_t, PetraDiplomacyRequest> petra_diplomacy_requests_;
 	PetraDiplomacy petra_diplo_;
@@ -4008,6 +4009,7 @@ private:
 	uint16_t petra_building_land(const Building &b, const PetraNavalTopo *topo = nullptr, uint16_t prefer = 0) const;
 	uint16_t petra_home_land(float x, float z, const PetraNavalTopo *topo = nullptr) const;
 	uint16_t petra_overseas(const PetraNavalTopo &t, float from_x, float from_z, uint32_t target_id) const;
+	uint16_t petra_plan_prep_sea(const AttackPlan &plan) const; // attackPlan.js constructor overseas
 	uint16_t petra_plan_overseas(float base_x, float base_z, uint32_t target_id, bool any_base = false) const;
 	void petra_lands_around(float x, float z, float half, uint16_t out[8]) const; // a structure's lands, or a unit's
 	void petra_attack_from_lands(uint16_t same_land, uint16_t out[8]) const; // same_land, or the home base's lands

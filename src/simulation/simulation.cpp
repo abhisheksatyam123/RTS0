@@ -12147,12 +12147,11 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		const uint8_t ttype = units_.unit_type[ti];
 		auto rit = trader_routes_.find(uid);
 		if (units_.action_state[ti] != ACTION_TRADE || rit == trader_routes_.end()) {
-			// An AI's (or unseated player's) idle trader looks for a route, at most every 20 ticks. A
-			// seated human's trades only when ordered (UnitAI.js Order.Trade).
-			// Petra's merchant ships without the trader role are its transports.
-			if (owner < MAX_PLAYERS && !(players_[owner].active && !players_[owner].is_ai) && units_.action_state[ti] == ACTION_IDLE && !units_.has_order[ti] && (ticks_ + uid) % 20 == 0 &&
-			    !(ttype == UNIT_MERCHANT_SHIP && petra_runs_for(owner) &&
-			      !std::binary_search(petra_trade_ships_[owner].begin(), petra_trade_ships_[owner].end(), uid)))
+			// An unseated player's idle trader looks for a route, at most every 20 ticks. A seated
+			// human's trades only when ordered (UnitAI.js Order.Trade), and Petra's only when its
+			// tradeManager gives it a route (updateTrader): one it has none for stays idle.
+			(void)ttype;
+			if (owner < MAX_PLAYERS && !players_[owner].active && !petra_runs_for(owner) && units_.action_state[ti] == ACTION_IDLE && !units_.has_order[ti] && (ticks_ + uid) % 20 == 0)
 				order_trade_auto(&uid, 1);
 			continue;
 		}
@@ -23127,10 +23126,15 @@ void Simulation::petra_manage_military_production(float dt) {
 	// every targetSize to 0 (attackPlan.js:355), so mustStart holds and updatePreparation only
 	// waits for the batches in training (:531); trainMoreUnits (:548) is for a plan that need
 	// not start yet.
+	// attackPlan.js:479: a plan bound overseas trains nothing while that sea has no transport ship.
+	auto ship_ready = [&](const AttackPlan &p) {
+		const uint16_t sea = petra_plan_prep_sea(p);
+		return !sea || petra_transport_ships_on(sea) > 0;
+	};
 	const bool attack_musters = petra_attack_plan_.state == AttackPlan::MUSTER && !petra_attack_plan_.completing &&
-		!petra_attack_plan_.forced;
+		!petra_attack_plan_.forced && ship_ready(petra_attack_plan_);
 	const bool raid_musters = petra_raid_plan_.state == AttackPlan::MUSTER &&
-		petra_raid_target_ok(petra_raid_plan_.target_building_id);
+		petra_raid_target_ok(petra_raid_plan_.target_building_id) && ship_ready(petra_raid_plan_);
 	if (!attack_musters && !raid_musters) return;
 	const bool rush_wants = attack_musters && petra_attack_mgr_.kind == PETRA_ATTACK_RUSH;
 
@@ -26353,6 +26357,55 @@ void Simulation::petra_manage_trading(float dt) {
 		return true;
 	});
 
+	uint16_t home_land = 0;
+	const PetraNavalTopo &topo = petra_classified_topo(home_land);
+	auto trader_access = [&](size_t i, bool ship) {
+		const float tx = units_.pos_x[i], tz = units_.pos_z[i];
+		return ship ? petra_ship_sea(i) : topo.naval_map ? petra_land_at(tx, tz) : petra_access_at(tx, tz);
+	};
+	// checkTrader (tradeManager.js:578-611), for each trader on a market or diplomacy event: one
+	// whose route is no longer the best for its land (or sea) drops it, and updateTrader gives it
+	// the new one below. With no route at all, a land trader walks to within 15 m of its closest
+	// base (getBestBase: one on another land or without an anchor counts 5e7 farther) when that
+	// base is on its own land; any other one stops where it is.
+	if (trade_event) {
+		for (size_t i = 0; i < units_.count; ++i) {
+			if (!units_.alive[i] || units_.team[i] != petra_pid_ || !unit_is_trader(units_.unit_type[i])) continue;
+			const bool ship = units_.unit_type[i] == UNIT_MERCHANT_SHIP;
+			const uint32_t uid = units_.id[i];
+			if (ship && (!petra_trade_ship(uid) || petra_ship_in_plan(uid))) continue;
+			auto cur = trader_routes_.find(uid);
+			if (cur == trader_routes_.end() || units_.action_state[i] == ACTION_GARRISONED || petra_aboard(uid)) continue;
+			const uint16_t access = trader_access(i, ship);
+			if (petra_route_for(routes, access, ship)) continue; // the update below moves it to that route
+			trader_routes_.erase(cur);
+			trader_leg_.erase(uid);
+			trader_route_points_.erase(uid);
+			trader_route_idx_.erase(uid);
+			const float tx = units_.pos_x[i], tz = units_.pos_z[i];
+			const PetraBase *home = nullptr;
+			float best = 0.0f;
+			uint16_t home_access = 0;
+			for (const PetraBase &pb : petra_bases_) {
+				auto ait = building_id_to_idx_.find(pb.anchor_building_id);
+				if (ait == building_id_to_idx_.end() || buildings_[ait->second].build_progress < 1.0f) continue; // onlyConstructedBase
+				const uint16_t pa = topo.naval_map ? petra_land_at(pb.x, pb.z) : petra_access_at(pb.x, pb.z);
+				const float dx = pb.x - tx, dz = pb.z - tz;
+				const float d2 = dx * dx + dz * dz + (pa != access ? 5e7f / 16.0f : 0.0f);
+				if (home && d2 > best) continue;
+				home = &pb;
+				best = d2;
+				home_access = pa;
+			}
+			if (!ship && home && home_access == access) {
+				const float dx = home->x - tx, dz = home->z - tz;
+				if (dx * dx + dz * dz > 15.0f / 4.0f * 15.0f / 4.0f) cmd_move(&uid, 1, home->x, home->z);
+				continue;
+			}
+			cmd_stop(&uid, 1);
+		}
+	}
+
 	if (routes.best.gain > 0) {
 		// checkRoutes: tell our allies once about a route with each of them (warnedAllies).
 		uint8_t partner = petra_owner_of(routes.best.source);
@@ -26362,10 +26415,7 @@ void Simulation::petra_manage_trading(float dt) {
 			petra_sent_diplo_.warned_trade |= (uint8_t)(1u << partner);
 		}
 		// updateTrader and checkTrader: a trader on another route than the best one for
-		// its land (or sea) is moved to it, an idle one is given it; with none, a land
-		// trader heads back to its base.
-		uint16_t home_land = 0;
-		const PetraNavalTopo &topo = petra_classified_topo(home_land);
+		// its land (or sea) is moved to it, an idle one is given it.
 		int traders = 0, sea_traders = 0;
 		PetraHuntScan treasure_scan;
 		bool treasure_scanned = false;
@@ -26384,15 +26434,12 @@ void Simulation::petra_manage_trading(float dt) {
 				if (!treasure_scanned) { petra_treasures_taken(treasure_scan); treasure_scanned = true; }
 				if (petra_gather_treasure(i, treasure_scan, true)) continue;
 			}
-			const float tx = units_.pos_x[i], tz = units_.pos_z[i];
-			const uint16_t access = ship ? petra_ship_sea(i) : topo.naval_map ? petra_land_at(tx, tz) : petra_access_at(tx, tz);
+			const uint16_t access = trader_access(i, ship);
 			const PetraTradeRoute *r = petra_route_for(routes, access, ship);
 			if (r && !ship && r->land != access) {
-				// updateTrader: a land trader with no route on its own land asks the navalManager
-				// for a ship to the nearer end of the best route (requireTransport).
-				// RTS0's idle traders take any route on their own (order_trade_auto), one they
-				// can't walk here: that counts as idle too.
-				if ((units_.action_state[i] == ACTION_IDLE || units_.action_state[i] == ACTION_TRADE) && !petra_passenger(uid)) {
+				// updateTrader: an idle land trader with no route on its own land asks the
+				// navalManager for a ship to the nearer end of the best route (requireTransport).
+				if (units_.action_state[i] == ACTION_IDLE && !petra_passenger(uid)) {
 					auto ita = building_id_to_idx_.find(r->source), itb = building_id_to_idx_.find(r->target);
 					if (ita != building_id_to_idx_.end() && itb != building_id_to_idx_.end()) {
 						const Building &s = buildings_[ita->second], &t = buildings_[itb->second];
@@ -26418,24 +26465,7 @@ void Simulation::petra_manage_trading(float dt) {
 			// checkTrader runs only on a market or diplomacy event (checkEvents): until then a
 			// trader keeps the route it trades on, whatever has become of it.
 			if (!idle && !trade_event) continue;
-			if (!r) {
-				// checkTrader: the closest base (getBestBase) if it is on the trader's own land, else
-				// the trader stays put. updateTrader leaves an idle one without a route where it is.
-				if (!ship && has_route && trade_event) {
-					const PetraBase *home = nullptr;
-					float best = 0.0f;
-					for (const PetraBase &pb : petra_bases_) {
-						if (!pb.anchor_building_id) continue;
-						const float dx = pb.x - tx, dz = pb.z - tz, d2 = dx * dx + dz * dz;
-						if (home && d2 >= best) continue;
-						home = &pb;
-						best = d2;
-					}
-					const uint16_t home_access = !home ? 0 : topo.naval_map ? petra_land_at(home->x, home->z) : petra_access_at(home->x, home->z);
-					if (home && home_access == access && best > 15.0f / 4.0f * 15.0f / 4.0f) cmd_move(&uid, 1, home->x, home->z);
-				}
-				continue;
-			}
+			if (!r) continue; // updateTrader leaves an idle one without a route where it is (checkTrader above)
 			auto ita = building_id_to_idx_.find(r->source), itb = building_id_to_idx_.find(r->target);
 			if (ita == building_id_to_idx_.end() || itb == building_id_to_idx_.end()) continue;
 			const Building &s = buildings_[ita->second], &t = buildings_[itb->second];
@@ -26450,7 +26480,7 @@ void Simulation::petra_manage_trading(float dt) {
 		// them of the best route's kind.
 		// Traders in training count toward the target (tradeManager.js:53-64) but don't block the
 		// next plan: one every 5th AI turn. RTS0's trader plan is that turn's attempt to pay for
-		// it (petra_try_pay keeps the queue's want while it waits).
+		// it (petra_try_pay keeps the queue's want while it waits, and it is tried again each turn).
 		const int live_traders = traders; // this.traders: units with the trader role only
 		for (const Building &b : buildings_) {
 			if (b.team != petra_pid_) continue;
@@ -26482,7 +26512,11 @@ void Simulation::petra_manage_trading(float dt) {
 				switched = true;
 			}
 		}
-		if (!switched && petra_turn_mod(5) && !(traders >= target && of_kind >= target / 2) && pop_current(petra_pid_) < pop_max(petra_pid_)) {
+		// queues.trader: a trader plan waiting for its resources starts on any AI turn once paid for.
+		const PetraQueueAccount &trader_want = petra_queues_.wants[PETRA_Q_TRADER];
+		const bool trader_queued = petra_queues_.want_age[PETRA_Q_TRADER] <= PetraQueueManager::want_ttl(PETRA_Q_TRADER) &&
+		                           trader_want.food + trader_want.wood + trader_want.gold + trader_want.stone > 0.0f;
+		if (!switched && (petra_turn_mod(5) || trader_queued) && !(traders >= target && of_kind >= target / 2) && pop_current(petra_pid_) < pop_max(petra_pid_)) {
 			const uint8_t kind = sea_route ? UNIT_MERCHANT_SHIP : UNIT_TRADER;
 			const uint16_t tmpl = civ_default_template(civ_of(petra_pid_), kind);
 			// queueplanTraining.js:47-52: the trader trains in the base of the route's end that is ours
@@ -26769,6 +26803,40 @@ uint16_t Simulation::petra_overseas(const PetraNavalTopo &t, float from_x, float
 	const uint16_t from = petra_home_land(from_x, from_z, &t);
 	const uint16_t to = petra_building_land(buildings_[it->second], &t, from);
 	return from == to ? 0 : t.sea_between(from, to);
+}
+
+// attackPlan.js constructor overseas: on a naval map, the sea a plan still preparing must
+// cross: its target's, or with none chosen yet, the first enemy structure's, 0 as soon as any
+// enemy structure (or the target) stands on a land with a base of ours. updatePreparation
+// builds no army (assignUnits, trainMoreUnits) while that sea has no transport ship. RTS0
+// works it out each turn rather than once when the plan is made.
+uint16_t Simulation::petra_plan_prep_sea(const AttackPlan &plan) const {
+	uint16_t naval_home = 0;
+	const PetraNavalTopo &topo = petra_classified_topo(naval_home);
+	if (!topo.naval_map) return 0;
+	const PetraBase *pb = get_primary_petra_base();
+	if (!pb) return 0;
+	std::vector<uint16_t> ours;
+	for (const PetraBase &ob : petra_bases_) {
+		auto it = building_id_to_idx_.find(ob.anchor_building_id);
+		if (it == building_id_to_idx_.end()) continue;
+		const Building &a = buildings_[it->second];
+		uint16_t lands[8];
+		petra_lands_around(a.x, a.z, a.half_size, lands);
+		for (uint16_t l : lands)
+			if (l) ours.push_back(l);
+	}
+	uint16_t sea = 0;
+	for (const Building &b : buildings_) {
+		if (b.team >= MAX_PLAYERS || !petra_foe(b.team) || b.hp <= 0.0f || b.wrecked) continue;
+		if (plan.target_building_id && b.id != plan.target_building_id) continue;
+		uint16_t lands[8];
+		petra_lands_around(b.x, b.z, b.half_size, lands);
+		for (uint16_t l : lands)
+			if (l && std::find(ours.begin(), ours.end(), l) != ours.end()) return 0;
+		if (!sea) sea = petra_overseas(topo, pb->x, pb->z, b.id);
+	}
+	return sea;
 }
 
 uint16_t Simulation::petra_plan_overseas(float base_x, float base_z, uint32_t target_id, bool any_base) const {
@@ -27603,10 +27671,13 @@ void Simulation::petra_manage_naval(float dt) {
 		const int n = (kind == PETRA_ATTACK_HUGE) ? 5 : (kind == PETRA_ATTACK_ATTACK ? 3 : 1);
 		return std::max(1, (int)std::ceil(petra_config_pop_scaling() * (float)n));
 	};
+	// The constructor asks for 1 ship on the sea a plan in preparation must cross; chooseTarget,
+	// once the plan must start, for its neededShips.
 	auto plan_wants = [&](const AttackPlan &plan, uint8_t kind) {
 		if (plan.state != AttackPlan::MUSTER && plan.state != AttackPlan::WALKING) return;
-		const uint16_t s = petra_overseas(topo, home_x, home_z, plan.target_building_id);
-		if (s && s < nseas) want_transport[s] = std::max(want_transport[s], need_ships(kind));
+		const bool preparing = plan.state == AttackPlan::MUSTER && !plan.completing;
+		const uint16_t s = preparing ? petra_plan_prep_sea(plan) : petra_overseas(topo, home_x, home_z, plan.target_building_id);
+		if (s && s < nseas) want_transport[s] = std::max(want_transport[s], preparing ? 1 : need_ships(kind));
 	};
 	plan_wants(petra_attack_plan_, petra_attack_mgr_.kind);
 	for (const AttackPlan &p : petra_started_attacks_) plan_wants(p, p.kind);
@@ -30888,9 +30959,26 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 				// waitingForTransport: this plan's units still being ferried to the rally point hold it.
 				if (petra_plan_in_transport(plan)) break;
 				if (plan.state_timer < plan.completing_time && petra_plan_has_force_order(plan)) break;
+				// StartAttack overseas: the army sails from the rally point (requireTransport per
+				// unit, splitTransport once a ship is full: one shipful boards now, the WALKING
+				// state ferries whoever is left) and gathers where it lands.
+				if (plan.path_x.empty()) {
+					if (const uint16_t sea = petra_plan_overseas(base_x, base_z, plan.target_building_id, true); sea) {
+						if (!petra_start_transport(squad, plan.staging_x, plan.staging_z, plan.target_x, plan.target_z, sea, PETRA_TRANSPORT_ATTACK))
+							break; // no free ship yet
+						const PetraTransportPlan &tp = petra_transports_.back(); // the one just started
+						petra_start_march(plan);
+						plan.staging_x = petra_strike_force_.staging_x = tp.drop_x;
+						plan.staging_z = petra_strike_force_.staging_z = tp.drop_z;
+						break;
+					}
+				}
 				petra_start_march(plan);
 				break;
 			}
+			// attackPlan.js updatePreparation:479: bound overseas, the plan waits for a transport
+			// ship on that sea before it takes or trains any unit.
+			if (const uint16_t sea = petra_plan_prep_sea(plan); sea && petra_transport_ships_on(sea) == 0) break;
 			const auto &mgr = petra_attack_mgr_;
 			// assignUnits: worker-role citizen soldiers past the first `keep` (8 for a rush, else
 			// 6 + 4 per enemy + 8 x defensive, times popScaling) and past the first 4 of their base
@@ -31052,7 +31140,6 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 				// neededShips per plan: attackPlan.js setMinimalTransportShips). Each army
 				// sails on its own ships (navalManager.js transportPlans, several per owner).
 				const uint16_t overseas = petra_plan_overseas(base_x, base_z, target_id, true);
-				if (overseas && petra_transport_ships_on(overseas) == 0) return;
 
 				if (!overseas) {
 					// attackPlan.js chooseTarget: the rally point starts at our base on the
@@ -31140,32 +31227,66 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 					break;
 				}
 
-				float sx = base_x * 0.65f, sz = base_z * 0.65f;
-				pick_petra_safe_staging(base_x, base_z, tx, tz, sx, sz);
-				plan.staging_x = sx;
-				plan.staging_z = sz;
-				petra_strike_force_.staging_x = sx;
-				petra_strike_force_.staging_z = sz;
-
+				// Overseas (attackPlan.js chooseTarget): the rally point is the anchor of our base
+				// nearest the target for the size of its island (distance / sqrt(region size)).
+				// The army completes there as on land: loads returned, then a walk to the rally
+				// point, those on another land ferried to it; StartAttack ships it once done.
+				const PetraNavalTopo &topo = petra_topo();
+				float rx = base_x, rz = base_z;
+				uint16_t rally_land = petra_land_at(base_x, base_z);
 				{
-					// attackPlan.js "transporting": the army sails, and gathers where it lands
-					// (requireTransport per unit, splitTransport once a ship is full: one
-					// shipful boards now, the WALKING state ferries whoever is left).
-					if (!petra_start_transport(squad, base_x, base_z, tx, tz, overseas, PETRA_TRANSPORT_ATTACK)) return; // no free ship
-					const PetraTransportPlan &tp = petra_transports_.back(); // the one just started
-					plan.staging_x = petra_strike_force_.staging_x = tp.drop_x;
-					plan.staging_z = petra_strike_force_.staging_z = tp.drop_z;
+					float best = 1e30f;
+					for (const PetraBase &pb : petra_bases_) {
+						auto it = building_id_to_idx_.find(pb.anchor_building_id);
+						if (it == building_id_to_idx_.end()) continue;
+						const Building &a = buildings_[it->second];
+						const uint16_t land = petra_building_land(a, &topo);
+						const float size = land < topo.land_size.size() ? (float)topo.land_size[land] : 1.0f;
+						const float d = ((a.x - tx) * (a.x - tx) + (a.z - tz) * (a.z - tz)) / std::sqrt(std::max(1.0f, size));
+						if (d < best) { best = d; rx = a.x; rz = a.z; rally_land = land; }
+					}
 				}
-				// chatLaunchAttack: tell our allies whom we attack.
-				petra_say(plan.kind == PETRA_ATTACK_HUGE ? PETRA_CHAT_HUGE_ATTACK : PETRA_CHAT_ATTACK,
-				          PETRA_CHAT_ALLIES, petra_owner_of(plan.target_building_id), 0, 0, 0, tx, tz);
+				plan.path_x.clear();
+				plan.path_z.clear();
+				plan.staging_x = petra_strike_force_.staging_x = rx;
+				plan.staging_z = petra_strike_force_.staging_z = rz;
+				std::vector<uint32_t> straight;
+				std::map<uint16_t, std::vector<uint32_t>> away;
+				for (uint32_t uid : squad) {
+					const int32_t k = lookup_unit(uid);
+					if (k < 0 || !units_.alive[k]) continue;
+					const uint16_t at = petra_land_at(units_.pos_x[k], units_.pos_z[k]);
+					if (at && rally_land && at != rally_land) { away[at].push_back(uid); continue; }
+					const uint32_t drop = petra_defender_dropsite((size_t)k);
+					if (!drop) { straight.push_back(uid); continue; }
+					order_return_resource(&uid, 1, drop, false);
+					order_walk(&uid, 1, rx, rz, true);
+				}
+				if (!straight.empty()) order_walk(straight.data(), straight.size(), rx, rz, false);
+				for (auto &[land, ids] : away) {
+					// requireTransport to the rally point; those no ship takes leave the plan.
+					const uint16_t sea = topo.sea_between(land, rally_land);
+					std::vector<uint32_t> ferried;
+					if (sea) {
+						float ax = 0.0f, az = 0.0f;
+						for (uint32_t uid : ids) { const int32_t k = lookup_unit(uid); ax += units_.pos_x[k]; az += units_.pos_z[k]; }
+						ax /= (float)ids.size();
+						az /= (float)ids.size();
+						const size_t nplans = petra_transports_.size();
+						if (petra_start_transport(ids, ax, az, rx, rz, sea, PETRA_TRANSPORT_ATTACK) && petra_transports_.size() > nplans)
+							ferried = petra_transports_.back().passenger_ids;
+					}
+					for (uint32_t uid : ids)
+						if (std::find(ferried.begin(), ferried.end(), uid) == ferried.end()) {
+							squad.erase(std::remove(squad.begin(), squad.end(), uid), squad.end());
+							petra_out_of_plan(uid);
+						}
+				}
+				plan.completing = true;
+				plan.completing_time = plan.state_timer + (mgr.kind == PETRA_ATTACK_RUSH || plan.forced ? 40.0f : 60.0f);
 				// attackPlan.js updatePreparation: warn our allies so that they can help.
 				if (!plan.requested && plan.target_player < MAX_PLAYERS)
 					petra_attack_requests_.push_back({(uint32_t)ticks_ + 1, petra_pid_, plan.target_player, {}}); // posted for the next turns
-				++petra_attack_mgr_.launched[plan.kind];
-				plan.initial_squad_size = squad.size();
-				plan.state = AttackPlan::WALKING;
-				plan.state_timer = 0.0f;
 				petra_strike_force_.state = PetraStrikeForce::MARCH;
 			}
 			break;
@@ -31523,43 +31644,7 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 
 		case AttackPlan::ABORT: {
 			petra_strike_force_.state = PetraStrikeForce::MUSTER;
-			// attackPlan.js Abort: an army withdraws to its rally point when that is on its own
-			// land, or to a nearer base of ours there (one it captured on the way included),
-			// else home.
-			float home_x = base_x, home_z = base_z;
-			{
-				float ax = 0.0f, az = 0.0f;
-				int n = 0;
-				for (uint32_t uid : squad) {
-					const int32_t k = lookup_unit(uid);
-					if (k >= 0 && units_.alive[k] && !unit_is_ship(units_.unit_type[k])) { ax += units_.pos_x[k]; az += units_.pos_z[k]; ++n; }
-				}
-				if (n > 0) {
-					ax /= (float)n; az /= (float)n;
-					const uint16_t land = petra_land_at(ax, az);
-					float best = 1e30f;
-					if ((plan.staging_x != 0.0f || plan.staging_z != 0.0f) && petra_land_at(plan.staging_x, plan.staging_z) == land) {
-						best = (plan.staging_x - ax) * (plan.staging_x - ax) + (plan.staging_z - az) * (plan.staging_z - az);
-						home_x = plan.staging_x;
-						home_z = plan.staging_z;
-					}
-					for (const PetraBase &pb : petra_bases_) {
-						auto it = building_id_to_idx_.find(pb.anchor_building_id);
-						if (it == building_id_to_idx_.end()) continue;
-						const Building &a = buildings_[it->second];
-						if (a.team != petra_pid_ || a.hp <= 0.0f || a.wrecked || petra_building_land(a, nullptr, land) != land) continue;
-						const float d = (a.x - ax) * (a.x - ax) + (a.z - az) * (a.z - az);
-						if (d <= best) { best = d; home_x = a.x; home_z = a.z; }
-					}
-				}
-			}
-			if (!squad.empty()) {
-				petra_go_home(squad, home_x, home_z, PETRA_TRANSPORT_ATTACK, true);
-			}
-			plan.state = AttackPlan::REGROUP;
-			plan.retreat_x = home_x;
-			plan.retreat_z = home_z;
-			plan.state_timer = 0.0f;
+			petra_abort_plan(plan, PETRA_TRANSPORT_ATTACK);
 			break;
 		}
 	}
@@ -31820,6 +31905,8 @@ void Simulation::petra_manage_raid(float dt) {
 			return;
 		}
 		const bool naval = petra_plan_overseas(base_x, base_z, plan.target_building_id) != 0;
+		// attackPlan.js updatePreparation:479: no units are taken while the sea has no transport ship.
+		if (const uint16_t sea = petra_plan_prep_sea(plan); sea && petra_transport_ships_on(sea) == 0) return;
 		// attackPlan.js assignUnits for a raid: every available FastMoving unit (champion
 		// cavalry and mounted heroes too) but the first two, kept home to hunt. A raid over water
 		// takes any land soldier, up to its size. A unit in another plan is not available.
@@ -32016,15 +32103,63 @@ bool Simulation::petra_raid_walk(AttackPlan &plan) {
 	return arrived;
 }
 
+// attackPlan.js Abort: an army withdraws to its rally point when that is on its own land,
+// or to the nearest base of ours there (one it captured on the way included). With neither,
+// its units just stop where they stand. Every unit leaves the plan at once (removeUnit):
+// stranded on another island, it is free for the next plan, which ships it to its rally
+// point. RTS0's REGROUP releases the units as they reach the withdrawal point's land.
+void Simulation::petra_abort_plan(AttackPlan &plan, uint8_t transport_owner) {
+	float ax = 0.0f, az = 0.0f;
+	int n = 0;
+	for (uint32_t uid : plan.squad) {
+		const int32_t k = lookup_unit(uid);
+		if (k >= 0 && units_.alive[k] && !unit_is_ship(units_.unit_type[k])) { ax += units_.pos_x[k]; az += units_.pos_z[k]; ++n; }
+	}
+	bool found = false;
+	float home_x = 0.0f, home_z = 0.0f;
+	if (n > 0) {
+		ax /= (float)n; az /= (float)n;
+		const uint16_t land = petra_land_at(ax, az);
+		float best = 1e30f;
+		if ((plan.staging_x != 0.0f || plan.staging_z != 0.0f) && petra_land_at(plan.staging_x, plan.staging_z) == land) {
+			best = (plan.staging_x - ax) * (plan.staging_x - ax) + (plan.staging_z - az) * (plan.staging_z - az);
+			home_x = plan.staging_x;
+			home_z = plan.staging_z;
+			found = true;
+		}
+		for (const PetraBase &pb : petra_bases_) {
+			auto it = building_id_to_idx_.find(pb.anchor_building_id);
+			if (it == building_id_to_idx_.end()) continue;
+			const Building &a = buildings_[it->second];
+			if (a.team != petra_pid_ || a.hp <= 0.0f || a.wrecked || petra_building_land(a, nullptr, land) != land) continue;
+			const float d = (a.x - ax) * (a.x - ax) + (a.z - az) * (a.z - az);
+			if (d <= best) { best = d; home_x = a.x; home_z = a.z; found = true; }
+		}
+	}
+	plan.state_timer = 0.0f;
+	if (!found) {
+		std::vector<uint32_t> standing;
+		for (uint32_t uid : plan.squad)
+			if (const int32_t k = lookup_unit(uid); k >= 0 && units_.alive[k] && !petra_passenger(uid)) standing.push_back(uid);
+		if (!standing.empty()) cmd_stop(standing.data(), standing.size()); // stopMoving
+		petra_release_squad(plan.squad);
+		plan.initial_squad_size = 0;
+		plan.target_building_id = 0;
+		plan.state = AttackPlan::UNEXECUTED;
+		return;
+	}
+	if (!plan.squad.empty()) petra_go_home(plan.squad, home_x, home_z, transport_owner, true);
+	plan.state = AttackPlan::REGROUP;
+	plan.retreat_x = home_x;
+	plan.retreat_z = home_z;
+}
+
 // A started raid (attackPlan.js update for a Raid): it fights its target, then the next of the
 // targetList, and goes home once none is left.
 void Simulation::petra_update_started_raid(AttackPlan &plan, float base_x, float base_z) {
 	if (plan.state == AttackPlan::ABORT) {
-		plan.state = AttackPlan::REGROUP;
-		plan.retreat_x = base_x;
-		plan.retreat_z = base_z;
-		plan.state_timer = 0.0f;
-		if (!plan.squad.empty()) petra_go_home(plan.squad, base_x, base_z, PETRA_TRANSPORT_RAID, true);
+		petra_abort_plan(plan, PETRA_TRANSPORT_RAID);
+		if (plan.state == AttackPlan::UNEXECUTED) plan.type = AttackPlan::PLAN_RAID;
 		return;
 	}
 	if (plan.state == AttackPlan::WALKING || plan.state == AttackPlan::ATTACKED) {
@@ -32063,12 +32198,9 @@ void Simulation::petra_update_started_raid(AttackPlan &plan, float base_x, float
 				plan.target_z = tz;
 				order_attack_move(plan.squad.data(), plan.squad.size(), tx, tz, false, false, true, petra_attack_avoid(plan, false));
 			} else {
-				plan.state = AttackPlan::REGROUP;
-				plan.retreat_x = base_x;
-				plan.retreat_z = base_z;
-				plan.state_timer = 0.0f;
-				if (!plan.squad.empty())
-					petra_go_home(plan.squad, base_x, base_z, PETRA_TRANSPORT_RAID, true);
+				// No target left: Abort.
+				petra_abort_plan(plan, PETRA_TRANSPORT_RAID);
+				if (plan.state == AttackPlan::UNEXECUTED) plan.type = AttackPlan::PLAN_RAID;
 			}
 		} else {
 			plan.state = AttackPlan::ATTACKED;

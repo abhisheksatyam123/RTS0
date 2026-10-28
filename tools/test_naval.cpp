@@ -1454,6 +1454,80 @@ static void test_petra_landed_army_answers_attack() {
 	s.petra_transports_.clear();
 }
 
+// attackPlan.js constructor and updatePreparation:479: a plan bound overseas asks for one
+// transport ship and takes no unit until that sea has one; then it musters as on land.
+static void test_petra_overseas_plan_waits_for_ship() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+	const uint32_t house = s.spawn_building_world(20.0f, -40.0f, BLD_OUTPOST, 0);
+	std::vector<uint32_t> army;
+	for (int k = 0; k < 6; ++k) army.push_back(s.spawn_unit(-36.0f + 2.0f * k, 30.0f, 1, UNIT_SPEARMAN));
+	s.petra_army_ids_[1] = army;
+	run(s, 0.5f);
+	s.petra_pid_ = 1;
+	Simulation::AttackPlan plan;
+	plan.kind = PETRA_ATTACK_ATTACK;
+	plan.state = Simulation::AttackPlan::MUSTER;
+	plan.target_building_id = house;
+	s.petra_attack_mgr_.kind = PETRA_ATTACK_ATTACK;
+	s.petra_attack_mgr_.target_size = 60;
+	s.petra_attack_mgr_.min_size = 60;
+	const uint16_t sea = s.petra_plan_prep_sea(plan);
+	s.petra_update_attack_plan(plan, -30.0f, 40.0f);
+	const size_t before = plan.squad.size();
+	s.spawn_unit(-30.0f, 8.0f, 1, UNIT_TRIREME);
+	s.petra_update_attack_plan(plan, -30.0f, 40.0f);
+	std::printf("Petra overseas plan in preparation: sea %u, units taken with no ship %zu, with one %zu\n", sea, before, plan.squad.size());
+	CHECK(sea != 0);
+	CHECK(before == 0);
+	CHECK(plan.squad.size() >= army.size());
+}
+
+// attackPlan.js Abort: an army stranded on an island with neither its rally point nor a
+// base of ours stops where it stands and leaves the plan at once (no ship home); with its
+// rally point on that land, it withdraws there.
+static void test_petra_abort_stranded_army() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+	s.spawn_unit(-30.0f, 8.0f, 1, UNIT_TRIREME);
+	const uint32_t a = s.spawn_unit(-10.0f, -28.0f, 1, UNIT_SPEARMAN);
+	const uint32_t b = s.spawn_unit(-12.0f, -28.0f, 1, UNIT_SPEARMAN);
+	run(s, 0.5f);
+	s.petra_pid_ = 1;
+	s.petra_transports_.clear();
+	Simulation::AttackPlan plan;
+	plan.kind = PETRA_ATTACK_ATTACK;
+	plan.state = Simulation::AttackPlan::ABORT;
+	plan.staging_x = -30.0f; plan.staging_z = 30.0f; // the rally point, back on our land
+	plan.squad = {a, b};
+	plan.initial_squad_size = 2;
+	s.petra_update_attack_plan(plan, -30.0f, 40.0f);
+	const bool freed = plan.state == Simulation::AttackPlan::UNEXECUTED && plan.squad.empty();
+	const bool no_ship = s.petra_transports_.empty();
+	// Its rally point on the island: it withdraws there.
+	Simulation::AttackPlan near;
+	near.kind = PETRA_ATTACK_ATTACK;
+	near.state = Simulation::AttackPlan::ABORT;
+	near.staging_x = 10.0f; near.staging_z = -40.0f;
+	near.squad = {a, b};
+	s.petra_update_attack_plan(near, -30.0f, 40.0f);
+	std::printf("Petra army aborted on an island with no base: released %s, ferry asked %s; with its rally point there it withdraws %s\n",
+	            freed ? "yes" : "no", no_ship ? "no" : "yes",
+	            near.state == Simulation::AttackPlan::REGROUP && near.retreat_x == 10.0f ? "there" : "elsewhere");
+	CHECK(freed);
+	CHECK(no_ship);
+	CHECK(near.state == Simulation::AttackPlan::REGROUP && near.retreat_x == 10.0f && near.retreat_z == -40.0f);
+	s.petra_transports_.clear();
+}
+
 // transportPlan.js onBoarding (pass 5 T4): the ship sails only once every passenger is
 // aboard, a straggler walking up from far inland included.
 static void test_petra_transport_waits_for_all() {
@@ -2860,6 +2934,8 @@ int main() {
 	test_petra_transport_ship_lost();
 	test_petra_transport_waits_for_all();
 	test_petra_landed_army_answers_attack();
+	test_petra_abort_stranded_army();
+	test_petra_overseas_plan_waits_for_ship();
 	test_petra_transport_trapped_passenger();
 	test_petra_transport_sunk_at_sea();
 	test_petra_transport_wrong_land();
