@@ -112,6 +112,7 @@ std::vector<std::pair<const char *, size_t>> container_sizes(const Simulation &s
 		{"turret_height_", s.turret_height_.size()},
 		{"rampart_turrets_", s.rampart_turrets_.size()},
 		{"turret_prev_stance_", s.turret_prev_stance_.size()},
+		{"attack_move_structures_", s.attack_move_structures_.size()},
 		{"formations_", s.formations_.size()},
 		{"formation_group_", s.formation_group_.size()},
 		{"formation_slot_walk_", s.formation_slot_walk_.size()},
