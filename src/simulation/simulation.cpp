@@ -33746,6 +33746,10 @@ void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt, std::vec
 					order_walk(&tp.ship_id, 1, tp.pickup_x, tp.pickup_z, false);
 				}
 				next.push_back({tp.ship_id, units_.pos_x[sidx], units_.pos_z[sidx], tries});
+			} else if (!ship_ready) {
+				// Sent there again, it keeps its tries on the way (nTry resets only with a new point).
+				auto it = std::find_if(tp.boarding.begin(), tp.boarding.end(), [&](const auto &o) { return o.uid == tp.ship_id; });
+				if (it != tp.boarding.end()) next.push_back(*it);
 			}
 			tp.boarding = std::move(next);
 			tp.passenger_ids = std::move(keep);
