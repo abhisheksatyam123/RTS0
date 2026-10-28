@@ -1142,6 +1142,63 @@ int main() {
 		std::remove(path);
 	}
 
+	// 18. Health.js KilledBy: the killer's Looter collects the animal's Loot. Fauna Loot is xp
+	//     only, so Britons' infantry (Woad Warriors) bring in their 1 of each resource; others
+	//     nothing, and trainable livestock has no Loot at all.
+	{
+		auto kill = [&](uint8_t civ, uint8_t kind) {
+			fresh(s);
+			s.set_team_civ(0, civ);
+			const uint32_t a = s.spawn_fauna(4.0f, 0.0f, kind);
+			const uint32_t u = s.spawn_unit(3.0f, 0.0f, 0, UNIT_SPEARMAN);
+			const float st = s.player(0).res[RES_STONE], mt = s.player(0).res[RES_GOLD];
+			s.order_hunt(&u, 1, a);
+			for (int t = 0; t < 600 && f_alive(s, a); ++t) run(s, Simulation::FIXED_STEP);
+			CHECK(!f_alive(s, a));
+			return std::pair<float, float>(s.player(0).res[RES_STONE] - st, s.player(0).res[RES_GOLD] - mt);
+		};
+		const auto brit = kill(CIV_BRITONS, FAUNA_DEER), gaul = kill(CIV_GAULS, FAUNA_DEER),
+		           pen = kill(CIV_BRITONS, FAUNA_SHEEP_TRAINABLE);
+		std::printf("animal loot: Briton +%.0f stone +%.0f metal, Gaul +%.0f, Briton on trainable sheep +%.0f\n",
+		            brit.first, brit.second, gaul.first, pen.first);
+		CHECK(brit.first == 1.0f && brit.second == 1.0f);
+		CHECK(gaul.first == 0.0f && gaul.second == 0.0f);
+		CHECK(pen.first == 0.0f && pen.second == 0.0f);
+	}
+
+	// 19. An animal in COMBAT answers a melee attacker while approaching (COMBAT.Attacked), not
+	//     while swinging at its target (ATTACKING.Attacked); a defensive animal ignores an
+	//     attacker outside its vision (AttackEntityInZone).
+	{
+		fresh(s);
+		const uint32_t wolf = s.spawn_fauna(0.0f, 0.0f, FAUNA_WOLF);
+		const uint32_t v = s.spawn_unit(0.5f, 0.0f, 0, UNIT_FEMALE_CITIZEN);
+		const uint32_t sp = s.spawn_unit(-0.5f, 0.0f, 0, UNIT_SPEARMAN);
+		const int32_t w = fidx(s, wolf);
+		s.fauna_start_attack((size_t)w, v);
+		run(s, 0.2f);
+		CHECK(s.fauna_.flee_distance[w] > 0.0f && s.fauna_.target_unit_id[w] == v);
+		s.fauna_attacked((size_t)w, sp, true);
+		CHECK(s.fauna_.target_unit_id[w] == v); // mid-swing: keeps its target
+		const uint32_t far = s.spawn_unit(10.0f, 0.0f, 0, UNIT_FEMALE_CITIZEN);
+		s.fauna_start_attack((size_t)w, far);
+		s.fauna_attacked((size_t)w, sp, true);
+		CHECK(s.fauna_.target_unit_id[w] == sp); // approaching: turns on the melee attacker
+
+		fresh(s);
+		const uint32_t bear = s.spawn_fauna(0.0f, 0.0f, FAUNA_BEAR_BROWN);
+		const int32_t b = fidx(s, bear);
+		CHECK(fauna_type_info(FAUNA_BEAR_BROWN).stance == FAUNA_STANCE_DEFENSIVE);
+		const float vis = fauna_type_info(FAUNA_BEAR_BROWN).vision;
+		const uint32_t archer = s.spawn_unit(vis + 2.0f, 0.0f, 0, UNIT_ARCHER);
+		s.fauna_attacked((size_t)b, archer, false);
+		CHECK(s.fauna_.behavior[b] != FAUNA_ATTACK);
+		const uint32_t near = s.spawn_unit(vis - 2.0f, 0.0f, 0, UNIT_ARCHER);
+		s.fauna_attacked((size_t)b, near, false);
+		CHECK(s.fauna_.behavior[b] == FAUNA_ATTACK && s.fauna_.target_unit_id[b] == near);
+		std::printf("animal combat: mid-swing keeps its target, defensive bear ignores an archer %.1f out\n", vis + 2.0f);
+	}
+
 	if (failures) {
 		std::printf("test_fauna: %d failure(s)\n", failures);
 		return 1;
