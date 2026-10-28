@@ -413,6 +413,7 @@ Dictionary RtsoMain::debug_selection_state() {
 	if (!sim) return d;
 	d["selected"] = selected_ids;
 	d["building"] = (int64_t)selected_building_id;
+	d["inspected"] = inspector_.kind() == RtsoInspectorView::INSPECT_NONE ? (int64_t)0 : (int64_t)inspector_.id();
 	for (const auto &b : sim->buildings())
 		if (b.id == selected_building_id && b.has_rally_point) d["rally"] = Vector2(b.rally_x, b.rally_z);
 	Camera3D *cam = cam_rig ? cam_rig->get_camera() : nullptr;
@@ -689,6 +690,13 @@ void RtsoMain::debug_select_structures(const PackedInt32Array &ids) {
 	std::vector<uint32_t> v;
 	for (int i = 0; i < ids.size(); ++i) v.push_back((uint32_t)ids[i]);
 	set_selected_structures(v);
+}
+
+void RtsoMain::debug_convert(const PackedInt32Array &ids, int to) {
+	if (!sim) return;
+	std::vector<uint32_t> v;
+	for (int i = 0; i < ids.size(); ++i) v.push_back((uint32_t)ids[i]);
+	sim->cmd_cheat(local_player(), rtso::Simulation::CHEAT_CONVERT_UNITS, to, 0, v.data(), v.size());
 }
 
 void RtsoMain::debug_select_entity(int64_t id) {

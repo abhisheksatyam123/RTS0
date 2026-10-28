@@ -178,6 +178,22 @@ static void test_roster_army() {
 		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
 		s->set_team_civ(1, (uint8_t)civ);
 		s->set_victory_condition(VICTORY_ENDLESS); // keep playing once the idle player is beaten
+		// This small map has one metal mine a player, and the idle player's lies under its
+		// fortresses: Petra's own runs dry around minute 20, before its city army has trained
+		// its champions and siege, and the match then hangs on whether the first siege engines
+		// lived (which shifts with any change to the early game). A richer mine keeps metal coming.
+		{
+			float px = 0.0f, pz = 0.0f, best = 1.0e9f;
+			for (const auto &b : s->buildings())
+				if (b.team == 1 && b.type == BLD_TOWN_CENTER) { px = b.x; pz = b.z; }
+			size_t mine = SIZE_MAX;
+			for (size_t r = 0; r < s->resources_.count; ++r) {
+				if (!s->resources_.alive[r] || s->resources_.type[r] != RES_GOLD) continue;
+				const float d = std::hypot(s->resources_.x[r] - px, s->resources_.z[r] - pz);
+				if (d < best) { best = d; mine = r; }
+			}
+			if (mine != SIZE_MAX) s->resources_.amount[mine] *= 3;
+		}
 		// Garrisoned fortresses (ten more arrows each, BuildingAI) outlast the infantry's first
 		// waves, so the siege (trained some ten minutes into the city phase at 0 A.D.'s gather
 		// rates) still has something to fire at. They stand on dry land: no land unit wades out
@@ -3496,6 +3512,75 @@ static void test_siege_attack_moves_at_structures() {
 	CHECK(kept, "a structures-only attack-move walks past enemy soldiers");
 	CHECK(plain_fights, "a plain attack-move fights them, and drops the structures-only mark");
 	CHECK(ram_only, "Petra's siege attack-moves at a structure target with structures only");
+}
+
+// attackManager.js pass 4. (a) switchDefenseToAttack aims the retake plan at the captor
+// (targetPlayer = target.owner(), totalNumber++). (b) getEnemyPlayer keeps the current enemy
+// for a rush however many towers it has (the tower veto bars only a new pick). (c) A plan's
+// provisional target when it is made leaves currentEnemyPlayer alone (0.28 asks getEnemyPlayer
+// only in chooseTarget). (d) cancelAttacksAgainstPlayer only clears a gathering plan's
+// targetPlayer; started ones are aborted.
+static void test_attack_manager_pass4() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	Simulation::Building *cc = nullptr;
+	float ex = 0.0f, ez = 0.0f;
+	for (auto &b : s->buildings_) {
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) cc = &b;
+		if (b.team == 0 && b.type == BLD_TOWN_CENTER) { ex = b.x; ez = b.z; }
+	}
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	// (a) Our civic centre is captured by player 0 with a defense army fighting beside it.
+	cc->team = 0;
+	PetraDefenseArmy army;
+	for (int k = 0; k < 4; ++k) army.defender_ids.push_back(s->spawn_unit(cc->x + 6.0f, cc->z + (float)k, 1, UNIT_SPEARMAN));
+	army.foe_ids.push_back(s->spawn_unit(cc->x + 8.0f, cc->z, 0, UNIT_SWORDSMAN));
+	s->petra_defense_armies_.push_back(army);
+	s->petra_turn_captures_.push_back({cc->id, 1, 0});
+	const uint8_t made = s->petra_attack_mgr_.plans_made;
+	const size_t started = s->petra_started_attacks_.size();
+	s->petra_retake_civic_centres();
+	s->petra_turn_captures_.clear();
+	const bool retake = s->petra_started_attacks_.size() == started + 1 && s->petra_started_attacks_.back().target_player == 0 &&
+			s->petra_attack_mgr_.plans_made == made + 1;
+	// (b) Player 0, the current enemy, has 7 towers: a rush still goes for it.
+	s->petra_sent_diplo_.current_enemy = 1; // player 0
+	for (int k = 0; k < 7; ++k) s->spawn_building_world(ex + 10.0f + 3.0f * (float)k, ez + 10.0f, BLD_TOWER, 0, 1.0f);
+	const uint8_t rush_enemy = s->petra_enemy_player(PETRA_ATTACK_RUSH);
+	// (c) The provisional pick for a new Attack, with no current enemy, notes none.
+	s->petra_sent_diplo_.current_enemy = 0;
+	Simulation::AttackPlan fresh;
+	fresh.kind = PETRA_ATTACK_ATTACK;
+	float tx = 0.0f, tz = 0.0f;
+	const uint32_t provisional = s->find_petra_attack_target(tx, tz, 0, &fresh, false, false);
+	const bool unnoted = s->petra_sent_diplo_.current_enemy == 0;
+	// (d) Peace with player 0: the retake plan (attacking) is aborted, a gathering plan on it
+	// only forgets its target player.
+	Simulation::AttackPlan gathering;
+	gathering.kind = PETRA_ATTACK_ATTACK;
+	gathering.state = Simulation::AttackPlan::MUSTER;
+	gathering.completing = true;
+	gathering.target_player = 0;
+	s->petra_started_attacks_.push_back(gathering);
+	s->petra_cancel_attacks_against(0);
+	const auto &g = s->petra_started_attacks_.back();
+	const bool kept = g.state == Simulation::AttackPlan::MUSTER && g.target_player == 0xFF;
+	const bool aborted = retake && s->petra_started_attacks_[started].state == Simulation::AttackPlan::ABORT;
+	std::printf("  attack manager: retake aimed at the captor %s; rush keeps a towered current enemy %s (got %d); "
+	            "provisional pick %s notes no enemy %s; peace keeps a gathering plan %s, aborts the attack %s\n",
+	            retake ? "yes" : "no", rush_enemy == 0 ? "yes" : "no", (int)rush_enemy, provisional ? "found" : "none",
+	            unnoted ? "yes" : "no", kept ? "yes" : "no", aborted ? "yes" : "no");
+	CHECK(retake, "the civic-centre retake plan targets the captor and counts as a plan");
+	CHECK(rush_enemy == 0, "a rush keeps the current enemy despite its towers");
+	CHECK(unnoted, "a plan's provisional target leaves currentEnemyPlayer alone");
+	CHECK(kept, "peace only clears a gathering plan's target player");
+	CHECK(aborted, "peace aborts a started attack on that player");
 }
 
 // attackPlan.js update: an attack's units pick their targets among the targetPlayer's
@@ -7165,6 +7250,40 @@ static void test_capturing_armies() {
 	CHECK(shrine_avoided, "placement keeps away from a capturing army's structure");
 }
 
+// 0.28 Petra has no scout: an idle citizen cavalryman stays a hunter (worker.js looks for game
+// again every 20 s) rather than being sent circling the map.
+static void test_no_scout() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 10.0f);
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f) cc = &b;
+	if (!cc) { CHECK(false, "Petra has a civic centre"); return; }
+	const float cx = cc->x, cz = cc->z;
+	// No game anywhere, so the riders find nothing to hunt.
+	for (size_t f = 0; f < s->fauna_.count; ++f) s->fauna_.alive[f] = 0;
+	std::vector<uint32_t> riders;
+	for (int k = 0; k < 3; ++k) riders.push_back(s->spawn_unit(cx + 6.0f + 2.0f * (float)k, cz + 6.0f, 1, UNIT_CAVALRY));
+	float farthest = 0.0f;
+	bool scout = false;
+	for (int t = 0; t < 120; ++t) {
+		run_for(*s, 0.5f);
+		scout |= s->petra_scout_unit_id_ != 0;
+		for (uint32_t uid : riders) {
+			const int32_t i = s->lookup_unit(uid);
+			if (i < 0 || !s->units_.alive[i]) continue;
+			const float dx = s->units_.pos_x[i] - cx, dz = s->units_.pos_z[i] - cz;
+			farthest = std::max(farthest, std::sqrt(dx * dx + dz * dz));
+		}
+	}
+	std::printf("  no scout: a rider picked as scout %s, farthest from the civic centre %.1f\n", scout ? "yes" : "no", farthest);
+	CHECK(!scout && farthest < 30.0f, "idle cavalry with nothing to hunt isn't sent scouting");
+}
+
 // defenseArmy.js update: a defender capturing a structure allowCapture no longer allows
 // (its regeneration outruns the army) damages it instead.
 static void test_defenders_stop_hopeless_capture() {
@@ -10086,6 +10205,7 @@ int main(int argc, char **argv) {
 	RUN(test_entity_limit_placement);
 	RUN(test_army_answers_attackers);
 	RUN(test_siege_attack_moves_at_structures);
+	RUN(test_attack_manager_pass4);
 	RUN(test_attack_targets_target_player);
 	RUN(test_siege_prefers_any_gate);
 	RUN(test_raid_sizes_vary);
@@ -10143,6 +10263,7 @@ int main(int argc, char **argv) {
 	RUN(test_defense_breakaway_timer);
 	RUN(test_defense_pass3);
 	RUN(test_capturing_armies);
+	RUN(test_no_scout);
 	RUN(test_defenders_stop_hopeless_capture);
 	RUN(test_assign_bombers);
 	RUN(test_cancel_attacks_on_peace);

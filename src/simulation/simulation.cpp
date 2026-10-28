@@ -7522,7 +7522,7 @@ void Simulation::order_set_stance(const uint32_t *unit_ids, size_t count, uint8_
 		// Commands.js "stance" skips turrets (UnitAI.IsTurret): they stand their ground.
 		// UnitAI.SwitchToStance skips units out of the world (garrisoned) and holds the
 		// position the unit stands at; SetStance refuses an unknown stance.
-		if (stance > STANCE_PASSIVE) return;
+		if (stance > STANCE_NONE) return;
 		if (idx >= 0 && !turret_height_.count(unit_ids[i]) && units_.action_state[idx] != ACTION_GARRISONED) {
 			units_.stance[idx] = stance;
 			units_.anchor_x[idx] = units_.pos_x[idx];
@@ -16853,7 +16853,7 @@ void Simulation::tick_combat(float dt) {
 		const uint8_t stance = units_.stance[i];
 		const bool explicit_target = units_.order_kind[i] == ORDER_ATTACK && units_.target_unit_id[i] != 0 &&
 				units_.target_unit_id[i] == units_.order_target[i];
-		if (stance == STANCE_PASSIVE && !explicit_target) {
+		if ((stance == STANCE_PASSIVE || stance == STANCE_NONE) && !explicit_target) {
 			// SwitchToStance leaves a fight it picked itself going: it keeps hitting while the
 			// target is in reach, and once it isn't, ShouldChaseTargetedEntity says no chase, so
 			// FINDINGNEWTARGET finds nothing and the unit goes back to its order.
@@ -16974,6 +16974,7 @@ void Simulation::tick_combat(float dt) {
 				 (explicit_target && order_queues_.count(units_.id[i])));
 		int32_t found_bld = -1, found_wild = -1;
 		if (found < 0 && !order_next && !leash_drop && units_.target_building_id[i] == 0 && stance != STANCE_PASSIVE &&
+				stance != STANCE_NONE &&
 				(st == ACTION_ATTACK || (walk_and_fight && in_formation) ||
 				 (walk_and_fight ? again || chase_check_due : (i + ticks_) % 4 == 0))) {
 			const float scan_range = stance == STANCE_STAND_GROUND ? range
@@ -20956,7 +20957,7 @@ void Simulation::respond_to_attack(size_t i) {
 		// UnitAI "Attacked": a soldier fighting answers only melee (COMBAT), and one busy on a
 		// forced order (a player's or Petra's) keeps at it unless violent (targetAttackersAlways);
 		// an idle one, or one on an order it took itself, answers.
-		if (units_.attack_damage[i] > 0.0f && units_.stance[i] != STANCE_PASSIVE && units_.action_state[i] != ACTION_IDLE) {
+		if (units_.attack_damage[i] > 0.0f && units_.stance[i] < STANCE_PASSIVE && units_.action_state[i] != ACTION_IDLE) {
 			const bool fighting = units_.action_state[i] == ACTION_ATTACK &&
 					(units_.target_unit_id[i] != 0 || units_.target_building_id[i] != 0);
 			if (fighting) return;
@@ -21036,6 +21037,7 @@ void Simulation::respond_to_attacker(size_t i, uint32_t attacker_id, float ax, f
 	// to itself (msg.data.target is the attacked entity), so it never holds.
 	if (st == ACTION_FLEE && units_.flee_from[i] != 0 && attacker_id == units_.flee_from[i]) return;
 	const uint8_t stance = units_.stance[i];
+	if (stance == STANCE_NONE) return; // "none": no respondFlee, no fight back
 	// Forced orders ignore attackers, unless the stance is violent (targetAttackersAlways);
 	// an automatic fight (ORDER_FLAG_INTERRUPTED) is not forced.
 	const bool forced = (units_.order_flags[i] & (ORDER_FLAG_FORCE | ORDER_FLAG_INTERRUPTED)) == ORDER_FLAG_FORCE;
@@ -23046,143 +23048,6 @@ void Simulation::update_petra_bases(float dt) {
 	// Idle villagers are not walked to secondary bases here: the economy
 	// manager already assigns them to the nearest resource with a dropsite,
 	// which covers expansions, and a bare move left them stranded en route.
-}
-
-void Simulation::petra_manage_scouting(float dt) {
-	// Petra sees what its player sees: the simulation's line of sight (los_visible /
-	// los_explored, 0 A.D. CCmpRangeManager), shared with allies and revealed or explored
-	// maps alike.
-
-	// 2. Validate current scout unit or recruit candidate
-	bool scout_valid = false;
-	if (petra_scout_unit_id_ != 0) {
-		int32_t s_idx = lookup_unit(petra_scout_unit_id_);
-		if (s_idx >= 0 && units_.alive[s_idx] && units_.team[s_idx] == petra_pid_) {
-			scout_valid = true;
-		} else {
-			petra_scout_unit_id_ = 0;
-		}
-	}
-
-	if (!scout_valid) {
-		// Priority 1: Light Cavalry
-		for (size_t i = 0; i < units_.count; ++i) {
-			if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
-			// Only an idle rider: hunters keep hunting (petra_manage_hunters).
-			if (units_.unit_type[i] == UNIT_CAVALRY && units_.action_state[i] == ACTION_IDLE) {
-				uint32_t uid = units_.id[i];
-				if (!petra_unit_reserved(uid)) {
-					petra_scout_unit_id_ = uid;
-					scout_valid = true;
-					break;
-				}
-			}
-		}
-
-		// Workers are not sent scouting: in our small maps a lone villager
-		// wandering into an enemy base cost a worker and provoked a fight.
-	}
-
-	if (!scout_valid || petra_scout_unit_id_ == 0) return;
-
-	int32_t s_idx = lookup_unit(petra_scout_unit_id_);
-	if (s_idx < 0) return;
-
-	float sx = units_.pos_x[s_idx];
-	float sz = units_.pos_z[s_idx];
-	petra_scout_timer_ += dt;
-
-	// Head home with a forced walk, ordered once: re-ordering every turn cost a
-	// fresh path search each time.
-	auto head_home = [&](float bx, float bz) {
-		if (units_.order_kind[s_idx] == ORDER_WALK && units_.action_state[s_idx] == ACTION_MOVE &&
-		    std::fabs(units_.order_x[s_idx] - bx) < 1.0f && std::fabs(units_.order_z[s_idx] - bz) < 1.0f) return;
-		if ((sx - bx) * (sx - bx) + (sz - bz) * (sz - bz) < 9.0f) return; // home already
-		order_walk(&petra_scout_unit_id_, 1, bx, bz, false);
-	};
-
-	// Check if scout is in danger
-	float local_threat = get_threat_at(sx, sz);
-	if (local_threat >= 6.0f) {
-		const PetraBase *pbase = get_primary_petra_base();
-		head_home(pbase ? pbase->x : 36.0f, pbase ? pbase->z : 36.0f);
-		return;
-	}
-
-	// In the village phase the scout avoids fights: it turns back when it strays
-	// into enemy territory or engages, so it doesn't drag the enemy's army home.
-	const bool village = petra_ps().phase < 2;
-	auto enemy_land_at = [&](float x, float z) { return petra_foe(territory_owner_at(x, z)); };
-	if (village && (enemy_land_at(sx, sz) || units_.action_state[s_idx] == ACTION_ATTACK)) {
-		if (const PetraBase *pbase = get_primary_petra_base()) {
-			head_home(pbase->x, pbase->z);
-			petra_scout_timer_ = 0.0f;
-		}
-		return;
-	}
-
-	// 3. Autonomous scouting exploration
-	if (units_.action_state[s_idx] == ACTION_IDLE || petra_scout_timer_ >= 8.0f) {
-		petra_scout_timer_ = 0.0f;
-		const PetraBase *pbase = get_primary_petra_base();
-		float origin_x = pbase ? pbase->x : 36.0f;
-		float origin_z = pbase ? pbase->z : 36.0f;
-
-		bool target_found = false;
-		float target_wx = 0.0f, target_wz = 0.0f;
-
-		// Spiral outward through FoW searching for unexplored cells
-		for (int step = 0; step < 40 && !target_found; ++step) {
-			petra_scout_angle_ += 0.35f; // ~20 deg step
-			if (petra_scout_angle_ >= 6.28318f) {
-				petra_scout_angle_ -= 6.28318f;
-				petra_scout_radius_ += 6.0f;
-				if (petra_scout_radius_ > map_half_ * 1.35f) {
-					petra_scout_radius_ = 12.0f;
-				}
-			}
-
-			float candidate_x = origin_x + det::cos(petra_scout_angle_) * petra_scout_radius_;
-			float candidate_z = origin_z + det::sin(petra_scout_angle_) * petra_scout_radius_;
-			candidate_x = std::clamp(candidate_x, -map_half_ + 4.0f, map_half_ - 4.0f);
-			candidate_z = std::clamp(candidate_z, -map_half_ + 4.0f, map_half_ - 4.0f);
-
-			// Stay out of enemy territory until we can fight (town phase).
-			if (!off_world(candidate_x, candidate_z) && !los_explored(petra_pid_, candidate_x, candidate_z) &&
-			    !(village && enemy_land_at(candidate_x, candidate_z)) &&
-			    get_terrain_height(candidate_x, candidate_z) > terrain_water_height_ + 0.3f &&
-			    is_position_safe(candidate_x, candidate_z, 5.0f)) {
-				target_wx = candidate_x;
-				target_wz = candidate_z;
-				target_found = true;
-			}
-		}
-
-		// Also check if any unclaimed relics or neutral resource patches are in unexplored areas
-		if (!target_found) {
-			for (const auto &relic : relics_) {
-				if (!relic.claimed) {
-					if (!los_visible(petra_pid_, relic.x, relic.z) && is_position_safe(relic.x, relic.z, 5.0f) &&
-					    !(village && enemy_land_at(relic.x, relic.z))) {
-						target_wx = relic.x;
-						target_wz = relic.z;
-						target_found = true;
-						break;
-					}
-				}
-			}
-		}
-
-		if (target_found) {
-			order_walk(&petra_scout_unit_id_, 1, target_wx, target_wz, false);
-		} else {
-			// Exploration sweep: patrol perimeter of friendly territory towards center
-			float sweep_x = -origin_x * 0.4f + (float)petra_rng_.range_int(-8, 7);
-			float sweep_z = -origin_z * 0.4f + (float)petra_rng_.range_int(-8, 7);
-			if (!(village && enemy_land_at(sweep_x, sweep_z)))
-				order_walk(&petra_scout_unit_id_, 1, sweep_x, sweep_z, false);
-		}
-	}
 }
 
 // addSiegeUnits' classes, in its order: Siege+Melee, Siege+Ranged, Elephant+Melee.
@@ -30114,7 +29979,9 @@ uint8_t Simulation::petra_enemy_player(uint8_t kind, bool first, bool *gaia_reli
 		// Gaia, picked once for its relics, stays the enemy of later attacks (it always has entities).
 		const uint8_t current = first ? petra_attack_enemy() : 0xFF;
 		if (current == GAIA_PLAYER && has_victory(VK_RELIC)) return GAIA_PLAYER;
-		if (current < MAX_PLAYERS && !veto[current] && entities[current] > 0) return current;
+		// attackManager.js:548-552: the current enemy stays while it is a live enemy with entities,
+		// however many towers it has (the rush veto bars only a new pick).
+		if (current < MAX_PLAYERS && petra_foe(current) && !is_defeated(current) && entities[current] > 0) return current;
 		float best_d = 1e30f;
 		int best = -1;
 		for (const auto &ours : buildings_) {
@@ -30263,7 +30130,7 @@ uint32_t Simulation::petra_nearest_target(uint8_t kind, bool forced, uint8_t ene
 // one getEnemyPlayer picks, seen from the army's centre once it marches and from our
 // base before. The plan's RTS0 type follows the target: a siege plan against a player
 // with fortifications from the town phase on, a raid on economic structures or units.
-uint32_t Simulation::find_petra_attack_target(float &out_tx, float &out_tz, uint16_t same_land, const AttackPlan *plan, bool must_start) const {
+uint32_t Simulation::find_petra_attack_target(float &out_tx, float &out_tz, uint16_t same_land, const AttackPlan *plan, bool must_start, bool note) const {
 	const AttackPlan &p = plan ? *plan : petra_attack_plan_;
 	float px, pz;
 	petra_attack_home(px, pz);
@@ -30301,6 +30168,7 @@ uint32_t Simulation::find_petra_attack_target(float &out_tx, float &out_tz, uint
 	auto pick_enemy = [&](bool first) {
 		bool gaia_relics = false;
 		const uint8_t e = petra_enemy_player(kind, first, &gaia_relics);
+		if (!note) return e;
 		if (first) petra_note_enemy(e); // with a target player already, currentEnemyPlayer stays
 		if (gaia_relics) {
 			const int wait = 240 - 30 * ((int)petra_config_.difficulty - (int)PETRA_MEDIUM);
@@ -31173,15 +31041,16 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 			bool have_barracks = false, have_tc = false;
 			for (const auto &b : buildings_) {
 				if (b.team != petra_pid_ || b.build_progress < 1.0f) continue;
-				if (b.type == BLD_BARRACKS) have_barracks = true;
+				// getOwnEntitiesByClass("Barracks"): han/academy and mercenary camps too.
+				if (b.type == BLD_BARRACKS || b.type == BLD_ACADEMY || b.type == BLD_MERCENARY_CAMP) have_barracks = true;
 				if (is_civic_centre(b.type)) have_tc = true;
 			}
 			if (!mgr.rushes_set && have_tc) petra_set_rushes();
 			if (petra_config_.difficulty == PETRA_SANDBOX) return;
-			// hasPotentialBase: a civic centre of ours, built or not.
+			// hasPotentialBase: a base anchor of ours (a civic centre or military colony), built or not.
 			bool potential_base = false;
 			for (const auto &b : buildings_)
-				potential_base |= b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked && is_civic_centre(b.type);
+				potential_base |= b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked && petra_base_anchor_type(b.type);
 			const bool researching_town = research_check(petra_pid_, TECH_PHASE_TOWN) == TECH_ERR_IN_PROGRESS;
 			float tx = 0.0f, tz = 0.0f;
 			uint32_t target_id = 0;
@@ -31223,7 +31092,7 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 				plan.target_building_id = 0;
 				// An Attack musters (and trains) without a target; it picks one when it must
 				// start and fails if there is none (attackPlan.js updatePreparation).
-				target_id = find_petra_attack_target(tx, tz, 0, &plan);
+				target_id = find_petra_attack_target(tx, tz, 0, &plan, false, false);
 				if (target_id == 0)
 					if (const auto *base = get_primary_petra_base()) { tx = base->x; tz = base->z; }
 				// targetPlayer stays unset while the plan prepares (an attack request may set it):
@@ -32005,9 +31874,11 @@ void Simulation::petra_retake_civic_centres() {
 			}
 			petra_defense_armies_.erase(petra_defense_armies_.begin() + (ptrdiff_t)a--);
 		}
+		++petra_attack_mgr_.plans_made; // this.totalNumber++, even for a plan aborted for want of units
 		if (plan.squad.empty()) continue;
 		plan.kind = PETRA_ATTACK_ATTACK; // TYPE_DEFAULT
 		plan.type = AttackPlan::PLAN_ASSAULT;
+		plan.target_player = ev.to; // attackPlan.targetPlayer = target.owner(): the captor
 		plan.target_building_id = cc.id;
 		plan.target_x = plan.staging_x = cc.x;
 		plan.target_z = plan.staging_z = cc.z;
@@ -33552,6 +33423,17 @@ void Simulation::petra_manage_transport(float dt) {
 	petra_transports_.erase(std::remove_if(petra_transports_.begin(), petra_transports_.end(), [](const PetraTransportPlan &tp) {
 		return tp.state == PetraTransportPlan::IDLE || tp.state == PetraTransportPlan::FAILED;
 	}), petra_transports_.end());
+	// transportPlan.js: a plan's ship takes the "none" stance (assignShip), so it neither
+	// fires at what it passes nor answers an attacker, and releaseShip gives it back its
+	// template's DefaultStance.
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.team[i] != petra_pid_ || !unit_is_ship(units_.unit_type[i])) continue;
+		const uint32_t sid = units_.id[i];
+		const bool in_plan = petra_ship_in_plan(sid);
+		if (in_plan && units_.stance[i] != STANCE_NONE) order_set_stance(&sid, 1, STANCE_NONE);
+		else if (!in_plan && units_.stance[i] == STANCE_NONE)
+			order_set_stance(&sid, 1, unit_default_stance(units_.unit_type[i], units_.tmpl[i]));
+	}
 }
 
 void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt, std::vector<PetraReferry> &referry) {
@@ -33663,14 +33545,24 @@ void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt, std::vec
 		if (const auto *p = get_transport_passengers(tp.ship_id)) before = *p;
 		order_disembark(tp.ship_id, units_.pos_x[sidx], units_.pos_z[sidx]);
 		const uint16_t end_land = petra_land_at(tp.drop_x, tp.drop_z);
-		if (!end_land) return false;
 		std::vector<uint32_t> wrong;
 		for (uint32_t uid : before) {
 			const int32_t i = lookup_unit(uid);
 			if (i < 0 || !units_.alive[i]) continue; // still aboard
 			const uint16_t land = petra_land_at(units_.pos_x[i], units_.pos_z[i]);
-			if (land && land != end_land) wrong.push_back(uid);
+			if (end_land && land && land != end_land) {
+				wrong.push_back(uid);
+				continue;
+			}
+			// onSailing's check of the units unloaded: each walks 20-25 m off, whatever it took
+			// up meanwhile, to make room for the rest (here at once, as the unload is).
+			float ux = units_.pos_x[i] - units_.pos_x[sidx], uz = units_.pos_z[i] - units_.pos_z[sidx];
+			const float d = std::sqrt(ux * ux + uz * uz);
+			if (d < 1e-3f) continue;
+			const float step = 22.5f / 4.0f;
+			order_walk(&uid, 1, units_.pos_x[i] + ux / d * step, units_.pos_z[i] + uz / d * step, false);
 		}
+		if (!end_land) return false;
 		if (wrong.empty()) return false;
 		order_board_transport(wrong.data(), wrong.size(), tp.ship_id);
 		if (get_transport_passenger_count(tp.ship_id) == 0) return false;
@@ -33885,8 +33777,10 @@ void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt, std::vec
 				tp.state = PetraTransportPlan::SAILING;
 				tp.state_timer = 0.0f;
 			} else {
-				tp.state = PetraTransportPlan::FAILED; // that land has no other shore on this sea
-				tp.failed = true;
+				// That land has no other shore on this sea: onSailing goes on unloading here on
+				// every turn while units are left aboard (it never gives the crossing up).
+				unload();
+				tp.state_timer = 0.0f;
 			}
 		} else if (std::fmod(tp.state_timer, 3.0f) < dt) {
 			unload();
@@ -36439,8 +36333,8 @@ void Simulation::petra_change_diplomacy(uint8_t player, uint8_t stance) {
 	          stance == DIPLO_ALLY ? PETRA_STANCE_ALLY : stance == DIPLO_NEUTRAL ? PETRA_STANCE_NEUTRAL : PETRA_STANCE_ENEMY);
 }
 
-// attackManager.js cancelAttacksAgainstPlayer: the plan in preparation forgets the
-// player as its target, and every started attack on that player is aborted (its army
+// attackManager.js cancelAttacksAgainstPlayer: the plans in preparation or gathering forget
+// the player as their target, and every started attack on that player is aborted (its army
 // walks home).
 void Simulation::petra_cancel_attacks_against(uint8_t player) {
 	for (AttackPlan *p : {&petra_attack_plan_, &petra_next_plan_.plan}) {
@@ -36452,6 +36346,10 @@ void Simulation::petra_cancel_attacks_against(uint8_t player) {
 	}
 	for (AttackPlan &plan : petra_started_attacks_)
 		if (plan.target_player == player && plan.state != AttackPlan::REGROUP && plan.state != AttackPlan::UNEXECUTED) {
+			// A plan gathering at its rally point is still an upcoming attack in 0.28: it only
+			// forgets its target player, and its completing step finds the target no longer an
+			// enemy's and goes back to preparation.
+			if (plan.state == AttackPlan::MUSTER && plan.completing) { plan.target_player = 0xFF; continue; }
 			plan.state = AttackPlan::ABORT;
 			plan.state_timer = 0.0f;
 		}
@@ -36907,8 +36805,7 @@ void Simulation::tick_petra_ai_player(float dt) {
 	petra_build_first_base();
 	petra_config_first_base();
 
-	// 3. Autonomous Scouting & FoW Exploration (scoutManager.js)
-	petra_manage_scouting(dt);
+	// 3. (0.28 Petra has no scout: an idle hunter looks for game again every 20 s, worker.js.)
 
 	// 4. (0.28 has no worker evacuation of its own: defenseManager garrisonAttackedUnit shelters an
 	//    attacked support unit below garrisonHealthLevel.medium, and UnitAI makes it flee.)

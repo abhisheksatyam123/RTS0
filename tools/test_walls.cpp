@@ -1051,7 +1051,7 @@ int main() {
 		for (uint8_t p = 0; p < MAX_PLAYERS; ++p) s.set_player_active(p, p < 4, false);
 		// Continental is one of RTS0's own maps, where a laid piece of player 0's ring on this seed
 		// comes within a tower's half width of a steep tile, so the seven towers stand instead (11b,
-		// G97). Take them away and lay the ring map generation laid before, from the seed it drew for
+		// G99). Take them away and lay the ring map generation laid before, from the seed it drew for
 		// player 0.
 		{
 			float cx = 0.0f, cz = 0.0f;

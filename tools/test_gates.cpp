@@ -675,7 +675,7 @@ int main() {
 	// 3's gate's Left part, and 0.28's 1 m navcells cross it there, so the navcells must too, whatever the
 	// other gate's check decides for its parts. Those walls are built here as that map placed them.
 	// Random Highlands is one of RTS0's own maps, where a ring a laid piece of which would come within a
-	// tower's half width of a steep tile now gives way to the seven towers (REMAINING_GAPS G97), as all
+	// tower's half width of a steep tile now gives way to the seven towers (REMAINING_GAPS G99), as all
 	// four do on these seeds. The pins are those rings' gates, so the towers are taken away and each ring
 	// is laid as map generation laid it before, from the seed it drew for that player (the trees and
 	// bushes the towers cleared stay gone).
