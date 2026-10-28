@@ -7045,6 +7045,59 @@ static void test_defense_breakaway_timer() {
 	CHECK(split, "an army a foe just joined checks them on its next update (addFoe)");
 }
 
+// Defense pass 3. assignDefenders drafts only units that can hit some foe of the army
+// (defenseManager.js:476-481 canAttackTarget): a ram stays out of a fight with infantry. And a
+// unit hitting one of our structures joins an army on the AI turn after the hit
+// (defenseManager.js:636-642), whichever player the enemy scan looks at that turn.
+static void test_defense_pass3() {
+	bool ram_out = true, soldier_in = true, formed[2] = {false, false};
+	for (int offset = 0; offset < 2; ++offset) {
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(42);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		s->set_victory_condition(VICTORY_ENDLESS);
+		run_for(*s, 20.0f);
+		float cx = 0.0f, cz = 0.0f;
+		for (const auto &b : s->buildings_)
+			if (b.team == 1 && b.type == BLD_TOWN_CENTER) { cx = b.x; cz = b.z; }
+		run_ai_turns(*s, 1 + offset);
+		// The structure hit: an enemy swordsman hacks at a house by the civic centre.
+		const uint32_t house = s->spawn_building_world(cx + 12.0f, cz + 12.0f, BLD_HOUSE, 1, 1.0f);
+		float hp0 = 0.0f;
+		for (const auto &b : s->buildings_) if (b.id == house) hp0 = b.hp;
+		const uint32_t raider = s->spawn_unit(cx + 15.0f, cz + 15.0f, 0, UNIT_SWORDSMAN, 1.0e5f);
+		s->order_attack_building(&raider, 1, house);
+		const uint32_t ram = s->spawn_unit(cx - 8.0f, cz - 8.0f, 1, UNIT_SIEGE_RAM);
+		const uint32_t spear = s->spawn_unit(cx - 9.0f, cz - 6.0f, 1, UNIT_SPEARMAN);
+		auto hit = [&]() {
+			for (const auto &b : s->buildings_) if (b.id == house) return b.hp < hp0;
+			return false;
+		};
+		for (int k = 0; k < 400 && !hit(); ++k) s->tick(Simulation::FIXED_STEP);
+		run_ai_turns(*s, 1);
+		auto in_army = [&](uint32_t id, bool foe) {
+			for (const auto &a : s->petra_defense_armies()) {
+				const auto &v = foe ? a.foe_ids : a.defender_ids;
+				if (std::find(v.begin(), v.end(), id) != v.end()) return true;
+			}
+			return false;
+		};
+		formed[offset] = hit() && in_army(raider, true);
+		run_ai_turns(*s, 3);
+		if (in_army(ram, false)) ram_out = false;
+		(void)spear; // drafted after Petra's older soldiers (creation order), if needed at all
+		bool any = false;
+		for (const auto &a : s->petra_defense_armies()) any = any || !a.defender_ids.empty();
+		if (!any) soldier_in = false;
+	}
+	std::printf("  defense pass 3: the raider of a house joins an army on the next AI turn: %s / %s; ram drafted: %s, defenders drafted: %s\n",
+	            formed[0] ? "yes" : "no", formed[1] ? "yes" : "no", ram_out ? "no" : "yes", soldier_in ? "yes" : "no");
+	CHECK(formed[0] && formed[1], "a unit hitting one of our structures joins an army on the next AI turn");
+	CHECK(ram_out, "a ram is not drafted against a swordsman (canAttackTarget)");
+	CHECK(soldier_in, "soldiers that can are drafted");
+}
+
 // defenseArmy.js "capturing" armies: Petra wins back the points an enemy holds on one of its
 // structures, and captures a Gaia structure in its land.
 static void test_capturing_armies() {
@@ -10138,6 +10191,7 @@ int main(int argc, char **argv) {
 	RUN(test_defense_switch_to_attack);
 	RUN(test_defense_chase_home_no_attack);
 	RUN(test_defense_breakaway_timer);
+	RUN(test_defense_pass3);
 	RUN(test_capturing_armies);
 	RUN(test_no_scout);
 	RUN(test_defenders_stop_hopeless_capture);
