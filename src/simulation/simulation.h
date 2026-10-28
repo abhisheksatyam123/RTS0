@@ -191,7 +191,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 131; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 132; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_PETRA_TARGET_ORDER = 132; // the targetList in discovery order (no longer sorted)
 	static constexpr uint32_t SAVE_VERSION_ATTACK_MOVE_STRUCTURES = 131; // attack-moves at structures only (attack_move_structures_)
 	static constexpr uint32_t SAVE_VERSION_PETRA_NEXT_PLAN = 130; // a Petra plan preparing beside the one in the slot (petra_next_plan_)
 	static constexpr uint32_t SAVE_VERSION_TRICKLE_TIMER = 128; // each structure's own trickle timer (Building::trickle_tick)
@@ -3976,7 +3977,7 @@ private:
 	std::vector<PetraTargetedRelic> petra_targeted_relics_;
 	// defenseManager.js targetList: enemy structures seen being built in our territory, or
 	// enemy civic centres going up near our structures; kept until gone or no longer an enemy's.
-	struct PetraDefenseTargets { std::vector<uint32_t> ids; }; // sorted
+	struct PetraDefenseTargets { std::vector<uint32_t> ids; }; // in discovery order (targetList.push), each once
 	PetraDefenseTargets petra_defense_targets_;
 	// queue.js plans in order: the structure at the head of each queue (type + 1, 0 none) and the
 	// seconds since it last asked; another structure in that queue waits until it starts or

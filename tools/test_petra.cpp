@@ -94,7 +94,7 @@ static Simulation::AttackPlan *launched_raid(Simulation &s) {
 // being built (isDangerous) put it in AI 1's list.
 static uint32_t seen_built(Simulation &s, uint32_t id) {
 	auto &ids = s.petra_defense_targets_.ids;
-	if (!std::binary_search(ids.begin(), ids.end(), id)) ids.insert(std::lower_bound(ids.begin(), ids.end(), id), id);
+	if (std::find(ids.begin(), ids.end(), id) == ids.end()) ids.push_back(id);
 	return id;
 }
 
@@ -3512,6 +3512,34 @@ static void test_siege_attack_moves_at_structures() {
 	CHECK(kept, "a structures-only attack-move walks past enemy soldiers");
 	CHECK(plain_fights, "a plain attack-move fights them, and drops the structures-only mark");
 	CHECK(ram_only, "Petra's siege attack-moves at a structure target with structures only");
+}
+
+// attackManager.js:425-433: a raid goes for the first enemy structure of the targetList, in the
+// order Petra found them (targetList.push), not the nearest; the order survives a save (v132).
+static void test_raid_target_discovery_order() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	float cx = 0.0f, cz = 0.0f;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { cx = b.x; cz = b.z; }
+	const uint32_t near = s->spawn_building_world(cx + 14.0f, cz, BLD_HOUSE, 0, 1.0f);
+	const uint32_t far = s->spawn_building_world(cx + 30.0f, cz + 6.0f, BLD_HOUSE, 0, 1.0f);
+	s->petra_defense_targets_.ids = {far, near}; // the far one was seen first
+	float tx = 0.0f, tz = 0.0f;
+	const uint32_t first = s->find_petra_raid_target(tx, tz);
+	const char *path = "/tmp/rts0_test_petra_targets.sav";
+	auto copy = std::make_unique<Simulation>();
+	const bool saved = s->save_state(path) && copy->load_state(path);
+	std::remove(path);
+	const bool kept = saved && copy->petra_defense_targets_.ids == s->petra_defense_targets_.ids;
+	std::printf("  raid target: first found %s, order kept through a save %s\n", first == far ? "yes" : "no", kept ? "yes" : "no");
+	CHECK(first == far, "a raid goes for the first structure Petra found, not the nearest");
+	CHECK(kept, "the targetList keeps its discovery order through a save");
 }
 
 // attackManager.js pass 4. (a) switchDefenseToAttack aims the retake plan at the captor
@@ -10206,6 +10234,7 @@ int main(int argc, char **argv) {
 	RUN(test_army_answers_attackers);
 	RUN(test_siege_attack_moves_at_structures);
 	RUN(test_attack_manager_pass4);
+	RUN(test_raid_target_discovery_order);
 	RUN(test_attack_targets_target_player);
 	RUN(test_siege_prefers_any_gate);
 	RUN(test_raid_sizes_vary);
