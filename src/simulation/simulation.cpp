@@ -12332,13 +12332,26 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 	// faster than that unit moves now (TryMatchTargetSpeed, mayRun false). Read before the
 	// parallel pass, which writes the velocities.
 	float *guard_cap = arena.alloc_array<float>(n);
-	if (!guard_cap) return;
+	// arrived[i]: the unit's MOVE or ATTACK_MOVE ended in the parallel pass; it goes IDLE after the pass.
+	uint8_t *arrived = arena.alloc_array<uint8_t>(n);
+	if (!guard_cap || !arrived) return;
+	memset(arrived, 0, n * sizeof(uint8_t));
 	if (short_path_search_.size() < n) short_path_search_.resize(n);
+	const bool any_flight = !flight_.empty();
 	for (size_t i = 0; i < n; ++i) {
 		guard_cap[i] = 0.0f;
 		if (!alive[i] || units_.action_state[i] != ACTION_GUARD || units_.target_unit_id[i] == 0) continue;
 		const int32_t g = lookup_unit(units_.target_unit_id[i]);
-		if (g < 0 || !alive[g]) continue;
+		if (g < 0 || !alive[g]) {
+			// The ESCORTING Timer finishes the order of a guard whose unit died (ShouldGuard, UnitAI.js:1942-1946).
+			// Before the parallel pass, whose chasers read the guard's action_state (unit_running).
+			if (!(any_flight && unit_flies(i))) { // UnitMotionFlying moves it (tick_flight)
+				units_.action_state[i] = ACTION_IDLE;
+				units_.has_order[i] = 0;
+				units_.target_unit_id[i] = 0;
+			}
+			continue;
+		}
 		const float gdx = px[g] - px[i], gdz = pz[g] - pz[i];
 		const float far = 3.0f * guard_range(i) + unit_clearance_at(i) + unit_clearance_at((size_t)g);
 		if (gdx * gdx + gdz * gdz > far * far) continue;
@@ -12346,7 +12359,6 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		if (gs > 0.0f) guard_cap[i] = std::min(unit_walk_speed(i), gs);
 	}
 
-	const bool any_flight = !flight_.empty();
 	JobSystem::instance().for_each_index(n, [&](size_t i) {
 		if (!alive[i]) {
 			vx[i] = vz[i] = 0;
@@ -12376,7 +12388,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 				}
 			}
 		}
-		// Guard.js — follow and protect target unit
+		// Guard.js — follow and protect target unit (a guard whose unit died went IDLE before the pass)
 		if (units_.action_state[i] == ACTION_GUARD && units_.target_unit_id[i] != 0) {
 			int32_t gtidx = lookup_unit(units_.target_unit_id[i]);
 			if (gtidx >= 0 && units_.alive[gtidx]) {
@@ -12392,11 +12404,6 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 				} else {
 					has[i] = 0; // close enough, stand still
 				}
-			} else {
-				// Target died
-				units_.action_state[i] = ACTION_IDLE;
-				units_.has_order[i] = 0;
-				units_.target_unit_id[i] = 0;
 			}
 		}
 
@@ -12800,13 +12807,8 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 					units_.heading_z[i] = ddz * inv_dd;
 				}
 			}
-			if (units_.action_state[i] == ACTION_MOVE || units_.action_state[i] == ACTION_ATTACK_MOVE) {
-				has[i] = 0;
-				units_.action_state[i] = ACTION_IDLE;
-				units_.waypoint_cur[i] = 0;
-				units_.waypoint_count[i] = 0;
-				if ((size_t)i < unit_paths_.size()) unit_paths_[i].clear();
-			}
+			// The walk is over: it goes IDLE after the pass (arrived), as chasers read its action_state here.
+			if (units_.action_state[i] == ACTION_MOVE || units_.action_state[i] == ACTION_ATTACK_MOVE) arrived[i] = 1;
 			// A patrol turns round in tick_unit_ai(), which runs first.
 			return;
 		}
@@ -13026,6 +13028,17 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		vx[i] = ux * spd;
 		vz[i] = uz * spd;
 	});
+
+	// The walks that ended in the pass go IDLE, in index order. Serially, as the pass reads other
+	// units' action_state (unit_running); before avoid_idle_units, which reads it too (obstructs).
+	for (size_t i = 0; i < n; ++i) {
+		if (!arrived[i]) continue;
+		has[i] = 0;
+		units_.action_state[i] = ACTION_IDLE;
+		units_.waypoint_cur[i] = 0;
+		units_.waypoint_count[i] = 0;
+		if (i < unit_paths_.size()) unit_paths_[i].clear();
+	}
 
 	avoid_idle_units(dt, arena, walk, walk_aim_x, walk_aim_z, npx, npz, want_x, want_z, blocked);
 	memcpy(px, npx, n * sizeof(float));
@@ -20515,7 +20528,9 @@ void Simulation::finish_order(size_t i, bool find_new_target) {
 // target, in any stance, while that target can hit the unit it guards.
 bool Simulation::guard_keeps_target(size_t i, size_t t) const {
 	if (units_.order_kind[i] != ORDER_GUARD || !(units_.order_flags[i] & ORDER_FLAG_INTERRUPTED)) return false;
-	if (!units_.alive[t] || units_.attack_damage[t] <= 0.0f || unit_walk_speed(i) <= 0.0f) return false; // AbleToMove
+	// AbleToMove. The walk speed without running has the same sign, and does not read the state of the
+	// unit i chases (unit_running), which acquire sets in tick_combat's parallel pass.
+	if (!units_.alive[t] || units_.attack_damage[t] <= 0.0f || unit_base_walk_speed(i) <= 0.0f) return false;
 	const int32_t g = lookup_unit(units_.order_target[i]);
 	if (g < 0) { // a guarded structure in the attacker's range
 		auto bit = building_id_to_idx_.find(units_.order_target[i]);
