@@ -781,6 +781,7 @@ void Simulation::reset() {
 	attacked_events_.clear();
 	fauna_strikes_.clear();
 	turret_prev_stance_.clear();
+	attack_move_structures_.clear();
 	guard_of_.clear();
 	work_orders_.clear();
 	locked_dropsite_units_.clear();
@@ -7382,7 +7383,7 @@ void Simulation::order_walk(const uint32_t *unit_ids, size_t count, float tx, fl
 // 0 A.D. UnitAI WalkAndFight. The stance is the player's: attack-move no longer
 // switches it to aggressive (nor patrol to defensive).
 void Simulation::order_attack_move(const uint32_t *unit_ids, size_t count, float tx, float tz,
-		bool queued, bool units_only, bool allow_capture, uint8_t avoid) {
+		bool queued, bool units_only, bool allow_capture, uint8_t avoid, bool structures_only) {
 	AiCommandScope ai_cmd(*this, AiCommandEvent::ATTACK_WALK, unit_ids, count, 0, tx, tz);
 	const uint8_t flags = ORDER_FLAG_FORCE | (units_only ? ORDER_FLAG_UNITS_ONLY : 0) |
 			(allow_capture ? ORDER_FLAG_ALLOW_CAPTURE : 0) | (avoid & (ORDER_AVOID_MASK | ORDER_AVOID_ECONOMY));
@@ -7402,8 +7403,18 @@ void Simulation::order_attack_move(const uint32_t *unit_ids, size_t count, float
 		if (idx >= 0 && (size_t)idx < units_.count && units_.alive[idx]) {
 			units_.action_state[idx] = ACTION_ATTACK_MOVE;
 			set_order(idx, ORDER_WALK_AND_FIGHT, flags, 0, units_.target_x[idx], units_.target_z[idx]);
+			auto &v = attack_move_structures_;
+			const auto at = std::lower_bound(v.begin(), v.end(), uid);
+			const bool has = at != v.end() && *at == uid;
+			if (structures_only && !units_only && !has) v.insert(at, uid);
+			else if (!structures_only && has) v.erase(at);
 		}
 	}
+}
+
+bool Simulation::attack_move_structures_only(size_t i) const {
+	if (attack_move_structures_.empty() || units_.order_kind[i] != ORDER_WALK_AND_FIGHT) return false;
+	return std::binary_search(attack_move_structures_.begin(), attack_move_structures_.end(), units_.id[i]);
 }
 
 // 0 A.D. UnitAI Patrol: walk-and-fight between where the unit stands and (tx, tz), at units only
@@ -16885,7 +16896,11 @@ void Simulation::tick_combat(float dt) {
 			const uint8_t patrol_targets = units_.order_kind[i] == ORDER_PATROL
 					? (uint8_t)((units_.order_flags[i] & ORDER_PATROL_MASK) >> ORDER_PATROL_SHIFT) : (uint8_t)ORDER_PATROL_UNITS;
 
+			// Petra's siege at a structure target attack-moves at structures only
+			// (attackPlan.js targetClassesSiege): no units, no animals.
+			const bool structures_only = walk_and_fight && attack_move_structures_only(i);
 			grid.visit_radius(pxi, pzi, scan_range, [&](int32_t j) {
+				if (structures_only) return;
 				if (!units_.alive[j] || !can_attack(my_team, units_.team[j])) return;
 				if (!unit_can_target(i, (size_t)j)) return; // Attack.js RestrictedClasses
 				if (patrol_targets != ORDER_PATROL_UNITS) {
@@ -16949,7 +16964,7 @@ void Simulation::tick_combat(float dt) {
 			}
 			// Dangerous animals, which match no PreferredClasses here (AttackEntitiesByPreference);
 			// rams and ships can't reach them (Attack RestrictedClasses, land animals).
-			const bool hunts = units_.unit_type[i] != UNIT_SIEGE_RAM && !unit_is_ship(units_.unit_type[i]);
+			const bool hunts = units_.unit_type[i] != UNIT_SIEGE_RAM && !unit_is_ship(units_.unit_type[i]) && !structures_only;
 			for (uint16_t f : wild) {
 				if (!hunts) break;
 				const float dx = fauna_.pos_x[f] - pxi, dz = fauna_.pos_z[f] - pzi;
@@ -20152,6 +20167,10 @@ void Simulation::order_guard(const uint32_t *unit_ids_in, size_t count_in, uint3
 
 void Simulation::set_order(size_t i, uint8_t kind, uint8_t flags, uint32_t target, float x, float z) {
 	units_.motion[i] = MotionTurn{.pressure = units_.motion[i].pressure}; // UnitMotion MoveTo: a new move starts unobstructed
+	if (kind != ORDER_WALK_AND_FIGHT && !attack_move_structures_.empty()) {
+		auto &v = attack_move_structures_;
+		if (const auto at = std::lower_bound(v.begin(), v.end(), units_.id[i]); at != v.end() && *at == units_.id[i]) v.erase(at);
+	}
 	units_.order_kind[i] = kind;
 	units_.order_flags[i] = flags;
 	units_.order_target[i] = target;
@@ -30722,7 +30741,8 @@ void Simulation::petra_attack_units(AttackPlan &plan) {
 		if (siege(i)) {
 			const int32_t bi = best_structure(i, range2, true);
 			if (bi >= 0) attack_structure(i, (size_t)bi);
-			else order_attack_move(&uid, 1, plan.target_x, plan.target_z, false, false, true, petra_attack_avoid(plan, true));
+			else order_attack_move(&uid, 1, plan.target_x, plan.target_z, false, false, true, petra_attack_avoid(plan, true),
+			                       building_id_to_idx_.count(plan.target_building_id) != 0);
 			continue;
 		}
 		const uint16_t land = petra_land_at(units_.pos_x[i], units_.pos_z[i]);
@@ -37745,6 +37765,7 @@ bool Simulation::load_state(const char *filepath) {
 		projectiles_.clear();
 		statuses_.clear();
 		turret_prev_stance_.clear();
+		attack_move_structures_.clear();
 	}
 	relink_field_resources(); // the resources' subtypes came with the tick state (v17)
 
@@ -38922,6 +38943,18 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		}
 	} else if constexpr (Ar::loading) {
 		s.turret_prev_stance_.clear();
+	}
+
+	// v131: the units whose attack-move fights structures only (attackPlan.js targetClassesSiege
+	// attack ["Structure"], kept in UnitAI's order data in 0.28). Sorted ids, each once.
+	if (ar.version >= Simulation::SAVE_VERSION_ATTACK_MOVE_STRUCTURES) {
+		io_vec_pod(ar, s.attack_move_structures_, (uint32_t)S::UNIT_LOAD_LIMIT);
+		if constexpr (Ar::loading)
+			if (std::adjacent_find(s.attack_move_structures_.begin(), s.attack_move_structures_.end(),
+					[](uint32_t x, uint32_t y) { return x >= y; }) != s.attack_move_structures_.end())
+				ar.ok = false;
+	} else if constexpr (Ar::loading) {
+		s.attack_move_structures_.clear();
 	}
 
 	// v86: the attacks each player's AttackDetection is suppressing (OnAttackDetected).

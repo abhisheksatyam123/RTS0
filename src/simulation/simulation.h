@@ -191,7 +191,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 130; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 131; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_ATTACK_MOVE_STRUCTURES = 131; // attack-moves at structures only (attack_move_structures_)
 	static constexpr uint32_t SAVE_VERSION_PETRA_NEXT_PLAN = 130; // a Petra plan preparing beside the one in the slot (petra_next_plan_)
 	static constexpr uint32_t SAVE_VERSION_TRICKLE_TIMER = 128; // each structure's own trickle timer (Building::trickle_tick)
 	static constexpr uint32_t SAVE_VERSION_PETRA_LOST_BASES = 127; // each Petra's bases kept after their civic centre was lost
@@ -986,7 +987,10 @@ public:
 	// on the way, and carry on to (tx, tz) afterwards.
 	// `avoid` holds ORDER_AVOID_* bits: structures the walk does not stop for.
 	void order_attack_move(const uint32_t *unit_ids, size_t count, float tx, float tz,
-			bool queued = false, bool units_only = false, bool allow_capture = false, uint8_t avoid = 0);
+			bool queued = false, bool units_only = false, bool allow_capture = false, uint8_t avoid = 0,
+			bool structures_only = false);
+	// Is unit i's attack-move at structures only (targetClasses attack ["Structure"])?
+	bool attack_move_structures_only(size_t i) const;
 	// targets: ORDER_PATROL_UNITS, or ORDER_PATROL_STRUCTURES / _DEFENSIVE (a trigger script's targetClasses).
 	void order_patrol(const uint32_t *unit_ids, size_t count, float tx, float tz, bool queued = false,
 	                  uint8_t targets = ORDER_PATROL_UNITS);
@@ -3325,6 +3329,10 @@ private:
 	bool beach_goal_ = false; // set by order_walk(..., beach_goal) around its cmd_move
 	// Saved (SAVE_VERSION_TURRET_STANCE).
 	std::unordered_map<uint32_t, uint8_t> turret_prev_stance_;
+	// Units whose attack-move fights structures only (Petra's siege at a structure target,
+	// attackPlan.js targetClassesSiege attack ["Structure"]); sorted ids, and an entry counts
+	// only while the unit's order is that attack-move (set_order drops it on any other).
+	std::vector<uint32_t> attack_move_structures_;
 	const TurretPointSet *turret_points_of(const Building &b) const;
 	int structure_garrison_cap(const Building &b) const;
 	void occupy_turret(size_t i, Building &b);
