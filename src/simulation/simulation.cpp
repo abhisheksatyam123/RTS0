@@ -31638,47 +31638,7 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 			// UpdateTransporting: done once none of this army is in a transport any more. Until
 			// then, the first Attacked event on one of its units turns the idle landed ones on
 			// the attacker.
-			if (sailed && petra_plan_in_transport(plan) && petra_plan_overseas(base_x, base_z, plan.target_building_id)) {
-				for (const auto &[target, attacker] : petra_turn_attacks_) {
-					if (std::find(squad.begin(), squad.end(), target) == squad.end()) continue;
-					const int32_t a = lookup_unit(attacker);
-					if (lookup_unit(target) < 0 || (a < 0 && !building_id_to_idx_.count(attacker))) continue;
-					for (uint32_t uid : squad) {
-						const int32_t k = lookup_unit(uid);
-						if (k < 0 || !units_.alive[k] || units_.action_state[k] != ACTION_IDLE) continue;
-						if (petra_passenger(uid) || petra_aboard(uid)) continue;
-						if (a >= 0) order_attack(&uid, 1, attacker);
-						else {
-							const Building &b = buildings_[building_id_to_idx_.at(attacker)];
-							order_attack_building(&uid, 1, attacker, false, petra_allow_capture(squad, uid, b));
-						}
-					}
-					break;
-				}
-				return; // still at sea
-			}
-			// navalManager.js requireTransport: the ship comes back for those still on
-			// our land (a failed transport leaves them, as a plan without ships does).
-			if (sailed && petra_plan_overseas(base_x, base_z, plan.target_building_id)) {
-				const PetraNavalTopo &topo = petra_topo();
-				const uint32_t target_id = plan.target_building_id;
-				const uint16_t overseas = petra_overseas(topo, base_x, base_z, target_id);
-				auto tit = building_id_to_idx_.find(target_id);
-				if (overseas && tit != building_id_to_idx_.end()) {
-					const uint16_t there = petra_building_land(buildings_[tit->second], &topo);
-					std::vector<uint32_t> left;
-					for (uint32_t uid : squad) {
-						const int32_t idx = lookup_unit(uid);
-						if (idx >= 0 && units_.alive[idx] && petra_land_at(units_.pos_x[idx], units_.pos_z[idx]) != there)
-							left.push_back(uid);
-					}
-					if (!left.empty() && petra_start_transport(left, base_x, base_z, plan.target_x,
-					                                           plan.target_z, overseas, PETRA_TRANSPORT_ATTACK)) {
-						plan.state_timer = 0.0f;
-						return;
-					}
-				}
-			}
+			if (sailed && petra_plan_transporting(plan, base_x, base_z, PETRA_TRANSPORT_ATTACK)) return;
 
 			// attackPlan.js update: an attack goes on while any of its army lives (no retreat
 			// on losses or danger); the plan ends once its army is gone.
@@ -32516,6 +32476,9 @@ void Simulation::petra_update_started_raid(AttackPlan &plan, float base_x, float
 				petra_go_home(plan.squad, base_x, base_z, PETRA_TRANSPORT_RAID, true);
 			return;
 		}
+		// A raid overseas sails as an attack does ("transporting"), then fights.
+		if (plan.state == AttackPlan::WALKING && plan.path_x.empty() && petra_plan_transporting(plan, base_x, base_z, PETRA_TRANSPORT_RAID))
+			return;
 		// A raid marching along its path fights only once it arrives (attackPlan.js update
 		// "walking" state, then "arrived").
 		if (plan.state == AttackPlan::WALKING && !plan.path_x.empty()) {
@@ -34802,6 +34765,49 @@ void Simulation::petra_manage_garrisons() {
 
 // attackPlan.js waitingForTransport / UpdateTransporting: one of this plan's units has a
 // transport (waiting for its ship or aboard), whatever the other attacks' ferries do.
+// attackPlan.js UpdateTransporting, for a plan that sails to its target: it waits while any
+// of its army is in a transport, and the first Attacked event on one of its units turns the
+// idle landed ones on the attacker. navalManager.js requireTransport: the ship comes back for
+// those still off the target's land (a failed transport leaves them, as a plan without ships
+// does). True while the plan waits.
+bool Simulation::petra_plan_transporting(AttackPlan &plan, float base_x, float base_z, uint8_t owner) {
+	auto &squad = plan.squad;
+	if (!petra_plan_overseas(base_x, base_z, plan.target_building_id)) return false;
+	if (petra_plan_in_transport(plan)) {
+		for (const auto &[target, attacker] : petra_turn_attacks_) {
+			if (std::find(squad.begin(), squad.end(), target) == squad.end()) continue;
+			const int32_t a = lookup_unit(attacker);
+			if (lookup_unit(target) < 0 || (a < 0 && !building_id_to_idx_.count(attacker))) continue;
+			for (uint32_t uid : squad) {
+				const int32_t k = lookup_unit(uid);
+				if (k < 0 || !units_.alive[k] || units_.action_state[k] != ACTION_IDLE) continue;
+				if (petra_passenger(uid) || petra_aboard(uid)) continue;
+				if (a >= 0) order_attack(&uid, 1, attacker);
+				else {
+					const Building &b = buildings_[building_id_to_idx_.at(attacker)];
+					order_attack_building(&uid, 1, attacker, false, petra_allow_capture(squad, uid, b));
+				}
+			}
+			break;
+		}
+		return true; // still at sea
+	}
+	const PetraNavalTopo &topo = petra_topo();
+	const uint32_t target_id = plan.target_building_id;
+	const uint16_t overseas = petra_overseas(topo, base_x, base_z, target_id);
+	auto tit = building_id_to_idx_.find(target_id);
+	if (!overseas || tit == building_id_to_idx_.end()) return false;
+	const uint16_t there = petra_building_land(buildings_[tit->second], &topo);
+	std::vector<uint32_t> left;
+	for (uint32_t uid : squad) {
+		const int32_t idx = lookup_unit(uid);
+		if (idx >= 0 && units_.alive[idx] && petra_land_at(units_.pos_x[idx], units_.pos_z[idx]) != there) left.push_back(uid);
+	}
+	if (left.empty() || !petra_start_transport(left, base_x, base_z, plan.target_x, plan.target_z, overseas, owner)) return false;
+	plan.state_timer = 0.0f;
+	return true;
+}
+
 bool Simulation::petra_plan_in_transport(const AttackPlan &plan) const {
 	for (uint32_t uid : plan.squad)
 		if (petra_passenger(uid) || petra_aboard(uid)) return true;
