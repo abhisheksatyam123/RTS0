@@ -1220,8 +1220,10 @@ static void check_danubius() {
 		if (w.role >= 2)
 			if (const auto *p = s.get_transport_passengers(w.id)) aboard.insert(aboard.end(), p->begin(), p->end());
 	CHECK(!aboard.empty(), "no soldiers aboard the Gaia ships at 5 minutes");
-	// UngarrisonShipsOrder at 5-7 minutes, the villages' first waves at 6-8.
-	run_to(s, 600.0f);
+	// UngarrisonShipsOrder at 5-7 minutes, the villages' first waves at 6-8. A ship whose point
+	// lies beyond 50 m of shallows lands no one (CheckShipRange forgets the point either way,
+	// as 0.28's does), so the check spans the next order too, 5-7 minutes later.
+	run_to(s, 960.0f);
 	int ashore = 0, patrols = 0;
 	for (uint32_t id : aboard) {
 		const int32_t u = s.lookup_unit(id);
@@ -1229,8 +1231,8 @@ static void check_danubius() {
 	}
 	for (size_t i = 0; i < s.units_.count; ++i)
 		patrols += s.units_.alive[i] && s.units_.team[i] == GAIA_PLAYER && s.units_.order_kind[i] == ORDER_PATROL;
-	CHECK(ashore > 0, "none of the %zu soldiers aboard came ashore by 10 minutes", aboard.size());
-	CHECK(patrols > 0, "no Gaia soldiers patrolling by 10 minutes");
+	CHECK(ashore > 0, "none of the %zu soldiers aboard came ashore by 16 minutes", aboard.size());
+	CHECK(patrols > 0, "no Gaia soldiers patrolling by 16 minutes");
 	if (failures == before)
 		std::printf("Danubius: 2 villages (%d houses, %d temples, %d towers), %d holders garrisoned, %d defenders, %zu aboard, %d ashore, %d patrolling: ok\n",
 		            houses, temples, towers, holders, defenders, aboard.size(), ashore, patrols);
