@@ -13468,12 +13468,15 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		const uint8_t owner = units_.team[i];
 		// A builder on its way to its site whose last short path search, among the crowd-scale squares
 		// and then the smaller ones, found no way from where it still stands toward the same aim (the
-		// stuck memo, `no_way` below): see obstructs.
+		// stuck memo, `no_way` below), or that was caught going round a way its searches find (the
+		// obstructed branch below): see obstructs. With `as_sealed` a step is tested as if it were one.
+		const bool builder = units_.action_state[i] == ACTION_BUILD && units_.target_building_id[i] != 0;
+		const bool member = !formations_.empty() && (size_t)i < formation_group_.size() && formation_group_[i] != 0;
 		const ShortPathMemo &last = units_.short_path[i];
 		const float lsx = x0 - last.x, lsz = z0 - last.z, lax = aim_x[i] - last.aim_x, laz = aim_z[i] - last.aim_z;
-		const bool sealed_builder = units_.action_state[i] == ACTION_BUILD && units_.target_building_id[i] != 0 &&
-				last.key == stuck_key && lsx * lsx + lsz * lsz < 0.25f &&
+		const bool sealed_builder = builder && last.key == stuck_key && lsx * lsx + lsz * lsz < 0.25f &&
 				lax * lax + laz * laz <= nav::SHORT_PATH_AIM_SLACK * nav::SHORT_PATH_AIM_SLACK;
+		bool as_sealed = false;
 		auto obstructs = [&](int32_t j) {
 			// A unit standing still obstructs one that moves, as in 0.28 (ControlGroupMovementObstructionFilter,
 			// ICmpObstructionManager.h:406-429, CCmpUnitMotion.h:840-851): only its own control group lets a
@@ -13500,7 +13503,8 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 			// centre), so farther out the returner walks round them, as in 0.28. Units on other tasks, other
 			// players' units and the walk back to the supply keep 0.28's rule.
 			// The same deviation lets a sealed builder (sealed_builder) through its own player's units that
-			// stand idle with no order, and only while its searches find no way from where it stands. The
+			// stand idle with no order, and only while its searches find no way from where it stands, or once
+			// it is caught going round a way they find (civ 13's market builder, below). The
 			// soldiers a civic centre unloads stand round it with the workers among them, and a worker sent
 			// from there to build stood in that pocket for good (Stats' e2e_human_path, 2026-10: builders of
 			// civs 0, 2, 4, 6, 9 and 11 never started): the crowd shuts every way out among the crowd-scale
@@ -13511,7 +13515,8 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 			// OutOfRange -> APPROACHING, UnitAI.js:3087-3090, 3109-3113, 3140-3142): the build order stands
 			// for good. Once the builder is 0.5 off the spot it searches by 0.28's rule again; a body in its
 			// way still slides it round (separation), and every other unit's walk keeps the rule.
-			if (sealed_builder && units_.team[j] == owner && units_.action_state[j] == ACTION_IDLE && !units_.has_order[j])
+			if ((sealed_builder || as_sealed) && units_.team[j] == owner && units_.action_state[j] == ACTION_IDLE &&
+					!units_.has_order[j])
 				return false;
 			if (!returning || units_.team[j] != owner) return true;
 			return !((units_.action_state[j] == ACTION_IDLE && !units_.has_order[j]) ||
@@ -13558,6 +13563,14 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 			if (l <= 0.0f || l >= probe) return step_blocked(ex, ez, relaxed);
 			return step_blocked(x0 + dx / l * probe, z0 + dz / l * probe, relaxed);
 		};
+		// Whether a step would be clear for a sealed builder: only its own player's units that stand idle
+		// with no order are in its way (obstructs).
+		auto clear_as_sealed = [&](float ex, float ez, float to_x, float to_z, bool relaxed) {
+			as_sealed = true;
+			const bool clear = !full_step_blocked(ex, ez, to_x, to_z, relaxed);
+			as_sealed = false;
+			return clear;
+		};
 		// A unit that reached a waypoint of its short path last tick searches on from there, as 0 A.D.
 		// follows the whole path: heading straight for its aim could take it back to where it was
 		// stuck, such as a dead end between idle units.
@@ -13567,9 +13580,11 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		const bool from_corner = (memo.key == corner_key || memo.key == relaxed_corner_key) && same_aim;
 		// A step on a path that was searched among the smaller squares is tested against them.
 		const bool relaxed = (memo.key == relaxed_key || memo.key == relaxed_corner_key) && same_aim;
+		const bool dropped = memo.key == 0; // no path (one dropped below keeps its waypoint), not a corner
 		if (memo.key == corner_key || memo.key == relaxed_corner_key) memo.key = 0;
 		const uint8_t failed = units_.motion[i].failed;
 		const bool obstructed = full_step_blocked(npx[i], npz[i], aim_x[i], aim_z[i], relaxed);
+		const float step_x = npx[i], step_z = npz[i]; // the step move_units gave it
 		bool no_way = false;
 		if (obstructed) {
 			// Obstructed: the unit stays put this tick. One within reach of its task is where 0 A.D.'s
@@ -13577,7 +13592,44 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 			// The way to its waypoint is blocked now. So is the way along a short path it keeps round trees
 			// or steep ground (nav::kept_path_key): 0.28's HandleObstructedMove replaces the short path the
 			// unit follows with a new one (CCmpUnitMotion.h:1436-1441).
-			if (memo.key == key || memo.key == relaxed_key || nav::is_kept_path_key(memo.key, short_path_key_)) memo.key = 0;
+			// A builder caught going round a way its searches find takes the stuck memo where it stands, as
+			// when its search finds no way, and is a sealed builder from the next tick (obstructs). RTS0
+			// deviation, with sealed_builder's. Civ 13's market builder in Stats' e2e_human_path (2026-10)
+			// went round such a loop for good, in BUILD with its long path and no velocity. Its search found
+			// a way down a slit between two crowd-scale squares and through the body of a unit whose square
+			// held it (a ray that starts inside a square is never blocked by it). Walking into that body,
+			// separation slid it off the path, as 0.28 never does (a moving unit and a standing one are never
+			// pushed apart: CCmpUnitMotion_System.cpp:673-687), and its next step entered the square beside
+			// the slit and was refused here. 0.28 would keep the unit there and search again from it
+			// (HandleObstructedMove, CCmpUnitMotion.h:1369, 1397-1398, 1441-1446); RTS0 drops the path and
+			// heads straight for its aim, back to where it searched, and finds the same way. The builder is
+			// caught when:
+			// - its search from where a step toward its aim was refused finds the way whose path it dropped
+			//   (the memo keeps that path's waypoint with key 0; below, after the search), or
+			// - a step along its path is refused after more than CAUGHT_FAILED obstructed turns in a row
+			//   (here): building steering round a structure beside the crowd can take the memo of the
+			//   dropped path's waypoint, and the loop can run round two ways in turn.
+			// Either way only where the refused step would be clear for a sealed builder, and here also the
+			// step straight for its aim: only its own idle units with no order are in its way, so the seal
+			// frees it on the next tick. A builder refused among farmers, other builders or allied units keeps
+			// 0.28's rule and searches again on its own tick; with the stuck memo it would search only every
+			// fourth turn. The first test fires on one re-find, so it also seals some builders that would have
+			// got on along the way found (in probes of group sends their sites finished a little sooner). Past CAUGHT_FAILED turns it searches
+			// every eighth turn over the widest range anyway, so the memo costs it no search. A formation's
+			// member keeps the rule too (its aim is its slot).
+			constexpr uint8_t CAUGHT_FAILED = 12;
+			auto aim_step_clear_as_sealed = [&] {
+				const float ax = aim_x[i] - x0, az = aim_z[i] - z0, al = std::sqrt(ax * ax + az * az);
+				if (al <= 1e-4f) return false;
+				const float k = std::min(full_step, al) / al;
+				return clear_as_sealed(x0 + ax * k, z0 + az * k, aim_x[i], aim_z[i], false);
+			};
+			const bool on_path = memo.key == key || memo.key == relaxed_key;
+			if (on_path && same_aim && builder && !member && failed > CAUGHT_FAILED &&
+					clear_as_sealed(npx[i], npz[i], aim_x[i], aim_z[i], relaxed) && aim_step_clear_as_sealed())
+				memo = ShortPathMemo{x0, z0, aim_x[i], aim_z[i], stuck_key};
+			else if (on_path || nav::is_kept_path_key(memo.key, short_path_key_))
+				memo.key = 0;
 			npx[i] = x0;
 			npz[i] = z0;
 			units_.vel_x[i] = units_.vel_z[i] = 0.0f;
@@ -13696,7 +13748,6 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		// while the relaxed memo keeps its aim, and a member's aim is its formation slot, which moves every
 		// tick. Such a path would leave it inside a standing unit's crowd-scale square with the memo gone,
 		// where the plain step test no longer stops it crossing the unit's body (test_unit_pushing 22).
-		const bool member = !formations_.empty() && (size_t)i < formation_group_.size() && formation_group_[i] != 0;
 		bool relaxed_path = false;
 		if (!found && !squares.empty() && !member) {
 			thread_local std::vector<nav::ShortPathSquare> relaxed_squares;
@@ -13730,6 +13781,17 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		if ((w - pos).lengthSq() < 1e-8f) w = next;
 		nav::Vec2 keep = w;
 		if ((w - pos).lengthSq() <= reach * reach) keep = next;
+		// A builder caught going round this way (the obstructed branch above): its step toward its aim was
+		// refused, and the way found is the one whose path it dropped. It takes the stuck memo here instead,
+		// where that step would be clear for a sealed builder.
+		if (obstructed && dropped && same_aim && builder && !member) {
+			constexpr float SAME_WAYPOINT = 0.05f;
+			const float kx = keep.x - memo.x, kz = keep.y - memo.z;
+			if (kx * kx + kz * kz < SAME_WAYPOINT * SAME_WAYPOINT && clear_as_sealed(step_x, step_z, aim_x[i], aim_z[i], false)) {
+				memo = ShortPathMemo{x0, z0, aim.x, aim.y, stuck_key};
+				return;
+			}
+		}
 		const nav::Vec2 to = w - pos;
 		const float len = to.length();
 		if (len < 1e-4f) return;

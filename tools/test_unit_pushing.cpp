@@ -175,6 +175,21 @@
 //     off it to its point is not given that walk again (0.28 leaves a LeaveFoundation under way as it
 //     is). Before, each was, every turn, its path planned anew each time: 1.3 find_path calls a turn
 //     here, twice main's.
+// 35. Civ 13's market builder in Stats' e2e_human_path (main 54caf1cf5), as the game dumped it, stood
+//     in the crowd its civic centre unloaded for good, in BUILD with its long path and no velocity.
+//     Its search found a way down a slit between two idle units' crowd-scale squares, through the
+//     body of an archer whose square held it. Walking into that body, separation slid it off the path;
+//     its next step entered the square beside the slit and was refused, and it dropped the path,
+//     walked back to where it searched and found the same path. Every search found a way, so it never
+//     had the stuck memo that lets a builder through its own idle units (27). Now a builder caught in
+//     that loop (its search finds the way whose path it dropped, or a step along its path is refused
+//     after more than 12 obstructed turns), where only its own idle units are in its way, takes it as
+//     no way from there. The dumped crowd, the same with the village round the civic centre, and two
+//     random layouts round it (one where the builder walked in place, its failed turns never adding up
+//     to a MoveFailed). And builders the rule must leave to 0.28's: one refused among farmers at work
+//     and idle archers on its way to a house, and the civ 13 crowd and a random crowd where the units in
+//     the way are an ally's (the review of a first form of the rule, which took every refused step
+//     along the path as no way: there the first started after 54 s instead of 9, the others never).
 #define private public
 #include "simulation/simulation.h"
 #undef private
@@ -302,8 +317,9 @@ static FreezeRun freeze_run(Simulation &s, uint32_t w, float gx, float gz, uint3
 	return r;
 }
 
-// Tests 27-30: a scene of Stats' dumps on test 22's flat map, player 0 of civ `civ`, each structure and
-// unit under its id in the game.
+// Tests 27-30 and 35: a scene of Stats' dumps on test 22's flat map, player 0 of civ `civ`, each
+// structure and unit under its id in the game. With `ally`, player 2 (of the same civ, with a civic
+// centre far off) is player 0's ally, and a unit's `team` says whose it is.
 struct DumpBld {
 	uint32_t id;
 	float x, z;
@@ -314,16 +330,26 @@ struct DumpUnit {
 	uint32_t id;
 	float x, z;
 	UnitType type;
+	uint8_t team = 0;
 };
-static std::unique_ptr<Simulation> dump_scene(uint8_t civ, const std::vector<DumpBld> &blds, const std::vector<DumpUnit> &units) {
+static std::unique_ptr<Simulation> dump_scene(uint8_t civ, const std::vector<DumpBld> &blds, const std::vector<DumpUnit> &units,
+		bool ally = false) {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(5);
 	s->reset();
 	s->set_map_half(96.0f);
 	s->set_team_civ(0, civ);
 	s->set_team_civ(1, CIV_SPARTANS);
+	if (ally) {
+		s->set_team_civ(2, civ);
+		s->set_mutual_ally(0, 2);
+	}
 	s->next_id_ = 5000;
 	s->spawn_building_world(-70.0f, -70.0f, BLD_TOWN_CENTER, 1, 1.0f);
+	if (ally) {
+		s->next_id_ = 5100;
+		s->spawn_building_world(-70.0f, 70.0f, BLD_TOWN_CENTER, 2, 1.0f);
+	}
 	for (const DumpBld &b : blds) {
 		s->next_id_ = b.id;
 		s->spawn_building_world(b.x, b.z, b.type, 0, b.progress);
@@ -331,7 +357,7 @@ static std::unique_ptr<Simulation> dump_scene(uint8_t civ, const std::vector<Dum
 	s->rebuild_nav_grid();
 	for (const DumpUnit &u : units) {
 		s->next_id_ = u.id;
-		s->spawn_unit(u.x, u.z, 0, u.type);
+		s->spawn_unit(u.x, u.z, u.team, u.type);
 	}
 	s->next_id_ = 6000;
 	return s;
@@ -2014,6 +2040,111 @@ int main() {
 		}
 		std::printf("  a house site waiting in a crowd of idle women: %lld find_path calls in %d turns\n", paths, waited);
 		CHECK(waited > 0 && 2 * paths < waited, "a site waiting in a crowd costs under one find_path every two turns");
+	}
+	{
+		// 35. Civ 13's market builder 907, a woman, among the soldiers and women the civic centre unloaded
+		// (all idle with no order), sent to the market 10 from her; the house beside them is finished (its
+		// id is not in the dump). The first random layout moves each unit up to 0.1 off the dump (there the
+		// builder walked in place), the second the builder up to 0.3 and the crowd up to 0.15.
+		const DumpBld house{2001, 35.0f, 33.0f, BLD_HOUSE, 1.0f}, market{1008, 42.0f, 38.0f, BLD_MARKET, 0.0f};
+		const DumpBld storehouse935{935, 37.0f, 43.0f, BLD_STOREHOUSE, 1.0f};
+		const std::vector<DumpUnit> dumped = {
+				{907, 30.050f, 33.766f, W}, {9, 30.10f, 33.07f, A}, {910, 30.08f, 34.67f, W}, {953, 31.48f, 34.13f, A},
+				{960, 29.11f, 34.38f, A}, {8, 29.47f, 36.21f, A}, {908, 28.75f, 32.36f, W}, {955, 27.99f, 35.28f, A},
+				{961, 31.08f, 35.68f, A}, {962, 27.56f, 33.19f, A}};
+		struct Crowd {
+			const char *name;
+			std::vector<DumpBld> blds;
+			std::vector<DumpUnit> units;
+		};
+		const std::vector<Crowd> crowds = {
+			{"the dumped crowd", {cc, house, market}, dumped},
+			{"the dumped crowd, with the village", {cc, house, market, house600, barracks700, storehouse935}, dumped},
+			{"a random layout (the builder walked in place)", {cc, house, market},
+			 {{907, 30.059f, 33.792f, W}, {9, 30.148f, 33.121f, A}, {910, 29.991f, 34.702f, W}, {953, 31.391f, 34.117f, A},
+			  {960, 29.143f, 34.474f, A}, {8, 29.511f, 36.252f, A}, {908, 28.655f, 32.272f, W}, {955, 27.894f, 35.240f, A},
+			  {961, 31.071f, 35.664f, A}, {962, 27.644f, 33.181f, A}}},
+			{"another random layout", {cc, house, market},
+			 {{907, 29.973f, 33.866f, W}, {9, 30.241f, 33.166f, A}, {910, 30.029f, 34.782f, W}, {953, 31.393f, 34.212f, A},
+			  {960, 29.174f, 34.387f, A}, {8, 29.331f, 36.122f, A}, {908, 28.769f, 32.228f, W}, {955, 27.862f, 35.345f, A},
+			  {961, 31.186f, 35.740f, A}, {962, 27.662f, 33.231f, A}}},
+		};
+		int started = 0;
+		float crowd_moved = 0.0f;
+		for (const Crowd &c : crowds) {
+			auto s = dump_scene(CIV_HAN, c.blds, c.units);
+			const uint32_t builder = c.units[0].id;
+			s->order_build_or_repair(&builder, 1, market.id);
+			const int t = build_started(*s, market.id, 1200);
+			// The crowd stands as it does without the builder (Push never mixes moving and idle).
+			auto still = dump_scene(CIV_HAN, c.blds, std::vector<DumpUnit>(c.units.begin() + 1, c.units.end()));
+			for (int k = 0; k < (t < 0 ? 1200 : t); ++k) still->tick(DT);
+			float moved = 0.0f;
+			for (size_t k = 1; k < c.units.size(); ++k) {
+				const int j = idx(*s, c.units[k].id), jj = idx(*still, c.units[k].id);
+				moved = std::max(moved, std::hypot(s->units_.pos_x[j] - still->units_.pos_x[jj], s->units_.pos_z[j] - still->units_.pos_z[jj]));
+			}
+			crowd_moved = std::max(crowd_moved, moved);
+			std::printf("  civ 13's market builder %u, %s: started the market after %.2f s (-1: not in 60 s); the crowd stands "
+			            "within %.3f of where it stands without the builder\n", builder, c.name, t < 0 ? -1.0f : t * DT, moved);
+			started += t > 0;
+		}
+		CHECK(started == (int)crowds.size(),
+		      "a builder caught going round a way through its player's idle units gets out to its site and builds");
+		CHECK(crowd_moved < 0.01f, "and walking through them pushes none of the idle crowd aside");
+
+		// Builders the rule leaves alone. A woman sent to a house site 14 east past a field 8 women were
+		// sent to farm 15 s before and 14 idle archers (layout 284 of the review's probe): she
+		// starts after 8.9 s, as on main; a rule that took every refused step along its path as no way gave
+		// her the stuck memo each time an archer or a farmer refused her, her searches every fourth turn,
+		// and she started after 54 s. Then the civ 13 crowd with every idle unit an ally's (jittered), and
+		// 15 units between a woman and a house site, half of them an ally's: 5 s and 9.5 s, as on main,
+		// where that rule never started them.
+		const DumpBld site{300, 14.0f, 0.0f, BLD_HOUSE, 0.0f}, field{301, 6.26881838f, 0.796465874f, BLD_FIELD, 1.0f};
+		auto fs = dump_scene(CIV_HAN, {site, field}, {}, true);
+		fs->next_id_ = 100;
+		const uint32_t farm_builder = fs->spawn_unit(0.0f, 0.0f, 0, W);
+		const float farmers_at[8][2] = {{7.22947407f, 2.03000164f}, {4.73012781f, 2.23629284f}, {6.61265802f, 1.66949511f},
+				{3.28137207f, -0.0247612f}, {6.27909851f, 1.85029984f}, {4.91370487f, -0.182667255f}, {6.91441536f, 3.28786373f},
+				{5.58300304f, -1.11421967f}};
+		std::vector<uint32_t> farmers;
+		for (const auto &f : farmers_at) farmers.push_back(fs->spawn_unit(f[0], f[1], 0, W));
+		fs->order_build_or_repair(farmers.data(), farmers.size(), field.id);
+		for (int t = 0; t < 300; ++t) fs->tick(DT);
+		const float archers_at[14][2] = {{7.54665852f, -2.99619341f}, {3.68731618f, 1.54333115f}, {4.53014183f, 3.39012671f},
+				{9.9096117f, 1.23626566f}, {3.79911184f, 2.53909636f}, {8.58837318f, -0.810395718f}, {8.24146843f, 1.84519529f},
+				{4.17536736f, -1.9223212f}, {8.86035347f, 2.68578339f}, {2.62931013f, 0.925544739f}, {9.94168758f, -2.74841189f},
+				{6.67051172f, -0.172542334f}, {2.23531437f, 3.27467918f}, {2.63995051f, -2.67386174f}};
+		for (const auto &a : archers_at) fs->spawn_unit(a[0], a[1], 0, A);
+		int farming = 0;
+		for (uint32_t id : farmers) farming += fs->units_.action_state[idx(*fs, id)] == ACTION_GATHER;
+		fs->order_build_or_repair(&farm_builder, 1, site.id);
+		const int t_farm = build_started(*fs, site.id, 1200);
+		std::printf("  a builder past %d farmers at work and 14 idle archers: started its house after %.2f s (-1: not in 60 s)\n",
+		            farming, t_farm < 0 ? -1.0f : t_farm * DT);
+		const std::vector<DumpUnit> allied_c13 = {{907, 29.7820988f, 33.7703094f, W}, {9, 30.215168f, 33.0970039f, A, 2},
+				{910, 29.930624f, 34.7252197f, W, 2}, {953, 31.4926891f, 34.1534767f, A, 2}, {960, 29.1862965f, 34.3330307f, A, 2},
+				{8, 29.4812298f, 36.1443596f, A, 2}, {908, 28.6876202f, 32.2432938f, W, 2}, {955, 28.0986214f, 35.1471519f, A, 2},
+				{961, 31.1826897f, 35.7736664f, A, 2}, {962, 27.5079231f, 33.3359146f, A, 2}};
+		const std::vector<DumpUnit> mixed = {{100, 0.0f, 0.0f, W}, {200, 6.55340862f, 1.39690113f, W}, {201, 1.7549727f, 0.754629135f, A},
+				{202, 6.95329237f, 0.0975604057f, W}, {203, 1.68127561f, -0.604582787f, A}, {204, 1.66632032f, -2.21708608f, A},
+				{205, 3.98458982f, -1.55989265f, A, 2}, {206, 4.76575994f, 2.05195141f, A, 2}, {207, 6.35167074f, -1.43217087f, W, 2},
+				{208, 7.33451796f, 0.586462975f, W, 2}, {209, 1.75573742f, -0.207315445f, W}, {210, 5.27122021f, 0.209107161f, A, 2},
+				{211, 7.33385706f, 2.45013094f, A}, {212, 2.72495556f, 0.156299591f, W}, {213, 2.98021221f, -0.252498627f, W, 2},
+				{214, 3.0578475f, 1.87519169f, A}, {215, 4.16156149f, -0.398954868f, W, 2}};
+		auto as = dump_scene(CIV_HAN, {cc, house, market}, allied_c13, true);
+		const uint32_t c13_builder = 907;
+		as->order_build_or_repair(&c13_builder, 1, market.id);
+		const int t_allied = build_started(*as, market.id, 1200);
+		auto ms = dump_scene(CIV_HAN, {site}, mixed, true);
+		const uint32_t mixed_builder = 100;
+		ms->order_build_or_repair(&mixed_builder, 1, site.id);
+		const int t_mixed = build_started(*ms, site.id, 1200);
+		std::printf("  a builder in the civ 13 crowd of an ally's units: started after %.2f s; among own and allied units: "
+		            "after %.2f s (-1: not in 60 s)\n", t_allied < 0 ? -1.0f : t_allied * DT, t_mixed < 0 ? -1.0f : t_mixed * DT);
+		CHECK(farming >= 4 && t_farm > 0 && t_farm * DT < 15.0f,
+		      "a builder refused among farmers at work and idle archers keeps 0.28's rule and starts within 15 s");
+		CHECK(t_allied > 0 && t_mixed > 0, "a builder held by an ally's idle units keeps 0.28's rule and gets to its site");
 	}
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
