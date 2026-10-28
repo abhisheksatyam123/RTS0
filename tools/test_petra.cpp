@@ -41,6 +41,7 @@
 #include "simulation/simulation.h"
 #include "simulation/entity_limits_data.h"
 #include "simulation/petra_chat.h"
+#include "simulation/rms_generator.h"
 #undef private
 #include <algorithm>
 #include <cmath>
@@ -9676,6 +9677,9 @@ static void test_g58_wardog_and_trainer_timings() {
 }
 
 int main(int argc, char **argv) {
+	// The scenarios below were laid out on Continental's original river; keep it so they
+	// don't shift whenever that map is retuned.
+	RmsGenerator::continental_legacy_river = true;
 	// Optional test names on the command line run just those.
 	auto want = [&](const char *name) {
 		if (argc < 2) return true;
