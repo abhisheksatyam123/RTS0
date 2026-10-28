@@ -746,6 +746,7 @@ void Simulation::reset() {
 	game_over_ = false;
 	victory_ = false;
 	participant_mask_ = defeated_mask_ = winner_mask_ = 0;
+	had_unit_mask_ = 0;
 	relic_countdown_players_ = 0;
 	relic_changed_hands_ = false;
 	for (float &w : wonder_hold_) w = 0.0f;
@@ -18971,6 +18972,7 @@ void Simulation::check_victory_conditions(float dt) {
 	int unit_count[MAX_TEAMS] = {};
 	int structure_count[MAX_TEAMS] = {};
 	int critical_count[MAX_TEAMS] = {}; // ConquestCritical+!Foundation (Conquest.js)
+	int critical_structures[MAX_TEAMS] = {}; // ConquestCritical structures, foundations too
 	int critical_units[MAX_TEAMS] = {}; // ConquestCritical Unit
 	int tc_count[MAX_TEAMS] = {};
 	int built_cc_count[MAX_TEAMS] = {}; // CivilCentre+!Foundation (ConquestCivicCentres.js)
@@ -18980,7 +18982,10 @@ void Simulation::check_victory_conditions(float dt) {
 		// keeps a Conquest Structures player in; the critical and civic-centre counts skip it.
 		if (b.team >= MAX_TEAMS || b.hp <= 0.0f) continue;
 		structure_count[b.team]++;
-		if (is_conquest_critical(b.type) && b.build_progress >= 1.0f) critical_count[b.team]++;
+		if (is_conquest_critical(b.type) && !(b.template_off & STRUCT_NOT_CRITICAL)) {
+			critical_structures[b.team]++;
+			if (b.build_progress >= 1.0f) critical_count[b.team]++;
+		}
 		if (is_civic_centre(b.type)) tc_count[b.team]++;
 		if ((is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY) && b.build_progress >= 1.0f) built_cc_count[b.team]++;
 		if (b.type == BLD_WONDER && b.build_progress >= 1.0f) wonder[b.team] = true;
@@ -18993,6 +18998,7 @@ void Simulation::check_victory_conditions(float dt) {
 	}
 	for (int t = 0; t < MAX_TEAMS; ++t) {
 		if (unit_count[t] || structure_count[t]) participant_mask_ |= (uint8_t)(1u << t);
+		if (unit_count[t]) had_unit_mask_ |= (uint8_t)(1u << t);
 	}
 
 	if (has_victory(VK_WONDER)) {
@@ -19086,12 +19092,18 @@ void Simulation::check_victory_conditions(float dt) {
 		// holds nothing at all.
 		const bool lost_any = stats_[t].units_lost[STAT_UNIT_TOTAL] + stats_[t].buildings_lost[STAT_BLD_TOTAL] > 0;
 		if ((vk & VK_CONQUEST) && ((critical_count[t] == 0 && lost_any) || (no_units && no_structures))) return SN::END_CONQUEST;
-		if ((vk & VK_CONQUEST_UNITS) && no_units) return SN::END_UNITS;
 		const bool gone = lost_any || (no_units && no_structures);
+		// ConquestUnits.js: "Unit+!Animal" fires once the last unit is lost (a player who starts
+		// with none stays in), and "ConquestCritical Unit+!Animal" once the last unit and
+		// critical structure, foundations included, are gone.
+		if ((vk & VK_CONQUEST_UNITS) && no_units && ((had_unit_mask_ >> t) & 1)) return SN::END_UNITS;
+		if ((vk & VK_CONQUEST_UNITS) && no_units && critical_structures[t] == 0 && gone) return SN::END_UNITS_CRITICAL;
 		if ((vk & VK_CONQUEST_STRUCTURES) && no_structures && had_structure) return SN::END_STRUCTURES;
 		if ((vk & VK_CONQUEST_STRUCTURES) && no_structures && critical_units[t] == 0 && gone) return SN::END_STRUCTURES_CRITICAL;
 		if ((vk & VK_CONQUEST_CIVIC_CENTRES) && no_ccs) return SN::END_CIVIC_CENTRES;
-		if ((vk & VK_CONQUEST_CIVIC_CENTRES) && built_cc_count[t] == 0 && critical_count[t] == 0 && gone) return SN::END_CIVIC_CENTRES_CRITICAL;
+		// "ConquestCritical CivilCentre+!Foundation": a critical foundation keeps the player in.
+		if ((vk & VK_CONQUEST_CIVIC_CENTRES) && built_cc_count[t] == 0 && critical_structures[t] + critical_units[t] == 0 && gone)
+			return SN::END_CIVIC_CENTRES_CRITICAL;
 		if ((vk & VK_REGICIDE) && regicide_hero_lost(t)) return SN::END_HERO;
 		return -1;
 	};
@@ -29805,13 +29817,8 @@ void Simulation::petra_manage_research(float dt) {
 void Simulation::petra_invading_army_centres(std::vector<std::array<float, 2>> &out) const {
 	out.clear();
 	for (const PetraDefenseArmy &a : petra_defense_armies_) {
-		float cx = 0.0f, cz = 0.0f;
-		int n = 0;
-		for (uint32_t f : a.foe_ids) {
-			float fx, fz;
-			if (petra_army_foe_pos(f, fx, fz)) { cx += fx; cz += fz; ++n; }
-		}
-		if (n) out.push_back({cx / n, cz / n});
+		float cx, cz;
+		if (petra_army_position(a, cx, cz)) out.push_back({cx, cz}); // a capturing army's structure too
 	}
 }
 
@@ -30485,6 +30492,9 @@ bool Simulation::petra_allow_capture(const std::vector<uint32_t> &squad, uint32_
 			const_cast<Simulation *>(this)->territory_decay_targets(b, decay_to, decay_gaia);
 	// Always recapture points from our own or an ally's structure, unless it decays.
 	if (b.team < MAX_PLAYERS && (b.team == petra_pid_ || is_ally(petra_pid_, b.team))) return !decaying;
+	// healthLevel() is NaN on a structure with no Health (a Gaia shrine), so the comparison
+	// below never holds: Petra doesn't capture it.
+	if (!structure_has_health(b.type)) return false;
 
 	// GarrisonRegenRate times each garrisoned unit's Capture strength (Capturable.GetRegenRate).
 	float anti = b.capture_regen_rate;
@@ -35375,15 +35385,15 @@ void Simulation::petra_manage_defense(float dt) {
 			candidates.push_back({best, i});
 		}
 		std::sort(candidates.begin(), candidates.end());
-		// A defender must be able to attack some foe of the army: a capturing army's structure
-		// is captured (ours or an ally's only while allowCapture) or else damaged.
+		// A defender must be able to attack some foe of the army (canAttackTarget): a capturing
+		// army's structure is captured while allowCapture says so, else damaged, which a
+		// structure with no Health (a Gaia shrine) can't be.
 		auto can_take_on = [&](size_t i, const PetraDefenseArmy &a) {
 			if (!petra_army_capturing(a)) return true;
 			const Building &b = buildings_[building_id_to_idx_.at(a.foe_ids[0])];
 			if (petra_allow_capture(a.defender_ids, units_.id[i], b)) return true;
 			if (b.team < MAX_PLAYERS && (b.team == petra_pid_ || is_ally(petra_pid_, b.team))) return false;
-			return (unit_capture_attack(units_.tmpl[i], units_.unit_type[i]) > 0.0f && can_capture_building(petra_pid_, b)) ||
-				(can_attack(petra_pid_, b.team) && unit_can_target_building(i, b.type));
+			return can_attack(petra_pid_, b.team) && unit_can_target_building(i, b.type);
 		};
 		// Each goes to the nearest army still in need, on its own land in the first pass and
 		// any in the second. Helping outside our land, up to 12 units farther than 200 m
@@ -37286,6 +37296,7 @@ bool Simulation::load_state(const char *filepath) {
 	in.read((char *)&game_over_, sizeof(game_over_));
 	in.read((char *)&victory_, sizeof(victory_));
 	participant_mask_ = defeated_mask_ = winner_mask_ = 0;
+	had_unit_mask_ = 0;
 	for (float &w : wonder_hold_) w = 0.0f;
 	if (version >= 10) {
 		in.read((char *)&participant_mask_, sizeof(participant_mask_));
