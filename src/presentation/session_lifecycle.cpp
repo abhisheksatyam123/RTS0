@@ -1377,10 +1377,13 @@ void RtsoMain::_process(double delta) {
 				const uint8_t civ = sim->player_civ(local_player());
 				float tx = drag_curr_pos.x, tz = drag_curr_pos.z;
 				start_tower = sim->wall_snap_tower(local_player(), tx, tz, wall_kind);
+				// On a finished tower no preview entity is added (nothing drawn); on a tower
+				// foundation a tower ghost stands on it.
+				bool on_finished = false;
 				if (start_tower)
 					for (const auto &b : sim->buildings())
-						if (b.id == start_tower) { tx = b.x; tz = b.z; break; }
-				pieces.push_back({wall_set.tower, tx, tz, 0.0f, wall_set.tower_half, civ});
+						if (b.id == start_tower) { tx = b.x; tz = b.z; on_finished = b.build_progress >= 1.0f; break; }
+				if (!on_finished) pieces.push_back({wall_set.tower, tx, tz, 0.0f, wall_set.tower_half, civ});
 			} else if (sim)
 				pieces = sim->wall_placement(local_player(), wall_drag_start_pos.x, wall_drag_start_pos.z,
 						drag_curr_pos.x, drag_curr_pos.z, &start_tower, &end_tower, wall_kind);
@@ -1426,7 +1429,14 @@ void RtsoMain::_process(double delta) {
 				// 0 A.D. previews each piece with its own actor (wall_long/medium/short, the
 				// tower): the model the world view will draw for it, turned the same way.
 				const auto entry = rtso::ModelLibrary::get("buildings", RtsoWorldView::building_visual_id(pciv, p.type, p.half_w));
-				const float h = sim ? sim->get_terrain_height(p.x, p.z) : 0.0f;
+				float h = sim ? sim->get_terrain_height(p.x, p.z) : 0.0f;
+				// SetWallPlacementPreview: a tower stands at the higher ground of the pieces either
+				// side of it (SetHeightFixed(Math.max(prev, next)), a missing side counting as 0).
+				if (sim && p.type == wall_set.tower && p.half_w == wall_set.tower_half && pieces.size() > 1) {
+					const float hp = i > 0 ? sim->get_terrain_height(pieces[i - 1].x, pieces[i - 1].z) : 0.0f;
+					const float hn = i + 1 < pieces.size() ? sim->get_terrain_height(pieces[i + 1].x, pieces[i + 1].z) : 0.0f;
+					h = std::max(hp, hn);
+				}
 				if (entry.valid && entry.mesh.is_valid()) {
 					const float sc = entry.scale > 0.05f ? entry.scale : 1.0f;
 					g->set_mesh(entry.mesh);
