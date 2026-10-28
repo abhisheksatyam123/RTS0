@@ -60,6 +60,11 @@ func run() -> void:
 	check(quote != null and quote.text.contains("—"), "a quote with its author")
 	var bar: Label = page.find_child("ProgressText", true, false)
 	check(bar != null and bar.text.ends_with("%"), "the bar shows a percentage")
+	# loading.xml: a ModernWindow page; LargeTitleText (bold 24), bold 14 bar text and quote.
+	var map_title: Label = page.find_child("MapTitle", true, false)
+	var bold := func(l: Label, px: int): return l != null and l.get_theme_font("font") is FontVariation and l.get_theme_font_size("font_size") == px
+	check(page.find_child("ModernWindow", true, false) != null and bold.call(map_title, 24) and bold.call(bar, 14) and bold.call(quote, 14),
+		"the page is a ModernWindow with 0.28's bold title, bar text and quote")
 	var last := -1
 	var monotonic := true
 	var t0 := Time.get_ticks_msec()

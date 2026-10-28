@@ -119,7 +119,7 @@ func recompute_compatibility() -> void:
 
 func _build() -> void:
 	theme = MODERN.theme() # 0.28's modern skin
-	add_child(_window())
+	add_child(MODERN.window())
 	var root := VBoxContainer.new()
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root.offset_left = 16
@@ -196,46 +196,6 @@ func _build() -> void:
 	_button(row2, L10n.t("Help"), show_help)
 	save_button = _button(row2, L10n.t("Save Configuration"), save_mods)
 	start_button = _button(row2, L10n.t("Save and Restart"), start_mods)
-
-## ModernWindow: opaque 12 12 12 under the tiled background, the shadow at the top and
-## bottom, the border lines and the title frame.
-func _window() -> Control:
-	var w := Control.new()
-	w.name = "ModernWindow"
-	w.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	w.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var back := ColorRect.new()
-	back.color = Color8(12, 12, 12)
-	back.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	w.add_child(back)
-	_part(w, "background.png", [0, 0, 1, 1], [12, 22, -12, -12], TextureRect.STRETCH_TILE)
-	_part(w, "shadow-high.png", [0, 1, 1, 1], [12, -268, -12, -12], TextureRect.STRETCH_SCALE)
-	_part(w, "shadow-high.png", [0, 0, 1, 0], [12, 22, -12, 268], TextureRect.STRETCH_SCALE).flip_v = true
-	_part(w, "border.png", [0, 0, 1, 0], [10, 18, -10, 26], TextureRect.STRETCH_SCALE)
-	_part(w, "border.png", [0, 1, 1, 1], [10, -16, -10, -8], TextureRect.STRETCH_SCALE)
-	_part(w, "titlebar-middle.png", [0.5, 0, 0.5, 0], [-128, 4, 128, 37], TextureRect.STRETCH_SCALE)
-	_part(w, "titlebar-left.png", [0.5, 0, 0.5, 0], [-154, 4, -122, 37], TextureRect.STRETCH_SCALE)
-	var right := _part(w, "titlebar-left.png", [0.5, 0, 0.5, 0], [122, 4, 154, 37], TextureRect.STRETCH_SCALE)
-	right.flip_h = true
-	right.flip_v = true
-	return w
-
-func _part(parent: Control, file: String, anchors: Array, offsets: Array, stretch: int) -> TextureRect:
-	var r := TextureRect.new()
-	r.texture = MODERN._tex(file)
-	r.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	r.stretch_mode = stretch
-	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	r.anchor_left = anchors[0]
-	r.anchor_top = anchors[1]
-	r.anchor_right = anchors[2]
-	r.anchor_bottom = anchors[3]
-	r.offset_left = offsets[0]
-	r.offset_top = offsets[1]
-	r.offset_right = offsets[2]
-	r.offset_bottom = offsets[3]
-	parent.add_child(r)
-	return r
 
 ## ModernLabelText: white sans-bold-stroke-14, centred.
 func _label_text(text: String) -> Label:

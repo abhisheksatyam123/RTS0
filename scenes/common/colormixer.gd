@@ -11,6 +11,7 @@ extends Control
 signal closed(color: String)
 
 const LABELS := ["Red", "Green", "Blue"]
+const MODERN := preload("res://scenes/common/modern_theme.gd")
 
 var initial := ""
 var sliders: Array[HSlider] = []
@@ -41,7 +42,7 @@ func _ready() -> void:
 	fade.color = Color8(0, 0, 0, 85)
 	fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(fade)
-	theme = preload("res://scenes/common/modern_theme.gd").theme()
+	theme = MODERN.theme()
 	var main := Panel.new()
 	main.name = "Main"
 	main.theme_type_variation = "ModernDialog"
@@ -52,9 +53,6 @@ func _ready() -> void:
 	main.offset_bottom = 185
 	add_child(main)
 	var bar := _label(main, "Title", tr("Color"))
-	bar.add_theme_font_size_override("font_size", 18)
-	bar.add_theme_color_override("font_outline_color", Color.BLACK)
-	bar.add_theme_constant_override("outline_size", 4)
 	bar.anchor_left = 0.5
 	bar.anchor_right = 0.5
 	bar.offset_left = -128
@@ -79,10 +77,9 @@ func _ready() -> void:
 	main.add_child(_swatch)
 	var parts := initial.split(" ")
 	for i in 3:
-		# color[n]: 40 px per channel from y 165, the label over a slider and its value.
+		# color[n]: 40 px per channel from y 165, the centred label over a slider and its value.
 		var top := 165.0 + 40.0 * i
 		var name_label := _label(main, "ColorLabel%d" % i, tr(LABELS[i]))
-		name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 		name_label.anchor_right = 1.0
 		name_label.offset_left = 10
 		name_label.offset_right = -10
@@ -130,8 +127,10 @@ func _ready() -> void:
 		b.pressed.connect(_answer.bind(i))
 		main.add_child(b)
 
+## Every text on the page is ModernLabelText: bold 14, white, centred both ways.
 func _label(parent: Control, n: String, text: String) -> Label:
 	var l := Label.new()
+	MODERN.label_text(l)
 	l.name = n
 	l.text = text
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
