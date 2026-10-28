@@ -858,6 +858,7 @@ public:
 	void debug_select_entity(int64_t id);
 	void debug_select_units(const PackedInt32Array &ids);
 	void debug_select_structures(const PackedInt32Array &ids);
+	void debug_convert(const PackedInt32Array &ids, int to); // the "wololo" cheat (Game Setup's Cheats on)
 	int64_t debug_spawn_relic(float dx, float dz);
 	void debug_capture_relic(const PackedInt32Array &ids, int64_t relic);
 	int64_t debug_civic_centre_id(int player) const;

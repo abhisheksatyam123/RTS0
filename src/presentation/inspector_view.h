@@ -34,6 +34,7 @@
 #include <algorithm>
 #include <initializer_list>
 #include <cstdint>
+#include <cstring>
 #include <vector>
 
 #include "../simulation/simulation.h"
@@ -900,6 +901,12 @@ public:
 				g->max_hp += fv.max_hp[f];
 				break;
 			}
+		// selection.js getKeys: sorted "p<player>&<template>" keys (gaia/fauna_*), not pick order.
+		std::stable_sort(groups.begin(), groups.end(), [](const RtsoSelectionGrid::Group &a, const RtsoSelectionGrid::Group &b) {
+			if (a.player != b.player) return a.player < b.player;
+			return std::strcmp(rtso::fauna_type_info((uint8_t)(a.key & 0xFF)).template_name,
+			                   rtso::fauna_type_info((uint8_t)(b.key & 0xFF)).template_name) < 0;
+		});
 		float hp = 0.0f, max_hp = 0.0f;
 		for (auto &g : groups) {
 			hp += g.hp;
