@@ -12135,10 +12135,6 @@ float Simulation::unit_base_walk_speed(size_t i) const {
 			units_.tmpl[i], &unit_combat_at(i).classes, false, units_.id[i]);
 		if (aura > 0.0f) spd *= aura;
 	}
-	if (units_.formation[i] != FORMATION_NONE) {
-		const FormationStatMods fmods = formation_stat_modifiers(units_.formation[i]);
-		if (fmods.speed_mult > 0.0f && fmods.speed_mult != 1.0f) spd *= fmods.speed_mult;
-	}
 	if (units_.unit_type[i] == UNIT_SIEGE_RAM) {
 		if (const std::vector<uint32_t> *in = get_transport_passengers(units_.id[i])) {
 			int team = 0;
@@ -18829,12 +18825,6 @@ void Simulation::unit_attack_effects(size_t i, float out[4]) const {
 		units_.tmpl[i], &unit_combat_at(i).classes, false, units_.id[i]);
 	if (aura > 0.0f) // 0 = none in range
 		for (int k = 0; k < 4; ++k) out[k] *= aura;
-	if (units_.formation[i] != FORMATION_NONE) {
-		const FormationStatMods fmods = formation_stat_modifiers(units_.formation[i]);
-		if (fmods.damage_mult > 0.0f && fmods.damage_mult != 1.0f) {
-			for (int k = 0; k < 4; ++k) out[k] *= fmods.damage_mult;
-		}
-	}
 }
 
 // Unit i's Attack/<type>/RepeatTime after its attack-rate auras (Cleopatra's Patriot x0.8,
@@ -18843,12 +18833,6 @@ float Simulation::unit_repeat_time(size_t i) const {
 	const float aura = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], units_.team[i], AURA_ATTACK_RATE,
 		units_.tmpl[i], &unit_combat_at(i).classes, false, units_.id[i]);
 	float rep = aura > 0.0f ? units_.attack_cooldown[i] * aura : units_.attack_cooldown[i]; // 0 = none in range
-	if (units_.formation[i] != FORMATION_NONE) {
-		const FormationStatMods fmods = formation_stat_modifiers(units_.formation[i]);
-		if (fmods.repeat_time_mult > 0.0f && fmods.repeat_time_mult != 1.0f) {
-			rep *= fmods.repeat_time_mult;
-		}
-	}
 	return rep;
 }
 
@@ -20088,12 +20072,6 @@ void Simulation::unit_resistance(size_t i, float out[3]) const {
 	if (!turret_height_.empty() && turret_height_.count(units_.id[i]) && !rampart_turrets_.count(units_.id[i]) &&
 			unit_combat_at(i).classes.has(CC_SOLDIER))
 		for (int k = 0; k < 3; ++k) out[k] += WALL_TURRET_ARMOR;
-	if (units_.formation[i] != FORMATION_NONE) {
-		const FormationStatMods fmods = formation_stat_modifiers(units_.formation[i]);
-		out[0] = std::max(0.0f, out[0] + fmods.hack_armor_add);
-		out[1] = std::max(0.0f, out[1] + fmods.pierce_armor_add);
-		out[2] = std::max(0.0f, out[2] + fmods.crush_armor_add);
-	}
 }
 
 Simulation::UnitDetails Simulation::unit_details(size_t i) const {

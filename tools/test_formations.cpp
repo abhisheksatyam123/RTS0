@@ -839,93 +839,34 @@ static void test_queue(const char *path) {
 	check(approached, "then the formation goes for the foe");
 }
 
-static void test_stat_modifiers() {
-	std::printf("16. formation stat modifiers & auras\n");
+// 0.28's formation templates (special/formations/*.xml) carry no auras or modifiers: a formation
+// changes only movement and layout, never a member's armour, damage, speed or attack rate.
+static void check_stats_unchanged(uint8_t civ, UnitType unit_type, int n, uint8_t form, const char *what) {
 	Simulation s;
-	setup(s, CIV_ATHENIANS);
-	auto hoplites = spawn_block(s, 12, -20.0f, -20.0f, 0, UNIT_SPEARMAN);
-	const int h0 = idx_of(s, hoplites[0]);
-	float base_res[3], base_atk[4];
-	s.unit_resistance((size_t)h0, base_res);
-	s.unit_attack_effects((size_t)h0, base_atk);
-	const float base_spd = s.unit_base_walk_speed((size_t)h0);
-	const float base_rep = s.unit_repeat_time((size_t)h0);
-
-	s.order_set_formation(hoplites.data(), hoplites.size(), FORMATION_PHALANX);
+	setup(s, civ);
+	auto ids = spawn_block(s, n, -20.0f, -20.0f, 0, unit_type);
+	const int i0 = idx_of(s, ids[0]);
+	float res[3], atk[4], f_res[3], f_atk[4];
+	s.unit_resistance((size_t)i0, res);
+	s.unit_attack_effects((size_t)i0, atk);
+	const float spd = s.unit_base_walk_speed((size_t)i0), rep = s.unit_repeat_time((size_t)i0);
+	s.order_set_formation(ids.data(), ids.size(), form);
 	run(s, 1.0f);
-	check(form_of(s, hoplites[0]) == FORMATION_PHALANX, "12 hoplites formed phalanx");
+	s.unit_resistance((size_t)i0, f_res);
+	s.unit_attack_effects((size_t)i0, f_atk);
+	bool same = form_of(s, ids[0]) == form && s.unit_base_walk_speed((size_t)i0) == spd &&
+			s.unit_repeat_time((size_t)i0) == rep;
+	for (int k = 0; k < 3; ++k) same = same && f_res[k] == res[k];
+	for (int k = 0; k < 4; ++k) same = same && f_atk[k] == atk[k];
+	check(same, what);
+}
 
-	float ph_res[3], ph_atk[4];
-	s.unit_resistance((size_t)h0, ph_res);
-	s.unit_attack_effects((size_t)h0, ph_atk);
-	const float ph_spd = s.unit_base_walk_speed((size_t)h0);
-	const float ph_rep = s.unit_repeat_time((size_t)h0);
-
-	check(std::fabs(ph_res[0] - (base_res[0] + 5.0f)) < 1e-3f &&
-	      std::fabs(ph_res[1] - (base_res[1] + 5.0f)) < 1e-3f &&
-	      std::fabs(ph_res[2] - (base_res[2] + 2.0f)) < 1e-3f, "phalanx grants +5 hack/pierce and +2 crush armor");
-	check(std::fabs(ph_atk[0] - base_atk[0] * 1.20f) < 1e-3f, "phalanx grants +20% melee damage");
-	check(std::fabs(ph_spd - base_spd * 0.75f) < 1e-3f, "phalanx reduces speed to 75%");
-	check(std::fabs(ph_rep - base_rep) < 1e-3f, "phalanx keeps normal repeat time");
-
-	// Roman testudo
-	Simulation s_rom;
-	setup(s_rom, CIV_ROMANS);
-	auto legion = spawn_block(s_rom, 16, -20.0f, -20.0f, 0, UNIT_SWORDSMAN);
-	const int r0 = idx_of(s_rom, legion[0]);
-	float r_base_res[3];
-	s_rom.unit_resistance((size_t)r0, r_base_res);
-	const float r_base_spd = s_rom.unit_base_walk_speed((size_t)r0);
-
-	s_rom.order_set_formation(legion.data(), legion.size(), FORMATION_TESTUDO);
-	run(s_rom, 1.0f);
-	check(form_of(s_rom, legion[0]) == FORMATION_TESTUDO, "16 Roman swordsmen formed testudo");
-
-	float te_res[3];
-	s_rom.unit_resistance((size_t)r0, te_res);
-	const float te_spd = s_rom.unit_base_walk_speed((size_t)r0);
-	check(std::fabs(te_res[1] - (r_base_res[1] + 10.0f)) < 1e-3f &&
-	      std::fabs(te_res[0] - (r_base_res[0] + 3.0f)) < 1e-3f, "testudo grants +10 pierce and +3 hack armor");
-	check(std::fabs(te_spd - r_base_spd * 0.60f) < 1e-3f, "testudo reduces speed to 60%");
-
-	// Cavalry wedge
-	Simulation s_cav;
-	setup(s_cav, CIV_ATHENIANS);
-	auto cav = spawn_block(s_cav, 6, -20.0f, -20.0f, 0, UNIT_CAVALRY);
-	const int c0 = idx_of(s_cav, cav[0]);
-	float c_base_atk[4], c_base_res[3];
-	s_cav.unit_attack_effects((size_t)c0, c_base_atk);
-	s_cav.unit_resistance((size_t)c0, c_base_res);
-	const float c_base_spd = s_cav.unit_base_walk_speed((size_t)c0);
-	const float c_base_rep = s_cav.unit_repeat_time((size_t)c0);
-
-	s_cav.order_set_formation(cav.data(), cav.size(), FORMATION_WEDGE);
-	run(s_cav, 1.0f);
-	check(form_of(s_cav, cav[0]) == FORMATION_WEDGE, "6 cavalry formed wedge");
-
-	float w_atk[4], w_res[3];
-	s_cav.unit_attack_effects((size_t)c0, w_atk);
-	s_cav.unit_resistance((size_t)c0, w_res);
-	const float w_spd = s_cav.unit_base_walk_speed((size_t)c0);
-	const float w_rep = s_cav.unit_repeat_time((size_t)c0);
-	check(std::fabs(w_atk[0] - c_base_atk[0] * 1.30f) < 1e-3f, "wedge grants +30% attack damage");
-	check(std::fabs(w_rep - c_base_rep * 0.85f) < 1e-3f, "wedge reduces attack repeat time by 15%");
-	check(std::fabs(w_spd - c_base_spd * 1.10f) < 1e-3f, "wedge grants +10% charge speed");
-	check(std::fabs(w_res[0] - std::max(0.0f, c_base_res[0] - 2.0f)) < 1e-3f &&
-	      std::fabs(w_res[1] - std::max(0.0f, c_base_res[1] - 2.0f)) < 1e-3f, "wedge flank exposure reduces armor by 2");
-
-	// Disband restores baseline stats
-	s.order_set_formation(hoplites.data(), hoplites.size(), FORMATION_NONE);
-	run(s, 0.5f);
-	check(form_of(s, hoplites[0]) == FORMATION_NONE, "hoplites disbanded phalanx");
-	float restored_res[3], restored_atk[4];
-	s.unit_resistance((size_t)h0, restored_res);
-	s.unit_attack_effects((size_t)h0, restored_atk);
-	const float restored_spd = s.unit_base_walk_speed((size_t)h0);
-	check(std::fabs(restored_res[0] - base_res[0]) < 1e-3f &&
-	      std::fabs(restored_res[1] - base_res[1]) < 1e-3f, "disbanding restores base armor");
-	check(std::fabs(restored_atk[0] - base_atk[0]) < 1e-3f, "disbanding restores base damage");
-	check(std::fabs(restored_spd - base_spd) < 1e-3f, "disbanding restores base speed");
+static void test_stat_modifiers() {
+	std::printf("16. formations leave members' stats alone (0.28 formations have no modifiers)\n");
+	check_stats_unchanged(CIV_ATHENIANS, UNIT_SPEARMAN, 12, FORMATION_PHALANX, "phalanx keeps armour, damage, speed and rate");
+	check_stats_unchanged(CIV_ATHENIANS, UNIT_SPEARMAN, 12, FORMATION_BOX, "box keeps armour, damage, speed and rate");
+	check_stats_unchanged(CIV_ROMANS, UNIT_SWORDSMAN, 16, FORMATION_TESTUDO, "testudo keeps armour, damage, speed and rate");
+	check_stats_unchanged(CIV_ATHENIANS, UNIT_CAVALRY, 6, FORMATION_WEDGE, "wedge keeps armour, damage, speed and rate");
 }
 
 static void test_audit_028() {
