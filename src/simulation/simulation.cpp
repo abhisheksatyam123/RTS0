@@ -9,7 +9,9 @@
 #include "nav/rasterize.h"
 #include "../core/job_system.h"
 #include <cstdio>
-#include <atomic>
+#if defined(_MSC_VER) && !defined(__clang__)
+#include <intrin.h>
+#endif
 #include <chrono>
 #include <cmath>
 #include <numeric>
@@ -155,6 +157,15 @@ static constexpr int BUILDING_AI_ROUNDS = 20; // BuildingAI.js roundCount
 static constexpr uint32_t SAVE_VERSION_LOOT = 19;
 
 namespace {
+// A relaxed atomic add on a plain counter. std::atomic_ref is missing from the NDK's and Apple's
+// libc++, so this uses the compiler builtins.
+inline void relaxed_add(uint64_t &v, uint64_t d) {
+#if defined(_MSC_VER) && !defined(__clang__)
+	_InterlockedExchangeAdd64(reinterpret_cast<volatile long long *>(&v), (long long)d);
+#else
+	__atomic_fetch_add(&v, d, __ATOMIC_RELAXED);
+#endif
+}
 // Accumulates wall-clock microseconds for Simulation::MapScaleStats. Atomic adds, as find_path
 // runs in move_units' parallel jobs.
 struct ScopedUs {
@@ -163,8 +174,8 @@ struct ScopedUs {
 	ScopedUs(uint64_t &us_, uint64_t &calls_) : us(us_), calls(calls_) {}
 	~ScopedUs() {
 		const uint64_t d = (uint64_t)std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - t0).count();
-		std::atomic_ref<uint64_t>(us).fetch_add(d, std::memory_order_relaxed);
-		std::atomic_ref<uint64_t>(calls).fetch_add(1, std::memory_order_relaxed);
+		relaxed_add(us, d);
+		relaxed_add(calls, 1);
 	}
 };
 constexpr int kUnitGridRes = 64; // 64x64 grid cells (2.0m per cell over 128m map)
@@ -916,7 +927,7 @@ int Simulation::pop_max(uint8_t player) const {
 	return limit > 0 ? std::min(cap, limit) : cap;
 }
 
-int Simulation::pop_cap(uint8_t player) const {
+int Simulation::pop_cap(uint8_t player, bool count_defeated) const {
 	// A scenario's own PopulationLimit for this player (SetPerPlayerPopulationCaps) wins.
 	if (player_pop_cap(player) > 0) return player_pop_cap(player);
 	if (pop_cap_ >= 0) return pop_cap_;
@@ -929,7 +940,7 @@ int Simulation::pop_cap(uint8_t player) const {
 	for (const PlayerState &ps : players_) any_active |= ps.active != 0;
 	int live = 0;
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p)
-		if ((any_active ? players_[p].active != 0 : p < 2) && !is_defeated(p) &&
+		if ((any_active ? players_[p].active != 0 : p < 2) && (count_defeated || !is_defeated(p)) &&
 		    (team_cap == 0 || (player < MAX_PLAYERS && players_[p].team == team)))
 			++live;
 	if (team_cap > 0) return std::max(1, (int)std::lround((double)team_cap / std::max(1, live)));
@@ -4209,16 +4220,9 @@ Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, ui
 				for (int x = nx0; x <= nx1; ++x)
 					if ((is_water(x, y) || nav_grid_.is_steep(x, y)) && under(x, y)) return PLACE_TERRAIN;
 			if (steep_tile_under()) return PLACE_TERRAIN;
-		} else if (rule.placement == PLACE_LAND_SHORE && rect) {
-			// A WallSet piece stands wholly where land units can go (CheckFoundation over its
-			// shape with default-terrain-only): no deep water or steep slope under it.
-			for (int y = ny0; y <= ny1; ++y)
-				for (int x = nx0; x <= nx1; ++x) {
-					if (!nav_grid_.cells.inside(x, y) || !under(x, y)) continue;
-					if (nav_grid_.cells.at(x, y) == NAV_WATER || nav_grid_.is_steep(x, y)) return PLACE_TERRAIN;
-				}
-			if (steep_tile_under()) return PLACE_TERRAIN;
 		} else if (rule.placement == PLACE_LAND_SHORE) {
+			// BuildRestrictions.js Category "Wall": CheckFoundation(passClassName, true) tests the
+			// centre point only, so a segment or tower may hang over a bank, shore or cliff edge.
 			auto [ncx, ncy] = nav_grid_.world_to_cell(cxw, czw);
 			if (nav_grid_.cells.inside(ncx, ncy) && (nav_grid_.cells.at(ncx, ncy) == NAV_WATER || nav_grid_.is_steep(ncx, ncy)))
 				return PLACE_TERRAIN;
@@ -4356,6 +4360,9 @@ uint32_t Simulation::wall_snap_tower(uint8_t player, float x, float z, uint8_t k
 	uint32_t id = 0;
 	for (const Building &b : buildings_) {
 		if (b.type != ws.tower || b.team != player || b.wrecked || b.hp <= 0.0f) continue;
+		// input.js PickSimilarPlayerEntities(wallSet.templates.tower, ..., exact template): a tower
+		// of another civ's wall set (one captured) is no snap target.
+		if (b.civ != CIV_COUNT && b.civ != civ_of(player)) continue;
 		if (ws.tower == ws.segment && !is_wallset_tower_piece(b.type, b.half_size)) continue;
 		const float d2 = (b.x - x) * (b.x - x) + (b.z - z) * (b.z - z);
 		if (d2 <= best) {
@@ -4587,11 +4594,11 @@ size_t Simulation::cmd_build_wall(uint8_t player, float sx, float sz, float ex, 
 	const std::vector<WallPiece> pieces = wall_placement(player, sx, sz, ex, ez, &start_tower, &end_tower, kind);
 	// Each piece may overlap the last tower laid (or the one the wall starts from) and the pieces
 	// since it, and the last piece the tower the wall ends on: their obstruction control group.
-	// tryPlaceWall sends nothing when the part that can be laid (up to the first piece that is
-	// blocked or can't be paid for) holds no segment: no lone tower where the wall is blocked.
+	// tryPlaceWall sends nothing when the placeable part (SetWallPlacementPreview's result.pieces:
+	// up to the first blocked piece, affordable or not) holds no segment: no lone tower where the
+	// wall is blocked. Cost is TryConstructWall's: it lays the start tower and stops at a segment
+	// it can't pay for ("Insufficient resources").
 	{
-		float left[RES_COUNT];
-		for (int r = 0; r < RES_COUNT; ++r) left[r] = players_[player].res[r];
 		bool any_segment = false;
 		for (size_t i = 0; i < pieces.size() && !any_segment; ++i) {
 			const WallPiece &p = pieces[i];
@@ -4599,19 +4606,6 @@ size_t Simulation::cmd_build_wall(uint8_t player, float sx, float sz, float ex, 
 			if (start_tower) ignore.push_back(start_tower);
 			if (i + 1 == pieces.size() && end_tower) ignore.push_back(end_tower);
 			if (check_wall_piece(player, p, ignore.data(), ignore.size()) != PLACE_OK) break;
-			float cost[RES_COUNT];
-			structure_cost(player, p.type, wallset_piece_value(p.type, p.half_w, 1, p.civ), cost);
-			bool afford = true;
-			for (int r = 0; r < RES_COUNT; ++r) afford &= (left[r] -= cost[r]) >= 0.0f;
-			if (!afford) {
-				// TryConstructBuilding's TrySubtractResources (Player.js SubtractResourcesOrNotify):
-				// "Insufficient resources" with what this piece still needs.
-				SessionNotice need{SessionNotice::TEXT, player, 0, SessionNotice::TEXT_INSUFFICIENT_RESOURCES, {}};
-				for (int r = 0; r < RES_COUNT; ++r)
-					if (left[r] < 0.0f) need.amounts[r] = (int32_t)std::ceil(-left[r]);
-				note_session(need);
-				break;
-			}
 			any_segment = !(p.type == ws.tower && p.half_w == ws.tower_half);
 		}
 		if (!any_segment) return 0;
@@ -7057,7 +7051,7 @@ void Simulation::cmd_move_individual(const uint32_t *unit_ids, size_t count, flo
 			Walk &w = walks[k];
 			nav_grid_.find_path(units_.pos_x[w.idx], units_.pos_z[w.idx], w.dest_x, w.dest_z, w.wp, w.pass);
 		}, 1);
-		if (!walks.empty()) std::atomic_ref<uint64_t>(map_scale_stats_.path_calls).fetch_add(walks.size() - 1, std::memory_order_relaxed); // ScopedUs counts one
+		if (!walks.empty()) relaxed_add(map_scale_stats_.path_calls, walks.size() - 1); // ScopedUs counts one
 	}
 
 	ensure_unit_paths();
@@ -30109,9 +30103,11 @@ float Simulation::petra_plan_pop_scaling() const {
 
 // config.js setConfig reads gameState.getPopulationMax() once, at the AI's first turn: the
 // player's population cap with its civ bonus (han/maur/pers_population, a starting
-// technology), before any Wonder or relic. `unlimited` stands in for no cap.
+// technology), before any Wonder or relic. `unlimited` stands in for no cap. World and
+// Team Population keep their split among every seated player: PopulationCapManager.js
+// re-splits on a defeat, but Petra's Config never reads the cap again.
 int Simulation::petra_config_max_pop(int unlimited) const {
-	const int cap = pop_cap(petra_pid_);
+	const int cap = pop_cap(petra_pid_, true);
 	if (cap <= 0) return unlimited;
 	return std::max(1, (int)std::lround((float)cap * civ_bonus_mult(civ_of(petra_pid_), CIV_BONUS_POP_CAP)));
 }
@@ -30680,12 +30676,7 @@ void Simulation::petra_attack_home(float &x, float &z) const {
 }
 
 void Simulation::petra_manage_tactical_attacks(float dt) {
-	// headquarters.js update runs the attackManager only with an active base (a built civic
-	// centre) or when the AI can't build units at all.
-	bool active_base = false;
-	for (const auto &b : buildings_)
-		active_base |= b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked && b.build_progress >= 1.0f && is_civic_centre(b.type);
-	if (!active_base && petra_can_build_units()) return;
+	// The caller runs this only inside headquarters.js's attackManager gate.
 	petra_strike_force_.state_timer += dt;
 
 	float base_x, base_z;
@@ -36522,13 +36513,18 @@ void Simulation::tick_petra_ai_player(float dt) {
 	petra_manage_research(dt);
 
 	// 11. Coordinated Tactical Battlegroup Attacks (attackPlan.js) + concurrent raid
+	// headquarters.js:2335 runs attackManager.update (its attacks, raids and bombers) only above
+	// Sandbox and with an active base (any base anchor, a military colony too), or when the AI
+	// can't build units at all.
 	petra_retake_civic_centres();
-	petra_manage_tactical_attacks(dt);
-	if (petra_turn_mod(5)) petra_assign_bombers(); // attackManager.js:439
+	const bool attack_manager = petra_config_.difficulty > PETRA_SANDBOX &&
+			(petra_has_active_base() || !petra_can_build_units());
+	if (attack_manager) petra_manage_tactical_attacks(dt);
+	if (attack_manager && petra_turn_mod(5)) petra_assign_bombers(); // attackManager.js:439
 	petra_move_dropsites_to_gatherers();
 	if (petra_attack_mgr_.gaia_relic_lapse && (int)(petra_timer_ / 2.0f) != (int)((petra_timer_ - dt) / 2.0f))
 		--petra_attack_mgr_.gaia_relic_lapse;
-	petra_manage_raid(dt);
+	if (attack_manager) petra_manage_raid(dt);
 
 	// 11b. Naval transportPlan.js land-sea-land
 	petra_manage_transport(dt);
