@@ -516,8 +516,8 @@ inline uint32_t no_terrain_path_key(uint32_t key)
 // as the unit goes. Its top four bits are those of `key` with KEPT_PATH_TAG's flipped, which no other
 // memo key has (is_kept_path_key): `key` itself, its no-way notes (no_short_path_key,
 // no_terrain_path_key) and the keys of paths round idle units (Simulation::idle_path_key,
-// idle_corner_key, idle_stuck_key, idle_relaxed_path_key, idle_relaxed_corner_key) flip other bits,
-// and their stand-ins for 0 are below 16. Never 0.
+// idle_corner_key, idle_stuck_key, idle_relaxed_path_key, idle_relaxed_corner_key and the four
+// idle_sealed_ ones) flip other bits, and their stand-ins for 0 are below 16. Never 0.
 inline constexpr uint32_t KEPT_PATH_INDEX_MASK = 0xFu;
 inline constexpr uint32_t KEPT_PATH_TAG = 0xA0000000u;
 static_assert(SHORT_PATH_KEPT_MAX <= static_cast<int>(KEPT_PATH_INDEX_MASK) + 1, "a kept waypoint's index fits the key");

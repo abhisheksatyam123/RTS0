@@ -2830,6 +2830,21 @@ private:
 	// last tick: the unit's steps on it are tested against those squares too.
 	uint32_t idle_relaxed_path_key() const { const uint32_t k = short_path_key_ ^ 0x165667B1u; return k ? k : 6u; }
 	uint32_t idle_relaxed_corner_key() const { const uint32_t k = short_path_key_ ^ 0x4CF5AD43u; return k ? k : 7u; }
+	// The keys of a short path round idle units that a sealed walker's search found (avoid_idle_units'
+	// `sealed`: its own player's units that stand idle with no order were out of the search), among the
+	// crowd-scale squares or the smaller ones, and of their waypoints reached last tick: the walker
+	// follows the path as a sealed one, its steps tested with those units out of its way too.
+	uint32_t idle_sealed_path_key() const { const uint32_t k = short_path_key_ ^ 0xC2B2AE35u; return k ? k : 8u; }
+	uint32_t idle_sealed_corner_key() const { const uint32_t k = short_path_key_ ^ 0xD3A2646Cu; return k ? k : 9u; }
+	uint32_t idle_sealed_relaxed_path_key() const { const uint32_t k = short_path_key_ ^ 0xE6546B64u; return k ? k : 10u; }
+	uint32_t idle_sealed_relaxed_corner_key() const { const uint32_t k = short_path_key_ ^ 0xF4B5C6D7u; return k ? k : 11u; }
+	// The key of the corner a path round idle units with key k leads to (idle_corner_key for
+	// idle_path_key, and so on), 0 for any other key.
+	uint32_t idle_corner_key_of(uint32_t k) const {
+		return k == idle_path_key() ? idle_corner_key() : k == idle_relaxed_path_key() ? idle_relaxed_corner_key()
+		     : k == idle_sealed_path_key() ? idle_sealed_corner_key()
+		     : k == idle_sealed_relaxed_path_key() ? idle_sealed_relaxed_corner_key() : 0u;
+	}
 	void separation(float dt, Arena &arena, const MoveSteps &steps);
 	void motion_feedback(float dt, const MoveSteps &steps);
 	void finish_ended_walks(); // UnitAI WALKING FinishOrder for walks move_units / motion_feedback ended
