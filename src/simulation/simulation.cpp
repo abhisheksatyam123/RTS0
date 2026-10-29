@@ -34184,6 +34184,29 @@ void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt, std::vec
 	} else if (tp.state == PetraTransportPlan::UNLOADING) {
 		make_room();
 		if (get_transport_passenger_count(tp.ship_id) == 0) {
+			// worker.js update: a landed builder still has its target-foundation and goes to
+			// build it. A builders' crossing is for its land's foundation, the base anchor first.
+			if (tp.owner == PETRA_TRANSPORT_BUILDERS) {
+				const uint16_t end_land = petra_land_at(tp.drop_x, tp.drop_z);
+				uint32_t fid = 0;
+				bool fid_anchor = false;
+				float best = 1e30f;
+				for (const Building &b : buildings_) {
+					if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked || b.build_progress >= 1.0f || b.type == BLD_FIELD) continue;
+					if (petra_building_land(b) != end_land) continue;
+					const bool anchor = is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY;
+					const float d2 = (b.x - tp.drop_x) * (b.x - tp.drop_x) + (b.z - tp.drop_z) * (b.z - tp.drop_z);
+					if (fid && (fid_anchor && !anchor || (fid_anchor == anchor && d2 >= best))) continue;
+					fid = b.id;
+					fid_anchor = anchor;
+					best = d2;
+				}
+				for (uint32_t uid : tp.passenger_ids) {
+					const int32_t i = fid ? lookup_unit(uid) : -1;
+					if (i < 0 || !units_.alive[i] || petra_land_at(units_.pos_x[i], units_.pos_z[i]) != end_land) continue;
+					petra_order_build(uid, fid);
+				}
+			}
 			tp.state = PetraTransportPlan::IDLE;
 			tp.passenger_ids.clear();
 		} else if (tp.state_timer >= 20.0f) {
