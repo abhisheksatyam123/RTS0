@@ -120,7 +120,7 @@ To preserve determinism and avoid regression in live multiplayer playtests:
    - Rationale: Active only pre-match or during game setup. Communicates with `RtsoMain` exclusively through `GameSetupParams` and net host state.
    - Verification: Headless 2-peer connection handshake test passes.
 
-3. **Phase 4.3: MiniMap Interface Polish**
+3. **Phase 4.3: MiniMap Interface Polish** (landed)
    - Decouple remaining minimap event hooks (`flare_requested`, `shroud_cycle`, `minimap_clicked`) into clean signals in `minimap_view.h/.cpp`.
    - Verification: Minimap flare and FoW 3-state rendering pass visual audit.
 
