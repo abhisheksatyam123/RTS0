@@ -1168,10 +1168,27 @@ static void test_petra_builders_cross_without_ship() {
 				break;
 			}
 	}
+	// worker.js update: a builder set down on the foundation's land keeps its target-foundation and
+	// goes to build it as soon as the crossing is over, not idle until the next pass picks it.
+	int landed = 0, building_it = 0;
+	for (int k = 0; k < 150; ++k) {
+		bool crossing = false;
+		for (const auto &tp : s.petra_transport_plans()) crossing = crossing || tp.owner == PETRA_TRANSPORT_BUILDERS;
+		if (!crossing) break;
+		run(s, 0.2f);
+	}
+	for (size_t i = 0; i < s.units().count; ++i)
+		if (s.units().alive[i] && s.units().team[i] == 1 && !unit_is_ship(s.units().unit_type[i]) &&
+		    s.petra_land_at(s.units().pos_x[i], s.units().pos_z[i]) == south) {
+			++landed;
+			building_it += s.units_.target_building_id[i] == fnd;
+		}
 	run(s, 60.0f);
 	const Simulation::Building *b = bld(s, fnd);
-	std::printf("Petra builders cross with no ship yet: crossing asked at %.0fs, first ship at %.0fs (%zu crossing(s) before it), first ashore at %.0fs, colony built %.0f%%\n",
-	            asked, ship_at, most_shipless, ashore, b ? 100.0f * b->build_progress : 0.0f);
+	std::printf("Petra builders cross with no ship yet: crossing asked at %.0fs, first ship at %.0fs (%zu crossing(s) before it), first ashore at %.0fs, "
+	            "%d of %d landed going to build at once, colony built %.0f%%\n",
+	            asked, ship_at, most_shipless, ashore, building_it, landed, b ? 100.0f * b->build_progress : 0.0f);
+	CHECK(landed > 0 && building_it == landed);
 	CHECK(asked >= 0.0f && (ship_at < 0.0f || asked < ship_at));
 	CHECK(most_shipless == 1); // one crossing for the colony, not a new one each turn
 	CHECK(ashore >= 0.0f);
