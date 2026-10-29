@@ -13558,9 +13558,10 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 			// way still slides it round (separation), and every other unit's walk keeps the rule.
 			// A sealed walker whose step is refused by a unit the seal does not let through (an ally's idle
 			// unit, a gatherer at work) searches sealed, its own idle units out of the search, and follows the
-			// path it finds as a sealed walker to its end (the idle_sealed_ keys): walked by 0.28's rule, that
-			// path's next step into its own idle units was refused, the search from there found no way, and
-			// the stuck memo sent it straight back at what refused it, to find the same path, for good. A
+			// path it finds as a sealed walker until a step on it is refused or its aim moves (the idle_sealed_
+			// keys): walked by 0.28's rule, that path's next step into its own idle units was refused, the
+			// search from there found no way, and the stuck memo sent it straight back at what refused it, to
+			// find the same path, for good. A
 			// walker with its own idle units before an ally's (a 7x3 own block before 2 rows of an ally's
 			// units, the structure beyond, a way round both) never got in in 300 s that way, where 0.28's rule
 			// alone takes it round in 10 s (review probes, 2026-10). Separation can still slide a walker out of
