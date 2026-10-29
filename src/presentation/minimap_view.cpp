@@ -28,7 +28,7 @@ void RtsoMiniMapView::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("toggle_territory"), &RtsoMiniMapView::toggle_territory);
 	ClassDB::bind_method(D_METHOD("toggle_resources"), &RtsoMiniMapView::toggle_resources);
 	ClassDB::bind_method(D_METHOD("toggle_fow"), &RtsoMiniMapView::toggle_fow);
-	ClassDB::bind_method(D_METHOD("cycle_shroud"), &RtsoMiniMapView::cycle_shroud);
+	ClassDB::bind_method(D_METHOD("cycle_emit_signal"), &RtsoMiniMapView::cycle_ADD_SIGNAL(MethodInfo("minimap_order", PropertyInfo(Variant::VECTOR2, "world_pos"))););
 	ClassDB::bind_method(D_METHOD("toggle_diplomacy"), &RtsoMiniMapView::toggle_diplomacy);
 }
 
