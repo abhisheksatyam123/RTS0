@@ -500,9 +500,9 @@ static int build_started(Simulation &s, uint32_t site, int ticks) {
 	return -1;
 }
 
-// Tests 32-33: a shore (deep water south of z 16 on a map of half 64), player 0's civic centre inland and
-// a dock site of player 0 laid on the shore near x = -20 - 3 * pick. Returns the dock's id, 0 when it has
-// no place.
+// Tests 32-33: a shore (deep water south of z 16 on a map of half 64, sloping so a dock can stand half in
+// the water), player 0's civic centre inland and a dock site of player 0 laid on the shore near
+// x = -20 - 3 * pick, as far inland as it may stand. Returns the dock's id, 0 when it has no place.
 static uint32_t shore_dock(Simulation &s, int pick) {
 	constexpr int RES = 65;
 	constexpr float HALF = 64.0f;
@@ -512,7 +512,7 @@ static uint32_t shore_dock(Simulation &s, int pick) {
 	std::vector<float> h((size_t)RES * RES);
 	for (int j = 0; j < RES; ++j)
 		for (int i = 0; i < RES; ++i)
-			h[(size_t)j * RES + i] = std::fabs(-HALF + 2.0f * HALF * j / (RES - 1)) < 16.0f ? -3.0f : 3.0f;
+			h[(size_t)j * RES + i] = std::clamp(std::fabs(-HALF + 2.0f * HALF * j / (RES - 1)) - 16.5f, -3.0f, 3.0f);
 	s.set_terrain_data(h, RES, 0.0f);
 	s.begin_bulk_spawn();
 	s.end_bulk_spawn();
@@ -525,7 +525,7 @@ static uint32_t shore_dock(Simulation &s, int pick) {
 	s.spawn_building_world(-20.0f, 40.0f, BLD_TOWN_CENTER, 0);
 	for (int t = 0; t < 10; ++t) s.tick(Simulation::FIXED_STEP);
 	const int foot = building_type_info(BLD_DOCK).footprint;
-	for (int z = -64; z < 64; ++z)
+	for (int z = 63; z >= -64; --z)
 		for (int x = -64; x < 64; ++x) {
 			const float wx = (x + 0.5f * foot) * Simulation::GRID, wz = (z + 0.5f * foot) * Simulation::GRID;
 			if (wz > 10.0f && wz < 24.0f && std::fabs(wx + 20.0f + 3.0f * pick) < 6.0f && s.check_placement(0, x, z, BLD_DOCK) == Simulation::PLACE_OK)
