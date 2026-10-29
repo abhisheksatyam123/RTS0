@@ -906,6 +906,8 @@ public:
 	// 0 A.D. Commands.js GetDockAngle: the facing of a dock at (x, z) toward the most open water,
 	// or NAN when no shoreline is in reach.
 	float dock_angle(float x, float z, float half_size) const;
+	// CheckShorePlacement: a dock at (x, z) turned `rot` has its front in water, its back ashore.
+	bool dock_faces_water(uint8_t b_type, float x, float z, float rot) const;
 	// Lockstep cmd 5 carries the angle in target_id, in 1/65536ths of a turn from
 	// DEFAULT_BUILDING_ROT, so older commands (target_id 0) keep the default facing.
 	static uint32_t pack_angle(float angle);

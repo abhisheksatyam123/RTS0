@@ -22,12 +22,13 @@ static constexpr float HALF = 64.0f;
 static constexpr int RES = 65;
 
 // A sea across the middle of the map (|z| < 16) and a small lake in the
-// north-east corner that no ship can reach from the sea.
+// north-east corner that no ship can reach from the sea. Their shores slope 1 height unit a
+// unit (under building-shore's 1.25), so a dock can stand with its front in the water and its
+// back ashore (CheckShorePlacement).
 static float height_at(float x, float z) {
-	if (std::fabs(z) < 16.0f) return -3.0f;
 	const float lx = x - 44.0f, lz = z - 44.0f;
-	if (lx * lx + lz * lz < 9.0f * 9.0f) return -3.0f;
-	return 3.0f;
+	const float shore = std::min(std::fabs(z) - 16.0f, std::sqrt(lx * lx + lz * lz) - 9.0f);
+	return std::clamp(shore, -3.0f, 3.0f);
 }
 
 static void fresh(Simulation &s, float (*height)(float, float) = height_at) {
@@ -2132,9 +2133,9 @@ static void test_ship_leaves_dock_site() {
 	const Simulation::Building *b = bld(s, dock);
 	CHECK(b && !b->committed);
 	if (!b) return;
-	// A boat on the water part of the site.
+	// A boat on the water part of the site, inside its edge.
 	float bx = b->x, bz = b->z;
-	for (float dz = -b->hv; dz <= b->hv; dz += 0.25f) {
+	for (float dz = -b->hv + 0.5f; dz <= b->hv - 0.5f; dz += 0.25f) {
 		auto [gx, gy] = s.nav_grid_.world_to_cell(b->x, b->z + dz);
 		if (s.nav_grid_.is_passable_for(gx, gy, PASS_SHIP)) { bz = b->z + dz; break; }
 	}
@@ -2367,7 +2368,29 @@ static void test_petra_small_land_fields() {
 // stock and in reach needs fish (popForDock 1): its dock goes down at once, not at 16
 // population, and its dock and ships queues stay unpaused. navalManager.js wants two fishing
 // boats on the seas it touches. All of it is decided once and kept through a save (v88).
-static float islet_height(float x, float z) { return x * x + z * z < 16.0f * 16.0f ? 3.0f : -3.0f; }
+static float islet_height(float x, float z) { return x * x + z * z < 16.0f * 16.0f ? 1.0f : -1.0f; } // 4 m up and down: a shore a dock can stand on
+
+// A beach: land rising west of x = 0 and the sea deepening east of it, 4 m a unit, to 12 m.
+static float beach_height(float x, float) { return std::clamp(-x, -3.0f, 3.0f); }
+
+// CCmpObstruction::CheckShorePlacement: a dock's front edge stands in more than 1 m of water and
+// its back in less than 2 m. RTS0 took any dock with land under it and a sea within a cell of its
+// box, which dock_angle had already turned toward water up to four half-widths away: Petra's
+// docks stood up to 16 m inland and its fishing boats ran aground short of them (Cycladic
+// Archipelago seed 1).
+static void test_dock_faces_water() {
+	static Simulation s;
+	fresh(s, beach_height);
+	s.set_player_active(1, true, true);
+	const Simulation::PlacementResult inland = s.check_placement(1, -2, -1, BLD_DOCK);   // centre (-2, 0): its front on the waterline
+	const Simulation::PlacementResult shore = s.check_placement(1, -1, -1, BLD_DOCK);    // centre (0, 0): its front 8 m deep
+	const Simulation::PlacementResult offshore = s.check_placement(1, 1, -1, BLD_DOCK);  // centre (4, 0): all in the sea
+	std::printf("dock with its front on the waterline: %d, at the shore: %d, out at sea: %d (OK = %d)\n", (int)inland, (int)shore,
+	            (int)offshore, (int)Simulation::PLACE_OK);
+	CHECK(inland != Simulation::PLACE_OK); // a dock whose front edge is dry
+	CHECK(shore == Simulation::PLACE_OK);   // one half in the sea
+	CHECK(offshore != Simulation::PLACE_OK); // none with no land under it
+}
 
 static void test_petra_need_fish() {
 	static Simulation s;
@@ -3219,6 +3242,7 @@ int main() {
 	test_petra_fishing_boat_backs_off();
 	test_petra_fishing_boat_backs_off_tower();
 	test_petra_small_land_fields();
+	test_dock_faces_water();
 	test_petra_need_fish();
 	test_petra_dock_position();
 	test_petra_workers_across_water();

@@ -8,6 +8,7 @@
 #define private public
 #include "simulation/simulation.h"
 #undef private
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <vector>
@@ -20,8 +21,9 @@ static int failures = 0;
 static constexpr float HALF = 64.0f;
 static constexpr int RES = 65;
 
-// A sea across the middle of the map (|z| < 16), land north and south of it.
-static float height_at(float, float z) { return std::fabs(z) < 16.0f ? -3.0f : 3.0f; }
+// A sea across the middle of the map (|z| < 16.5), land north and south of it, the shores
+// sloping so a dock can stand half in the water (0.28 CheckShorePlacement).
+static float height_at(float, float z) { return std::clamp(std::fabs(z) - 16.5f, -3.0f, 3.0f); }
 
 static void fresh(Simulation &s) {
 	s.set_sim_seed(7);

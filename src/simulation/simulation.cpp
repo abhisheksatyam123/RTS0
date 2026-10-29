@@ -4044,7 +4044,8 @@ Simulation::PlacementResult Simulation::check_placement(uint8_t player, int cell
 		cells.reserve((size_t)(foot * foot));
 		for (int dz = 0; dz < foot; ++dz)
 			for (int dx = 0; dx < foot; ++dx) cells.emplace_back(cell_x + dx, cell_y + dz);
-		return check_placement_cells(player, b_type, cells, x0, z0, x1, z1, cxw, czw, nullptr, nullptr);
+		const PlacementResult r = check_placement_cells(player, b_type, cells, x0, z0, x1, z1, cxw, czw, nullptr, nullptr);
+		return r == PLACE_OK && !dock_faces_water(b_type, cxw, czw, rot) ? PLACE_SHORE : r;
 	}
 	// Turned (CheckFoundation tests the turned square): every cell it reaches into, kept as far
 	// from the map edge as an unturned one.
@@ -4063,7 +4064,22 @@ Simulation::PlacementResult Simulation::check_placement(uint8_t player, int cell
 		if (std::abs(cx) > limit || std::abs(cy) > limit) return PLACE_OBSTRUCTED;
 	if (footprint_past_map_edge(turned)) return PLACE_OBSTRUCTED;
 	const float e = nav::footprint_extent(turned);
-	return check_placement_cells(player, b_type, cells, cxw - e, czw - e, cxw + e, czw + e, cxw, czw, &turned, nullptr);
+	const PlacementResult r = check_placement_cells(player, b_type, cells, cxw - e, czw - e, cxw + e, czw + e, cxw, czw, &turned, nullptr);
+	return r == PLACE_OK && !dock_faces_water(b_type, cxw, czw, rot) ? PLACE_SHORE : r;
+}
+
+// CCmpObstruction::CheckShorePlacement (BuildRestrictions.js, PlacementType "shore"): the middle
+// of a dock's front edge stands in more than 1 m of water and the middle of its back edge in
+// less than 2 m. The sea within a cell of the footprint (check_placement_cells) let dock_angle,
+// which looks up to four half-widths out, turn a dock inland of the water toward a sea 10 m
+// away, out of its ships' reach.
+bool Simulation::dock_faces_water(uint8_t b_type, float x, float z, float rot) const {
+	if ((b_type != BLD_DOCK && b_type != BLD_SUPER_DOCK) || terrain_heights_.empty()) return true;
+	const float half = building_half_depth(b_type, building_type_info(b_type).footprint * GRID * 0.5f);
+	const float fx = x + half * det::sin(rot), fz = z + half * det::cos(rot);
+	const float depth_front = terrain_water_height_ - get_terrain_height(fx, fz);
+	const float depth_back = terrain_water_height_ - get_terrain_height(2.0f * x - fx, 2.0f * z - fz);
+	return depth_front > 1.0f * HEIGHT_PER_METRE && depth_back < 2.0f * HEIGHT_PER_METRE;
 }
 
 Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, uint8_t b_type,
