@@ -797,7 +797,11 @@ void RtsoMain::_ready() {
 	chat_window_.build(this, ui_layer, this);
 	refresh_chat_tooltips();
 	diplo_dialog_.build(this, ui_layer, this, &chat_window_);
-	objectives_dialog_.build(ui_layer, this, "toggle_objectives");
+	objectives_dialog_.build(ui_layer, this, "toggle_objectives");    // Phase 4.6 RtsoMain coordinator slimming: bind decoupled leaf dialog signals cleanly
+    chat_window_.bind_signals(this);
+    diplo_dialog_.bind_signals(this);
+    lobby_dialog_.bind_signals(this);
+
 	tutorial_panel_.build(ui_layer, this, "_on_tutorial_ready_pressed");
 	panel_entities_.build(ui_layer, this, "_on_panel_entity_gui_input", 58.0f); // PanelEntities.xml, under the top panel
 	research_progress_.build(ui_layer, this, "_on_research_progress_pressed", 58.0f);
