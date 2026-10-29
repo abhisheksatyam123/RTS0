@@ -2714,6 +2714,29 @@ static void test_petra_islands_wood_reserve() {
 	CHECK(s->petra_queues_.accounts[PETRA_Q_MAJOR_TECH].wood >= 500.0f, "the phase's wood");
 	CHECK(s->petra_try_pay(PETRA_Q_MAJOR_TECH, 500.0f, 500.0f, 0.0f, 0.0f), "the phase is paid");
 
+	// The first dock keeps its wood too (PC44): without it no ship takes the workers to the
+	// wood on other islands. Islands starts with a dock, set aside here; once one stands the
+	// next waits like the rest.
+	std::vector<std::pair<size_t, float>> docks;
+	for (size_t k = 0; k < s->buildings_.size(); ++k)
+		if (s->buildings_[k].team == 0 && s->buildings_[k].type == BLD_DOCK) {
+			docks.push_back({k, s->buildings_[k].hp});
+			s->buildings_[k].hp = 0.0f;
+		}
+	s->players_[0].res[RES_WOOD] = 600.0f;
+	s->petra_queues_.wants[PETRA_Q_DOCK] = PetraQueueAccount{};
+	s->petra_queues_.wants[PETRA_Q_DOCK].wood = 200.0f;
+	s->petra_queues_.want_age[PETRA_Q_DOCK] = 0.0f;
+	CHECK(s->petra_wood_starved(), "still short of wood");
+	s->petra_refresh_queue_accounts(0.1f);
+	std::printf("first dock's wood account: %.0f\n", s->petra_queues_.accounts[PETRA_Q_DOCK].wood);
+	CHECK(s->petra_queues_.accounts[PETRA_Q_DOCK].wood > 0.0f, "the first dock gets wood");
+	for (const auto &[k, hp] : docks) s->buildings_[k].hp = hp;
+	CHECK(!docks.empty() && !s->petra_wood_kept_for(PETRA_Q_DOCK), "a second dock waits");
+	s->petra_queues_.wants[PETRA_Q_DOCK] = PetraQueueAccount{};
+	s->petra_queues_.accounts[PETRA_Q_DOCK] = PetraQueueAccount{};
+	cc = &s->buildings_[s->building_id_to_idx_.at(cc_id)];
+
 	// A started batch long past its time, an idle woman beside the civic centre.
 	auto &ccb = s->buildings_[s->building_id_to_idx_.at(cc->id)];
 	ProductionOrder o;
@@ -2730,6 +2753,25 @@ static void test_petra_islands_wood_reserve() {
 	for (int k = 0; k < 40; ++k) s->tick(Simulation::FIXED_STEP);
 	std::printf("idle woman moved %.2f away from the civic centre\n", s->units_.pos_x[ui] - x0);
 	CHECK(s->units_.pos_x[ui] - x0 > 0.5f, "the idle woman steps aside");
+
+	// In the town phase with its houses full and under 50 units, the kept wood goes to a civic
+	// centre on other land at once (PC44): waiting for 50 units it would wait for good.
+	s->petra_swap_slot(0);
+	s->petra_pid_ = 0;
+	s->players_[0].phase = 2;
+	s->petra_queues_.wants[PETRA_Q_MAJOR_TECH] = PetraQueueAccount{}; // not phasing up to the city
+	s->players_[0].res[RES_FOOD] = s->players_[0].res[RES_GOLD] = s->players_[0].res[RES_STONE] = 1000.0f;
+	s->players_[0].res[RES_WOOD] = 600.0f;
+	int units = 0;
+	for (size_t i = 0; i < s->units_.count; ++i) units += s->units_.alive[i] && s->units_.team[i] == 0;
+	CHECK(units < 50 && s->petra_wood_starved(), "short of wood with under 50 units");
+	float x = 0.0f, z = 0.0f;
+	CHECK(s->petra_find_economic_cc_location(BLD_MILITARY_COLONY, RES_WOOD, true, x, z) && s->petra_access_at(x, z) != land,
+	      "a site on other land");
+	s->petra_queues_.wants[PETRA_Q_CIVIL_CENTRE] = PetraQueueAccount{};
+	s->petra_check_base_expansion();
+	std::printf("units %d; the civil-centre queue asks for %.0f wood\n", units, s->petra_queues_.wants[PETRA_Q_CIVIL_CENTRE].wood);
+	CHECK(s->petra_queues_.wants[PETRA_Q_CIVIL_CENTRE].wood > 0.0f, "a new base is wanted");
 }
 
 // A trained batch with nowhere to step out stays at the front of the queue; its timer runs on

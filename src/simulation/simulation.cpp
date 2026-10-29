@@ -24156,9 +24156,12 @@ void Simulation::petra_clear_blocked_spawns() {
 
 // What the wood petra_wood_starved keeps is for: the town phase, after the houses it asks for; the civic centre on other land, the ship that takes its builders there and, in the
 // town phase with the houses full, the house that ship needs room for; and the first dock of a Petra that needs fish
-// (startingStrategy.js needFish).
+// (startingStrategy.js needFish) or is on a naval map.
 bool Simulation::petra_wood_kept_for(int queue) const {
-	if (queue == PETRA_Q_DOCK && petra_kept_.need_fish) {
+	// The first dock: the fish it needs (needFish), or on a naval map the way off the island to
+	// the wood elsewhere, which the ships kept below can only take from a dock.
+	uint16_t home = 0;
+	if (queue == PETRA_Q_DOCK && (petra_kept_.need_fish || petra_classified_topo(home).naval_map)) {
 		for (const Building &b : buildings_)
 			if (b.team == petra_pid_ && (b.type == BLD_DOCK || b.type == BLD_SUPER_DOCK) && b.hp > 0.0f && !b.wrecked) return false;
 		return true;
@@ -29142,8 +29145,10 @@ void Simulation::petra_check_base_expansion() {
 	for (size_t i = 0; i < units_.count; ++i)
 		if ((units_.alive[i] || units_.action_state[i] == ACTION_GARRISONED) && units_.team[i] == petra_pid_) ++units;
 	const float v = 10.0f * (1.0f - petra_config_.aggressive);
+	// RTS0, not 0.28: short of wood on its land (petra_wood_starved), the civic centre on other
+	// land is what the kept wood is for; its houses wait for it, so it may never reach 50 units.
 	if ((float)units > (float)active * (65.0f + v + (10.0f + v) * (float)(active - 1)) ||
-	    (petra_attack_mgr_.save_resources && units > 50))
+	    (petra_attack_mgr_.save_resources && units > 50) || petra_wood_starved())
 		petra_build_new_base();
 }
 
