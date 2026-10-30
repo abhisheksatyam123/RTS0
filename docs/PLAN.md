@@ -110,17 +110,17 @@ navalManager.js is ported (see area C): docks per sea, fishers per sea, transpor
 
 To preserve determinism and avoid regression in live multiplayer playtests:
 
-1. **Phase 4.1: Chat & Diplomacy Leaf Extractions**
+1. **Phase 4.1: Chat & Diplomacy Leaf Extractions** (landed, #1765)
    - Extract `chat_window.h/.cpp` and `diplomacy_dialog.h/.cpp`.
    - Rationale: Leaf modal overlays with zero incoming dependencies and small state surfaces. All interaction flows via signals or direct calls to `NetHost` / `TurnManager`.
    - Verification: `test_diplo_net` and syntax checks pass.
 
-2. **Phase 4.2: Lobby Dialog Extraction**
+2. **Phase 4.2: Lobby Dialog Extraction** (landed, #1766)
    - Extract `lobby_dialog.h/.cpp`.
    - Rationale: Active only pre-match or during game setup. Communicates with `RtsoMain` exclusively through `GameSetupParams` and net host state.
    - Verification: Headless 2-peer connection handshake test passes.
 
-3. **Phase 4.3: MiniMap Interface Polish** (landed)
+3. **Phase 4.3: MiniMap Interface Polish** (landed), # 1767
    - Decouple remaining minimap event hooks (`flare_requested`, `shroud_cycle`, `minimap_clicked`) into clean signals in `minimap_view.h/.cpp`.
    - Verification: Minimap flare and FoW 3-state rendering pass visual audit.
 
@@ -134,7 +134,7 @@ To preserve determinism and avoid regression in live multiplayer playtests:
    - Rationale: Contains the highest interaction density (formations, stances, training queues, build modal hotkeys). Exposes command request signals (`train_requested`, `stance_requested`, `formation_requested`, `queue_canceled`) connected to `RtsoMain::post_lockstep`.
    - Verification: `playtest_lockstep.py` (3 seeds x 2000 turns) stays at 0 OOS.
 
-6. **Phase 4.6: RtsoMain Final Coordinator Slimming**
+6. **Phase 4.6: RtsoMain Final Coordinator Slimming* (landed, #1768, #1769)*
    - `RtsoMain` retains high-level orchestration, Godot scene hooks (`_ready`, `_process`, `_unhandled_input`), 3D spatial picking, and bridge between UI signals and network lockstep. Target size: ~900-1000 lines.
    - Started: `_unhandled_input` (input.js and the session hotkeys) lives in `session_input.cpp`, and match setup (`load_map_seeded`, `apply_game_setup`, `apply_match_settings`, `match_settings_setup`, `store_net_setup_in_match_settings`) in `session_setup.cpp`, the `_ready` / `_process` hooks in `session_lifecycle.cpp`, `_bind_methods` in `session_bindings.cpp`, and the pointer (`update_cursor`, `building_under_mouse`, `get_ground_click_pos`, `_on_minimap_order`, `trade_route_click`) in `session_pointer.cpp`, and session notices, civ voices and the idle-unit hotkeys (`show_session_notices`, `play_civ_voice`, `find_idle_unit`) in `session_notices.cpp`, the command panel and selection details handlers (`_on_entity_command`, `_on_train_pressed`, `_on_tech_pressed`, `_on_barter_requested` and the rest) in `session_commands.cpp`, and the e2e tests' `debug_*` hooks in `session_debug.cpp`, still `RtsoMain` methods.
 
