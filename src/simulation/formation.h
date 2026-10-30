@@ -200,7 +200,7 @@ inline std::vector<FormationSlot> compute_formation_offsets(const FormationTempl
 	if (!columnar && t.shape == FSHAPE_SPECIAL) {
 		const float width = std::sqrt((float)count) * (sep_w + sep_d) * 2.5f;
 		for (int i = 0; i < count; ++i) {
-			offsets.push_back(Off{rng.next_float() * width, rng.next_float() * width, 1, (uint8_t)std::clamp(i + 1, 0, 255)});
+			    offsets.push_back(Off{(rng.next_float() - 0.5f) * width, (rng.next_float() - 0.5f) * width, 1, (uint8_t)std::clamp(i + 1, 0, 255)});
 		}
 		if (max_rows_used) *max_rows_used = 1;
 	} else {
