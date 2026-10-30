@@ -395,6 +395,12 @@ inline void sincos_approx(Fixed a, Fixed& sin_out, Fixed& cos_out)
 }
 
 } // namespace fixed
+using CFixed_15_16 = Fixed;
+inline CFixed_15_16 ToCFixed1516(int32_t value) { return Fixed::FromInt(value); }
+inline CFixed_15_16 ToCFixed1516(double value) { return Fixed::FromDouble(value); }
+inline int32_t CFixed1516ToRaw(CFixed_15_16 v) { return v.GetInternalValue(); }
+inline CFixed_15_16 CFixed1516FromRaw(int32_t raw) { return Fixed::FromInternalValue(raw); }
+
 
 } // namespace rtso
 
