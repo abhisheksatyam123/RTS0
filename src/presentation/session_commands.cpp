@@ -297,7 +297,7 @@ void RtsoMain::_on_call_to_arms_pressed() {
 // g_EntityCommands execute() for the command row, and the hotkeys that run them.
 void RtsoMain::_on_entity_command(const String &name) {
 	if (!sim) return;
-	const uint32_t *ids = (const uint32_t *)selected_ids.ptr();
+	const bool control_all = sim->controls_all(local_player()); const uint8_t me = local_player(); auto uv = sim->units(); std::vector<uint32_t> owned_ids; for (size_t k = 0; k < selected_ids.size(); ++k) { uint32_t id = selected_ids[k]; bool owned = control_all; if (!owned) { for (size_t i = 0; i < uv.count; ++i) { if (uv.id[i] == id && uv.team[i] == me) { owned = true; break; } } if (!owned) { for (const auto &b : sim->buildings()) { if (b.id == id && b.team == me) { owned = true; break; } } } } if (owned) owned_ids.push_back(id); } const uint32_t *ids = owned_ids.data();
 	const size_t n = selected_ids.size();
 	auto arm = [&](bool &mode) {
 		if (n == 0) return;
