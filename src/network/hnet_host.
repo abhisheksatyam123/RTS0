@@ -102,7 +102,8 @@ public:
 	void sendCommand(uint32_t peer_id, const std::vector<uint8_t> &data);
 	void broadcastCommand(const uint8_t *data, size_t size, uint32_t exclude_peer = 0xFFFFFFFF);
 	void broadcastCommand(const std::vector<uint8_t> &data, uint32_t exclude_peer = 0xFFFFFFFF);
-
+	void relayCommand(uint32_t source_peer, const uint8_t *data, size_t size) { broadcastCommand(data, size, source_peer); }
+	void relayCommand(uint32_t source_peer, const std::vector<uint8_t> &data) { broadcastCommand(data, source_peer); }
 	// Typed message framing helpers
 	void sendSimulationCommand(uint32_t peer, uint32_t turn, const std::vector<uint8_t> &payload);
 	void sendSyncCheck(uint32_t turn, uint32_t hash);
