@@ -846,13 +846,13 @@ void RtsoMain::order_guard_units(uint32_t target_id) {
 void RtsoMain::spawn_large_battle(int total_units) {
 	if (!sim) return;
 	clear_selection();
-	if (banner_panel) banner_panel->set_visible(false);
 	stop_replay_recording(); // a debug spawn is not a command, so a replay could not reproduce it
 	sim->spawn_war(total_units);
 	if (cam_rig) {
 		cam_rig->set_target_pos(Vector3(0, 0, 0));
 	}
-	print_line(String("[RTS0] Spawned massive war simulation: ") + String::num_int64(total_units) + " units across 128m map.");
+	show_notice(String("FRONTLINE CLASH: ") + String::num_int64(total_units) + " units deployed!");
+	print_line(String("[RTS0] Spawned massive war simulation: ") + String::num_int64(total_units) + " units across map.");
 }
 
 void RtsoMain::update_ghost_mesh() {

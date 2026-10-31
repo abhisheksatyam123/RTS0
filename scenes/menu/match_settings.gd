@@ -129,6 +129,9 @@ var campaign_level: String = ""
 # CampaignMenu.startScenario's mapName: the level's Name, shown for the map in game,
 # saves and replays; empty outside a campaign (the map's own name).
 var campaign_map_name: String = ""
+# Dedicated battle challenge presets ("frontline_clash", etc.)
+var battle_preset: String = ""
+var battle_units: int = 1500
 
 # Not match settings: the -autostart-disable-replay flag, the summary's music and the
 # multiplayer name, which outlive a match.
@@ -176,3 +179,24 @@ func go(path: String) -> int:
 		path = "res://scenes/menu/loading.tscn"
 	tree.change_scene_to_file.call_deferred(path)
 	return OK
+
+func configure_frontline_clash(total_units: int = 1500) -> void:
+	reset_match()
+	map_id = "frontline_clash"
+	map_size = 256
+	seed = 42
+	seed_exact = true
+	player_count = 2
+	slot_types = [0, 1]
+	slot_civs = [0, 1]
+	slot_teams = [1, 2]
+	slot_names = ["Player Vanguard", "Enemy Host"]
+	battle_preset = "frontline_clash"
+	battle_units = total_units
+	victory = 0
+	start_res = 2
+	pop_cap = 3000
+	reveal_map = true
+	explore_map = true
+	cheats = true
+	record_replay = false

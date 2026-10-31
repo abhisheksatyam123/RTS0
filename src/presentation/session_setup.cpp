@@ -199,6 +199,23 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 	random_map_ = false;
 
 	// 1. Procedural Random Map Generation (RMS Engine)
+	if (map_id == "frontline_clash" || map_id == "random_frontline_clash") {
+		random_map_ = true;
+		load_progress(40, "Generating battle arena");
+		sim->generate_random_map(rtso::MAP_MAINLAND, seed, 2, (float)random_map_size * 0.5f, random_map_teams);
+		load_progress(70, "Building terrain");
+		view->rebuild_terrain(sim);
+
+		if (cam_rig) {
+			cam_rig->set_simulation(sim);
+			cam_rig->set_map_bounds_half(sim->map_half());
+			cam_rig->set_map_circular(false);
+			cam_rig->set_target_pos(Vector3(0, 0, 0));
+		}
+
+		UtilityFunctions::print("[RtsoMain] Generated battle arena for Frontline Clash (seed=", (int64_t)seed, ")");
+		return true;
+	}
 	if (map_id.begins_with("random_") || map_id.begins_with("procedural_") ||
 		map_id == "continental" || map_id == "archipelago" || map_id == "oasis" ||
 		map_id == "highlands" || map_id == "valley" || map_id == "mediterranean" ||
@@ -960,11 +977,21 @@ void RtsoMain::apply_match_settings() {
 	UtilityFunctions::print("[RtsoMain] GameSetup ", map_id, " seed ", (int64_t)seed,
 			" civ ", rtso::civ_info(sim->player_civ(local_player() < rtso::MAX_PLAYERS ? local_player() : 0)).name,
 			" vs ", rtso::civ_info(sim->team_civ(1)).name);
+
+	String battle_preset = ms->has_method("get") ? (String)ms->get("battle_preset") : "";
+	const bool is_frontline = (battle_preset == "frontline_clash" || map_id == "frontline_clash");
+	if (is_frontline) {
+		int battle_units = (int)ms->get("battle_units");
+		if (battle_units <= 0) battle_units = 1500;
+		spawn_large_battle(battle_units);
+	}
+
 	// Map just (re)spawned - select the human player's units like the old
 	// _ready tail did (it ran before any map existed, so it selected nothing).
 	clear_selection();
 	auto uview = sim->units();
-	for (size_t i = 0; i < uview.count; ++i) {
+	const size_t max_initial_sel = is_frontline ? 40 : 1000;
+	for (size_t i = 0; i < uview.count && selected_ids.size() < (int64_t)max_initial_sel; ++i) {
 		if (uview.team[i] == local_player()) selected_ids.push_back((int32_t)uview.id[i]);
 	}
 }

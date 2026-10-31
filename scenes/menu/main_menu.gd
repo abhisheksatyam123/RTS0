@@ -84,6 +84,7 @@ var submenu_data = {
 			{"label": "Load Campaign", "tooltip": "Relive history through historical military campaigns.", "action": "load_campaign"},
 			{"label": "Replays", "tooltip": "Playback previous games.", "action": "open_replays_sp"},
 			{"label": "Skirmish Arena", "tooltip": "Direct launch into quick tactical combat match.", "action": "open_skirmish"},
+			{"label": "Frontline Clash", "tooltip": "Direct launch into massive pitched battle (1,500 units clash).", "action": "open_frontline_clash"},
 			{"label": "Asset Viewer", "tooltip": "Inspect 3D unit models, animations, and civic buildings.", "action": "open_asset_viewer"}
 		]
 	},
@@ -514,6 +515,13 @@ func _execute_action(action: String) -> void:
 			_go_to_scene("res://scenes/menu/gamesetup.tscn")
 		"open_skirmish":
 			_go_to_scene("res://scenes/main.tscn")
+		"open_frontline_clash":
+			var ms = get_node_or_null("/root/MatchSettings")
+			if ms and ms.has_method("configure_frontline_clash"):
+				ms.configure_frontline_clash(1500)
+				ms.go("res://scenes/main.tscn")
+			else:
+				_go_to_scene("res://scenes/main.tscn")
 		"open_encyclopedia":
 			_go_to_scene("res://scenes/menu/encyclopedia.tscn")
 		"open_tech_tree":

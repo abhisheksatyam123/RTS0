@@ -79,11 +79,19 @@ static func civ_id(code: String) -> int:
 static func configure(ms: Node, opts: Dictionary, maps: Array) -> String:
 	var path := _last(opts, "autostart", "")
 	var dir := path.get_base_dir().get_file()
-	if not dir in ["random", "skirmishes", "scenarios", "tutorials"]:
-		return "Unrecognized map type '%s'." % dir
 	var m := find_map(path, maps)
 	if m.is_empty():
 		return "Map '%s' not found." % path
+	if dir.is_empty():
+		var mtype := str(m.get("type", ""))
+		if mtype == "scenario":
+			dir = "scenarios"
+		elif mtype == "skirmish":
+			dir = "skirmishes"
+		elif mtype == "random":
+			dir = "random"
+	if not dir in ["random", "skirmishes", "scenarios", "tutorials"]:
+		return "Unrecognized map type '%s'." % dir
 	var random := dir == "random"
 	var n := int(_last(opts, "autostart-players", "2")) if random else int(m.get("players", 2))
 	n = clampi(n, 1, 8)
@@ -138,6 +146,9 @@ static func configure(ms: Node, opts: Dictionary, maps: Array) -> String:
 
 	var seed_arg := _last(opts, "autostart-seed", "0")
 	ms.map_id = str(m["id"])
+	if ms.map_id == "frontline_clash":
+		ms.battle_preset = "frontline_clash"
+		ms.battle_units = 1500
 	ms.campaign_run = ""
 	ms.campaign_level = ""
 	ms.campaign_map_name = ""

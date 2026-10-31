@@ -1010,6 +1010,8 @@ public:
 	Dictionary get_civ_info(int civ_idx) const;
 	Dictionary get_tech_tree() const;
 	Dictionary get_match_summary() const;
+	int get_unit_count() const { return sim ? (int)sim->unit_count() : 0; }
+	PackedInt32Array get_selected_ids() const { return selected_ids; }
 	// Named saves (0 A.D. gui/savedgames): writes path and its .json metadata.
 	bool save_game_as(String name, String description);
 	// Replays (0 A.D. ps/Replay.cpp + gui/replaymenu).

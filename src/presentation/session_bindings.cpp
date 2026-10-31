@@ -162,6 +162,9 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_civ_info", "civ_idx"), &RtsoMain::get_civ_info);
 	ClassDB::bind_method(D_METHOD("get_tech_tree"), &RtsoMain::get_tech_tree);
 	ClassDB::bind_method(D_METHOD("get_match_summary"), &RtsoMain::get_match_summary);
+	ClassDB::bind_method(D_METHOD("get_unit_count"), &RtsoMain::get_unit_count);
+	ClassDB::bind_method(D_METHOD("get_selected_ids"), &RtsoMain::get_selected_ids);
+	ADD_PROPERTY(PropertyInfo(Variant::PACKED_INT32_ARRAY, "selected_ids"), "", "get_selected_ids");
 
 	ClassDB::bind_method(D_METHOD("_on_queue_slot_gui_input", "event", "slot_idx"), &RtsoMain::_on_queue_slot_gui_input);
 	ClassDB::bind_method(D_METHOD("_on_queue_slot_cancel", "slot_idx"), &RtsoMain::_on_queue_slot_cancel);
