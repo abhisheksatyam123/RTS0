@@ -7,6 +7,7 @@
 - [x] T48 [lead] Clean and refresh docs and task index (`docs/README.md`, `docs/PERFORMANCE.md`, `todo.md`).
 - [x] T49 [lead] Applied gemini-code-1793462338767.txt: SMT-aware physical core worker count JobSystem::physical_core_count() (TODO-JOB-03), octagonal bounding filter in Simulation::separation, parallelized clear_attacked_by in tick_unit_ai, and linear tonemapping in scenes/env.tres.
 - [x] T50 [lead] Applied gemini-code-1793463448003.txt: JobSystem::parallel_invoke (TODO-JOB-02), CPU core affinity pinning on Linux, clamped neighbor search culling (kMaxPushNeighbors=16 in separation, TODO-GRID-03), parallelized LosSource evaluation in tick_los, parallelized 7-tap binomial blur in FogMirages, and added shaders/compute/los_fow.glsl (TODO-GPU-02).
+- [x] T51 [lead] Applied gemini-code-1793464096752.txt: lock-free work-stealing queue architecture in JobSystem (per-worker WorkerQueue with alignas(64) cache-line separation, 64-bit epoch tag in head, Chase-Lev range pop + round-robin steal; TODO-JOB-01), parallel split_flagged in Simulation::separation via parallel_invoke, parallel building grid candidate prep in tick_combat, parallel status effects clear/apply in tick_status_effects, parallel cell visibility mapping in FogMirages::los_view_grid.
 
 ## Systems
 - **Hardware Profile:**
@@ -42,6 +43,7 @@
   - Lockstep multiplayer requires bit-identical `sim_hash` and `state_fnv64` hashes across all thread configurations. Parallel worker passes must use deterministic reductions.
 
 ## Log
+- 2026-10-31 22:30 [lead] T51: Applied gemini-code-1793464096752.txt: implemented lock-free work-stealing queue in JobSystem (TODO-JOB-01), parallel split_flagged in separation, parallel building prep in combat acquisition, parallel status effect tick, parallel los_view_grid; resolved cross-epoch CAS race with 64-bit epoch-tagged head; verified test_job_system (128k jobs PASS), test_combat (PASS), bit-identical bench_sim sim_hash (0xEE23F5AE), netcode parity (17/17 PASS).
 - 2026-10-31 22:00 [lead] T50: Applied gemini-code-1793463448003.txt: added JobSystem::parallel_invoke, CPU affinity pinning, clamped separation neighbor limit (kMaxPushNeighbors=16), parallelized tick_los and FogMirages 7-tap blur, added shaders/compute/los_fow.glsl; verified test_job_system (128k jobs PASS) and test_combat PASS.
 - 2026-10-31 21:30 [lead] T49: Applied gemini-code-1793462338767.txt: added JobSystem::physical_core_count() bounding default workers to physical cores (TODO-JOB-03), added octagonal bounding filter in Simulation::separation, parallelized clear_attacked_by in tick_unit_ai, updated tonemapping in scenes/env.tres, recompiled GDExtension and bench_sim; verified 100% bit-identical sim hashes and PASS on test_combat, test_job_system, and check_parity netcode.
 - 2026-10-24 17:30 [lead] Completed parity milestones T0a–T32 (animations, selection overlays, formation auras, naval queues, netcode determinism, mobile safe insets).

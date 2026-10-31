@@ -57,5 +57,4 @@ void main() {
     }
     uint val = (acc_y >> 6u) & 0xFFu;
     uint out_idx = uint(y) * fr + uint(x);
-    // Write byte via atomicOr on target word (buffer cleared to 0 before dispatch)
 }

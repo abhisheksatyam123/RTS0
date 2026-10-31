@@ -456,12 +456,15 @@ struct UnitGrid {
 	Packed *unflagged = nullptr;
 	Packed *flagged = nullptr;
 	uint32_t *unflagged_before = nullptr;
-	bool split_flagged(Arena &arena) {
+	bool alloc_split_flagged(Arena &arena) {
 		const uint32_t total = packed_start[(size_t)res * res];
 		unflagged = arena.alloc_array<Packed>(total ? total : 1);
 		flagged = arena.alloc_array<Packed>(total ? total : 1);
 		unflagged_before = arena.alloc_array<uint32_t>((size_t)total + 1);
-		if (!unflagged || !flagged || !unflagged_before) return false;
+		return unflagged && flagged && unflagged_before;
+	}
+	void compute_split_flagged() {
+		const uint32_t total = packed_start[(size_t)res * res];
 		uint32_t m = 0;
 		for (uint32_t k = 0; k < total; ++k) {
 			unflagged_before[k] = m;
@@ -469,6 +472,10 @@ struct UnitGrid {
 			else unflagged[m++] = packed[k];
 		}
 		unflagged_before[total] = m;
+	}
+	bool split_flagged(Arena &arena) {
+		if (!alloc_split_flagged(arena)) return false;
+		compute_split_flagged();
 		return true;
 	}
 
@@ -14349,8 +14356,16 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 		mov[i] = u.moving;
 	}
 	const float min_push = PUSH_MIN_FORCE * dt / PUSH_TURN;
-	if (!grid.pack(arena, N, epx, epz, mov) || !grid.split_flagged(arena)) return;
-	if (n_big && (!big.pack(arena, N, epx, epz, mov) || !big.split_flagged(arena))) return;
+	if (n_big) {
+		if (!grid.pack(arena, N, epx, epz, mov) || !grid.alloc_split_flagged(arena)) return;
+		if (!big.pack(arena, N, epx, epz, mov) || !big.alloc_split_flagged(arena)) return;
+		JobSystem::instance().parallel_invoke(
+			[&]() { grid.compute_split_flagged(); },
+			[&]() { big.compute_split_flagged(); }
+		);
+	} else {
+		if (!grid.pack(arena, N, epx, epz, mov) || !grid.split_flagged(arena)) return;
+	}
 
 	JobSystem::instance().for_each_index(N, [&](size_t i) {
 		const bool is_unit = i < n;
@@ -17335,12 +17350,12 @@ void Simulation::tick_combat(float dt) {
 	UnitGrid bgrid;
 	bool have_bgrid = false;
 	if (nb && bld_x && bld_z && bld_live) {
-		for (size_t bi = 0; bi < nb; ++bi) {
+		JobSystem::instance().for_each_index(nb, [&](size_t bi) {
 			const Building &b = buildings_[bi];
 			bld_x[bi] = b.x;
 			bld_z[bi] = b.z;
 			bld_live[bi] = !b.wrecked && b.hp > 0.0f && b.team < MAX_PLAYERS;
-		}
+		}, 128);
 		have_bgrid = bgrid.build(arena, nb, bld_x, bld_z, bld_live, map_half_, grid.res);
 	}
 	// Dangerous animals (UnitAI IsDangerousAnimal) are targets too; there are few.
@@ -19436,7 +19451,9 @@ bool Simulation::range_check_due(size_t i, float dt) const {
 void Simulation::tick_status_effects(float dt) {
 	// RTS0 applies no snare, slow, bleed or knockback (0 A.D. has none); clear any an old save
 	// carries. The Poisoned and Burning bits are set again below for every status still on.
-	for (size_t i = 0; i < units_.count; ++i) units_.status_effects[i] &= (uint8_t)(EFFECT_POISON | EFFECT_BURNING);
+	JobSystem::instance().for_each_index(units_.count, [&](size_t i) {
+		units_.status_effects[i] &= (uint8_t)(EFFECT_POISON | EFFECT_BURNING);
+	}, 256);
 	std::vector<uint8_t> &on = status_bits_scratch_;
 	on.assign(units_.count, 0);
 
@@ -19465,8 +19482,9 @@ void Simulation::tick_status_effects(float dt) {
 		statuses_[keep++] = st;
 	}
 	statuses_.resize(keep);
-	for (size_t i = 0; i < units_.count; ++i)
+	JobSystem::instance().for_each_index(units_.count, [&](size_t i) {
 		units_.status_effects[i] = (uint8_t)((units_.status_effects[i] & ~(EFFECT_POISON | EFFECT_BURNING)) | on[i]);
+	}, 256);
 
 	// Structures below a third of their health show fire (is_burning) but, as in
 	// 0 A.D., take no damage from it.

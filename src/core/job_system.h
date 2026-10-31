@@ -41,15 +41,28 @@ public:
 	}
 
 private:
+	// TODO-JOB-01: Cache-line aligned per-worker work-stealing queue (Chase-Lev style range deque).
+	// Each participant thread pops from its own [head, tail) chunk range first (zero cross-core
+	// atomic contention) and steals from other threads' queues when its local range is exhausted.
+	struct alignas(64) WorkerQueue {
+		std::atomic<uint64_t> head{0};
+		uint32_t tail = 0;
+		uint8_t pad[64 - sizeof(std::atomic<uint64_t>) - sizeof(uint32_t)]{};
+	};
+
+	static constexpr size_t kMaxParticipants = 64;
+
 	struct Job {
 		const std::function<void(size_t, size_t)> *fn = nullptr;
 		size_t count = 0;
 		size_t grain = 1;
 		std::atomic<uint32_t> chunks{0};
+		uint32_t num_queues = 1;
 	};
-	void worker_main();
+	void worker_main(unsigned worker_idx);
 	// Runs chunks of the job of `epoch` until none is left (or another job has begun).
-	void run_chunks(uint32_t epoch);
+	void run_chunks(uint32_t epoch, unsigned participant_idx);
+	WorkerQueue queues_[kMaxParticipants];
 	std::mutex mu_;
 	std::condition_variable cv_work_;
 	std::vector<std::thread> workers_;

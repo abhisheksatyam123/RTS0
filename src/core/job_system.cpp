@@ -73,6 +73,7 @@ void JobSystem::start(unsigned worker_count) {
 		unsigned phys = physical_core_count();
 		worker_count = phys > 1 ? phys - 1 : 1;
 	}
+	if (worker_count >= kMaxParticipants) worker_count = kMaxParticipants - 1;
 	stop_ = false;
 	workers_.reserve(worker_count);
 	unsigned logical = std::max(1u, std::thread::hardware_concurrency());
@@ -87,7 +88,7 @@ void JobSystem::start(unsigned worker_count) {
 			CPU_SET(target_cpu, &cpuset);
 			pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
 #endif
-			worker_main();
+			worker_main(i + 1);
 		});
 	}
 	started_ = true;
@@ -111,7 +112,7 @@ void JobSystem::stop() {
 	}
 }
 
-void JobSystem::worker_main() {
+void JobSystem::worker_main(unsigned worker_idx) {
 	uint32_t seen = epoch_.load(std::memory_order_acquire);
 	for (;;) {
 		uint32_t e = epoch_.load(std::memory_order_acquire);
@@ -141,27 +142,35 @@ void JobSystem::worker_main() {
 		}
 		if (stop_.load(std::memory_order_acquire)) return;
 		seen = e;
-		run_chunks(e);
+		run_chunks(e, worker_idx);
 	}
 }
 
-void JobSystem::run_chunks(uint32_t epoch) {
+void JobSystem::run_chunks(uint32_t epoch, unsigned participant_idx) {
 	const uint64_t tag = (uint64_t)epoch << 32;
-	for (;;) {
-		uint64_t cur = next_.load(std::memory_order_seq_cst);
-		uint32_t c;
-		do {
-			if ((cur & ~0xFFFFFFFFull) != tag) return; // another job by now
-			c = (uint32_t)cur;
-			// Read after `cur`: a count of the next job comes with `next_` already closed to this one
-			// (parallel_for), and the compare-and-swap below then fails.
-			if (c >= job_.chunks.load(std::memory_order_seq_cst)) return;
-		} while (!next_.compare_exchange_weak(cur, cur + 1, std::memory_order_seq_cst, std::memory_order_seq_cst));
-		// The job's fields stay put until its last chunk is done, and this one isn't yet.
-		const size_t a = (size_t)c * job_.grain;
-		const size_t b = std::min(a + job_.grain, job_.count);
-		(*job_.fn)(a, b);
-		remaining_.fetch_sub(1, std::memory_order_acq_rel);
+	if ((next_.load(std::memory_order_seq_cst) & ~0xFFFFFFFFull) != tag) return;
+	const uint32_t total_chunks = job_.chunks.load(std::memory_order_seq_cst);
+	const uint32_t nq = job_.num_queues;
+	if (total_chunks == 0 || nq == 0) return;
+
+	// 1. Pop from own local queue first (lock-free, cache-local)
+	// 2. Steal from other participant queues in round-robin order once local queue is empty
+	for (uint32_t attempt = 0; attempt < nq; ++attempt) {
+		const uint32_t q_idx = (participant_idx + attempt) % nq;
+		WorkerQueue &q = queues_[q_idx];
+		for (;;) {
+			if ((next_.load(std::memory_order_acquire) & ~0xFFFFFFFFull) != tag) return;
+			uint64_t cur = q.head.load(std::memory_order_relaxed);
+			if ((cur & ~0xFFFFFFFFull) != tag) break;
+			uint32_t c = (uint32_t)cur;
+			if (c >= q.tail) break;
+			if (q.head.compare_exchange_weak(cur, cur + 1, std::memory_order_seq_cst, std::memory_order_relaxed)) {
+				const size_t a = (size_t)c * job_.grain;
+				const size_t b = std::min(a + job_.grain, job_.count);
+				(*job_.fn)(a, b);
+				remaining_.fetch_sub(1, std::memory_order_acq_rel);
+			}
+		}
 	}
 }
 
@@ -177,16 +186,29 @@ void JobSystem::parallel_for(size_t count, const std::function<void(size_t, size
 		return;
 	}
 
-	size_t width = (size_t)parallel_width();
+	size_t width = std::min((size_t)parallel_width(), kMaxParticipants);
 	size_t grain = std::max(min_grain, (count + width * 4 - 1) / (width * 4));
 	size_t chunks = (count + grain - 1) / grain;
 
-	// Close the last job's claim word before its fields change.
 	const uint32_t epoch = epoch_.load(std::memory_order_relaxed) + 1;
 	next_.store(((uint64_t)epoch << 32) | 0xFFFFFFFFull, std::memory_order_seq_cst);
+
+	// Partition [0, chunks) across participant queues for work-stealing
+	const uint32_t nq = (uint32_t)width;
+	const uint32_t base_per_q = (uint32_t)chunks / nq;
+	const uint32_t extra = (uint32_t)chunks % nq;
+	uint32_t cur_chunk = 0;
+	for (uint32_t q = 0; q < nq; ++q) {
+		uint32_t len = base_per_q + (q < extra ? 1u : 0u);
+		queues_[q].head.store(((uint64_t)epoch << 32) | cur_chunk, std::memory_order_relaxed);
+		queues_[q].tail = cur_chunk + len;
+		cur_chunk += len;
+	}
+
 	job_.fn = &fn;
 	job_.count = count;
 	job_.grain = grain;
+	job_.num_queues = nq;
 	job_.chunks.store((uint32_t)chunks, std::memory_order_seq_cst);
 	remaining_.store((uint32_t)chunks, std::memory_order_relaxed);
 	next_.store((uint64_t)epoch << 32, std::memory_order_release);
@@ -196,7 +218,7 @@ void JobSystem::parallel_for(size_t count, const std::function<void(size_t, size
 		{ std::lock_guard<std::mutex> lock(mu_); }
 		cv_work_.notify_all();
 	}
-	run_chunks(epoch);
+	run_chunks(epoch, 0);
 	// Only chunks a worker already claimed can be left; they finish shortly.
 	while (remaining_.load(std::memory_order_acquire) != 0) RTSO_CPU_RELAX();
 	in_parallel_.store(false);
