@@ -34,6 +34,13 @@ void RtsoCameraRig::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_speed_multipliers"), &RtsoCameraRig::get_speed_multipliers);
 	ClassDB::bind_method(D_METHOD("set_edge_scroll_enabled", "enabled"), &RtsoCameraRig::set_edge_scroll_enabled);
 	ClassDB::bind_method(D_METHOD("is_edge_scroll_enabled"), &RtsoCameraRig::is_edge_scroll_enabled);
+	ClassDB::bind_method(D_METHOD("set_edge_scroll_margin", "margin"), &RtsoCameraRig::set_edge_scroll_margin);
+	ClassDB::bind_method(D_METHOD("get_edge_scroll_margin"), &RtsoCameraRig::get_edge_scroll_margin);
+	ClassDB::bind_method(D_METHOD("set_edge_scroll_speed", "speed"), &RtsoCameraRig::set_edge_scroll_speed);
+	ClassDB::bind_method(D_METHOD("get_edge_scroll_speed"), &RtsoCameraRig::get_edge_scroll_speed);
+	ClassDB::bind_method(D_METHOD("cancel_follow"), &RtsoCameraRig::cancel_follow);
+	ClassDB::bind_method(D_METHOD("set_follow_id", "id"), &RtsoCameraRig::set_follow_id);
+	ClassDB::bind_method(D_METHOD("follow_id"), &RtsoCameraRig::follow_id);
 	ClassDB::bind_method(D_METHOD("set_map_bounds_half", "h"), &RtsoCameraRig::set_map_bounds_half);
 	ClassDB::bind_method(D_METHOD("get_map_bounds_half"), &RtsoCameraRig::get_map_bounds_half);
 	ClassDB::bind_method(D_METHOD("set_map_circular", "on"), &RtsoCameraRig::set_map_circular);
@@ -42,6 +49,16 @@ void RtsoCameraRig::_bind_methods() {
 
 RtsoCameraRig::RtsoCameraRig() {}
 RtsoCameraRig::~RtsoCameraRig() {}
+
+void RtsoCameraRig::_notification(int what) {
+	if (what == NOTIFICATION_WM_MOUSE_EXIT || what == NOTIFICATION_VP_MOUSE_EXIT || what == NOTIFICATION_WM_WINDOW_FOCUS_OUT) {
+		mouse_in_window_ = false;
+		mmb_dragging = false;
+	} else if (what == NOTIFICATION_WM_MOUSE_ENTER || what == NOTIFICATION_VP_MOUSE_ENTER || what == NOTIFICATION_WM_WINDOW_FOCUS_IN) {
+		mouse_in_window_ = true;
+	}
+}
+
 
 void RtsoCameraRig::_ready() {
 	// Negative priority ensures camera rig processes before standard priority (0) nodes,
@@ -60,6 +77,11 @@ void RtsoCameraRig::_ready() {
 	zoom_default_ = (float)uc::get_number("view.zoom.default") / kMetresPerUnit;
 	zoom_speed_ = (float)uc::get_number("view.zoom.speed") / kMetresPerUnit;
 	zoom_speed_wheel_ = (float)uc::get_number("view.zoom.speed.wheel") / kMetresPerUnit;
+	edge_scroll_enabled = uc::get_bool("view.edgescroll");
+	edge_scroll_margin_ = (float)uc::get_number("view.edgescroll.margin");
+	if (edge_scroll_margin_ <= 0.0f) edge_scroll_margin_ = 12.0f;
+	edge_scroll_speed_ = (float)uc::get_number("view.edgescroll.speed");
+	if (edge_scroll_speed_ <= 0.0f) edge_scroll_speed_ = 1.0f;
 	zoom_height = target_zoom = zoom_default_;
 	pitch_deg = target_pitch_deg = pre_birds_eye_pitch_ = pitch_default_;
 	target_pos = Vector3(0, 0, 0);
@@ -135,6 +157,12 @@ void RtsoCameraRig::follow_to(Vector3 pos) {
 
 void RtsoCameraRig::_unhandled_input(const Ref<InputEvent> &event) {
 	if (cinema_view_) return;
+
+	Ref<InputEventMouseMotion> mm = event;
+	if (mm.is_valid()) {
+		mouse_in_window_ = true;
+	}
+
 	Ref<InputEventMouseButton> mb = event;
 	if (mb.is_valid() || Ref<InputEventKey>(event).is_valid()) {
 		// CameraController camera.pan (MouseMiddle by default): drag the view while it is held.
@@ -142,6 +170,21 @@ void RtsoCameraRig::_unhandled_input(const Ref<InputEvent> &event) {
 		if (pan != mmb_dragging) {
 			mmb_dragging = pan;
 			if (mb.is_valid()) return;
+		}
+	}
+
+	// Cancel follow immediately on any user mouse or keyboard interaction
+	if (follow_id_ != 0) {
+		if (mb.is_valid() && mb->is_pressed()) {
+			follow_id_ = 0;
+		} else {
+			Ref<InputEventKey> k = event;
+			if (k.is_valid() && k->is_pressed()) {
+				const auto hk = rtso::hotkeys::fired(k);
+				if (!rtso::hotkeys::has(hk, "camera.follow") && !rtso::hotkeys::has(hk, "camera.lastattackfocus")) {
+					follow_id_ = 0;
+				}
+			}
 		}
 	}
 	if (mb.is_valid()) {
@@ -168,7 +211,6 @@ void RtsoCameraRig::_unhandled_input(const Ref<InputEvent> &event) {
 	}
 
 	// Middle mouse drag motion
-	Ref<InputEventMouseMotion> mm = event;
 	if (mm.is_valid() && mmb_dragging) {
 		if (!rtso::hotkeys::held("camera.pan")) {
 			mmb_dragging = false;
@@ -232,22 +274,6 @@ void RtsoCameraRig::_process(double delta) {
 		mmb_dragging = false;
 	}
 
-	// Directly update target_pos from the followed unit with zero latency
-	if (follow_id_ != 0 && sim_) {
-		bool alive = false;
-		auto fview = sim_->units();
-		for (size_t i = 0; i < fview.count; ++i) {
-			if (fview.id[i] == follow_id_ && fview.alive[i]) {
-				const float th = sim_->get_terrain_height(fview.pos_x[i], fview.pos_z[i]);
-				target_pos = Vector3(fview.pos_x[i], th, fview.pos_z[i]);
-				clamp_to_map(target_pos);
-				alive = true;
-				break;
-			}
-		}
-		if (!alive) follow_id_ = 0;
-	}
-
 	Vector3 input_dir(0, 0, 0);
 
 	// Held camera hotkeys (0 A.D. [hotkey.camera]: WASD/arrows scroll, Q/E and
@@ -277,41 +303,46 @@ void RtsoCameraRig::_process(double delta) {
 		if (on("camera.zoom.out")) zoom(zoom_speed_ * zm);
 	}
 
-	// Edge scrolling (active when window has focus, mouse is near viewport boundaries, and no key pan or MMB drag active)
+	// Edge scrolling (active when window has focus, mouse is inside viewport, NOT over UI, and no MMB drag or key scroll active)
 	bool window_has_focus = true;
 	DisplayServer *ds = DisplayServer::get_singleton();
-	if (ds && !ds->window_is_focused()) {
+	if (ds && (!ds->window_is_focused() || ds->get_name() == "headless")) {
 		window_has_focus = false;
 	}
 
-	if (edge_scroll_enabled && window_has_focus && !mmb_dragging && input_dir.length_squared() < 0.001f) {
-		Viewport *vp = get_viewport();
+	Viewport *vp = get_viewport();
+	const bool mouse_over_ui = (vp && vp->gui_get_hovered_control() != nullptr);
+
+	if (edge_scroll_enabled && window_has_focus && mouse_in_window_ && !mouse_over_ui && !mmb_dragging && input_dir.length_squared() < 0.001f) {
 		if (vp) {
 			Vector2 mpos = vp->get_mouse_position();
 			Rect2 vprect = vp->get_visible_rect();
-			const float margin = 14.0f;
+			const float margin = edge_scroll_margin_;
 			if (vprect.has_point(mpos)) {
-				if (mpos.x <= margin) {
-					float factor = std::clamp((margin - mpos.x) / margin, 0.0f, 1.0f);
-					input_dir.x -= factor;
-				} else if (mpos.x >= vprect.size.x - margin) {
-					float factor = std::clamp((mpos.x - (vprect.size.x - margin)) / margin, 0.0f, 1.0f);
-					input_dir.x += factor;
-				}
-				if (mpos.y <= margin) {
-					float factor = std::clamp((margin - mpos.y) / margin, 0.0f, 1.0f);
-					input_dir.z -= factor;
-				} else if (mpos.y >= vprect.size.y - margin) {
-					float factor = std::clamp((mpos.y - (vprect.size.y - margin)) / margin, 0.0f, 1.0f);
-					input_dir.z += factor;
+				// Deadzone check: prevent edge drift when cursor is resting exactly on outer boundary pixel
+				if (mpos.x > 0.0f && mpos.x < vprect.size.x && mpos.y > 0.0f && mpos.y < vprect.size.y) {
+					if (mpos.x <= margin) {
+						float factor = std::clamp((margin - mpos.x) / margin, 0.0f, 1.0f);
+						input_dir.x -= factor * edge_scroll_speed_;
+					} else if (mpos.x >= vprect.size.x - margin) {
+						float factor = std::clamp((mpos.x - (vprect.size.x - margin)) / margin, 0.0f, 1.0f);
+						input_dir.x += factor * edge_scroll_speed_;
+					}
+					if (mpos.y <= margin) {
+						float factor = std::clamp((margin - mpos.y) / margin, 0.0f, 1.0f);
+						input_dir.z -= factor * edge_scroll_speed_;
+					} else if (mpos.y >= vprect.size.y - margin) {
+						float factor = std::clamp((mpos.y - (vprect.size.y - margin)) / margin, 0.0f, 1.0f);
+						input_dir.z += factor * edge_scroll_speed_;
+					}
 				}
 			}
 		}
 	}
 
-	// Camera-relative panning
+	// Camera-relative panning from user input
 	if (input_dir.length_squared() > 0.001f) {
-		follow_id_ = 0;
+		follow_id_ = 0; // Manual pan immediately cancels follow
 		float len = input_dir.length();
 		if (len > 1.0f) input_dir /= len;
 		float cos_y = Math::cos(yaw_angle);
@@ -323,6 +354,20 @@ void RtsoCameraRig::_process(double delta) {
 		);
 		target_pos += world_dir * (speed * speed_mul_[SPEED_SCROLL] * (float)delta);
 		clamp_to_map(target_pos);
+	} else if (follow_id_ != 0 && sim_) {
+		// Only track followed unit when NO user manual pan input was active
+		bool alive = false;
+		auto fview = sim_->units();
+		for (size_t i = 0; i < fview.count; ++i) {
+			if (fview.id[i] == follow_id_ && fview.alive[i]) {
+				const float th = sim_->get_terrain_height(fview.pos_x[i], fview.pos_z[i]);
+				target_pos = Vector3(fview.pos_x[i], th, fview.pos_z[i]);
+				clamp_to_map(target_pos);
+				alive = true;
+				break;
+			}
+		}
+		if (!alive) follow_id_ = 0;
 	}
 
 	// Smooth interpolations: unconditionally stable exponential approach (1 - exp(-k * dt))

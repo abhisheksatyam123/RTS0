@@ -37,6 +37,9 @@ class RtsoCameraRig : public Node3D {
 	void clamp_to_map(Vector3 &p) const;
 	bool mmb_dragging = false;
 	bool edge_scroll_enabled = true;
+	float edge_scroll_margin_ = 12.0f;
+	float edge_scroll_speed_ = 1.0f;
+	bool mouse_in_window_ = false;
 	// Camera pitch in degrees below the horizon (0 A.D. camera.rotate.up/down).
 	float pitch_deg = 35.0f;
 	float target_pitch_deg = 35.0f;
@@ -63,6 +66,7 @@ public:
 	RtsoCameraRig();
 	~RtsoCameraRig();
 
+	void _notification(int what);
 	void _ready() override;
 	void _process(double delta) override;
 	void _unhandled_input(const Ref<InputEvent> &event) override;
@@ -92,9 +96,14 @@ public:
 	void set_key_scroll_mode(int mode) { key_scroll_mode_ = mode; }
 	void set_follow_id(uint32_t id) { follow_id_ = id; }
 	uint32_t follow_id() const { return follow_id_; }
+	void cancel_follow() { follow_id_ = 0; }
 	// Keeps the followed unit centred; called every frame by the main node.
 	void follow_to(Vector3 pos);
 	void set_edge_scroll_enabled(bool enabled) { edge_scroll_enabled = enabled; }
+	float get_edge_scroll_margin() const { return edge_scroll_margin_; }
+	void set_edge_scroll_margin(float m) { edge_scroll_margin_ = Math::max(1.0f, m); }
+	float get_edge_scroll_speed() const { return edge_scroll_speed_; }
+	void set_edge_scroll_speed(float s) { edge_scroll_speed_ = Math::max(0.01f, s); }
 	void set_cinema_view(bool on) { cinema_view_ = on; mmb_dragging = false; }
 	bool cinema_view() const { return cinema_view_; }
 	// session.js getSavedGameData / restoreSavedGameData's camera (Engine.SetCameraData):

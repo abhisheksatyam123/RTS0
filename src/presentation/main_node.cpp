@@ -303,6 +303,7 @@ void RtsoMain::_on_minimap_clicked(Vector2 world_pos) {
 		return;
 	}
 	if (cam_rig) {
+		cam_rig->set_follow_id(0);
 		cam_rig->set_target_pos(Vector3(world_pos.x, 0.0f, world_pos.y));
 	}
 }
@@ -1347,7 +1348,7 @@ void RtsoMain::perform_group(int grp, GroupAction action) {
 			selected_ids.clear();
 			set_selected_structures({});
 		}
-		if (action == GROUP_SNAP && cam_rig) cam_rig->set_target_pos(snap_pos);
+		if (action == GROUP_SNAP && cam_rig) { cam_rig->set_follow_id(0); cam_rig->set_target_pos(snap_pos); }
 		return;
 	}
 	// selection.js addList: the select sound only for what the recall adds, in its first's voice
@@ -1366,7 +1367,7 @@ void RtsoMain::perform_group(int grp, GroupAction action) {
 		selected_ids = recall;
 		set_selected_structures(recall_buildings);
 	}
-	if (action == GROUP_SNAP && cam_rig && snap_id != 0) cam_rig->set_target_pos(snap_pos);
+	if (action == GROUP_SNAP && cam_rig && snap_id != 0) { cam_rig->set_follow_id(0); cam_rig->set_target_pos(snap_pos); }
 	play_select_added(before_units, before_structs);
 }
 
@@ -1541,7 +1542,7 @@ void RtsoMain::follow_command(const rtso::NetCommand &c) {
 			type != NetCommandType::NET_CMD_TRAIN_TEMPLATE && type != NetCommandType::NET_CMD_TRAIN_FROM_UNIT &&
 			type != NetCommandType::NET_CMD_RALLY && !c.entity_ids.empty()) {
 		// Focus the commanded entities, but keep the focus when training.
-		follow_focus(c.entity_ids[0], false);
+		follow_focus(c.entity_ids[0], false, true);
 	}
 	// DrawTargetMarker for "walk", "attack-walk" and "patrol".
 	if (type == NetCommandType::NET_CMD_MOVE || type == NetCommandType::NET_CMD_ATTACK_MOVE || type == NetCommandType::NET_CMD_PATROL)
@@ -1566,12 +1567,17 @@ void RtsoMain::follow_command(const rtso::NetCommand &c) {
 }
 
 // selection_panels_helpers.js setCameraFollow: a unit is followed, a structure looked at.
-void RtsoMain::follow_focus(uint32_t id, bool select) {
+void RtsoMain::follow_focus(uint32_t id, bool select, bool continuous_track) {
 	if (!sim || !cam_rig || !id) return;
 	auto uv = sim->units();
 	for (size_t i = 0; i < uv.count; ++i)
 		if (uv.id[i] == id && uv.alive[i]) {
-			cam_rig->set_follow_id(id);
+			if (continuous_track) {
+				cam_rig->set_follow_id(id);
+			} else {
+				cam_rig->set_follow_id(0);
+				cam_rig->set_target_pos(Vector3(uv.pos_x[i], 0, uv.pos_z[i]));
+			}
 			if (select) {
 				clear_selection();
 				selected_ids.push_back((int32_t)id);

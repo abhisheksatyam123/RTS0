@@ -319,7 +319,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		if (fired("camera.follow")) { // setCameraFollow: a unit is followed, a structure looked at
 			const uint32_t first = !selected_ids.is_empty() ? (uint32_t)selected_ids[0] : selected_building_id;
 			if (cam_rig) cam_rig->set_follow_id(0);
-			follow_focus(first, false);
+			follow_focus(first, false, true);
 			return;
 		}
 		if (fired("camera.rallypointfocus")) { // unit_actions.js "focus-rally"
@@ -330,7 +330,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			// focusAttack: follow the attacked unit while it lives, else look at the spot.
 			if (cam_rig && has_last_attack_) {
 				cam_rig->set_follow_id(0);
-				follow_focus(last_attack_unit_, false);
+				follow_focus(last_attack_unit_, false, true);
 				if (cam_rig->follow_id() == 0) cam_rig->set_target_pos(last_attack_pos_);
 			}
 			return;
@@ -443,6 +443,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 	Ref<InputEventMouseButton> mb = event;
 	if (mb.is_valid()) {
 		Vector2 mouse_pos = mb->get_position();
+		if (mb->is_pressed() && cam_rig && cam_rig->follow_id() != 0) {
+			cam_rig->set_follow_id(0);
+		}
 		// input.js: a left or right click in the game world closes the session menu (g_Menu.close),
 		// and still does what it does.
 		if (mb->get_button_index() == MOUSE_BUTTON_LEFT || mb->get_button_index() == MOUSE_BUTTON_RIGHT)

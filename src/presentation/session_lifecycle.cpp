@@ -982,12 +982,22 @@ void RtsoMain::_process(double delta) {
 		const bool typing = focus && (Object::cast_to<LineEdit>(focus) || focus->is_class("TextEdit"));
 		cam_rig->set_key_scroll_mode(typing ? RtsoCameraRig::KEYS_NONE
 				: build_mode ? RtsoCameraRig::KEYS_ARROWS_ONLY : RtsoCameraRig::KEYS_ALL);
+		// Cancel follow immediately on any user mouse interaction, box dragging, or build placement
+		Input *in = Input::get_singleton();
+		const bool user_interacted = in && (
+			in->is_mouse_button_pressed(MOUSE_BUTTON_LEFT) ||
+			in->is_mouse_button_pressed(MOUSE_BUTTON_RIGHT) ||
+			in->is_mouse_button_pressed(MOUSE_BUTTON_MIDDLE)
+		);
+		if (user_interacted || dragging || wall_drag_mode || build_mode) {
+			if (cam_rig->follow_id() != 0) cam_rig->set_follow_id(0);
+		}
+
 		if (const uint32_t fid = sim ? cam_rig->follow_id() : 0) {
 			bool alive = false;
 			auto fview = sim->units();
 			for (size_t i = 0; i < fview.count; ++i) {
 				if (fview.id[i] == fid && fview.alive[i]) {
-					cam_rig->follow_to(Vector3(fview.pos_x[i], 0, fview.pos_z[i]));
 					alive = true;
 					break;
 				}

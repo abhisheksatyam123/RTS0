@@ -1251,7 +1251,7 @@ private:
 	void set_follow_player(bool on);
 	bool is_follow_player() const { return follow_player_; }
 	void follow_player_tick();
-	void follow_focus(uint32_t id, bool select);
+	void follow_focus(uint32_t id, bool select, bool continuous_track = false);
 	void follow_command(const rtso::NetCommand &c);
 	bool observer_view_gaia_ = false; // Gaia picked (its view is the observer's)
 	void sync_observer_view_picker();

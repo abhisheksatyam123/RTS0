@@ -391,6 +391,7 @@ void RtsoMain::_on_entity_command(const String &name) {
 	} else if (name == "focus-rally") {
 		// The first selected entity with a rally point, else the first one's position.
 		if (!cam_rig) return;
+		cam_rig->set_follow_id(0);
 		const std::vector<uint32_t> structs = selected_structures();
 		const auto &bs = sim->buildings();
 		auto find_b = [&](uint32_t id) -> const rtso::Simulation::Building * {

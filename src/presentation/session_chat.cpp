@@ -205,17 +205,17 @@ void RtsoMain::_on_chat_line_input(const Ref<InputEvent> &event, const String &a
 	if (parts.size() < 2) return;
 	const PackedStringArray xz = parts[parts.size() - 1].split(",");
 	if (xz.size() != 2) return;
+	cam_rig->set_follow_id(0);
 	if (parts[0] == "attack" && parts.size() == 3 && sim) {
 		const uint32_t id = (uint32_t)parts[1].to_int();
 		auto uv = sim->units();
 		for (size_t i = 0; id && i < uv.count; ++i)
 			if (uv.id[i] == id && uv.alive[i]) {
-				cam_rig->set_follow_id(id); // setCameraFollow
+				cam_rig->set_target_pos(Vector3(uv.pos_x[i], 0.0f, uv.pos_z[i]));
 				get_viewport()->set_input_as_handled();
 				return;
 			}
 	}
-	cam_rig->set_follow_id(0);
 	cam_rig->set_target_pos(Vector3(xz[0].to_float(), 0.0f, xz[1].to_float()));
 	get_viewport()->set_input_as_handled();
 }
