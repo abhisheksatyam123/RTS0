@@ -22,6 +22,10 @@ using namespace godot;
 void RtsoCameraRig::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_target_pos", "pos"), &RtsoCameraRig::set_target_pos);
 	ClassDB::bind_method(D_METHOD("camera_data"), &RtsoCameraRig::camera_data);
+	ClassDB::bind_method(D_METHOD("set_camera_data", "data"), &RtsoCameraRig::set_camera_data);
+	ClassDB::bind_method(D_METHOD("set_cinema_view", "on"), &RtsoCameraRig::set_cinema_view);
+	ClassDB::bind_method(D_METHOD("cinema_view"), &RtsoCameraRig::cinema_view);
+	ClassDB::bind_method(D_METHOD("get_camera"), &RtsoCameraRig::get_camera);
 	ClassDB::bind_method(D_METHOD("zoom", "delta_zoom"), &RtsoCameraRig::zoom);
 	ClassDB::bind_method(D_METHOD("reset_camera"), &RtsoCameraRig::reset_camera);
 	ClassDB::bind_method(D_METHOD("toggle_birds_eye"), &RtsoCameraRig::toggle_birds_eye);
@@ -356,20 +360,8 @@ void RtsoCameraRig::_process(double delta) {
 		const float pitch = Math::deg_to_rad(pitch_deg);
 		const float cos_p = Math::cos(pitch);
 		const float sin_p = Math::sin(pitch);
-		float cam_local_y = zoom_height * sin_p;
+		const float cam_local_y = zoom_height * sin_p;
 		const float cam_local_z = zoom_height * cos_p;
-
-		// Terrain height clearance: keep the camera at least 2.5m above the terrain surface
-		if (sim_) {
-			const float cam_world_x = cur_pos.x - cam_local_z * Math::sin(yaw_angle);
-			const float cam_world_z = cur_pos.z + cam_local_z * Math::cos(yaw_angle);
-			const float terrain_h = sim_->get_terrain_height(cam_world_x, cam_world_z);
-			constexpr float kMinClearance = 2.5f;
-			const float min_world_y = terrain_h + kMinClearance;
-			if (cur_pos.y + cam_local_y < min_world_y) {
-				cam_local_y = min_world_y - cur_pos.y;
-			}
-		}
 
 		// SetupCameraMatrix: zoom_height away from the look-at point along the view.
 		cam->set_position(Vector3(0, cam_local_y, cam_local_z));

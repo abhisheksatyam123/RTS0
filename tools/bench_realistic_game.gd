@@ -91,31 +91,61 @@ func update_camera(progress: float) -> void:
 		return
 	var mode: String = str(args["camera"])
 	if mode == "clash":
-		# Dramatic 35-degree angle positioned right at the collision frontline
-		cam_rig.position = Vector3(0.0, 24.0, 32.0)
-		cam_rig.rotation = Vector3(-0.62, 0.0, 0.0)
+		# Dramatic 35-degree angle focused right at the frontline clash center (0, 0)
+		cam_rig.set_camera_data({
+			"x": 0.0,
+			"z": 0.0,
+			"yaw": 0.0,
+			"pitch": 35.0,
+			"zoom": 32.0
+		})
 	elif mode == "base":
-		# Looking at West base structures & workers
-		cam_rig.position = Vector3(-60.0, 28.0, 15.0)
-		cam_rig.rotation = Vector3(-0.75, -0.4, 0.0)
+		# Looking at West base structures & workers (-60, 15)
+		cam_rig.set_camera_data({
+			"x": -60.0,
+			"z": 15.0,
+			"yaw": 0.0,
+			"pitch": 35.0,
+			"zoom": 32.0
+		})
 	elif mode == "high":
 		# High bird's eye view over the entire 256m battlefield
-		cam_rig.position = Vector3(0.0, 85.0, 45.0)
-		cam_rig.rotation = Vector3(-1.15, 0.0, 0.0)
+		cam_rig.set_camera_data({
+			"x": 0.0,
+			"z": 0.0,
+			"yaw": 0.0,
+			"pitch": 60.0,
+			"zoom": 50.0
+		})
 	else:
-		# "dynamic": cinematic pan across base -> army march -> clash center -> bird's eye
+		# "dynamic": smooth cinematic sweep across base -> army march -> clash center -> bird's eye
 		if progress < 0.25:
 			var t := progress / 0.25
-			cam_rig.position = Vector3(-60.0 + t * 40.0, 25.0, 25.0)
-			cam_rig.rotation = Vector3(-0.65, -0.2 * (1.0 - t), 0.0)
+			cam_rig.set_camera_data({
+				"x": lerp(-60.0, -20.0, t),
+				"z": lerp(15.0, 5.0, t),
+				"yaw": lerp(-0.2, 0.0, t),
+				"pitch": 35.0,
+				"zoom": lerp(32.0, 26.0, t)
+			})
 		elif progress < 0.70:
 			var t := (progress - 0.25) / 0.45
-			cam_rig.position = Vector3(-10.0 + t * 20.0, 22.0 - t * 2.0, 28.0)
-			cam_rig.rotation = Vector3(-0.60, 0.1 * sin(t * 3.14), 0.0)
+			cam_rig.set_camera_data({
+				"x": lerp(-20.0, 10.0, t),
+				"z": lerp(5.0, -5.0, t),
+				"yaw": sin(t * 3.14159) * 0.1,
+				"pitch": 35.0,
+				"zoom": 26.0
+			})
 		else:
 			var t := (progress - 0.70) / 0.30
-			cam_rig.position = Vector3(0.0, 20.0 + t * 65.0, 28.0 + t * 30.0)
-			cam_rig.rotation = Vector3(-0.60 - t * 0.55, 0.0, 0.0)
+			cam_rig.set_camera_data({
+				"x": lerp(10.0, 0.0, t),
+				"z": lerp(-5.0, 0.0, t),
+				"yaw": 0.0,
+				"pitch": lerp(35.0, 58.0, t),
+				"zoom": lerp(26.0, 48.0, t)
+			})
 
 func run() -> void:
 	var guard := 0
@@ -135,6 +165,7 @@ func run() -> void:
 	if not rigs.is_empty():
 		cam_rig = rigs[0]
 		cam_rig.set_edge_scroll_enabled(false)
+		cam_rig.set_cinema_view(true)
 
 	var target_units := int(args["units"])
 	var mode: String = str(args["mode"])

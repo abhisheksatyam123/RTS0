@@ -109,6 +109,10 @@ public:
 		target_yaw = yaw_angle = (float)(double)d.get("yaw", target_yaw);
 		target_pitch_deg = pitch_deg = (float)(double)d.get("pitch", target_pitch_deg);
 		target_zoom = zoom_height = (float)(double)d.get("zoom", target_zoom);
+		if (constrain_) {
+			target_pitch_deg = pitch_deg = Math::clamp(target_pitch_deg, pitch_min_, pitch_max_);
+			target_zoom = zoom_height = Math::clamp(target_zoom, zoom_min_, zoom_max_);
+		}
 		follow_id_ = 0;
 		set_target_pos(Vector3((float)(double)d.get("x", target_pos.x), target_pos.y, (float)(double)d.get("z", target_pos.z)));
 		set_global_position(target_pos);

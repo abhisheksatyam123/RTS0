@@ -103,14 +103,13 @@ func run() -> void:
 	if rig.size() > 0:
 		var cam_rig = rig[0]
 		cam_rig.set_edge_scroll_enabled(false)
+		cam_rig.set_cinema_view(true)
 		if args["camera"] == "away":
 			# Point camera far away looking into empty terrain corner
-			cam_rig.position = Vector3(120.0, 30.0, 120.0)
-			cam_rig.rotation = Vector3(-0.6, 2.3, 0.0)
+			cam_rig.set_camera_data({"x": 100.0, "z": 100.0, "yaw": 2.3, "pitch": 40.0, "zoom": 45.0})
 		else:
 			# Look directly down at the spawned army
-			cam_rig.position = Vector3(0.0, 35.0, 30.0)
-			cam_rig.rotation = Vector3(-0.8, 0.0, 0.0)
+			cam_rig.set_camera_data({"x": 0.0, "z": 0.0, "yaw": 0.0, "pitch": 45.0, "zoom": 35.0})
 
 	# Warmup frames
 	var warmup := int(args["warmup"])
