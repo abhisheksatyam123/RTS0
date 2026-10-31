@@ -498,7 +498,7 @@ void LosShading::generate_bitmap(const uint8_t *fow, int res, std::vector<uint8_
 	const int pad = BLUR / 2;
 	const int pitch = fr + 2 * pad;
 	thread_local std::vector<uint8_t> uh; // cp rows of fr columns (horizontal pass)
-	thread_local std::vector<uint8_t> a;
+	static std::vector<uint8_t> a;
 	uh.assign((size_t)cp * (size_t)fr, 0);
 	for (int j = 0; j < cp; ++j) {
 		const uint8_t *p = &c[(size_t)j * cp + 1];
