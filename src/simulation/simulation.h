@@ -1695,11 +1695,19 @@ public:
 	uint8_t structure_template_civ(const Building &b) const {
 		return b.civ < CIV_COUNT && b.civ != CIV_GAIA ? b.civ : (uint8_t)civ_of(b.team);
 	}
+	// Carthaginian Low Walls (cart/s_wall_*, STRUCT_LOW_WALL) inherit from
+	// template_structure_defensive_palisade (Defensive Palisade, no Wall class).
+	static uint8_t structure_tech_type(const Building &b) {
+		return (b.template_off & STRUCT_LOW_WALL) ? (uint8_t)BLD_PALISADE : b.type;
+	}
+	static TechClasses structure_tech_classes(const Building &b) {
+		return building_tech_classes(structure_tech_type(b));
+	}
 	// Upgrade.js DetermineUpgrades: that template's choices, its "{civ}" targets resolved
 	// with the owner's civ (the ones the owner's civ lacks dropped).
 	BuildingUpgradeInfo structure_upgrade(const Building &b, int choice) const {
 		if (b.template_off & STRUCT_OFF_UPGRADE) return {BLD_TYPE_COUNT, 0, 0, 0, 0, 0.0f, 1, nullptr};
-		BuildingUpgradeInfo up = building_upgrade(b.type, structure_upgrade_civ(b), choice, structure_owner_civ(b));
+		BuildingUpgradeInfo up = building_upgrade(structure_tech_type(b), structure_upgrade_civ(b), choice, structure_owner_civ(b));
 		if ((b.template_off & STRUCT_LOW_WALL) && up.to == BLD_PALISADE_GATE) {
 			up.wood_cost = 20;
 			up.time = 5.0f;
@@ -2600,7 +2608,17 @@ public:
 		auto it = building_id_to_idx_.find(building_id);
 		if (it == building_id_to_idx_.end()) return;
 		Building &b = buildings_[it->second];
+		const uint8_t was_t = structure_tech_type(b);
 		b.template_off = off;
+		const uint8_t now_t = structure_tech_type(b);
+		if (was_t != now_t && b.team < MAX_PLAYERS) {
+			const float h_was = structure_hp_mult(was_t, b.team), h_now = structure_hp_mult(now_t, b.team);
+			if (h_was > 0.0f && h_now != h_was) {
+				b.max_hp *= h_now / h_was;
+				b.hp *= h_now / h_was;
+			}
+			refresh_capture_max(b);
+		}
 		b.garrison_cap = structure_garrison_cap(b);
 		if ((off & STRUCT_OFF_BLOCK) && !bulk_spawn_) rebuild_nav_grid();
 	}
@@ -4279,7 +4297,10 @@ private:
 	void petra_retreat_critical_ent(size_t unit_idx, bool emergency, std::vector<int> &incoming);
 	void petra_manage_critical_ent_guards();
 	void petra_manage_critical_ent_healers();
+	void petra_assign_critical_ent_healers();
+	void petra_walk_captured_relics();
 	void petra_capture_gaia_relics();
+	void note_lost_critical_guard(size_t i, uint32_t charge);
 	void petra_manage_garrisons();
 	void petra_build_advanced();
 	void petra_manage_victory(float dt);

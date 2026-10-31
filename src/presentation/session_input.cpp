@@ -726,11 +726,31 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 									selected_ids.push_back(uid);
 							}
 							play_select_added(before_sel, before_structs);
-						} else if (uint32_t animal = own_fauna_at(click_pos.x, click_pos.z)) {
+						} else if (uint32_t animal = [&]() -> uint32_t {
+							if (uint32_t own = own_fauna_at(click_pos.x, click_pos.z)) return own;
+							if (!dbl_click || is_ctrl) return 0;
+							auto fv = sim->fauna();
+							uint32_t best = 0;
+							float best_d2 = 1.6f * 1.6f;
+							for (size_t f = 0; f < fv.count; ++f) {
+								if (!fv.alive[f] || fv.behavior[f] == rtso::FAUNA_CORRALLED ||
+								    !rtso::fauna_type_info(fv.fauna_type[f]).is_domestic())
+									continue;
+								if (!rtso::los_sees_fauna(*sim, view_player(), fv.pos_x[f], fv.pos_z[f], fv.owner[f], fv.fauna_type[f]))
+									continue;
+								const float dx = fv.pos_x[f] - click_pos.x, dz = fv.pos_z[f] - click_pos.z, d2 = dx * dx + dz * dz;
+								if (d2 < best_d2) { best_d2 = d2; best = fv.id[f]; }
+							}
+							return best;
+						}()) {
 							// The player's own livestock (0 A.D. livestock are units). A double-click takes
 							// the player's animals of its kind on screen, or everywhere with
-							// selection.offscreen (input.js PickSimilarPlayerEntities).
-							std::vector<int32_t> picked{(int32_t)animal};
+							// selection.offscreen (input.js PickSimilarPlayerEntities), even when the
+							// double-clicked animal belongs to another player.
+							const bool own_animal = sim->fauna_selectable_by(local_player(), animal);
+							if (!own_animal) inspector_.clear();
+							std::vector<int32_t> picked;
+							if (own_animal) picked.push_back((int32_t)animal);
 							if (dbl_click) {
 								auto fv = sim->fauna();
 								uint8_t kind = 0xFF;

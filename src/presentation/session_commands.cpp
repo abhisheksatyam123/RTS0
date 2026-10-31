@@ -297,8 +297,26 @@ void RtsoMain::_on_call_to_arms_pressed() {
 // g_EntityCommands execute() for the command row, and the hotkeys that run them.
 void RtsoMain::_on_entity_command(const String &name) {
 	if (!sim) return;
-	const uint32_t *ids = (const uint32_t *)selected_ids.ptr();
-	const size_t n = selected_ids.size();
+	std::vector<uint32_t> owned_ids;
+	owned_ids.reserve(selected_ids.size());
+	const uint8_t me = local_player();
+	const bool ctrl_all = sim->controls_all(me);
+	auto uview = sim->units();
+	for (int s = 0; s < selected_ids.size(); ++s) {
+		const uint32_t uid = (uint32_t)selected_ids[s];
+		if (ctrl_all || sim->fauna_selectable_by(me, uid)) {
+			owned_ids.push_back(uid);
+			continue;
+		}
+		for (size_t u = 0; u < uview.count; ++u) {
+			if (uview.id[u] == uid) {
+				if (uview.alive[u] && uview.team[u] == me) owned_ids.push_back(uid);
+				break;
+			}
+		}
+	}
+	const uint32_t *ids = owned_ids.data();
+	const size_t n = owned_ids.size();
 	auto arm = [&](bool &mode) {
 		if (n == 0) return;
 		attack_move_mode = patrol_mode = guard_mode = call_to_arms_mode = garrison_mode = turret_mode = repair_mode = false;

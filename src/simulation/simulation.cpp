@@ -5554,7 +5554,8 @@ float Simulation::structure_hp_mult(uint8_t type, uint8_t team) const {
 // Health.OnValueModification after an ownership change: max and current health scale by
 // the new owner's modifiers over the old one's.
 void Simulation::rescale_structure_hp(Building &b, uint8_t from) {
-	const float was = structure_hp_mult(b.type, from), now = structure_hp_mult(b.type, b.team);
+	const uint8_t t = structure_tech_type(b);
+	const float was = structure_hp_mult(t, from), now = structure_hp_mult(t, b.team);
 	if (was <= 0.0f || now == was) return;
 	const float r = now / was;
 	b.max_hp *= r;
@@ -6260,14 +6261,15 @@ void Simulation::refresh_tech_mods(uint8_t player_id) {
 				now.range * COMBAT_DISTANCE_SCALE;
 	}
 	for (auto &b : buildings_) {
-		if (b.team != player_id || b.type >= BLD_TYPE_COUNT) continue;
-		float r = m.bld_health[b.type] / old.bld_health[b.type];
+		const uint8_t t = structure_tech_type(b);
+		if (b.team != player_id || t >= BLD_TYPE_COUNT) continue;
+		float r = m.bld_health[t] / old.bld_health[t];
 		if (r != 1.0f) {
 			b.max_hp *= r;
 			b.hp *= r;
 		}
 		// Capturable.js OnValueModification: every side's points scale with the new maximum.
-		const float cr = m.bld_capture[b.type] / old.bld_capture[b.type];
+		const float cr = m.bld_capture[t] / old.bld_capture[t];
 		if (cr != 1.0f) {
 			b.max_capture_points *= cr;
 			b.capture_points *= cr;
@@ -14980,29 +14982,26 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 		}
 		if (!blocked && progress >= OBSTRUCTED_PROGRESS * ww) continue; // slowed, not stopped
 		const bool moved = !blocked && ax * ax + az * az >= OBSTRUCTED_PROGRESS * OBSTRUCTED_PROGRESS * ww;
-		if (moved && m.failed >= OBSTRUCTED_AT) continue;
-		// PathResult's short-path hack: a walk that has followed all of a long path ending short of its
-		// point (MakeGoalReachable moved the goal: out at sea, on another island) gets no closer by a
-		// new path from there (RejectFartherPaths), so UnitMotion sets m_FailedMovements to
-		// MAX_FAILED_MOVEMENTS - 2 and the walk fails two obstructed turns later.
-		if (m.failed < FAILED_AT - 3 && walk_falls_short(i)) m.failed = FAILED_AT - 3;
-		// The same hack's end for a unit whose short path search round steep ground found no way from
-		// where it stands (nav::no_terrain_path_key): a resource up a cliff or in a pocket its long
-		// path can't reach, a point beyond a ridge. 0.28's long path, on the same navcells as its
-		// short ones, knows the goal is out of reach, and the walk fails two obstructed turns later,
-		// where RTS0's unit would push at the cliff's margin for 35 turns. But 0.28 bumps the count in
-		// PathResult, once a long path it asked for has come back no better, and after each MoveFailed
-		// counts from 0 again, so HandleObstructedMove asks for the long path again on the third failed
-		// turn (ShouldAlternatePathfinder, RequestLongPath) before the hack: a unit that follows a long
-		// path gets there first (obstructed_long_path), so one holding a path that leads it against a
-		// cliff (laid before a way round opened, or in a saved game) plans it again instead of standing
-		// there for good.
-		const bool replans_first = m.failed < ALTERNATE_PATH_TYPE_DELAY && (formations_.empty() || formation_group_[i] == 0) &&
-				follows_long_path(i);
-		if (m.failed < FAILED_AT - 3 && !replans_first && units_.short_path[i].key == nav::no_terrain_path_key(short_path_key_))
-			m.failed = FAILED_AT - 3;
+		// CCmpUnitMotion.h:1378 HandleObstructedMove: a turn on which the unit moved but was obstructed
+		// again once m.failed >= OBSTRUCTED_AT skips the failed-count increment, yet still requests its
+		// short or long path for this turn.
+		const bool hold_failed = moved && m.failed >= OBSTRUCTED_AT;
+		if (!hold_failed) {
+			// PathResult's short-path hack: a walk that has followed all of a long path ending short of its
+			// point (MakeGoalReachable moved the goal: out at sea, on another island) gets no closer by a
+			// new path from there (RejectFartherPaths), so UnitMotion sets m_FailedMovements to
+			// MAX_FAILED_MOVEMENTS - 2 and the walk fails two obstructed turns later.
+			if (m.failed < FAILED_AT - 3 && walk_falls_short(i)) m.failed = FAILED_AT - 3;
+			// The same hack's end for a unit whose short path search round steep ground found no way from
+			// where it stands (nav::no_terrain_path_key): a resource up a cliff or in a pocket its long
+			// path can't reach, a point beyond a ridge.
+			const bool replans_first = m.failed < ALTERNATE_PATH_TYPE_DELAY && (formations_.empty() || formation_group_[i] == 0) &&
+					follows_long_path(i);
+			if (m.failed < FAILED_AT - 3 && !replans_first && units_.short_path[i].key == nav::no_terrain_path_key(short_path_key_))
+				m.failed = FAILED_AT - 3;
+		}
 		bool move_failed = false;
-		if (++m.failed >= FAILED_AT) {
+		if (!hold_failed && ++m.failed >= FAILED_AT) {
 			move_failed = true;
 			m.failed = 0;
 		} else {
@@ -15010,7 +15009,7 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 				obstructed_long_path(i, m.failed);
 				obstructed_short_path(i, m.failed, &beyond);
 			}
-			if (m.failed < OBSTRUCTED_AT) continue;
+			if (hold_failed || m.failed < OBSTRUCTED_AT) continue;
 		}
 		// HandleObstructedMove plans a new short path from where the unit stands on each obstructed
 		// turn once its goal is in short path range (CCmpUnitMotion.h:1369, 1397-1398, 1446). RTS0 searches
@@ -15970,10 +15969,16 @@ void Simulation::tick_gather(float dt) {
 			bool kept = false;
 			if (units_.action_state[i] == ACTION_RETURN_DROPSITE) {
 				const float tx0 = units_.target_x[i], tz0 = units_.target_z[i];
+				bool any_same_land = units_.unit_type[i] == UNIT_FISHING_BOAT;
+				for (const uint32_t bk : drop_candidates) {
+					if (any_same_land) break;
+					const Building &b = buildings_[bk];
+					if (takes_load(b) && petra_same_land(i, b)) any_same_land = true;
+				}
 				for (const uint32_t bk : drop_candidates) {
 					const Building &b = buildings_[bk];
 					if (b.x != tx0 || b.z != tz0 || !takes_load(b)) continue;
-					if (units_.unit_type[i] != UNIT_FISHING_BOAT && !petra_same_land(i, b) && stands_in_pocket(i) == 0) continue;
+					if (units_.unit_type[i] != UNIT_FISHING_BOAT && !petra_same_land(i, b) && any_same_land && stands_in_pocket(i) == 0) continue;
 					drop_x = b.x; drop_z = b.z; drop = &b;
 					kept = found_dropsite = true;
 					break;
@@ -16000,13 +16005,11 @@ void Simulation::tick_gather(float dt) {
 					// load is dropped off, not to the centre.
 					const nav::Vec2 gap = nav::footprint_gap(b, units_.pos_x[i], units_.pos_z[i]);
 					const float d2 = gap.x * gap.x + gap.y * gap.y;
-					// Only a dropsite on the worker's land: one on another island is out, so the
-					// worker waits for a local one. A worker shut in among trees stands on a land
-					// of a few navcells with no dropsite at all: it takes the nearest one, as
-					// 0.28's FindNearestDropsite (no reachability test) would, rather than stand
-					// in return for good.
+					// Prefer a dropsite on the worker's land; when the worker's land has no
+					// dropsite at all (either shut in among trees or on an island with none),
+					// fall back to the nearest dropsite across the water and walk to the shore,
+					// as 0.28's FindNearestDropsite (no reachability test) does.
 					const bool reach = units_.unit_type[i] == UNIT_FISHING_BOAT || petra_same_land(i, b);
-					if (!reach && (in_pocket < 0 ? (in_pocket = stands_in_pocket(i)) : in_pocket) == 0) continue;
 					if (reach ? (d2 < best_d2 || !drop_same_land) : (!drop_same_land && d2 < best_d2)) {
 						best_d2 = d2;
 						drop_x = b.x; drop_z = b.z; drop = &b;
@@ -18313,7 +18316,7 @@ void Simulation::tick_combat(float dt) {
 		if (regen_players)
 			for (Building &b : buildings_)
 				if (b.team < MAX_PLAYERS && (regen_players >> b.team & 1u) && !b.wrecked && b.hp > 0.0f &&
-						b.hp < b.max_hp && (building_tech_classes(b.type) & TC_WALL))
+						b.hp < b.max_hp && (structure_tech_classes(b) & TC_WALL))
 					b.hp = std::min(b.max_hp, b.hp + dt * rate);
 	}
 	// A negative template RegenRate (fire ships) wears the unit down, even at full health.
@@ -21323,12 +21326,35 @@ void Simulation::find_targets_then_walk_back(size_t i) {
 // UnitAI IDLE Timer, on entering IDLE (!isIdle) with nothing left to do: a defensive unit, not a
 // formation member, more than 10 m from its held position walks back to it. Checked every tick an
 // idle unit has no order: an idle unit doesn't drift that far, so this is the check on entering.
+void Simulation::note_lost_critical_guard(size_t i, uint32_t charge) {
+	if (!charge || i >= units_.count || !units_.alive[i] || units_.team[i] >= MAX_PLAYERS) return;
+	const uint8_t team = units_.team[i];
+	if (!(unit_tech_classes(units_.unit_type[i]) & TC_SOLDIER)) return;
+	bool was_crit = (has_victory(VK_REGICIDE) && charge == regicide_hero_[team]);
+	if (!was_crit && has_victory(VK_RELIC)) {
+		const int32_t r = lookup_unit(charge);
+		was_crit = is_relic_unit(r) && units_.team[r] != team;
+	}
+	if (!was_crit && has_victory(VK_WONDER)) {
+		auto bit = building_id_to_idx_.find(charge);
+		was_crit = bit == building_id_to_idx_.end() ||
+		           (buildings_[bit->second].type == BLD_WONDER &&
+		            (buildings_[bit->second].wrecked || buildings_[bit->second].hp <= 0.0f || buildings_[bit->second].team != team));
+	}
+	if (!was_crit) return;
+	auto &out = petra_out_of_plan_[team];
+	const uint32_t uid = units_.id[i];
+	auto it = std::lower_bound(out.begin(), out.end(), uid);
+	if (it == out.end() || *it != uid) out.insert(it, uid);
+}
+
 bool Simulation::resume_guard(size_t i) {
 	const auto g = guard_of_.find(units_.id[i]);
 	if (g == guard_of_.end() || units_.action_state[i] != ACTION_IDLE || units_.order_kind[i] != ORDER_NONE ||
 			order_queues_.count(units_.id[i]) || (!formations_.empty() && formation_group_[i] != 0))
 		return false;
 	if (!guard_charge_ok(i, g->second)) {
+		note_lost_critical_guard(i, g->second);
 		guard_of_.erase(g);
 		return false;
 	}
@@ -21892,6 +21918,8 @@ void Simulation::tick_unit_ai(float dt) {
 			// Guarding a structure: let go of one that is gone or no longer ours or an ally's
 			// (CheckGuards); answer whoever attacks it (GuardedAttacked).
 			if (!order_still_valid(i, current_order(i))) {
+				note_lost_critical_guard(i, units_.order_target[i]);
+				guard_of_.erase(units_.id[i]);
 				units_.action_state[i] = ACTION_IDLE;
 				units_.has_order[i] = 0;
 				finish_order(i);
@@ -21934,6 +21962,8 @@ void Simulation::tick_unit_ai(float dt) {
 			// Guard.js CheckGuards (OnOwnershipChanged / OnDiplomacyChanged): a guard only
 			// guards its own or an ally's unit.
 			if (g >= 0 && units_.team[g] != units_.team[i] && !is_ally(units_.team[i], units_.team[g])) {
+				note_lost_critical_guard(i, units_.order_target[i]);
+				guard_of_.erase(units_.id[i]);
 				units_.target_unit_id[i] = 0;
 				units_.action_state[i] = ACTION_IDLE;
 				units_.has_order[i] = 0;
@@ -22113,6 +22143,10 @@ void Simulation::tick_unit_ai(float dt) {
 			else if (units_.order_kind[i] != ORDER_NONE) {
 				// A structure the unit was told to attack is gone (tick_combat idles its attackers).
 				const bool attack = units_.order_kind[i] == ORDER_ATTACK_BUILDING;
+				if (units_.order_kind[i] == ORDER_GUARD) {
+					note_lost_critical_guard(i, units_.order_target[i]);
+					guard_of_.erase(units_.id[i]);
+				}
 				finish_order(i);
 				if (attack) find_targets_then_walk_back(i);
 			} else {
@@ -26886,6 +26920,11 @@ bool Simulation::petra_check_trade_events() {
 // more market when its best spot earns at least minimalGain and clearly more than the best
 // route we could have now.
 void Simulation::petra_prospect_market(const PetraTradeRoutes &routes) {
+	// tradeManager.js:617: skip while a market or dock plan waits in its queue.
+	if (petra_queue_heads_.item[PETRA_Q_ECONOMIC_BUILDING] == BLD_MARKET + 1 ||
+	    petra_queue_heads_.item[PETRA_Q_DOCK] == BLD_DOCK + 1 ||
+	    petra_queues_.want_age[PETRA_Q_DOCK] <= PetraQueueManager::want_ttl(PETRA_Q_DOCK))
+		return;
 	// canBuild: the template, the phase, the build limit and no "room" mark.
 	if (petra_ps().phase < 2 || !civ_can_build(civ_of(petra_pid_), BLD_MARKET) || !petra_limit_allows_building(BLD_MARKET) ||
 	    petra_no_room(BLD_MARKET))
@@ -36067,8 +36106,11 @@ void Simulation::petra_manage_victory(float dt) {
 		}
 	}
 	if (!turn) return;
-	// checkEvents (every turn): Garrison events of the regicide hero.
+	// checkEvents (every turn): Garrison events of the regicide hero, newly trained healers,
+	// and newly captured relics walking home once on OwnershipChanged.
 	petra_critical_ent_garrisoned();
+	if (has_victory(VK_REGICIDE)) petra_assign_critical_ent_healers();
+	if (has_victory(VK_RELIC)) petra_walk_captured_relics();
 
 	// update(): the rest every 10 AI turns.
 	if (!petra_turn_mod(10)) return;
@@ -36272,11 +36314,32 @@ void Simulation::petra_manage_critical_ent_guards() {
 	// Guards on their way by sea: one that landed on its critical entity's land guards it; one
 	// dead, no longer ours, or whose entity is no longer critical (or whose ship gave up) is let go.
 	auto &ferried = petra_ferried_guards_.ids;
+	// Guards whose critical entity was lost (removeCriticalEnt, victoryManager.js:328-330):
+	// stop guarding it and mark soldier guards out of plan (plan -1).
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
+		uint32_t target = 0;
+		if (units_.order_kind[i] == ORDER_GUARD) target = units_.order_target[i];
+		else if (units_.order_kind[i] == ORDER_RETURN_RESOURCE) {
+			const auto q = order_queues_.find(units_.id[i]);
+			if (q != order_queues_.end() && !q->second.empty() && q->second.front().kind == ORDER_GUARD) target = q->second.front().target;
+		}
+		if (!target) continue;
+		if (std::any_of(crit.begin(), crit.end(), [&](const Critical &c) { return c.id == target; })) continue;
+		note_lost_critical_guard(i, target);
+		if (std::binary_search(petra_out_of_plan_[petra_pid_].begin(), petra_out_of_plan_[petra_pid_].end(), units_.id[i])) {
+			const uint32_t uid = units_.id[i];
+			order_remove_guard(&uid, 1);
+		}
+	}
 	std::erase_if(ferried, [&](const std::pair<uint32_t, uint32_t> &g) {
 		const int32_t i = lookup_unit(g.first);
 		if (i < 0 || !units_.alive[i] || units_.team[i] != petra_pid_) return true;
 		const auto it = std::find_if(crit.begin(), crit.end(), [&](const Critical &c) { return c.id == g.second; });
-		if (it == crit.end()) return true;
+		if (it == crit.end()) {
+			if (unit_tech_classes(units_.unit_type[i]) & TC_SOLDIER) petra_out_of_plan(g.first);
+			return true;
+		}
 		if (petra_aboard(g.first)) return false;
 		if (land_of((size_t)i) == it->land) {
 			guard_after_drop((size_t)i, g.second);
@@ -36345,9 +36408,32 @@ bool Simulation::petra_ferried_guard(uint32_t uid) const {
 	return it != f.end() && it->first == uid;
 }
 
+// checkEvents TrainingFinished for healers: assign idle healers to the critical hero with fewest.
+void Simulation::petra_assign_critical_ent_healers() {
+	const int want = 2 + (int)std::round(petra_config_.defensive * 2.0f);
+	std::vector<std::pair<uint32_t, int>> heroes; // hero id, healers guarding it
+	for (size_t h = 0; h < units_.count; ++h)
+		if (petra_is_critical_ent(h)) heroes.push_back({units_.id[h], 0});
+	if (heroes.empty()) return;
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!petra_guards_critical_ent(i) || units_.unit_type[i] != UNIT_HEALER) continue;
+		for (auto &hh : heroes) if (hh.first == units_.order_target[i]) ++hh.second;
+	}
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.unit_type[i] != UNIT_HEALER) continue;
+		if (units_.action_state[i] != ACTION_IDLE || units_.order_kind[i] == ORDER_GUARD) continue;
+		auto it = std::min_element(heroes.begin(), heroes.end(), [](const auto &a, const auto &b) { return a.second < b.second; });
+		if (it->second >= want) break;
+		const uint32_t uid = units_.id[i];
+		order_guard(&uid, 1, it->first);
+		++it->second;
+	}
+}
+
 // manageCriticalEntHealers: with a temple, train 2 + 2 * defensive healers per
 // hero, one at a time; healers with nothing to do guard the hero with fewest.
 void Simulation::petra_manage_critical_ent_healers() {
+	petra_assign_critical_ent_healers();
 	const int want = 2 + (int)std::round(petra_config_.defensive * 2.0f);
 	std::vector<std::pair<uint32_t, int>> heroes; // hero id, healers guarding it
 	for (size_t h = 0; h < units_.count; ++h)
@@ -36359,17 +36445,6 @@ void Simulation::petra_manage_critical_ent_healers() {
 		++guards;
 		if (units_.unit_type[i] != UNIT_HEALER) continue;
 		for (auto &hh : heroes) if (hh.first == units_.order_target[i]) ++hh.second;
-	}
-	// assignGuardToCriticalEnt for a healer: the hero with the fewest healers.
-	for (size_t i = 0; i < units_.count; ++i) {
-		if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.unit_type[i] != UNIT_HEALER) continue;
-		if (units_.action_state[i] != ACTION_IDLE || units_.order_kind[i] == ORDER_GUARD) continue;
-		auto it = std::min_element(heroes.begin(), heroes.end(), [](const auto &a, const auto &b) { return a.second < b.second; });
-		if (it->second >= want) break;
-		const uint32_t uid = units_.id[i];
-		order_guard(&uid, 1, it->first);
-		++it->second;
-		++guards;
 	}
 	const auto fewest = std::min_element(heroes.begin(), heroes.end(), [](const auto &a, const auto &b) { return a.second < b.second; });
 	if (fewest->second >= want || petra_attack_mgr_.save_resources) return;
@@ -36384,6 +36459,31 @@ void Simulation::petra_manage_critical_ent_healers() {
 		if (!temple && b.type == BLD_TEMPLE) temple = b.id;
 	}
 	if (temple) petra_train_template(PETRA_Q_HEALER, temple, tmpl);
+}
+
+// victoryManager.js checkEvents OnOwnershipChanged: walk a newly captured relic home once
+// to the closest base anchor on its land (work_target on the catafalque marks that it has been ordered).
+void Simulation::petra_walk_captured_relics() {
+	for (const auto &rel : relics_) {
+		const int32_t r = lookup_unit(rel.id);
+		if (!is_relic_unit(r) || units_.team[r] != petra_pid_ || units_.work_target[r] != 0) continue;
+		units_.work_target[r] = 1;
+		if (units_.action_state[r] != ACTION_IDLE) continue;
+		const uint16_t rland = petra_land_at(units_.pos_x[r], units_.pos_z[r]);
+		const Building *home = nullptr;
+		float best = 1e30f;
+		for (const auto &b : buildings_) {
+			if (b.team != petra_pid_ || !(is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY) || b.build_progress < 1.0f || b.wrecked) continue;
+			if (rland != 0 && petra_building_land(b, nullptr, rland) != rland) continue;
+			const float d2 = (b.x - units_.pos_x[r]) * (b.x - units_.pos_x[r]) + (b.z - units_.pos_z[r]) * (b.z - units_.pos_z[r]);
+			if (d2 < best) { best = d2; home = &b; }
+		}
+		const float near_home = home ? home->half_size + 6.0f : 0.0f;
+		if (home && best > near_home * near_home) {
+			const uint32_t uid = rel.id;
+			order_walk(&uid, 1, home->x + home->half_size + 3.0f, home->z, false);
+		}
+	}
 }
 
 // victoryManager.js update / captureGaiaRelic: go for a Gaia relic in our
@@ -36483,29 +36583,11 @@ void Simulation::petra_capture_gaia_relics() {
 		t.sent = 1;
 	};
 
-	// Our relics go home; one someone else took first ends its expedition (OnOwnershipChanged).
+	// Walk any newly captured relic home once, and call off expeditions on relics no longer Gaia's.
+	petra_walk_captured_relics();
 	for (const auto &rel : relics_) {
 		const int32_t r = lookup_unit(rel.id);
 		if (!is_relic_unit(r)) continue;
-		if (units_.team[r] == petra_pid_) {
-			// victoryManager.js OnOwnershipChanged: take a captured relic home to the closest base.
-			if (units_.action_state[r] != ACTION_IDLE) continue;
-			// pickCriticalEntRetreatLocation: a base anchor (colonies too) on the relic's land.
-			const uint16_t rland = petra_land_at(units_.pos_x[r], units_.pos_z[r]);
-			const Building *home = nullptr;
-			float best = 1e30f;
-			for (const auto &b : buildings_) {
-				if (b.team != petra_pid_ || !(is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY) || b.build_progress < 1.0f || b.wrecked) continue;
-				if (rland != 0 && petra_building_land(b, nullptr, rland) != rland) continue;
-				const float d2 = (b.x - rel.x) * (b.x - rel.x) + (b.z - rel.z) * (b.z - rel.z);
-				if (d2 < best) { best = d2; home = &b; }
-			}
-			const float near_home = home ? home->half_size + 6.0f : 0.0f;
-			if (home && best > near_home * near_home) {
-				const uint32_t uid = rel.id;
-				order_walk(&uid, 1, home->x + home->half_size + 3.0f, home->z, false);
-			}
-		}
 		if (units_.team[r] != GAIA_PLAYER) call_off(rel.id);
 	}
 
@@ -40821,8 +40903,10 @@ void Simulation::tick_fauna(float dt) {
 			fauna_.vel_x[i] = fauna_.vel_z[i] = 0.0f;
 		}
 	};
+	// UnitAI.js RoamTime / FeedTime: drawn in milliseconds between lo and hi seconds.
 	auto timer = [&](float lo, float hi) {
-		return lo + (float)sim_rng_.range_int(0, (int)std::max(0.0f, hi - lo));
+		const int span_ms = (int)std::lround(std::max(0.0f, hi - lo) * 1000.0f);
+		return lo + (float)sim_rng_.range_int(0, span_ms) * 0.001f;
 	};
 	// UnitMotion: an animal gains speed at its Acceleration (template_unit_fauna x0.7, times each
 	// template's own factor) from the speed it had along its new way (ux, uz, a unit vector),
@@ -41107,15 +41191,15 @@ void Simulation::tick_fauna(float dt) {
 			bool keep = t >= 0 ? can_bite(t) : tf >= 0;
 			const float tx = t >= 0 ? units_.pos_x[t] : tf >= 0 ? fauna_.pos_x[tf] : fx;
 			const float tz = t >= 0 ? units_.pos_z[t] : tf >= 0 ? fauna_.pos_z[tf] : fz;
-			if (keep) {
-				const float tdx = tx - fx, tdz = tz - fz;
-				const float td2 = tdx * tdx + tdz * tdz;
-				// ShouldAbandonChase: every stance but violent stops once the target leaves the
-				// animal's vision (CheckTargetIsInVisionRange). An animal has no held position
-				// (UnitAI sets one only on walk orders and stance changes), so a defensive one's
-				// CheckTargetDistanceFromHeldPosition always passes.
-				if (info.stance != FAUNA_STANCE_VIOLENT) keep = td2 < info.vision * info.vision;
-			}
+			const float dx = tx - fx, dz = tz - fz;
+			const float td2 = dx * dx + dz * dz;
+			const float len = std::sqrt(td2);
+			// ShouldAbandonChase runs on the 1 s APPROACHING / CHASING Timer (while out of attack range),
+			// stopping non-violent animals once the target leaves vision (CheckTargetIsInVisionRange).
+			const uint64_t chase_period = (uint64_t)std::max(1L, std::lround(1.0f / dt));
+			const bool chase_timer_due = len > info.attack_range + 0.6f && (ticks_ + i) % chase_period == 0;
+			if (keep && chase_timer_due && info.stance != FAUNA_STANCE_VIOLENT)
+				keep = td2 < info.vision * info.vision;
 			if (!keep) {
 				// FinishOrder: back to IDLE where it stands, which lingers first (no walk home).
 				fauna_.behavior[i] = FAUNA_IDLE_GRAZE;
@@ -41124,10 +41208,8 @@ void Simulation::tick_fauna(float dt) {
 				fauna_.state_timer[i] = timer(info.feed_time_min, info.feed_time_max);
 				continue;
 			}
-			const float dx = tx - fx, dz = tz - fz;
-			const float len = std::sqrt(dx * dx + dz * dz);
-			// In COMBAT, flee_distance (unused there) marks ATTACKING: 0 while approaching, 1
-			// once the animal has reached its target.
+			// In COMBAT, flee_distance (unused there) marks state: 0 in APPROACHING, 1 in ATTACKING,
+			// and in CHASING (entered from ATTACKING) 1.5 when walking or 2.0 when running.
 			const bool holds_ground = info.stance == FAUNA_STANCE_DEFENSIVE || info.stance == FAUNA_STANCE_PASSIVE_DEFENSIVE;
 			if (len > info.attack_range + 0.6f && holds_ground && fauna_.flee_distance[i] > 0.0f) {
 				// ATTACKING OutOfRange: the swing's range check fails, and with respondChase false
@@ -41144,10 +41226,13 @@ void Simulation::tick_fauna(float dt) {
 			if (len > info.attack_range + 0.6f) {
 				// Out of reach: the next bite comes PrepareTime after it gets there (Attack.js).
 				fauna_.attack_timer[i] = std::max(fauna_.attack_timer[i], info.attack_prepare);
-				// COMBAT APPROACHING walks; CHASING (after a first ATTACKING, flee_distance > 0) runs
-				// after a target that flees (UnitAI.js CHASING enter: "IsFleeing()) this.Run()").
-				const bool fleeing = fauna_.flee_distance[i] > 0.0f &&
-				                     (t >= 0 ? units_.action_state[t] == ACTION_FLEE : fauna_.behavior[tf] == FAUNA_FLEE);
+				// COMBAT APPROACHING walks; CHASING (entered from ATTACKING when flee_distance == 1.0f)
+				// decides once on entry whether to run after a fleeing target (UnitAI.js CHASING enter).
+				if (fauna_.flee_distance[i] == 1.0f) {
+					const bool target_fleeing = (t >= 0 ? units_.action_state[t] == ACTION_FLEE : fauna_.behavior[tf] == FAUNA_FLEE);
+					fauna_.flee_distance[i] = target_fleeing ? 2.0f : 1.5f;
+				}
+				const bool fleeing = fauna_.flee_distance[i] >= 2.0f;
 				const float sp = fauna_move_speed(i, info.speed * (fleeing ? info.run_mult : 1.0f));
 				// Along the long path round ponds, cliffs and walls (UnitMotion; polar_sea_triggers.js
 				// sends its wolves across the whole map); a building corner 45 or 90 degrees to either side.
@@ -41857,7 +41942,10 @@ void Simulation::tick_relics() {
 		}
 		rel.x = units_.pos_x[r];
 		rel.z = units_.pos_z[r];
-		if (units_.team[r] != (rel.claimed ? rel.owner_team : GAIA_PLAYER)) relic_changed_hands_ = true;
+		if (units_.team[r] != (rel.claimed ? rel.owner_team : GAIA_PLAYER)) {
+			relic_changed_hands_ = true;
+			units_.work_target[r] = 0; // OnOwnershipChanged: walk home once for the new owner
+		}
 		rel.claimed = units_.team[r] != GAIA_PLAYER;
 		rel.owner_team = rel.claimed ? units_.team[r] : 255;
 	}
@@ -41991,10 +42079,11 @@ void Simulation::register_capture_aura(uint32_t id, uint8_t team, uint16_t k, fl
 // Capturable.js UpdateCachedValues: CapturePoints of the template times its owner's civ
 // bonus and techs and the capture auras reaching it (0 A.D. multiplies them all).
 float Simulation::structure_max_capture(const Building &b) const {
+	const uint8_t t = structure_tech_type(b);
 	float m = building_type_info(b.type).capture_max_points;
 	if (b.team < MAX_PLAYERS)
-		m *= civ_bonus_mult(civ_of(b.team), CIV_BONUS_BUILDING_CAPTURE_POINTS, b.type) * tech_mods(b.team).bld_capture[b.type];
-	const bool cc = (building_tech_classes(b.type) & TC_CIVCENTRE) != 0;
+		m *= civ_bonus_mult(civ_of(b.team), CIV_BONUS_BUILDING_CAPTURE_POINTS, t) * tech_mods(b.team).bld_capture[t];
+	const bool cc = (structure_tech_classes(b) & TC_CIVCENTRE) != 0;
 	return m * aura_mgr_.query_capture(b.x, b.z, b.team, AURA_CAPTURE_POINTS, cc);
 }
 

@@ -83,14 +83,16 @@ static uint32_t spawn_map_wall(rtso::Simulation &sim, const Dictionary &b, uint8
 				rtso::Simulation::STRUCT_OFF_TRAIN);
 		return id;
 	}
+	const String tmpl = b.get("template", "");
+	const bool low_wall = tmpl.contains("cart/s_wall_");
 	const String ws = b.get("wallset", "stone"), piece = b.get("piece", "wall");
-	const uint8_t kind = ws == "palisade" ? rtso::WALLSET_PALISADE : ws == "siege" ? rtso::WALLSET_SIEGE : rtso::WALLSET_STONE;
+	const uint8_t kind = (ws == "palisade" || low_wall) ? rtso::WALLSET_PALISADE : ws == "siege" ? rtso::WALLSET_SIEGE : rtso::WALLSET_STONE;
 	const uint8_t p = piece == "tower" ? rtso::Simulation::MAP_WALL_TOWER
 			: piece == "gate" ? rtso::Simulation::MAP_WALL_GATE : rtso::Simulation::MAP_WALL_SEGMENT;
 	const uint32_t id = sim.spawn_map_wall_piece(player, kind, p, (float)b.get("x", 0.0), (float)b.get("z", 0.0),
 			(float)b.get("angle", 0.0), (float)b.get("length", 9.0));
-	// cart/s_wall_long, the Low Wall: its own gate upgrade price.
-	if (id && String(b.get("template", "")).ends_with("cart/s_wall_long")) sim.set_structure_off(id, rtso::Simulation::STRUCT_LOW_WALL);
+	// cart/s_wall_*, the Low Wall: palisade classes (Defensive Palisade, no Wall) and its own gate upgrade price.
+	if (id && low_wall) sim.set_structure_off(id, rtso::Simulation::STRUCT_LOW_WALL);
 	// palisades_spike_* (<TerritoryDecay disable=""/>).
 	if (id && (bool)b.get("no_decay", false)) sim.set_structure_no_decay(id);
 	if (id && (bool)b.get("no_capture", false)) sim.set_structure_uncapturable(id);

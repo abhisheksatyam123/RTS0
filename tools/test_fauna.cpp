@@ -297,9 +297,9 @@ int main() {
 		// Past the old held-position leash, inside vision: it keeps approaching.
 		run(s, 0.5f);
 		CHECK(s.fauna_.behavior[fidx(s, boar)] == FAUNA_ATTACK && s.fauna_.pos_x[fidx(s, boar)] > 0.2f);
-		// Out of its vision: it gives up and stays put.
+		// Out of its vision: it gives up on the next 1 s chase check and stays put.
 		s.units_.pos_x[uidx(s, u)] = s.fauna_.pos_x[fidx(s, boar)] + bi.vision + 2.0f;
-		run(s, 0.2f);
+		run(s, 1.2f);
 		const size_t b = fidx(s, boar);
 		const float gx = s.fauna_.pos_x[b];
 		CHECK(s.fauna_.behavior[b] == FAUNA_IDLE_GRAZE);
