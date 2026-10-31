@@ -433,6 +433,7 @@ private:
 	struct CrowdBatch {
 		MultiMeshInstance3D *mmi[CROWD_CLIP_COUNT][CROWD_PHASES] = {};
 		Ref<MultiMesh> mm[CROWD_CLIP_COUNT][CROWD_PHASES];
+		PackedFloat32Array buffer[CROWD_CLIP_COUNT][CROWD_PHASES];
 		CrowdPuppet puppet[CROWD_CLIP_COUNT];
 		bool clip_baked[CROWD_CLIP_COUNT] = {};
 		Ref<Mesh> rest;

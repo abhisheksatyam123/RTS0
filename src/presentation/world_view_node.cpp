@@ -4356,20 +4356,21 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	auto uview = sim->units();
 	prefetch_unit_models(sim, uview, delta);
 	auto rview_g = sim->resources();
-	// Lock cull camera (GameView.cpp m_CullCamera): what lies outside the frozen frustum is
-	// not drawn, so moving the view camera shows what the cull camera culled.
-	const bool cull_locked = !locked_cull_frustum_.empty() && anim_cull_enabled_;
+	// Frustum culling: culls against the active camera frustum (or frozen cull camera if locked).
+	// Disabled when anim_cull_enabled_ is false or frustum is empty (e.g. headless/no camera).
 	auto locked_out = [&](float x, float z, float radius) {
-		return cull_locked && !in_view(Vector3(x, sim->get_terrain_height(x, z), z), radius);
+		if (!anim_cull_enabled_ || frustum.empty()) return false;
+		return !in_view(Vector3(x, sim->get_terrain_height(x, z), z), radius);
 	};
 	auto entity_visible = [&](float x, float z, uint8_t team) {
-		return rtso::los_sees_unit(*sim, local_player_, x, z, team) && !locked_out(x, z, 4.0f);
+		return rtso::los_sees_unit(*sim, local_player_, x, z, team) && !locked_out(x, z, 14.0f);
 	};
 	// template_unit_fauna.xml RetainInFog: an animal stays drawn where it is in explored fog
 	// (CCmpRangeManager VIS_FOGGED with no Fogging mirage), hidden only in unexplored land.
 	// Corral livestock (gaia/fauna_*_trainable RetainInFog false) shows only in sight, or to its
 	// owner and those it shares sight with.
-	auto fauna_visible = [sim, this](float x, float z, uint8_t ftype, uint8_t owner) {
+	auto fauna_visible = [sim, this, &locked_out](float x, float z, uint8_t ftype, uint8_t owner) {
+		if (locked_out(x, z, 14.0f)) return false;
 		if (rtso::los_sees_all(*sim, local_player_)) return true;
 		if (rtso::fauna_retained_in_fog(ftype)) return mirages_.los_at(x, z) != rtso::Simulation::FOW_UNEXPLORED;
 		return (owner < rtso::MAX_PLAYERS && sim->shares_los(local_player_, owner)) || mirages_.los_at(x, z) == rtso::Simulation::FOW_VISIBLE;
@@ -4449,6 +4450,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	static int counts[rtso::CIV_COUNT][CROWD_KEY_COUNT][CROWD_CLIP_COUNT][CROWD_PHASES];
 	static int total_counts[rtso::CIV_COUNT][CROWD_KEY_COUNT][CROWD_CLIP_COUNT];
 	static int written[rtso::CIV_COUNT][CROWD_KEY_COUNT][CROWD_CLIP_COUNT][CROWD_PHASES];
+	static float *crowd_buffer_ptr[rtso::CIV_COUNT][CROWD_KEY_COUNT][CROWD_CLIP_COUNT][CROWD_PHASES];
 	static const int no_units[CROWD_CLIP_COUNT][CROWD_PHASES] = {};
 	static const int no_total[CROWD_CLIP_COUNT] = {};
 	for (const uint32_t ck : crowd_seen_list_) crowd_seen_[ck >> 16][ck & 0xFFFF] = 0;
@@ -4470,6 +4472,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			std::memset(counts[civ][key], 0, sizeof(counts[civ][key]));
 			std::memset(total_counts[civ][key], 0, sizeof(total_counts[civ][key]));
 			std::memset(written[civ][key], 0, sizeof(written[civ][key]));
+			std::memset(crowd_buffer_ptr[civ][key], 0, sizeof(crowd_buffer_ptr[civ][key]));
 		}
 		const int phase = (int)(uview.id[i] % (uint32_t)CROWD_PHASES);
 		counts[civ][key][slot][phase]++;
@@ -4494,7 +4497,19 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		cycle_puppet_meshes(cb.puppet, cb.mm, row, CROWD_CLIP_COUNT, CROWD_DEATH_SLOTS);
 		for (int c = 0; c < CROWD_CLIP_COUNT; ++c) {
 			for (int p = 0; p < CROWD_PHASES; ++p) {
-				if (cb.mm[c][p].is_valid()) set_mm_count(cb.mm[c][p], row[c][p]);
+				if (cb.mm[c][p].is_valid()) {
+					set_mm_count(cb.mm[c][p], row[c][p]);
+					if (row[c][p] > 0) {
+						if (cb.buffer[c][p].size() != row[c][p] * 20) {
+							cb.buffer[c][p].resize(row[c][p] * 20);
+						}
+						crowd_buffer_ptr[civ][t][c][p] = cb.buffer[c][p].ptrw();
+					} else {
+						crowd_buffer_ptr[civ][t][c][p] = nullptr;
+					}
+				} else {
+					crowd_buffer_ptr[civ][t][c][p] = nullptr;
+				}
 			}
 		}
 	}
@@ -4611,31 +4626,45 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		if (!dying) emit_unit_fx(utype_str, xf, sc, delta);
 		const int clip = crowd_slot_scratch_[i];
 		const int phase = (int)(id % (uint32_t)CROWD_PHASES);
-		MultiMesh *cmm = crowd_[uciv][ckey] ? crowd_[uciv][ckey]->mm[clip][phase].ptr() : nullptr;
-		if (cmm) {
+		float *dp = crowd_buffer_ptr[uciv][ckey][clip][phase];
+		if (dp) {
 			const int slot = written[uciv][ckey][clip][phase]++;
-			if (detailed.count(id) > 0) {
-				Transform3D hidden;
-				hidden.origin = Vector3(x, y, z);
-				hidden.basis = hidden.basis.scaled(Vector3(0.001f, 0.001f, 0.001f));
-				cmm->set_instance_transform(slot, hidden);
-			} else {
-				cmm->set_instance_transform(slot, xf);
-			}
-			// model_common.fs: color *= LOS. Own units in the fog read darker.
-			// Models without player_trans skins keep a friend/foe tint.
+			dp += slot * 20;
+
 			const float lit = los_brightness(x, z);
 			const bool owner_coloured = crowd_[uciv][ckey]->player_color;
 			Color tint = owner_coloured ? Color(1, 1, 1) : (is_player ? col_player : col_enemy);
 			tint.r *= lit;
 			tint.g *= lit;
 			tint.b *= lit;
-			cmm->set_instance_color(slot, tint);
-			// Custom data reaches the shader raw; the close-up path's source_color
-			// instance uniform is converted to linear, so match it here.
 			const Color pc = player_display_color(sim, uview.team[i]).srgb_to_linear();
-			// Alpha 1 + the unit's body skin draw (player_color.gdshader variant_u).
-			cmm->set_instance_custom_data(slot, Color(pc.r, pc.g, pc.b, 1.0f + 0.999f * rtso::ModelLibrary::variant_draw(id)));
+
+			if (detailed.count(id) > 0) {
+				dp[0] = 0.001f; dp[1] = 0.0f; dp[2] = 0.0f; dp[3] = (float)x;
+				dp[4] = 0.0f; dp[5] = 0.001f; dp[6] = 0.0f; dp[7] = (float)y;
+				dp[8] = 0.0f; dp[9] = 0.0f; dp[10] = 0.001f; dp[11] = (float)z;
+			} else {
+				dp[0] = (float)xf.basis.rows[0].x;
+				dp[1] = (float)xf.basis.rows[0].y;
+				dp[2] = (float)xf.basis.rows[0].z;
+				dp[3] = (float)xf.origin.x;
+				dp[4] = (float)xf.basis.rows[1].x;
+				dp[5] = (float)xf.basis.rows[1].y;
+				dp[6] = (float)xf.basis.rows[1].z;
+				dp[7] = (float)xf.origin.y;
+				dp[8] = (float)xf.basis.rows[2].x;
+				dp[9] = (float)xf.basis.rows[2].y;
+				dp[10] = (float)xf.basis.rows[2].z;
+				dp[11] = (float)xf.origin.z;
+			}
+			dp[12] = (float)tint.r;
+			dp[13] = (float)tint.g;
+			dp[14] = (float)tint.b;
+			dp[15] = (float)tint.a;
+			dp[16] = (float)pc.r;
+			dp[17] = (float)pc.g;
+			dp[18] = (float)pc.b;
+			dp[19] = 1.0f + 0.999f * rtso::ModelLibrary::variant_draw(id);
 		}
 
 		// StatusBars.js on a selected, highlighted (hovered or band-boxed) or, with
@@ -4783,6 +4812,20 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		v.rank_icon->set_visible(false);
 	}
 
+	// Stream bulk MultiMesh buffers to GPU
+	for (const uint32_t ck : crowd_seen_list_) {
+		const int civ = (int)(ck >> 16), t = (int)(ck & 0xFFFF);
+		CrowdBatch &cb = *crowd_[civ][t];
+		const auto &row = counts[civ][t];
+		for (int c = 0; c < CROWD_CLIP_COUNT; ++c) {
+			for (int p = 0; p < CROWD_PHASES; ++p) {
+				if (row[c][p] > 0 && cb.mm[c][p].is_valid()) {
+					cb.mm[c][p]->set_buffer(cb.buffer[c][p]);
+				}
+			}
+		}
+	}
+
 	// Release the slots of units not drawn close up this frame. A slot already released keeps its
 	// old stamp and sim id, so only the slot the id still maps to is released: a second release
 	// would list it twice in unit_free (two units then share one model and rebuild it every
@@ -4797,13 +4840,17 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		}
 	}
 
-	// Clean up stale visual interpolation entries
+	// Clean up stale visual interpolation entries (only for units that no longer exist in the simulation)
 	const bool sweep_pos = crowd_pos.size() > uview.count + 64, sweep_yaw = crowd_yaw.size() > uview.count + 64;
-	if (sweep_pos || sweep_yaw) std::sort(active_unit_ids_.begin(), active_unit_ids_.end());
-	auto drawn_now = [this](uint32_t id) { return std::binary_search(active_unit_ids_.begin(), active_unit_ids_.end(), id); };
+	static std::vector<uint32_t> all_alive_ids;
+	if (sweep_pos || sweep_yaw) {
+		all_alive_ids.assign(uview.id, uview.id + uview.count);
+		std::sort(all_alive_ids.begin(), all_alive_ids.end());
+	}
+	auto unit_exists = [](uint32_t id) { return std::binary_search(all_alive_ids.begin(), all_alive_ids.end(), id); };
 	if (sweep_pos) {
 		for (auto it = crowd_pos.begin(); it != crowd_pos.end(); ) {
-			if (!drawn_now(it->first)) {
+			if (!unit_exists(it->first)) {
 				it = crowd_pos.erase(it);
 			} else {
 				++it;
@@ -4812,7 +4859,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	}
 	if (sweep_yaw) {
 		for (auto it = crowd_yaw.begin(); it != crowd_yaw.end(); ) {
-			if (!drawn_now(it->first)) {
+			if (!unit_exists(it->first)) {
 				it = crowd_yaw.erase(it);
 			} else {
 				++it;

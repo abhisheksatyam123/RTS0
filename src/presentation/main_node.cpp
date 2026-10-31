@@ -1,3 +1,4 @@
+#include "graphics/gpu_separation.h"
 #include <algorithm>
 #include <cmath>
 #include "network/chat_routing.h"
@@ -54,6 +55,7 @@ RtsoMain::RtsoMain() {
 RtsoMain::~RtsoMain() {
 	net_host_.stop();
 	delete sim;
+	rtso::GpuSeparation::instance().cleanup();
 }
 
 void RtsoMain::_notification(int p_what) {

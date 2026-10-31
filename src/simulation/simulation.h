@@ -4878,6 +4878,32 @@ private:
 	std::vector<uint16_t> combat_herd_scratch_; // tick_combat: players' animals out of their corrals (structure targets)
 	std::vector<uint32_t> combat_look_again_scratch_; // tick_combat: units that hit a non-preferred target
 	std::vector<uint8_t> status_bits_scratch_; // tick_status_effects: each unit's Poisoned/Burning bits
+	struct PendingUnitAttack {
+		int32_t target_idx = -1;
+		float final_dmg = 0.0f;
+		float launch_y = 0.0f;
+		float aim_x = 0.0f;
+		float land_y = 0.0f;
+		float aim_z = 0.0f;
+		float sigma = 0.0f;
+		float new_timer = 0.0f;
+		uint32_t new_chase = 0;
+		uint8_t new_order_flags = 0;
+		uint8_t new_action_state = 0;
+		uint8_t effect = 0;
+		uint8_t proj_vis = 0;
+		uint8_t splash = 0;
+		uint8_t u_att = 0;
+		bool striking = false;
+		bool is_ranged = false;
+		bool look_again = false;
+		bool timer_modified = false;
+		bool order_flags_modified = false;
+		bool chase_modified = false;
+		bool action_modified = false;
+		bool late_cleared = false;
+	};
+	std::vector<PendingUnitAttack> pending_unit_attacks_;
 	// ResourceGatherer.CanGather: unit index i has a Rates entry for resource index r.
 	bool can_gather(size_t i, size_t r) const;
 	// With `busy`, skips `skip` and resources whose MaxGatherers are all taken (ResourceSupply.IsAvailable).

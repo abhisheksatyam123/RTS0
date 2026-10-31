@@ -19,7 +19,7 @@ namespace {
 // shorter than a sleeping thread takes to wake, so sleeping workers would miss most of each loop.
 // It spins briefly, then yields its core to any other thread (Godot's) while it waits, and sleeps
 // once no job came for kWatchFor (between turns and frames).
-constexpr auto kSpinFor = std::chrono::microseconds(20);
+constexpr auto kSpinFor = std::chrono::microseconds(250);
 constexpr auto kWatchFor = std::chrono::microseconds(1500);
 } // namespace
 
