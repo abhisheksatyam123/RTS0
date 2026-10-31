@@ -190,7 +190,11 @@ func _on_exit_pressed():
 		load("res://scenes/session/quit_confirmation.gd").menu(main)
 		return
 	get_tree().paused = false
-	MatchSettings.go("res://scenes/menu/main_menu.tscn")
+	var ms = get_node_or_null("/root/MatchSettings")
+	if ms:
+		ms.go("res://scenes/menu/main_menu.tscn")
+	else:
+		get_tree().change_scene_to_file.call_deferred("res://scenes/menu/main_menu.tscn")
 
 # 0 A.D. MenuButtons Resign: ResignConfirmation asks first; observers (and players
 # whose game is over) can't resign.

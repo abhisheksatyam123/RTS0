@@ -17,6 +17,10 @@ const MODERN := preload("res://scenes/common/modern_theme.gd")
 const ScenarioStart = preload("res://scenes/menu/scenario_start.gd")
 const MapBrowser = preload("res://scenes/menu/map_browser.gd")
 const L10n = preload("res://scenes/menu/l10n.gd")
+static func _lobby_session() -> Node:
+	var loop = Engine.get_main_loop()
+	return (loop as SceneTree).root.get_node_or_null("LobbySession") if loop is SceneTree else null
+
 const TAB_BUTTONS_JS := preload("res://scenes/common/tab_buttons.gd")
 const MAP_BROWSER_HOTKEY := "gamesetup.mapbrowser.open"
 # Loaded at run time: game_description.gd preloads this page.
@@ -997,7 +1001,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			open.queue_free()
 		else:
 			open_civ_reference(want)
-	elif "lobby" in fired and LobbySession.signed_in():
+	elif "lobby" in fired and (_lobby_session() != null and _lobby_session().signed_in()):
 		# LobbyButton.xml hotkey="lobby": the lobby dialog over the setup.
 		get_viewport().set_input_as_handled()
 		open_lobby_dialog()
@@ -1343,7 +1347,7 @@ func description_info() -> Dictionary:
 		"explore_map": st["explore"], "reveal_map": st["reveal"], "ally_view": st["ally_view"],
 		"cheats": %Cheats.button_pressed if _mp_role != "none" else true,
 		"biome": _selected_biome(), "rated": _rated != null and _rated.button_pressed,
-		"player_count": (st["types"] as Array).size(), "lobby_game": _mp_role != "none" and LobbySession.signed_in()}
+		"player_count": (st["types"] as Array).size(), "lobby_game": _mp_role != "none" and (_lobby_session() != null and _lobby_session().signed_in())}
 
 ## The description scrolls in the Map Preview panel, beside the preview under
 ## the map's name line; the panel takes the page's spare height.
@@ -2687,11 +2691,12 @@ func _build_net_controls() -> void:
 	lobby_btn.name = "LobbyButton"
 	lobby_btn.text = "Lobby"
 	lobby_btn.tooltip_text = "Show the multiplayer lobby in a dialog window."
-	lobby_btn.visible = LobbySession.signed_in()
+	lobby_btn.visible = _lobby_session() != null and _lobby_session().signed_in()
 	lobby_btn.pressed.connect(open_lobby_dialog)
 	$VBox/Header.add_child(lobby_btn)
 	# CancelButton: back to the lobby while signed in to it.
-	($VBox/HBox/Right/Buttons/BtnBack as Button).tooltip_text = "Return to the lobby." if LobbySession.signed_in() else "Return to the main menu."
+	var _ls_back := _lobby_session()
+	($VBox/HBox/Right/Buttons/BtnBack as Button).tooltip_text = "Return to the lobby." if (_ls_back and _ls_back.signed_in()) else "Return to the main menu."
 	lobby_btn.owner = self
 	lobby_btn.unique_name_in_owner = true
 	# 0.28 Rating.js "Rated Game" and Cheats.js, which the host sets in a

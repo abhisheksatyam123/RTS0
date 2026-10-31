@@ -6,7 +6,9 @@ extends CanvasLayer
 
 func _ready() -> void:
 	panel.visible = false
-	MatchSettings.prepare_line_edit(line_edit)
+	var ms = (Engine.get_main_loop() as SceneTree).root.get_node_or_null("MatchSettings") if Engine.get_main_loop() is SceneTree else null
+	if ms:
+		ms.prepare_line_edit(line_edit)
 
 func toggle() -> void:
 	panel.visible = not panel.visible

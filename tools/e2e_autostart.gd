@@ -120,5 +120,7 @@ func run() -> void:
 	check(current_scene != null and current_scene.scene_file_path in ["res://scenes/menu/loading.tscn", "res://scenes/main.tscn"], "the menu went to the match")
 	check(ms.map_id == "random_mainland" and ms.seed == 7 and ms.slot_types == [0, 1] and ms.slot_civs == [0, 6], "with the command line's match")
 	check(Autostart.consumed and not Autostart.run(ms), "only once")
+	while ResourceLoader.load_threaded_get_status("res://scenes/main.tscn") == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
+		await frames(1)
 	print("RESULT: %s" % ("PASS" if failures == 0 else "FAIL (%d)" % failures))
 	quit(0 if failures == 0 else 1)

@@ -79,6 +79,8 @@ static func civ_id(code: String) -> int:
 static func configure(ms: Node, opts: Dictionary, maps: Array) -> String:
 	var path := _last(opts, "autostart", "")
 	var dir := path.get_base_dir().get_file()
+	if not dir.is_empty() and not dir in ["random", "skirmishes", "scenarios", "tutorials"]:
+		return "Unrecognized map type '%s'." % dir
 	var m := find_map(path, maps)
 	if m.is_empty():
 		return "Map '%s' not found." % path
