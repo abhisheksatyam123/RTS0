@@ -234,8 +234,8 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		view->rebuild_terrain(sim);
 
 		if (cam_rig) {
+			cam_rig->set_simulation(sim);
 			cam_rig->set_map_bounds_half(sim->map_half());
-		cam_rig->set_map_circular(sim->circular_map());
 			cam_rig->set_map_circular(sim->circular_map());
 			for (const auto &b : sim->buildings()) {
 				if (b.team == local_player() && rtso::is_civic_centre(b.type)) {
@@ -628,6 +628,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 	load_progress(70, "Building terrain");
 	view->rebuild_terrain(sim);
 	if (cam_rig) {
+		cam_rig->set_simulation(sim);
 		cam_rig->set_map_bounds_half(sim->map_half());
 		// 0 A.D. opens on the player's civic centre (session.js initGUIObjects
 		// jumps to it); scenarios without one fall back to Player 1's start. A map's

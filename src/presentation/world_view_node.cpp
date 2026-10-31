@@ -4360,17 +4360,17 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	// Disabled when anim_cull_enabled_ is false or frustum is empty (e.g. headless/no camera).
 	auto locked_out = [&](float x, float z, float radius) {
 		if (!anim_cull_enabled_ || frustum.empty()) return false;
-		return !in_view(Vector3(x, sim->get_terrain_height(x, z), z), radius);
+		return !in_view(Vector3(x, sim->get_terrain_height(x, z) + 1.0f, z), radius);
 	};
 	auto entity_visible = [&](float x, float z, uint8_t team) {
-		return rtso::los_sees_unit(*sim, local_player_, x, z, team) && !locked_out(x, z, 14.0f);
+		return rtso::los_sees_unit(*sim, local_player_, x, z, team) && !locked_out(x, z, 16.0f);
 	};
 	// template_unit_fauna.xml RetainInFog: an animal stays drawn where it is in explored fog
 	// (CCmpRangeManager VIS_FOGGED with no Fogging mirage), hidden only in unexplored land.
 	// Corral livestock (gaia/fauna_*_trainable RetainInFog false) shows only in sight, or to its
 	// owner and those it shares sight with.
 	auto fauna_visible = [sim, this, &locked_out](float x, float z, uint8_t ftype, uint8_t owner) {
-		if (locked_out(x, z, 14.0f)) return false;
+		if (locked_out(x, z, 16.0f)) return false;
 		if (rtso::los_sees_all(*sim, local_player_)) return true;
 		if (rtso::fauna_retained_in_fog(ftype)) return mirages_.los_at(x, z) != rtso::Simulation::FOW_UNEXPLORED;
 		return (owner < rtso::MAX_PLAYERS && sim->shares_los(local_player_, owner)) || mirages_.los_at(x, z) == rtso::Simulation::FOW_VISIBLE;
@@ -4403,7 +4403,8 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	for (size_t i = 0; i < uview.count && (int)detailed.size() < MAX_DETAILED_UNITS; ++i) {
 		if (entity_visible(uview.pos_x[i], uview.pos_z[i], uview.team[i])) {
 			uint8_t ut = uview.unit_type[i];
-			if (ut == rtso::UNIT_HERO || in_view(Vector3(uview.pos_x[i], 0.0f, uview.pos_z[i]), 8.0f)) {
+			float th = sim->get_terrain_height(uview.pos_x[i], uview.pos_z[i]);
+			if (ut == rtso::UNIT_HERO || in_view(Vector3(uview.pos_x[i], th + 1.0f, uview.pos_z[i]), 12.0f)) {
 				detailed.insert(uview.id[i]);
 			}
 		}
@@ -4888,7 +4889,10 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	for (const auto &b : buildings) {
 		alive_buildings.insert(b.id);
 		BuildingVis &v = acquire_building_slot(b.id);
-		if (v.root) v.root->set_visible(!locked_out(b.x, b.z, b.half_size * 1.5f + 4.0f));
+		const float b_h = structure_status_bar_offset(b.type);
+		const float b_rad = b.half_size * 1.8f + b_h * 0.5f + 8.0f;
+		const Vector3 b_center(b.x, sim->get_terrain_height(b.x, b.z) + b_h * 0.5f, b.z);
+		if (v.root) v.root->set_visible(!anim_cull_enabled_ || frustum.empty() || in_view(b_center, b_rad));
 
 		uint8_t bciv = b.civ;
 		const String mid = building_model_of(b.id, bciv, b.type, b.half_size);
@@ -5202,9 +5206,15 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	auto visual_of = [&](const rtso::Projectile &p) -> uint8_t {
 		return p.visual == 0 && tmpl_kind(p) == 4 && bolt_mm.is_valid() ? 1 : p.visual;
 	};
+	auto proj_visible = [&](const rtso::Projectile &p) {
+		if (p.team < rtso::MAX_PLAYERS && !rtso::los_sees_unit(*sim, local_player_, p.current_x, p.current_z, p.team))
+			return false;
+		if (!anim_cull_enabled_ || frustum.empty()) return true;
+		return in_view(Vector3(p.current_x, p.current_y, p.current_z), 8.0f);
+	};
 	int arrow_n = 0, bolt_n = 0, stone_n = 0, jav_n = 0, sling_n = 0;
 	for (const auto &proj : projectiles) {
-		if (!entity_visible(proj.current_x, proj.current_z, proj.team)) continue;
+		if (!proj_visible(proj)) continue;
 		const uint8_t vis = visual_of(proj);
 		if (vis == 2) stone_n++;
 		else if (vis == 1) bolt_n++;
@@ -5221,7 +5231,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 
 	for (size_t p = 0; p < projectiles.size(); ++p) {
 		const auto &proj = projectiles[p];
-		if (!entity_visible(proj.current_x, proj.current_z, proj.team)) continue;
+		if (!proj_visible(proj)) continue;
 		Vector3 pos(proj.current_x, proj.current_y, proj.current_z);
 
 		// Calculate direction of flight

@@ -193,6 +193,7 @@ void RtsoMain::_ready() {
 
 	cam_rig = memnew(RtsoCameraRig);
 	add_child(cam_rig);
+	if (sim) cam_rig->set_simulation(sim);
 
 	view = memnew(RtsoWorldView);
 	add_child(view);
@@ -975,6 +976,7 @@ void RtsoMain::_process(double delta) {
 		}
 	}
 	if (cam_rig) {
+		if (sim && !cam_rig->get_simulation()) cam_rig->set_simulation(sim);
 		// Letters pick buildings while placing one, and typing never moves the camera.
 		Control *focus = get_viewport() ? get_viewport()->gui_get_focus_owner() : nullptr;
 		const bool typing = focus && (Object::cast_to<LineEdit>(focus) || focus->is_class("TextEdit"));
