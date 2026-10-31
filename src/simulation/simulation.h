@@ -4118,7 +4118,8 @@ private:
 	float petra_scout_timer_ = 0.0f;
 	uint32_t petra_scout_unit_id_ = 0;
 	float petra_scout_angle_ = 0.0f;
-	float petra_scout_radius_ = 12.0f;
+	float petra_scout_radius_ = 20.0f;
+	void petra_manage_scouting(float dt);
 
 	void update_petra_bases(float dt);
 	void update_petra_threat_map(float dt);

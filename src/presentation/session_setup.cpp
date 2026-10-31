@@ -978,12 +978,25 @@ void RtsoMain::apply_match_settings() {
 			" civ ", rtso::civ_info(sim->player_civ(local_player() < rtso::MAX_PLAYERS ? local_player() : 0)).name,
 			" vs ", rtso::civ_info(sim->team_civ(1)).name);
 
-	String battle_preset = ms->has_method("get") ? (String)ms->get("battle_preset") : "";
-	const bool is_frontline = (battle_preset == "frontline_clash" || map_id == "frontline_clash");
+	// Track G (T47): Apply Skirmish & Siege Battle Presets ("frontline_clash" / "fortress_siege")
+	const String preset = ms->has_method("get") ? (String)ms->get("battle_preset") : "";
+	const bool is_frontline = (preset == "frontline_clash" || map_id == "frontline_clash");
 	if (is_frontline) {
-		int battle_units = (int)ms->get("battle_units");
-		if (battle_units <= 0) battle_units = 1500;
+		int battle_units = ms->has_method("get") ? (int)ms->get("battle_units") : 0;
+		if (battle_units <= 0) battle_units = 1600;
 		spawn_large_battle(battle_units);
+		if (ms->has_method("set")) ms->set("battle_preset", "");
+	} else if (preset == "fortress_siege") {
+		sim->set_waves_enabled(true);
+		for (const auto &b : sim->buildings()) {
+			if (b.team == local_player() && rtso::is_civic_centre(b.type)) {
+				sim->spawn_building_world(b.x + 14.0f, b.z + 10.0f, rtso::BLD_FORTRESS, local_player(), 1.0f);
+				sim->spawn_building_world(b.x - 14.0f, b.z + 10.0f, rtso::BLD_TOWER, local_player(), 1.0f);
+				sim->spawn_building_world(b.x + 14.0f, b.z - 10.0f, rtso::BLD_TOWER, local_player(), 1.0f);
+				break;
+			}
+		}
+		if (ms->has_method("set")) ms->set("battle_preset", "");
 	}
 
 	// Map just (re)spawned - select the human player's units like the old

@@ -27,6 +27,7 @@ var tip_index := -1
 var image_index := -1
 
 var _data: Dictionary = {}
+var _bullet_cache: Dictionary = {}
 var _hotkeys := RtsoHotkeyConfig.new()
 var _image: TextureRect
 var _title: Label
@@ -103,13 +104,20 @@ func change_tip(step: int) -> void:
 	if tips.is_empty():
 		return
 	tip_index = clampi(tip_index + step, 0, tips.size() - 1)
-	var tip: Dictionary = _data.get("tips", {}).get(current_name(), {})
+	var stem := current_name()
+	var tip: Dictionary = _data.get("tips", {}).get(stem, {})
 	_title.text = str(tip.get("title", ""))
-	var bullets: PackedStringArray = []
-	for line in tip.get("lines", []):
-		# [icon="BulletPoint"] (8x8 tipdisplay/bullet-point.png); Engine.TranslateLines.
-		bullets.append(BULLET + tr(str(line)).replace("[", "[lb]"))
-	_text.text = "\n\n".join(bullets)
+	var cache_key := TranslationServer.get_locale() + ":" + stem
+	if _bullet_cache.has(cache_key):
+		_text.text = str(_bullet_cache[cache_key])
+	else:
+		var bullets: PackedStringArray = []
+		for line in tip.get("lines", []):
+			# [icon="BulletPoint"] (8x8 tipdisplay/bullet-point.png); Engine.TranslateLines.
+			bullets.append(BULLET + tr(str(line)).replace("[", "[lb]"))
+		var joined := "\n\n".join(bullets)
+		_bullet_cache[cache_key] = joined
+		_text.text = joined
 	_fit_title()
 	_prev.disabled = not _prev.visible or tip_index == 0
 	_next.disabled = not _next.visible or tip_index >= tips.size() - 1

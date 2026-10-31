@@ -2016,6 +2016,7 @@ func _build_options() -> void:
 	bio.item_selected.connect(_on_biome_selected)
 	_make_option(%SpeedSlot)
 	_render_speeds()
+	_build_battle_presets()
 	_mute_spin(%SpinSeed)
 	_mute_spin($VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots)
 	$VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots.value_changed.connect(
@@ -2034,6 +2035,58 @@ func _build_options() -> void:
 	%BtnReroll.pressed.connect(_on_reroll_seed)
 	%SpinSeed.value_changed.connect(
 		func(_v: float) -> void: _update_preview())
+
+
+# Track G (T47): Quick Scenario Presets in Match Settings ("Frontline Clash" & "Fortress Siege")
+var _battle_preset_id := ""
+
+func _build_battle_presets() -> void:
+	var tab := get_node_or_null("%GameTypeTab")
+	if tab == null or tab.find_child("BattlePresetsRow", false, false) != null:
+		return
+	var row := HBoxContainer.new()
+	row.name = "BattlePresetsRow"
+	row.add_theme_constant_override("separation", 6)
+	var lbl := Label.new()
+	lbl.name = "BattlePresetLabel"
+	lbl.text = tr("Battle Presets")
+	lbl.tooltip_text = tr("Quick scenario presets for large-scale pitched battles and fortress sieges.")
+	lbl.mouse_filter = Control.MOUSE_FILTER_PASS
+	row.add_child(lbl)
+	var btn_clash := Button.new()
+	btn_clash.name = "BtnPresetFrontlineClash"
+	btn_clash.text = tr("Frontline Clash")
+	btn_clash.tooltip_text = tr("Frontline Clash: 800 vs 800 infantry and cavalry pitched battle.")
+	btn_clash.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn_clash.pressed.connect(func(): apply_scenario_preset("frontline_clash"))
+	row.add_child(btn_clash)
+	var btn_siege := Button.new()
+	btn_siege.name = "BtnPresetFortressSiege"
+	btn_siege.text = tr("Fortress Siege")
+	btn_siege.tooltip_text = tr("Fortress Siege: Defend a fortified Acropolis against catapult waves.")
+	btn_siege.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn_siege.pressed.connect(func(): apply_scenario_preset("fortress_siege"))
+	row.add_child(btn_siege)
+	tab.add_child(row)
+
+func apply_scenario_preset(preset_id: String) -> void:
+	if not has_node("/root/MatchSettings"):
+		return
+	var ms := get_node("/root/MatchSettings")
+	if not ms.has_method("apply_battle_preset"):
+		return
+	var p: Dictionary = ms.apply_battle_preset(preset_id)
+	if p.is_empty():
+		return
+	_battle_preset_id = preset_id
+	var state := page_state()
+	for k in p:
+		if state.has(k):
+			state[k] = p[k]
+	_apply_settings(state)
+	refresh_map_list()
+	refresh_slots()
+	_update_preview()
 
 func _mute_spin(sb: SpinBox) -> void:
 	if sb:
@@ -2469,6 +2522,7 @@ func _on_start_pressed() -> void:
 		return
 	var ms := get_node("/root/MatchSettings")
 	ms.map_id = str(m["id"])
+	ms.battle_preset = _battle_preset_id
 	ms.campaign_run = "" # a match from Game Setup is not a campaign level
 	ms.campaign_level = ""
 	ms.campaign_map_name = ""

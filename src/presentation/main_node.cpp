@@ -54,11 +54,24 @@ RtsoMain::RtsoMain() {
 
 RtsoMain::~RtsoMain() {
 	net_host_.stop();
+	if (view) {
+		view->cleanup();
+		view = nullptr;
+	}
+	ghost_mat_ok.unref();
+	ghost_mat_bad.unref();
 	delete sim;
+	sim = nullptr;
 	rtso::GpuSeparation::instance().cleanup();
 }
 
 void RtsoMain::_notification(int p_what) {
+	if (p_what == NOTIFICATION_PREDELETE) {
+		if (view) view->cleanup();
+		ghost_mat_ok.unref();
+		ghost_mat_bad.unref();
+		rtso::GpuSeparation::instance().cleanup();
+	}
 	if (p_what == NOTIFICATION_WM_SIZE_CHANGED) {
 		apply_safe_area_insets();
 	}

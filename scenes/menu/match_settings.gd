@@ -169,6 +169,67 @@ func hide_option_popups(_n: Node = null) -> void:
 	if tree and tree.root:
 		tree.root.gui_release_focus()
 
+# Track G (T47): Quick Skirmish & Siege Battle Presets ("Frontline Clash" and "Fortress Siege")
+const BATTLE_PRESETS := {
+	"frontline_clash": {
+		"name": "Frontline Clash",
+		"description": "800 vs 800 infantry and cavalry pitched battle.",
+		"map_id": "random_mainland",
+		"map_size": 256,
+		"victory": 0,
+		"waves_enabled": false,
+		"pop_cap": 10000,
+		"team_pop": false,
+		"start_res": 5,
+		"slot_types": [0, 1],
+		"slot_civs": [0, 1],
+		"slot_teams": [1, 2],
+		"slot_diffs": [4, 4],
+		"slot_behs": [3, 3],
+		"spawn_units": 1600
+	},
+	"fortress_siege": {
+		"name": "Fortress Siege",
+		"description": "Defend a fortified Acropolis against catapult waves.",
+		"map_id": "random_acropolis",
+		"map_size": 256,
+		"victory": 0,
+		"waves_enabled": true,
+		"pop_cap": 300,
+		"team_pop": false,
+		"start_res": 4,
+		"slot_types": [0, 1],
+		"slot_civs": [0, 2],
+		"slot_teams": [1, 2],
+		"slot_diffs": [5, 5],
+		"slot_behs": [3, 3],
+		"spawn_units": 0
+	}
+}
+
+func apply_battle_preset(preset_id: String) -> Dictionary:
+	if not BATTLE_PRESETS.has(preset_id):
+		battle_preset = ""
+		return {}
+	var p: Dictionary = BATTLE_PRESETS[preset_id]
+	battle_preset = preset_id
+	map_id = str(p["map_id"])
+	map_size = int(p["map_size"])
+	victory = int(p["victory"])
+	waves_enabled = bool(p["waves_enabled"])
+	pop_cap = int(p["pop_cap"])
+	team_pop = bool(p["team_pop"])
+	start_res = int(p["start_res"])
+	slot_types = (p["slot_types"] as Array).duplicate()
+	slot_civs = (p["slot_civs"] as Array).duplicate()
+	slot_teams = (p["slot_teams"] as Array).duplicate()
+	slot_diffs = (p["slot_diffs"] as Array).duplicate()
+	slot_behs = (p["slot_behs"] as Array).duplicate()
+	player_count = slot_types.size()
+	if p.has("spawn_units"):
+		battle_units = int(p["spawn_units"])
+	return p
+
 func go(path: String) -> int:
 	hide_option_popups()
 	var tree := get_tree()

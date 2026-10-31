@@ -909,6 +909,11 @@ void RtsoMain::_ready() {
 		if (!net_saved_game_.is_empty()) call_deferred("_start_menu_net"); // Host Saved Game
 	} else {
 		apply_match_settings();
+		if (view && sim) {
+			view->warm_models(sim, [this](int done, int total) {
+				load_progress(75 + 18 * done / std::max(1, total), "Pre-warming faction shaders");
+			});
+		}
 		begin_match_recording(nullptr);
 		call_deferred("_start_menu_net");
 	}

@@ -97,8 +97,212 @@ void RtsoWorldView::_bind_methods() {
 	// Internal C++ sync call
 }
 
+#include <godot_cpp/classes/rendering_server.hpp>
+
 RtsoWorldView::RtsoWorldView() {}
-RtsoWorldView::~RtsoWorldView() {}
+RtsoWorldView::~RtsoWorldView() {
+	cleanup();
+}
+
+void RtsoWorldView::_notification(int p_what) {
+	if (p_what == NOTIFICATION_PREDELETE) {
+		cleanup();
+	}
+}
+
+// ISSUE-REND-01 & ISSUE-REND-02: Sub-surface mesh merging and distance-based low-poly crowd LOD generation.
+Ref<ArrayMesh> RtsoWorldView::load_mesh(const Ref<Mesh> &src, bool decimate_lod) {
+	if (src.is_null()) return Ref<ArrayMesh>();
+	const int surf_count = src->get_surface_count();
+	if (surf_count <= 0) return Ref<ArrayMesh>();
+
+	struct MergedSurf {
+		Ref<Material> mat;
+		PackedVector3Array verts;
+		PackedVector3Array norms;
+		PackedVector2Array uvs;
+		PackedVector2Array uv2s;
+		PackedColorArray cols;
+		PackedFloat32Array tangents;
+		PackedInt32Array indices;
+	};
+	std::vector<MergedSurf> groups;
+	std::unordered_map<uint64_t, size_t> mat_map;
+
+	for (int s = 0; s < surf_count; ++s) {
+		Array arr = src->surface_get_arrays(s);
+		if (arr.size() <= Mesh::ARRAY_VERTEX) continue;
+		PackedVector3Array v = arr[Mesh::ARRAY_VERTEX];
+		if (v.is_empty()) continue;
+		Ref<Material> mat = src->surface_get_material(s);
+		uint64_t key = 0;
+		if (!decimate_lod && mat.is_valid()) {
+			Ref<BaseMaterial3D> bm = mat;
+			Ref<ShaderMaterial> sm = mat;
+			if (bm.is_valid() && bm->get_texture(BaseMaterial3D::TEXTURE_ALBEDO).is_valid()) {
+				key = (uint64_t)bm->get_texture(BaseMaterial3D::TEXTURE_ALBEDO)->get_rid().get_id();
+			} else if (sm.is_valid()) {
+				Ref<Texture2D> atex = sm->get_shader_parameter("albedo_tex");
+				key = atex.is_valid() ? (uint64_t)atex->get_rid().get_id() : (uint64_t)mat->get_rid().get_id();
+			} else {
+				key = (uint64_t)mat->get_rid().get_id();
+			}
+		}
+		size_t gi = 0;
+		auto it = mat_map.find(key);
+		if (it == mat_map.end()) {
+			gi = groups.size();
+			mat_map[key] = gi;
+			MergedSurf ms;
+			ms.mat = mat;
+			groups.push_back(std::move(ms));
+		} else {
+			gi = it->second;
+		}
+		MergedSurf & dst = groups[gi];
+		const int32_t base = (int32_t)dst.verts.size();
+		PackedVector3Array n = arr[Mesh::ARRAY_NORMAL];
+		PackedVector2Array u = arr[Mesh::ARRAY_TEX_UV];
+		PackedVector2Array u2 = arr.size() > Mesh::ARRAY_TEX_UV2 && arr[Mesh::ARRAY_TEX_UV2].get_type() == Variant::PACKED_VECTOR2_ARRAY ? PackedVector2Array(arr[Mesh::ARRAY_TEX_UV2]) : PackedVector2Array();
+		PackedColorArray c = arr.size() > Mesh::ARRAY_COLOR && arr[Mesh::ARRAY_COLOR].get_type() == Variant::PACKED_COLOR_ARRAY ? PackedColorArray(arr[Mesh::ARRAY_COLOR]) : PackedColorArray();
+		PackedFloat32Array tans = arr.size() > Mesh::ARRAY_TANGENT && arr[Mesh::ARRAY_TANGENT].get_type() == Variant::PACKED_FLOAT32_ARRAY ? PackedFloat32Array(arr[Mesh::ARRAY_TANGENT]) : PackedFloat32Array();
+		dst.verts.append_array(v);
+		if (n.size() == v.size()) dst.norms.append_array(n);
+		else for (int i = 0; i < v.size(); ++i) dst.norms.push_back(Vector3(0, 1, 0));
+		if (u.size() == v.size()) dst.uvs.append_array(u);
+		else for (int i = 0; i < v.size(); ++i) dst.uvs.push_back(Vector2());
+		if (!u2.is_empty() && u2.size() == v.size()) dst.uv2s.append_array(u2);
+		if (c.size() == v.size()) dst.cols.append_array(c);
+		else for (int i = 0; i < v.size(); ++i) dst.cols.push_back(Color(1, 1, 1, 1));
+		if (!tans.is_empty() && tans.size() == v.size() * 4) dst.tangents.append_array(tans);
+
+		PackedInt32Array idx = arr.size() > Mesh::ARRAY_INDEX && arr[Mesh::ARRAY_INDEX].get_type() == Variant::PACKED_INT32_ARRAY ? PackedInt32Array(arr[Mesh::ARRAY_INDEX]) : PackedInt32Array();
+		const int32_t tri_count = idx.size() >= 3 ? idx.size() / 3 : v.size() / 3;
+		const int32_t step = (decimate_lod && tri_count > 300) ? std::max<int32_t>(1, tri_count / 220) : 1;
+		for (int32_t t = 0; t < tri_count; t += step) {
+			if (idx.size() >= 3) {
+				dst.indices.push_back(base + idx[t * 3 + 0]);
+				dst.indices.push_back(base + idx[t * 3 + 1]);
+				dst.indices.push_back(base + idx[t * 3 + 2]);
+			} else {
+				dst.indices.push_back(base + t * 3 + 0);
+				dst.indices.push_back(base + t * 3 + 1);
+				dst.indices.push_back(base + t * 3 + 2);
+			}
+		}
+	}
+
+	Ref<ArrayMesh> out;
+	out.instantiate();
+	for (const MergedSurf &g : groups) {
+		if (g.verts.is_empty() || g.indices.is_empty()) continue;
+		Array a;
+		a.resize(Mesh::ARRAY_MAX);
+		a[Mesh::ARRAY_VERTEX] = g.verts;
+		a[Mesh::ARRAY_NORMAL] = g.norms;
+		a[Mesh::ARRAY_TEX_UV] = g.uvs;
+		if (g.uv2s.size() == g.verts.size()) a[Mesh::ARRAY_TEX_UV2] = g.uv2s;
+		if (g.tangents.size() == g.verts.size() * 4) a[Mesh::ARRAY_TANGENT] = g.tangents;
+		a[Mesh::ARRAY_COLOR] = g.cols;
+		a[Mesh::ARRAY_INDEX] = g.indices;
+		out->add_surface_from_arrays(Mesh::PRIMITIVE_TRIANGLES, a);
+		if (g.mat.is_valid()) out->surface_set_material(out->get_surface_count() - 1, g.mat);
+	}
+	return out;
+}
+
+// ISSUE-LEAK-01: Explicitly free all mesh, material, shader, and texture RIDs before RenderingServer teardown.
+void RtsoWorldView::cleanup() {
+	if (cleaned_up_) return;
+	cleaned_up_ = true;
+	RenderingServer *rs = RenderingServer::get_singleton();
+	auto free_mesh_and_mats = [&](Ref<Mesh> &m) {
+		if (m.is_null()) return;
+		if (rs) {
+			for (int s = 0; s < m->get_surface_count(); ++s) {
+				Ref<Material> mat = m->surface_get_material(s);
+				if (mat.is_valid()) {
+					RID material_rid = mat->get_rid();
+					if (material_rid.is_valid()) rs->free_rid(material_rid);
+				}
+			}
+			RID mesh_rid = m->get_rid();
+			if (mesh_rid.is_valid()) rs->free_rid(mesh_rid);
+		}
+		m.unref();
+	};
+	crowd_job_.reset();
+	for (int c = 0; c < rtso::CIV_COUNT; ++c) {
+		for (int k = 0; k < CROWD_KEY_COUNT; ++k) {
+			if (!crowd_[c][k]) continue;
+			CrowdBatch &cb = *crowd_[c][k];
+			for (int clip = 0; clip < CROWD_CLIP_COUNT; ++clip) {
+				for (int f = 0; f < CROWD_FRAMES_PER_CLIP; ++f) {
+					cb.puppet[clip].posed_frames[f].unref();
+					cb.puppet[clip].lod_frames[f].unref();
+				}
+				for (int p = 0; p < CROWD_PHASES; ++p) {
+					cb.mm[clip][p].unref();
+					cb.lod_mm[clip][p].unref();
+				}
+			}
+			cb.rest.unref();
+			cb.lod_rest.unref();
+			crowd_[c][k].reset();
+		}
+	}
+	crowd_made_.clear();
+	crowd_seen_list_.clear();
+	for (int r = 0; r < FAUNA_ROWS; ++r) {
+		for (int c = 0; c < FAUNA_CLIP_COUNT; ++c) {
+			for (int f = 0; f < CROWD_FRAMES_PER_CLIP; ++f) fauna_puppet[r][c].posed_frames[f].unref();
+			fauna_mm[r][c].unref();
+		}
+	}
+	for (int k = 0; k < TREE_KINDS; ++k)
+		for (int v = 0; v < TREE_VARIANTS; ++v) tree_mm[k][v].unref();
+	for (int k = 0; k < FLORA_KINDS; ++k)
+		for (int v = 0; v < TREE_VARIANTS; ++v) flora_mm[k][v].unref();
+	for (int k = 0; k < MINE_KINDS; ++k) mine_mm[k].unref();
+	for (int k = 0; k < rtso::TREASURE_TYPE_COUNT; ++k) treasure_mm[k].unref();
+	for (int k = 0; k < rtso::SCENERY_TYPE_COUNT; ++k) scenery_variants_[k].clear();
+	food_mm.unref();
+	fish_mm.unref();
+	ruins_mm.unref();
+	scenery_mm.unref();
+	arrow_mm.unref();
+	bolt_mm.unref();
+	stone_proj_mm.unref();
+	javelin_mm.unref();
+	sling_mm.unref();
+	wind_cache_.clear();
+	wind_shader_.unref();
+	sky_box_shader_.unref();
+	silhouette_mat_.unref();
+	for (int i = 0; i < FOG_OVERLAY_LEVELS; ++i) fog_overlay_mats_[i].unref();
+	flag_mats_.clear();
+	flag_mesh_.unref();
+	outline_mats_.clear();
+	gl_decal_mats_.clear();
+	decal_tex_.clear();
+	selection_textures_.clear();
+	selection_images_.clear();
+	ambient_quads_.clear();
+	los_tex_.unref();
+	los_image_.unref();
+	water_height_tex_.unref();
+	paint_tex_.unref();
+	border_mesh_.unref();
+	border_mat_.unref();
+	if (terrain) terrain->set_mesh(Ref<Mesh>());
+	if (water_mesh_node) water_mesh_node->set_mesh(Ref<Mesh>());
+	terrain_array_mesh.unref();
+	plane_mesh.unref();
+	water_mesh.unref();
+	water_mat.unref();
+	status_sprites_.cleanup();
+	(void)free_mesh_and_mats;
+}
 
 Ref<MultiMesh> RtsoWorldView::create_multimesh(const Ref<Mesh> &mesh, bool use_colors) {
 	Ref<MultiMesh> mm;
@@ -2840,7 +3044,14 @@ RtsoWorldView::CrowdBatch &RtsoWorldView::crowd_batch(uint8_t civ, uint16_t key)
 		// silhouette.gdshader: the model's bounding sphere about the unit's origin.
 		for (int k = 0; k < 8; ++k)
 			slot->sil_radius = std::max(slot->sil_radius, entry.aabb.get_endpoint(k).length() * entry.scale);
-		slot->rest = entry.crowd_mesh.is_valid() ? entry.crowd_mesh : entry.mesh;
+		Ref<Mesh> base_mesh = entry.crowd_mesh.is_valid() ? entry.crowd_mesh : entry.mesh;
+		if (base_mesh.is_valid() && base_mesh->get_surface_count() > 2) {
+			Ref<ArrayMesh> merged = load_mesh(base_mesh, false);
+			if (merged.is_valid() && merged->get_surface_count() > 0) base_mesh = merged;
+		}
+		slot->rest = base_mesh;
+		Ref<ArrayMesh> low_lod = load_mesh(slot->rest, true);
+		slot->lod_rest = (low_lod.is_valid() && low_lod->get_surface_count() > 0) ? Ref<Mesh>(low_lod) : slot->rest;
 		slot->no_scene = !entry.scene.is_valid();
 		// Owner-coloured: a player_color.gdshader surface with a mask, or a crowd's parts
 		// with one (the shader also draws unmasked skins that vary by unit or carry
@@ -2869,6 +3080,22 @@ MultiMesh *RtsoWorldView::crowd_mm(CrowdBatch &b, int clip, int phase) {
 		add_child(b.mmi[clip][phase]);
 	}
 	return b.mm[clip][phase].ptr();
+}
+
+MultiMesh *RtsoWorldView::crowd_lod_mm(CrowdBatch &b, int clip, int phase) {
+	if (phase < 0 || phase >= CROWD_PHASES) phase = 0;
+	if (!b.lod_mmi[clip][phase]) {
+		Ref<Mesh> m = b.puppet[clip].lod_frames[0].is_valid() ? Ref<Mesh>(b.puppet[clip].lod_frames[0]) : b.lod_rest;
+		b.lod_mm[clip][phase] = create_multimesh(m, true);
+		b.lod_mm[clip][phase]->set_use_custom_data(true);
+		b.lod_mmi[clip][phase] = memnew(MultiMeshInstance3D);
+		b.lod_mmi[clip][phase]->set_multimesh(b.lod_mm[clip][phase]);
+		b.lod_mmi[clip][phase]->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_OFF);
+		if (silhouettes_ && silhouette_mat_.is_valid()) b.lod_mmi[clip][phase]->set_material_overlay(silhouette_mat_);
+		rtso::set_instance_param(b.lod_mmi[clip][phase], "silhouette_radius", b.sil_radius);
+		add_child(b.lod_mmi[clip][phase]);
+	}
+	return b.lod_mm[clip][phase].ptr();
 }
 
 // The skeleton a clip library's bone tracks drive, with their path from the player's root.
@@ -3154,12 +3381,20 @@ void RtsoWorldView::crowd_job_bake_poses() {
 	j.skin = rtso::ModelLibrary::CrowdSkin();
 	CrowdBatch &b = crowd_batch((uint8_t)(j.batch >> 16), (uint16_t)(j.batch & 0xFFFF));
 	CrowdPuppet &row = b.puppet[c];
-	for (int f = 0; f < j.valid; ++f) row.posed_frames[f] = j.poses[f];
+	for (int f = 0; f < j.valid; ++f) {
+		row.posed_frames[f] = j.poses[f];
+		Ref<ArrayMesh> low = load_mesh(j.poses[f], true);
+		row.lod_frames[f] = (low.is_valid() && low->get_surface_count() > 0) ? low : j.poses[f];
+	}
 	for (int f = 0; f < n; ++f) j.poses[f].unref();
 	row.baked_count = j.valid;
-	for (int p = 0; p < CROWD_PHASES; ++p) row.last_frame[p] = -1;
+	for (int p = 0; p < CROWD_PHASES; ++p) {
+		row.last_frame[p] = -1;
+		row.last_lod_frame[p] = -1;
+	}
 	for (int p = 0; p < CROWD_PHASES; ++p) {
 		if (b.mm[c][p].is_valid() && row.posed_frames[0].is_valid()) b.mm[c][p]->set_mesh(row.posed_frames[0]);
+		if (b.lod_mm[c][p].is_valid() && row.lod_frames[0].is_valid()) b.lod_mm[c][p]->set_mesh(row.lod_frames[0]);
 	}
 	j.clip = -1;
 }
@@ -3447,6 +3682,27 @@ void RtsoWorldView::warm_models(const rtso::Simulation *sim, const std::function
 	auto add = [&](const char *cat, const String &id) {
 		if (!id.is_empty() && seen.insert(std::string(cat) + "/" + id.utf8().get_data()).second) wanted.emplace_back(cat, id);
 	};
+	// Pre-warm core unit and structure meshes & shaders for every active faction (ISSUE-REND-03)
+	for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
+		if (!sim->player(p).active) continue;
+		uint8_t civ = sim->player_civ(p);
+		if (civ >= rtso::CIV_COUNT) civ = rtso::CIV_ATHENIANS;
+		static const uint8_t kCoreUnits[] = {
+			rtso::UNIT_VILLAGER, rtso::UNIT_FEMALE_CITIZEN, rtso::UNIT_SPEARMAN,
+			rtso::UNIT_SWORDSMAN, rtso::UNIT_ARCHER, rtso::UNIT_CAVALRY,
+			rtso::UNIT_CATAPULT, rtso::UNIT_SIEGE_RAM, rtso::UNIT_HERO
+		};
+		for (uint8_t ut : kCoreUnits) {
+			add("units", crowd_key_model(civ, ut));
+		}
+		static const uint8_t kCoreBlds[] = {
+			rtso::BLD_TOWN_CENTER, rtso::BLD_HOUSE, rtso::BLD_STOREHOUSE,
+			rtso::BLD_FARMSTEAD, rtso::BLD_BARRACKS, rtso::BLD_FORTRESS
+		};
+		for (uint8_t bt : kCoreBlds) {
+			add("buildings", building_visual_id(civ, bt, 0.0f));
+		}
+	}
 	for (size_t i = 0; i < uview.count; ++i) {
 		if (!rtso::los_sees_unit(*sim, local_player_, uview.pos_x[i], uview.pos_z[i], uview.team[i])) continue;
 		uint8_t t = uview.unit_type[i];
@@ -4399,12 +4655,14 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	for (int s = 0; s < selected_ids.size() && (int)detailed.size() < MAX_DETAILED_UNITS; ++s) {
 		detailed.insert((uint32_t)selected_ids[s]);
 	}
-	// Give full skeletal animation to heroes and active units in view
+	// Give full skeletal animation to heroes and near (< 25m) units in view
 	for (size_t i = 0; i < uview.count && (int)detailed.size() < MAX_DETAILED_UNITS; ++i) {
 		if (entity_visible(uview.pos_x[i], uview.pos_z[i], uview.team[i])) {
 			uint8_t ut = uview.unit_type[i];
 			float th = sim->get_terrain_height(uview.pos_x[i], uview.pos_z[i]);
-			if (ut == rtso::UNIT_HERO || in_view(Vector3(uview.pos_x[i], th + 1.0f, uview.pos_z[i]), 12.0f)) {
+			const Vector3 upos(uview.pos_x[i], th + 1.0f, uview.pos_z[i]);
+			const bool near_cam = frustum.empty() || upos.distance_squared_to(cam_pos) < LOD_FAR_DIST_SQ;
+			if (ut == rtso::UNIT_HERO || (near_cam && in_view(upos, 12.0f))) {
 				detailed.insert(uview.id[i]);
 			}
 		}
@@ -4446,12 +4704,15 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		crowd_job_bake_poses();
 		if (crowd_job_->clip < 0) crowd_job_release();
 	}
-	// Per batch and clip: units drawn (counts) and placed so far (written). Only the rows of
-	// batches with units this frame are cleared and read; the rest count none.
+	// Per batch and clip: units drawn in two distance-based geometry LOD passes:
+	// Pass 0 (Near < 25m from camera): full-detail crowd mesh; Pass 1 (Far >= 25m): low-poly crowd LOD mesh.
 	static int counts[rtso::CIV_COUNT][CROWD_KEY_COUNT][CROWD_CLIP_COUNT][CROWD_PHASES];
+	static int lod_counts[rtso::CIV_COUNT][CROWD_KEY_COUNT][CROWD_CLIP_COUNT][CROWD_PHASES];
 	static int total_counts[rtso::CIV_COUNT][CROWD_KEY_COUNT][CROWD_CLIP_COUNT];
 	static int written[rtso::CIV_COUNT][CROWD_KEY_COUNT][CROWD_CLIP_COUNT][CROWD_PHASES];
+	static int lod_written[rtso::CIV_COUNT][CROWD_KEY_COUNT][CROWD_CLIP_COUNT][CROWD_PHASES];
 	static float *crowd_buffer_ptr[rtso::CIV_COUNT][CROWD_KEY_COUNT][CROWD_CLIP_COUNT][CROWD_PHASES];
+	static float *crowd_lod_buffer_ptr[rtso::CIV_COUNT][CROWD_KEY_COUNT][CROWD_CLIP_COUNT][CROWD_PHASES];
 	static const int no_units[CROWD_CLIP_COUNT][CROWD_PHASES] = {};
 	static const int no_total[CROWD_CLIP_COUNT] = {};
 	for (const uint32_t ck : crowd_seen_list_) crowd_seen_[ck >> 16][ck & 0xFFFF] = 0;
@@ -4464,19 +4725,25 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		uint8_t civ = sim->team_civ(uview.team[i]);
 		if (civ >= rtso::CIV_COUNT) civ = rtso::CIV_ATHENIANS;
 		const int slot = crowd_slot_of(anim_of(i).clip);
-		crowd_slot_scratch_[i] = (uint8_t)slot;
+		const float dx_cam = uview.pos_x[i] - cam_pos.x, dz_cam = uview.pos_z[i] - cam_pos.z;
+		const bool far_lod = !frustum.empty() && detailed.count(uview.id[i]) == 0 && (dx_cam * dx_cam + dz_cam * dz_cam >= LOD_FAR_DIST_SQ);
+		crowd_slot_scratch_[i] = (uint8_t)(slot | (far_lod ? 0x80 : 0));
 		const uint16_t key = crowd_key_of(civ, t, uview.pack_state[i], uview.tmpl[i], uview.id[i], uview.rank[i]);
 		crowd_key_utype_[key] = t;
 		if (!crowd_seen_[civ][key]) {
 			crowd_seen_[civ][key] = 1;
 			crowd_seen_list_.push_back((uint32_t)civ << 16 | key);
 			std::memset(counts[civ][key], 0, sizeof(counts[civ][key]));
+			std::memset(lod_counts[civ][key], 0, sizeof(lod_counts[civ][key]));
 			std::memset(total_counts[civ][key], 0, sizeof(total_counts[civ][key]));
 			std::memset(written[civ][key], 0, sizeof(written[civ][key]));
+			std::memset(lod_written[civ][key], 0, sizeof(lod_written[civ][key]));
 			std::memset(crowd_buffer_ptr[civ][key], 0, sizeof(crowd_buffer_ptr[civ][key]));
+			std::memset(crowd_lod_buffer_ptr[civ][key], 0, sizeof(crowd_lod_buffer_ptr[civ][key]));
 		}
 		const int phase = (int)(uview.id[i] % (uint32_t)CROWD_PHASES);
-		counts[civ][key][slot][phase]++;
+		if (far_lod) lod_counts[civ][key][slot][phase]++;
+		else counts[civ][key][slot][phase]++;
 		total_counts[civ][key][slot]++;
 	}
 	// Every batch with units this frame exists before the walk, which goes civ by civ, key by key.
@@ -4485,6 +4752,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		const int civ = (int)(ck >> 16), t = (int)(ck & 0xFFFF);
 		const bool any = crowd_seen_[civ][t] != 0;
 		const auto &row = any ? counts[civ][t] : no_units;
+		const auto &lod_row = any ? lod_counts[civ][t] : no_units;
 		const int *t_row = any ? total_counts[civ][t] : no_total;
 		CrowdBatch &cb = *crowd_[civ][t];
 		if (any) {
@@ -4492,6 +4760,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			for (int c = 0; c < CROWD_CLIP_COUNT; ++c) {
 				for (int p = 0; p < CROWD_PHASES; ++p) {
 					if (row[c][p] > 0) crowd_mm(cb, c, p);
+					if (lod_row[c][p] > 0) crowd_lod_mm(cb, c, p);
 				}
 			}
 		}
@@ -4510,6 +4779,19 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 					}
 				} else {
 					crowd_buffer_ptr[civ][t][c][p] = nullptr;
+				}
+				if (cb.lod_mm[c][p].is_valid()) {
+					set_mm_count(cb.lod_mm[c][p], lod_row[c][p]);
+					if (lod_row[c][p] > 0) {
+						if (cb.lod_buffer[c][p].size() != lod_row[c][p] * 20) {
+							cb.lod_buffer[c][p].resize(lod_row[c][p] * 20);
+						}
+						crowd_lod_buffer_ptr[civ][t][c][p] = cb.lod_buffer[c][p].ptrw();
+					} else {
+						crowd_lod_buffer_ptr[civ][t][c][p] = nullptr;
+					}
+				} else {
+					crowd_lod_buffer_ptr[civ][t][c][p] = nullptr;
 				}
 			}
 		}
@@ -4625,11 +4907,13 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		}
 		if (want.clip == CLIP_RUN && !dying) emit_run_dust(utype_str, Vector3(x, ground, z), sc, delta);
 		if (!dying) emit_unit_fx(utype_str, xf, sc, delta);
-		const int clip = crowd_slot_scratch_[i];
+		const uint8_t raw_slot = crowd_slot_scratch_[i];
+		const bool far_lod = (raw_slot & 0x80) != 0;
+		const int clip = raw_slot & 0x7F;
 		const int phase = (int)(id % (uint32_t)CROWD_PHASES);
-		float *dp = crowd_buffer_ptr[uciv][ckey][clip][phase];
+		float *dp = far_lod ? crowd_lod_buffer_ptr[uciv][ckey][clip][phase] : crowd_buffer_ptr[uciv][ckey][clip][phase];
 		if (dp) {
-			const int slot = written[uciv][ckey][clip][phase]++;
+			const int slot = far_lod ? lod_written[uciv][ckey][clip][phase]++ : written[uciv][ckey][clip][phase]++;
 			dp += slot * 20;
 
 			const float lit = los_brightness(x, z);
@@ -4813,15 +5097,19 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		v.rank_icon->set_visible(false);
 	}
 
-	// Stream bulk MultiMesh buffers to GPU
+	// Stream bulk MultiMesh buffers to GPU (Pass 0: Near full-detail, Pass 1: Far low-poly LOD)
 	for (const uint32_t ck : crowd_seen_list_) {
 		const int civ = (int)(ck >> 16), t = (int)(ck & 0xFFFF);
 		CrowdBatch &cb = *crowd_[civ][t];
 		const auto &row = counts[civ][t];
+		const auto &lod_row = lod_counts[civ][t];
 		for (int c = 0; c < CROWD_CLIP_COUNT; ++c) {
 			for (int p = 0; p < CROWD_PHASES; ++p) {
 				if (row[c][p] > 0 && cb.mm[c][p].is_valid()) {
 					cb.mm[c][p]->set_buffer(cb.buffer[c][p]);
+				}
+				if (lod_row[c][p] > 0 && cb.lod_mm[c][p].is_valid()) {
+					cb.lod_mm[c][p]->set_buffer(cb.lod_buffer[c][p]);
 				}
 			}
 		}

@@ -120,6 +120,18 @@ public:
 	// Sprites drawn this frame (tests).
 	int sprite_count() const { return sprites_; }
 
+	void cleanup() {
+		for (int b = 0; b < BAR_COUNT; ++b) {
+			bar_tex_[b][0].unref();
+			bar_tex_[b][1].unref();
+		}
+		capture_tex_.unref();
+		icon_tex_.clear();
+		slot_tex_.clear();
+		mats_.clear();
+		quads_.clear();
+	}
+
 private:
 	struct Vertex {
 		Vector3 p;

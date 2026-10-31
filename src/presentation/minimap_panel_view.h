@@ -208,6 +208,25 @@ public:
 		return panel_ ? panel_->get_offset(godot::SIDE_BOTTOM) : (-204.0f - 10.0f + 200.0f);
 	}
 
+	// Track F (T46): Minimap Ping Animation pulse scale & cubic ripple easing for add_ping alerts.
+	static float ping_pulse_scale(float t_sec) {
+		const float cycle = std::fmod(std::max(0.0f, t_sec), 1.0f);
+		const float ease = 1.0f - (1.0f - cycle) * (1.0f - cycle) * (1.0f - cycle);
+		return 0.85f + 0.35f * std::sin(ease * 3.14159265f);
+	}
+	static float ping_ripple_alpha(float t_sec, float life_s) {
+		if (life_s <= 0.0f) return 0.0f;
+		const float cycle = std::fmod(std::max(0.0f, t_sec), 1.0f);
+		const float fade = std::clamp(1.0f - t_sec / life_s, 0.0f, 1.0f);
+		return (1.0f - cycle * cycle) * fade;
+	}
+	void add_ping(godot::Control *minimap_view, const godot::Vector2 &world_pos,
+	              const godot::Color &col = godot::Color(1.0f, 0.85f, 0.2f), float life_s = 6.0f) {
+		if (minimap_view && minimap_view->has_method("add_ping")) {
+			minimap_view->call("add_ping", world_pos, col, life_s);
+		}
+	}
+
 private:
 	godot::Control *back_ = nullptr;
 	godot::TextureRect *civ_back_ = nullptr;

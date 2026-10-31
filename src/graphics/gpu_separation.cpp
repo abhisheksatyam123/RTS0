@@ -12,8 +12,23 @@
 
 namespace rtso {
 
+namespace {
+bool default_avail_hook() {
+	return GpuSeparation::instance().is_enabled();
+}
+bool default_dispatch_hook(size_t count, const float *pos_xz, const float *radii, float *out_forces,
+                           float cell_size, float min_dist, float strength) {
+	return GpuSeparation::instance().compute_forces_with_radii(count, pos_xz, radii, out_forces, cell_size, min_dist, strength);
+}
+} // namespace
+
 GpuSeparation &GpuSeparation::instance() {
 	static GpuSeparation s_instance;
+	static bool registered = []() {
+		GpuSeparation::register_live_hooks(&default_avail_hook, &default_dispatch_hook);
+		return true;
+	}();
+	(void)registered;
 	return s_instance;
 }
 
@@ -165,6 +180,12 @@ bool GpuSeparation::compute_forces(size_t count, const float *pos_xz, float *out
 	std::memcpy(out_forces, out_bytes.ptr(), bytes_needed);
 	rd->free_rid(uniform_set);
 	return true;
+}
+
+bool GpuSeparation::compute_forces_with_radii(size_t count, const float *pos_xz, const float *radii, float *out_forces,
+                                              float cell_size, float min_dist, float strength) {
+	(void)radii;
+	return compute_forces(count, pos_xz, out_forces, cell_size, min_dist, strength);
 }
 
 } // namespace rtso

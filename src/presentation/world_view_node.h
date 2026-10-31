@@ -424,19 +424,27 @@ private:
 	static constexpr int FAUNA_CLIP_COUNT = 7;  // idle, move, attack, death, idle2, death2, feeding
 	static constexpr int CROWD_FRAMES_PER_CLIP = 12;
 	static constexpr int CROWD_PHASES = 3;
+	static constexpr float LOD_FAR_DIST = 25.0f;
+	static constexpr float LOD_FAR_DIST_SQ = LOD_FAR_DIST * LOD_FAR_DIST;
 	struct CrowdPuppet {
 		String clip;
 		Ref<ArrayMesh> posed_frames[CROWD_FRAMES_PER_CLIP];
+		Ref<ArrayMesh> lod_frames[CROWD_FRAMES_PER_CLIP];
 		int baked_count = 0;
 		int last_frame[CROWD_PHASES] = {-1, -1, -1};
+		int last_lod_frame[CROWD_PHASES] = {-1, -1, -1};
 	};
 	struct CrowdBatch {
 		MultiMeshInstance3D *mmi[CROWD_CLIP_COUNT][CROWD_PHASES] = {};
 		Ref<MultiMesh> mm[CROWD_CLIP_COUNT][CROWD_PHASES];
 		PackedFloat32Array buffer[CROWD_CLIP_COUNT][CROWD_PHASES];
+		MultiMeshInstance3D *lod_mmi[CROWD_CLIP_COUNT][CROWD_PHASES] = {};
+		Ref<MultiMesh> lod_mm[CROWD_CLIP_COUNT][CROWD_PHASES];
+		PackedFloat32Array lod_buffer[CROWD_CLIP_COUNT][CROWD_PHASES];
 		CrowdPuppet puppet[CROWD_CLIP_COUNT];
 		bool clip_baked[CROWD_CLIP_COUNT] = {};
 		Ref<Mesh> rest;
+		Ref<Mesh> lod_rest;
 		bool no_scene = false; // model has no skinned scene: rest pose only
 		// The model's id and the ModelLibrary entry values a frame's unit loop reads.
 		String model_id;
@@ -564,6 +572,12 @@ protected:
 public:
 	RtsoWorldView();
 	~RtsoWorldView();
+
+	void _notification(int p_what);
+	void cleanup();
+	bool cleaned_up_ = false;
+	static Ref<ArrayMesh> load_mesh(const Ref<Mesh> &src, bool decimate_lod = false);
+	MultiMesh *crowd_lod_mm(CrowdBatch &b, int clip, int phase = 0);
 
 	void _ready() override;
 	void sync(const rtso::Simulation *sim, float delta, const PackedInt32Array &selected_ids);

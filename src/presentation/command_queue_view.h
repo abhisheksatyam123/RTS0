@@ -7,6 +7,8 @@
 // Rebuilds its buttons from the selection each frame; the presses go to the owner.
 
 #include <godot_cpp/classes/base_button.hpp>
+#include <godot_cpp/classes/display_server.hpp>
+#include <godot_cpp/classes/os.hpp>
 #include <godot_cpp/classes/button.hpp>
 #include <godot_cpp/classes/color_rect.hpp>
 #include <godot_cpp/classes/shader.hpp>
@@ -97,6 +99,12 @@ public:
 
 class RtsoCommandPanelView {
 public:
+	// Track F (T46): Mobile / Touch Hitbox Expansion from 32px/38px to 44px for accessibility on mobile devices.
+	static float touch_button_extent() {
+		const bool mobile = (godot::OS::get_singleton() && godot::OS::get_singleton()->has_feature("mobile")) ||
+		                    (godot::DisplayServer::get_singleton() && godot::DisplayServer::get_singleton()->is_touchscreen_available());
+		return mobile ? 44.0f : 38.0f;
+	}
 	// 0 A.D. AutoFormation.js: gui.session.defaultformation names the formation walk and
 	// patrol orders put units into; the null formation (or anything unknown) turns it off.
 	static uint8_t default_formation() {
@@ -214,11 +222,12 @@ public:
 		};
 		const int stance_order[5] = {rtso::STANCE_VIOLENT, rtso::STANCE_AGGRESSIVE, rtso::STANCE_DEFENSIVE,
 				rtso::STANCE_PASSIVE, rtso::STANCE_STAND_GROUND};
+		const float stance_ext = touch_button_extent();
 		for (int s : stance_order) {
 			Button *sb = memnew(Button);
-			// stance_panel.xml: a 38 px icon button, no caption; the name is in the tooltip.
+			// stance_panel.xml: a 38 px icon button (44 px on mobile touchscreens), no caption; the name is in the tooltip.
 			sb->set_name(stance_names[s]);
-			sb->set_custom_minimum_size(Vector2(38, 38));
+			sb->set_custom_minimum_size(Vector2(stance_ext, stance_ext));
 			sb->set_tooltip_text(String(stance_names[s]) + "\n" + rtso::body_font(stance_tips[s]));
 			sb->set_toggle_mode(true); // pressed = some selected unit holds it (IsStanceSelected)
 			Ref<Texture2D> s_ico = rtso::load_ui_texture(stance_icons[s]);
@@ -509,17 +518,28 @@ public:
 					float paid[rtso::RES_COUNT], rtime = 0.0f;
 					sim->tech_price(local_player(), (uint8_t)t, rb->type, paid, rtime);
 					// Names (getEntityNamesFormatted: the civ's specificName first), tooltip, cost,
-					// right-click, requirements, needed resources.
-					const char *tech_specific = rtso::tech_specific_name((uint8_t)t, pciv);
-					String tip = rtso::entity_names_formatted(String::utf8(ti.name), tech_specific ? String::utf8(tech_specific) : String());
-					// The civ's own phase_*_<civ>.json tooltip where it has one (Athenian and Persian phases).
-					const char *tech_desc = rtso::tech_civ_tooltip((uint8_t)t, pciv) ? rtso::tech_civ_tooltip((uint8_t)t, pciv) : ti.desc;
-					if (tech_desc && *tech_desc) tip += "\n" + rtso::body_font(rtso::tr0(String::utf8(tech_desc)));
+					// right-click, requirements, needed resources — cached in tech_base_tips_ so hovering/updating
+					// over upgrades/technologies does not perform redundant string concatenations every frame.
 					const rtso::CostTip tech_cost{(int64_t)paid[rtso::RES_FOOD], (int64_t)paid[rtso::RES_WOOD], (int64_t)paid[rtso::RES_STONE],
 							(int64_t)paid[rtso::RES_GOLD], 0, (int64_t)std::ceil(rtime)};
-					const String tech_cost_tip = rtso::cost_tooltip(tech_cost, true);
-					if (!tech_cost_tip.is_empty()) tip += "\n" + tech_cost_tip;
-					tip += "\n" + right_click_tooltip();
+					const uint64_t tech_tip_key = ((uint64_t)rtso::user_config::generation() << 40) |
+							((uint64_t)pciv << 32) | ((uint64_t)t << 24) |
+							((uint64_t)(tech_cost.food & 0xFF) << 16) | ((uint64_t)(tech_cost.wood & 0xFF) << 8) |
+							(uint64_t)((tech_cost.stone ^ tech_cost.metal ^ tech_cost.time) & 0xFF);
+					String tip;
+					auto tip_it = tech_base_tips_.find(tech_tip_key);
+					if (tip_it != tech_base_tips_.end()) {
+						tip = tip_it->second;
+					} else {
+						const char *tech_specific = rtso::tech_specific_name((uint8_t)t, pciv);
+						tip = rtso::entity_names_formatted(String::utf8(ti.name), tech_specific ? String::utf8(tech_specific) : String());
+						const char *tech_desc = rtso::tech_civ_tooltip((uint8_t)t, pciv) ? rtso::tech_civ_tooltip((uint8_t)t, pciv) : ti.desc;
+						if (tech_desc && *tech_desc) tip += "\n" + rtso::body_font(rtso::tr0(String::utf8(tech_desc)));
+						const String tech_cost_tip = rtso::cost_tooltip(tech_cost, true);
+						if (!tech_cost_tip.is_empty()) tip += "\n" + tech_cost_tip;
+						tip += "\n" + right_click_tooltip();
+						tech_base_tips_.emplace(tech_tip_key, tip);
+					}
 					on_right_click_details(btn, "tech", t, pciv);
 					String why;
 					bool reqs_failed = false;
@@ -984,6 +1004,8 @@ public:
 					// the formation can't be taken; the name is on the tooltip.
 					Ref<Texture2D> f_ico = rtso::load_ui_texture(String("res://assets/textures/ui/formations/") + kFormationIcons[f] + ".png");
 					Button *fb = icon_button(String::utf8(ft.name), f_ico);
+					const float form_ext = touch_button_extent();
+					fb->set_custom_minimum_size(Vector2(form_ext, form_ext));
 					if (f_ico.is_null()) {
 						fb->set_text(String::utf8(ft.name));
 						fb->set_clip_text(true);
@@ -2491,6 +2513,7 @@ private:
 	std::vector<bool> roster_req_disabled_;       // disabled by its requirements at the rebuild
 	int roster_list_batch_ = 0; // the batch size the tooltips' batch line was built for
 	std::map<godot::String, godot::String> detailed_tips_; // template + mods -> detailed_tooltip()
+	std::unordered_map<uint64_t, godot::String> tech_base_tips_; // cached base tooltip per tech/upgrade
 	uint32_t roster_list_gen_ = 0; // user_config::generation() it was built at
 	uint32_t trainer_unit_id_ = 0;
 	int barter_sell_ = rtso::RES_FOOD; // BarterButtonManager.selectedResource

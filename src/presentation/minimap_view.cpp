@@ -615,12 +615,24 @@ void RtsoMiniMapView::_draw() {
 					vformat("res://assets/textures/animated/minimap-flare/frame%02d.png", f));
 	for (const auto &p : pings) {
 		const float t = (float)(now_ms - p.start_ms) / 1000.0f;
-		const float alpha = std::min(smooth(t / 0.25f), smooth((p.life_ms / 1000.0f - t) / 0.5f));
+		const float life_s = (float)p.life_ms / 1000.0f;
+		const float alpha = std::min(smooth(t / 0.25f), smooth((life_s - t) / 0.5f));
+		// Pulse scale and cubic ripple easing for minimap attack/flare pings
+		const float cycle = std::fmod(std::max(0.0f, t * 1.25f), 1.0f);
+		const float ripple_ease = 1.0f - (1.0f - cycle) * (1.0f - cycle) * (1.0f - cycle);
+		const float pulse_scale = 0.88f + 0.28f * std::sin(ripple_ease * (float)Math_PI);
+		const float half_ext = 32.0f * pulse_scale;
+		const float ripple_rad = 6.0f + 22.0f * ripple_ease;
+		const float ripple_alpha = (1.0f - cycle) * alpha * 0.75f;
+		if (ripple_alpha > 0.02f) {
+			draw_arc(p.mini_pos, ripple_rad, 0.0f, 6.2831853f, 32,
+					Color(p.color.r, p.color.g, p.color.b, ripple_alpha), 1.75f);
+		}
 		const int step = (int)std::floor(t * 10.67f);
 		auto frame = [&](int f) {
 			const Ref<Texture2D> &tex = flare_tex_[f % kFlareFrames];
 			if (tex.is_valid())
-				draw_texture_rect(tex, Rect2(p.mini_pos - Vector2(32.0f, 32.0f), Vector2(64.0f, 64.0f)), false,
+				draw_texture_rect(tex, Rect2(p.mini_pos - Vector2(half_ext, half_ext), Vector2(half_ext * 2.0f, half_ext * 2.0f)), false,
 						Color(p.color.r, p.color.g, p.color.b, p.color.a * alpha));
 		};
 		frame(step);
