@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <vector>
 #if __has_include(<godot_cpp/classes/rendering_device.hpp>)
 #define RTSO_HAS_GODOT_RD 1
 #include <godot_cpp/classes/rendering_device.hpp>
@@ -29,7 +30,7 @@ public:
 	bool is_enabled() const { return enabled_ && is_available(); }
 	void set_enabled(bool e) { enabled_ = e; }
 
-	// Dispatches the compute shader if available.
+	// Dispatches the compute shader if available (O(N) 64x64 spatial hash grid).
 	// pos_xz: interleaved float array [x0, z0, x1, z1, ...] of length count * 2.
 	// out_forces: float array [fx0, fz0, fx1, fz1, ...] of length count * 2.
 	bool compute_forces(size_t count, const float *pos_xz, float *out_forces,
@@ -37,20 +38,34 @@ public:
 	bool compute_forces_with_radii(size_t count, const float *pos_xz, const float *radii, float *out_forces,
 	                               float cell_size, float min_dist, float strength);
 
+	// Dispatches shaders/compute/los_fow.glsl (2x bilinear upsample + 7-tap binomial blur).
+	bool compute_los_bitmap(const uint8_t *fow, int res, std::vector<uint8_t> &out);
+
 	void cleanup();
 	~GpuSeparation() = default;
 
 private:
 	GpuSeparation() = default;
 	bool ensure_pipeline();
+	bool ensure_los_pipeline();
 
 	bool enabled_ = true;
 	bool attempted_init_ = false;
+	bool attempted_los_init_ = false;
 	godot::RID shader_;
 	godot::RID pipeline_;
 	godot::RID pos_buffer_;
 	godot::RID force_buffer_;
+	godot::RID radius_buffer_;
+	godot::RID cell_head_buffer_;
+	godot::RID cell_next_buffer_;
 	size_t buffer_capacity_ = 0;
+
+	godot::RID los_shader_;
+	godot::RID los_pipeline_;
+	godot::RID los_in_buffer_;
+	godot::RID los_out_buffer_;
+	size_t los_res_capacity_ = 0;
 #endif
 };
 

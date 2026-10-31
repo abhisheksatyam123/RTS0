@@ -475,6 +475,14 @@ void FogMirages::pass(const Simulation &sim, uint8_t viewer) {
 // LosShading (CLOSTexture)
 // =============================================================================
 
+namespace {
+LosShading::GpuBitmapFn g_los_gpu_fn = nullptr;
+} // namespace
+
+void LosShading::register_gpu_hook(GpuBitmapFn fn) {
+	g_los_gpu_fn = fn;
+}
+
 void LosShading::generate_bitmap(const uint8_t *fow, int res, std::vector<uint8_t> &out) {
 	const int fr = res * UPSAMPLE; // bitmap pixels a side
 	out.assign((size_t)fr * (size_t)fr, 0);
@@ -498,7 +506,7 @@ void LosShading::generate_bitmap(const uint8_t *fow, int res, std::vector<uint8_
 	const int pad = BLUR / 2;
 	const int pitch = fr + 2 * pad;
 	thread_local std::vector<uint8_t> uh; // cp rows of fr columns (horizontal pass)
-	static std::vector<uint8_t> a;
+	thread_local std::vector<uint8_t> a;
 	uh.assign((size_t)cp * (size_t)fr, 0);
 	for (int j = 0; j < cp; ++j) {
 		const uint8_t *p = &c[(size_t)j * cp + 1];
@@ -520,12 +528,14 @@ void LosShading::generate_bitmap(const uint8_t *fow, int res, std::vector<uint8_
 	}
 	// 7-tap binomial blur (1 6 15 20 15 6 1)/64, horizontal then vertical.
 	// hz: pitch rows of fr columns (horizontal pass; padding rows stay 0).
-	static std::vector<uint8_t> hz;
+	thread_local std::vector<uint8_t> hz;
 	hz.assign((size_t)pitch * (size_t)fr, 0);
+	const uint8_t *a_ptr = a.data();
+	uint8_t *hz_ptr = hz.data();
 	JobSystem::instance().for_each_index((size_t)fr, [&](size_t row_idx) {
 		const int j = (int)row_idx + pad;
-		const uint8_t *p = &a[(size_t)j * pitch];
-		uint8_t *o = &hz[(size_t)j * fr];
+		const uint8_t *p = &a_ptr[(size_t)j * pitch];
+		uint8_t *o = &hz_ptr[(size_t)j * fr];
 		for (int i = 0; i < fr; ++i) {
 			const unsigned v = 1u * p[i] + 6u * p[i + 1] + 15u * p[i + 2] + 20u * p[i + 3] +
 					15u * p[i + 4] + 6u * p[i + 5] + 1u * p[i + 6];
@@ -535,7 +545,7 @@ void LosShading::generate_bitmap(const uint8_t *fow, int res, std::vector<uint8_
 	const size_t s = (size_t)fr;
 	JobSystem::instance().for_each_index((size_t)fr, [&](size_t j) {
 		uint8_t *o = &out[(size_t)j * fr];
-		const uint8_t *p0 = &hz[(size_t)j * fr];
+		const uint8_t *p0 = &hz_ptr[(size_t)j * fr];
 		for (int i = 0; i < fr; ++i) {
 			const unsigned v = 1u * p0[i] + 6u * p0[i + s] + 15u * p0[i + 2 * s] + 20u * p0[i + 3 * s] +
 					15u * p0[i + 4 * s] + 6u * p0[i + 5 * s] + 1u * p0[i + 6 * s];
@@ -552,7 +562,9 @@ void LosShading::set_target(const uint8_t *fow, int res) {
 	const bool resized = res != res_;
 	res_ = res;
 	last_fow_.assign(fow, fow + n);
-	generate_bitmap(fow, res, target_);
+	if (!g_los_gpu_fn || !g_los_gpu_fn(fow, res, target_)) {
+		generate_bitmap(fow, res, target_);
+	}
 	since_recompute_ = 0.0f;
 	settled_ = false;
 	if (resized || shown_.size() != target_.size()) shown_ = target_;

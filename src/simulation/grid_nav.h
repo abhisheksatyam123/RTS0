@@ -2471,6 +2471,7 @@ inline bool NavGrid::find_path_tiles(float sx, float sz, float tx, float tz, Way
             thread_local std::vector<std::pair<int, int>> todo;
             if (seen.size() != regions.size()) seen.assign(regions.size(), 0);
             todo.clear();
+            if (todo.capacity() < TILE_POCKET_NODES + 4) todo.reserve(TILE_POCKET_NODES + 4);
             todo.emplace_back(si, sj);
             seen[at(si, sj)] = 1;
             size_t k = 0;
@@ -2509,6 +2510,9 @@ inline bool NavGrid::find_path_tiles(float sx, float sz, float tx, float tz, Way
     thread_local nav::JpsBuffers jps;
     thread_local std::vector<std::pair<int, int>> path_cells;
     thread_local std::vector<std::pair<float, float>> pts, kept;
+    if (path_cells.capacity() < 256) path_cells.reserve(256);
+    if (pts.capacity() < 256) pts.reserve(256);
+    if (kept.capacity() < 256) kept.reserve(256);
     // The search scans the open nodes' bits when they are kept (nav::JpsBits).
     nav::JpsBits bits;
     if (cached) {

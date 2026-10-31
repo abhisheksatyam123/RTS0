@@ -57,4 +57,5 @@ void main() {
     }
     uint val = (acc_y >> 6u) & 0xFFu;
     uint out_idx = uint(y) * fr + uint(x);
+    atomicOr(out_packed[out_idx >> 2u], val << ((out_idx & 3u) * 8u));
 }

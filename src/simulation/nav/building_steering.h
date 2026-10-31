@@ -299,6 +299,8 @@ bool search_short_path(Vec2 pos, Vec2 aim, float radius,
 	thread_local ShortPathScratch scratch;
 	static const std::vector<ShortPathSquare> no_units;
 	statics.clear();
+	if (statics.capacity() < 32) statics.reserve(32);
+	if (path.capacity() < 32) path.reserve(32);
 	const float cull = range * (BUILDING_STEER_CULL / BUILDING_STEER_RANGE);
 	for (const auto& b : buildings)
 		if (detail::within_reach(b, pos, radius, cull) &&
@@ -348,6 +350,8 @@ bool search_short_path_with_units(Vec2 pos, Vec2 aim, const ShortPathGoal& goal,
 	thread_local std::vector<Vec2> path;
 	thread_local ShortPathScratch scratch;
 	statics.clear();
+	if (statics.capacity() < 32) statics.reserve(32);
+	if (path.capacity() < 32) path.reserve(32);
 	const float cull = range * 1.6f;
 	for (const auto& b : buildings)
 		if (detail::within_reach(b, pos, radius, cull) &&
@@ -392,6 +396,7 @@ bool search_short_path_to_goal(Vec2 pos, const ShortPathGoal& goal, float radius
 	thread_local ShortPathScratch scratch;
 	static const std::vector<ShortPathSquare> no_units;
 	statics.clear();
+	if (statics.capacity() < 32) statics.reserve(32);
 	const float cull = range * (BUILDING_STEER_CULL / BUILDING_STEER_RANGE);
 	for (const auto& b : obstacles)
 		if (detail::within_reach(b, pos, radius, cull) && !b.wrecked && b.id != ignore_building_id &&
@@ -611,6 +616,7 @@ bool kept_waypoint(const ShortPathMemo& memo, uint32_t key, float radius, float 
 	const Vec2 from(memo.x, memo.z), aim(memo.aim_x, memo.aim_z);
 	thread_local std::vector<T> near_from;
 	near_from.clear();
+	if (near_from.capacity() < 32) near_from.reserve(32);
 	fetch(from, near_from);
 	const uint32_t base = memo.key & ~KEPT_PATH_INDEX_MASK;
 	const int k = static_cast<int>(memo.key & KEPT_PATH_INDEX_MASK);

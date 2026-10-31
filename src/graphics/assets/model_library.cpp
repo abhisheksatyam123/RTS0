@@ -375,8 +375,12 @@ Array cumulative_cuts(const std::vector<float> &freq, int vec4s) {
 }
 // The skins as one array texture (RGBA8, the body image's size), shared by
 // every body that names the same skins.
-Ref<Texture2DArray> unit_variant_array(const UnitVariants &uv) {
+static HashMap<String, Ref<Texture2DArray>> &unit_variant_arrays() {
 	static auto &cache = *new HashMap<String, Ref<Texture2DArray>>();
+	return cache;
+}
+Ref<Texture2DArray> unit_variant_array(const UnitVariants &uv) {
+	auto &cache = unit_variant_arrays();
 	const String key = String("|").join(uv.layers);
 	if (Ref<Texture2DArray> *hit = cache.getptr(key)) return *hit;
 	Ref<Texture2DArray> arr;
@@ -1195,12 +1199,17 @@ static void append_bucket_surface(const Ref<ArrayMesh> &mesh, const SurfBucket &
 	}
 }
 
-static Ref<ArrayMesh> mesh_from_buckets(std::vector<SurfBucket> &buckets, int max_surfaces) {
+static Ref<ArrayMesh> mesh_from_buckets(std::vector<SurfBucket> &buckets, int max_surfaces,
+		const Ref<ArrayMesh> &reuse = Ref<ArrayMesh>()) {
 	std::sort(buckets.begin(), buckets.end(), [](const SurfBucket &a, const SurfBucket &b) {
 		return a.verts.size() > b.verts.size();
 	});
-	Ref<ArrayMesh> merged;
-	merged.instantiate();
+	Ref<ArrayMesh> merged = reuse;
+	if (merged.is_valid()) {
+		merged->clear_surfaces();
+	} else {
+		merged.instantiate();
+	}
 	int n = (int)buckets.size();
 	if (max_surfaces > 0 && n > max_surfaces) n = max_surfaces;
 	for (int i = 0; i < n; ++i) append_bucket_surface(merged, buckets[i]);
@@ -1303,8 +1312,13 @@ static Ref<Image> crowd_masked_layer(const Ref<Texture2D> &albedo, const Ref<Tex
 	return out;
 }
 
-static const CrowdParts *crowd_parts(const std::vector<SurfBucket> &buckets) {
+static HashMap<String, CrowdParts *> &crowd_parts_cache() {
 	static auto &cache = *new HashMap<String, CrowdParts *>();
+	return cache;
+}
+
+static const CrowdParts *crowd_parts(const std::vector<SurfBucket> &buckets) {
+	auto &cache = crowd_parts_cache();
 	if (buckets.size() < 2 || buckets.size() > (size_t)CROWD_MAX_PARTS) return nullptr;
 	std::vector<uint64_t> keys;
 	for (const SurfBucket &b : buckets) keys.push_back(material_merge_key(b.mat));
@@ -1421,7 +1435,8 @@ static const CrowdParts *crowd_parts(const std::vector<SurfBucket> &buckets) {
 	return cp;
 }
 
-static Ref<ArrayMesh> flatten_to_one_surface(std::vector<SurfBucket> &buckets) {
+static Ref<ArrayMesh> flatten_to_one_surface(std::vector<SurfBucket> &buckets,
+		const Ref<ArrayMesh> &reuse = Ref<ArrayMesh>()) {
 	if (buckets.empty()) return Ref<ArrayMesh>();
 	const CrowdParts *parts = crowd_parts(buckets);
 	SurfBucket all;
@@ -1485,12 +1500,13 @@ static Ref<ArrayMesh> flatten_to_one_surface(std::vector<SurfBucket> &buckets) {
 	}
 	std::vector<SurfBucket> one;
 	one.push_back(std::move(all));
-	return mesh_from_buckets(one, 1);
+	return mesh_from_buckets(one, 1, reuse);
 }
 
 // A crowd unit: its own parts as one surface (flatten_to_one_surface), then the
 // alpha-tested ones (manes, tails) and carried props, which keep their materials.
-static Ref<ArrayMesh> crowd_mesh_from(std::vector<SurfBucket> &buckets) {
+static Ref<ArrayMesh> crowd_mesh_from(std::vector<SurfBucket> &buckets,
+		const Ref<ArrayMesh> &reuse = Ref<ArrayMesh>()) {
 	std::vector<SurfBucket> body, apart;
 	for (SurfBucket &b : buckets) {
 		Ref<BaseMaterial3D> bm = b.mat;
@@ -1499,8 +1515,8 @@ static Ref<ArrayMesh> crowd_mesh_from(std::vector<SurfBucket> &buckets) {
 				(sm.is_valid() && sm->get_shader().is_valid() && sm->get_shader() == player_color_cutout_shader());
 		(b.own_surface || cutout ? apart : body).push_back(std::move(b));
 	}
-	if (body.empty()) return mesh_from_buckets(apart, 0);
-	Ref<ArrayMesh> out = flatten_to_one_surface(body);
+	if (body.empty()) return mesh_from_buckets(apart, 0, reuse);
+	Ref<ArrayMesh> out = flatten_to_one_surface(body, reuse);
 	if (out.is_valid()) {
 		for (const SurfBucket &b : apart) append_bucket_surface(out, b);
 	}
@@ -1704,7 +1720,8 @@ Ref<ArrayMesh> ModelLibrary::bake_crowd_skin(CrowdSkin &skin, const Ref<ArrayMes
 	if (!skin.captured || !skin.root) return Ref<ArrayMesh>();
 	force_update_skeletons(skin.root);
 
-	std::vector<std::vector<Transform3D>> palettes(skin.rigs.size());
+	std::vector<std::vector<Transform3D>> &palettes = skin.palettes;
+	palettes.resize(skin.rigs.size());
 	for (size_t r = 0; r < skin.rigs.size(); ++r) {
 		CrowdSkin::Rig &rig = skin.rigs[r];
 		if (!rig.skel) continue;
@@ -1816,10 +1833,7 @@ Ref<ArrayMesh> ModelLibrary::bake_crowd_skin(CrowdSkin &skin, const Ref<ArrayMes
 		}
 	}
 	if (buckets.empty()) return Ref<ArrayMesh>();
-	Ref<ArrayMesh> mesh = reuse;
-	if (mesh.is_valid()) mesh->clear_surfaces();
-	(void)mesh;
-	return crowd_mesh_from(buckets);
+	return crowd_mesh_from(buckets, reuse);
 }
 
 Ref<ArrayMesh> ModelLibrary::bake_posed_crowd_mesh(Node *root) {
@@ -2172,6 +2186,23 @@ void ModelLibrary::clear() {
 	entry_index().clear();
 	cache().clear();
 	player_color_mats().clear();
+	unit_variant_arrays().clear();
+	for (KeyValue<String, CrowdParts *> &kv : crowd_parts_cache()) {
+		delete kv.value;
+		kv.value = nullptr;
+	}
+	crowd_parts_cache().clear();
+	for (KeyValue<String, std::vector<PropLookSlot>> &kv : prop_looks()) {
+		for (PropLookSlot &s : kv.value) {
+			for (Ref<ArrayMesh> &m : s.built) m.unref();
+		}
+	}
+	for (KeyValue<String, UnitHelmet> &kv : unit_helmets()) {
+		kv.value.requested = false;
+		for (Ref<ArrayMesh> &m : kv.value.built) m.unref();
+	}
+	player_color_cutout_shader().unref();
+	player_color_shader().unref();
 }
 
 } // namespace rtso

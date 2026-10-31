@@ -3784,6 +3784,7 @@ bool Simulation::nearest_point_off_structures(float c, uint32_t ignore, float &x
 	constexpr float NEAR = 3.0f;
 	thread_local std::vector<SteerObstacle> near;
 	near.clear();
+	if (near.capacity() < 32) near.reserve(32);
 	for_each_structure_square(x - NEAR, z - NEAR, x + NEAR, z + NEAR, c, [&](const SteerObstacle &o) {
 		if (!o.wrecked && o.id != ignore && building_blocks_movement(o.type) && nav::detail::within_reach(o, nav::Vec2(x, z), c, NEAR))
 			near.push_back(o);
@@ -3865,6 +3866,7 @@ void Simulation::large_stand_point(size_t i, const B &b, uint32_t target_id, flo
 	const float ring = std::sqrt(eu * eu + ev * ev);
 	thread_local std::vector<SteerObstacle> near;
 	near.clear();
+	if (near.capacity() < 32) near.reserve(32);
 	for_each_structure_square(b.x - ring, b.z - ring, b.x + ring, b.z + ring, c, [&](const SteerObstacle &o) {
 		if (!o.wrecked && o.id != target_id && building_blocks_movement(o.type)) near.push_back(o);
 		return false;
@@ -12782,6 +12784,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 					const float c = unit_clearance_at(i);
 					thread_local std::vector<SteerObstacle> at_wp;
 					at_wp.clear();
+					if (at_wp.capacity() < 16) at_wp.reserve(16);
 					gaia_obstacles_near(wx, wz, c, at_wp);
 					for (const SteerObstacle &o : at_wp)
 						if (nav::PointIsInSquare(nav::Vec2(wx - o.x, wz - o.z), nav::footprint_u(o), nav::footprint_v(o),
@@ -12905,6 +12908,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 				if (!moved) {
 					thread_local std::vector<SteerObstacle> at_aim;
 					at_aim.clear();
+					if (at_aim.capacity() < 16) at_aim.reserve(16);
 					gaia_obstacles_near(aim_x, aim_z, c, at_aim);
 					for (const SteerObstacle &b : at_aim)
 						if (nav::footprint_push_out(b, c, aim_x, aim_z)) break;
@@ -13092,6 +13096,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			// further ones once it nears them.
 			thread_local std::vector<SteerObstacle> near_gaia;
 			near_gaia.clear();
+			if (near_gaia.capacity() < 32) near_gaia.reserve(32);
 			const float clear = unit_clearance_at(i);
 			// A unit follows its short path round trees or steep ground to its end (nav::steer_around_obstacles;
 			// CCmpUnitMotion::PerformMove, CCmpUnitMotion.h:1238-1250, 1299-1326), but a formation's member,
@@ -13865,6 +13870,8 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		thread_local std::vector<int32_t> square_units; // the unit each square stands for
 		squares.clear();
 		square_units.clear();
+		if (squares.capacity() < 32) squares.reserve(32);
+		if (square_units.capacity() < 32) square_units.reserve(32);
 		bool inside_square = false; // the walker stands inside an idle unit's crowd-scale square
 		const float cull = range * 1.6f + c_max;
 		grid.visit_radius_within(x0, z0, cull, cull, [&](int32_t j) {
@@ -13892,6 +13899,7 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		nav::Vec2 w, next;
 		thread_local std::vector<SteerObstacle> near_gaia; // and round the trees as move_units steers
 		near_gaia.clear();
+		if (near_gaia.capacity() < 32) near_gaia.reserve(32);
 		gaia_obstacles_near(x0, z0, GAIA_STEER_REACH, near_gaia);
 		// A gatherer's supply stays among them, as 0.28's short path keeps the target's obstruction
 		// (RequestShortPath, CCmpUnitMotion.h:1863): the search ends on task_goal's circle round it,
@@ -13921,6 +13929,7 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		if (!found && !squares.empty() && !member) {
 			thread_local std::vector<nav::ShortPathSquare> relaxed_squares;
 			relaxed_squares.clear();
+			if (relaxed_squares.capacity() < squares.size()) relaxed_squares.reserve(squares.size());
 			const float grow = ci - IDLE_SQUARE_RELAX;
 			for (size_t k = 0; k < squares.size(); ++k) {
 				const float hj = unit_half(square_units[k], true) - grow;
@@ -15688,6 +15697,7 @@ bool Simulation::obstructed_search(size_t i, const nav::ShortPathGoal &goal, flo
 	thread_local std::vector<SteerObstacle> near;
 	const float x = units_.pos_x[i], z = units_.pos_z[i];
 	near.clear();
+	if (near.capacity() < 32) near.reserve(32);
 	gaia_obstacles_near(x, z, range * (nav::BUILDING_STEER_CULL / nav::BUILDING_STEER_RANGE), near);
 	if (searched) *searched += near.size();
 	return nav::search_short_path_to_goal(nav::Vec2(x, z), goal, unit_clearance_at(i), range,

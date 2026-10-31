@@ -301,6 +301,7 @@ void RtsoWorldView::cleanup() {
 	water_mesh.unref();
 	water_mat.unref();
 	status_sprites_.cleanup();
+	rtso::ModelLibrary::clear();
 	(void)free_mesh_and_mats;
 }
 
@@ -3240,7 +3241,7 @@ void RtsoWorldView::bake_puppet_clips(Node *inst, CrowdPuppet *row, bool *done, 
 				}
 				ap->seek(t, true);
 				ap->advance(0.0);
-				Ref<ArrayMesh> baked = rtso::ModelLibrary::bake_crowd_skin(skin);
+				Ref<ArrayMesh> baked = rtso::ModelLibrary::bake_crowd_skin(skin, row[c].posed_frames[valid]);
 				if (baked.is_valid()) {
 					row[c].posed_frames[valid] = baked;
 					valid++;
@@ -3317,6 +3318,7 @@ struct RtsoWorldView::CrowdBakeJob {
 	Node3D *prop = nullptr;
 	rtso::ModelLibrary::CrowdSkin skin;
 	Ref<ArrayMesh> poses[CROWD_FRAMES_PER_CLIP];
+	Ref<ArrayMesh> lod_poses[CROWD_FRAMES_PER_CLIP];
 };
 
 // Readies clip slot c of the job's batch for posing, as bake_puppet_clips does per clip.
@@ -3359,6 +3361,8 @@ void RtsoWorldView::crowd_job_bake_poses() {
 	if (j.clip < 0) return;
 	const int c = j.clip;
 	const int n = CROWD_FRAMES_PER_CLIP;
+	CrowdBatch &b = crowd_batch((uint8_t)(j.batch >> 16), (uint16_t)(j.batch & 0xFFFF));
+	CrowdPuppet &row = b.puppet[c];
 	while (j.frame < n) {
 		if (crowd_bake_over_budget()) return;
 		crowd_baked_this_frame_ = true;
@@ -3373,20 +3377,30 @@ void RtsoWorldView::crowd_job_bake_poses() {
 		}
 		j.ap->seek(t, true);
 		j.ap->advance(0.0);
-		Ref<ArrayMesh> baked = rtso::ModelLibrary::bake_crowd_skin(j.skin);
-		if (baked.is_valid()) j.poses[j.valid++] = baked;
+		const int slot = j.valid;
+		Ref<ArrayMesh> baked = rtso::ModelLibrary::bake_crowd_skin(j.skin, row.posed_frames[slot]);
+		if (baked.is_valid()) {
+			j.poses[slot] = baked;
+			if ((slot & 1) == 1 && slot > 0 && j.lod_poses[slot - 1].is_valid()) {
+				j.lod_poses[slot] = j.lod_poses[slot - 1];
+			} else {
+				Ref<ArrayMesh> low = load_mesh(baked, true);
+				j.lod_poses[slot] = (low.is_valid() && low->get_surface_count() > 0) ? low : baked;
+			}
+			j.valid++;
+		}
 	}
 	if (j.prop) detach_carry_props(find_skeleton3d(j.inst));
 	j.prop = nullptr;
 	j.skin = rtso::ModelLibrary::CrowdSkin();
-	CrowdBatch &b = crowd_batch((uint8_t)(j.batch >> 16), (uint16_t)(j.batch & 0xFFFF));
-	CrowdPuppet &row = b.puppet[c];
 	for (int f = 0; f < j.valid; ++f) {
 		row.posed_frames[f] = j.poses[f];
-		Ref<ArrayMesh> low = load_mesh(j.poses[f], true);
-		row.lod_frames[f] = (low.is_valid() && low->get_surface_count() > 0) ? low : j.poses[f];
+		row.lod_frames[f] = j.lod_poses[f].is_valid() ? j.lod_poses[f] : j.poses[f];
 	}
-	for (int f = 0; f < n; ++f) j.poses[f].unref();
+	for (int f = 0; f < n; ++f) {
+		j.poses[f].unref();
+		j.lod_poses[f].unref();
+	}
 	row.baked_count = j.valid;
 	for (int p = 0; p < CROWD_PHASES; ++p) {
 		row.last_frame[p] = -1;
