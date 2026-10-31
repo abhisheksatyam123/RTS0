@@ -5,6 +5,7 @@
 - [ ] T46 [lead] In-game HUD & UI ergonomics: review minimap alert pings, tech tree tooltip hover latency, and mobile touch control button hitboxes.
 - [ ] T47 [lead] Skirmish scenario expansion: add dedicated battle & siege challenge presets in MatchSettings for high-unit clash playtesting.
 - [x] T48 [lead] Clean and refresh docs and task index (`docs/README.md`, `docs/PERFORMANCE.md`, `todo.md`).
+- [x] T49 [lead] Applied gemini-code-1793462338767.txt: SMT-aware physical core worker count JobSystem::physical_core_count() (TODO-JOB-03), octagonal bounding filter in Simulation::separation, parallelized clear_attacked_by in tick_unit_ai, and linear tonemapping in scenes/env.tres.
 
 ## Systems
 - **Hardware Profile:**
@@ -13,7 +14,7 @@
   - RAM: 14 GiB total, 9.3 GiB available.
   - Profiling limits: `perf_event_paranoid` is set to 4, no passwordless sudo; PMU counters restricted. Use `/proc/stat`, `/proc/<pid>/task/`, and `/sys/class/drm/card1/` sysfs metrics for monitoring.
 - **Key Code & Subsystems:**
-  - `src/core/job_system.h` & `src/core/job_system.cpp`: Worker pool with main-thread participation (`parallel_width() = worker_count() + 1`). Worker spin duration set to `kSpinFor = 250us` to prevent premature `sched_yield` context switching.
+  - `src/core/job_system.h` & `src/core/job_system.cpp`: Worker pool with main-thread participation (`parallel_width() = worker_count() + 1`). Worker spin duration set to `kSpinFor = 500us` and `kWatchFor = 2000us`. Worker pool bounded to physical cores via `JobSystem::physical_core_count()` (`phys - 1` workers + 1 main thread) to eliminate SMT hyperthread cache thrashing (TODO-JOB-03).
   - `src/simulation/simulation.cpp`:
     - `distribute_around`: 2-opt spiral coordinate distribution for group moves; optimized with `inv = 1.0f / PUSH_SCALE` pre-scaling and cached `d[i]` array.
     - `UnitGrid` (lines 364–470): Adaptive resolution (64x64 or 128x128 via `words_per_row = (res + 63) / 64`), preventing $O(N^2)$ neighbor collision checks in dense clashes.
@@ -40,6 +41,7 @@
   - Lockstep multiplayer requires bit-identical `sim_hash` and `state_fnv64` hashes across all thread configurations. Parallel worker passes must use deterministic reductions.
 
 ## Log
+- 2026-10-31 21:30 [lead] T49: Applied gemini-code-1793462338767.txt: added JobSystem::physical_core_count() bounding default workers to physical cores (TODO-JOB-03), added octagonal bounding filter in Simulation::separation, parallelized clear_attacked_by in tick_unit_ai, updated tonemapping in scenes/env.tres, recompiled GDExtension and bench_sim; verified 100% bit-identical sim hashes and PASS on test_combat, test_job_system, and check_parity netcode.
 - 2026-10-24 17:30 [lead] Completed parity milestones T0a–T32 (animations, selection overlays, formation auras, naval queues, netcode determinism, mobile safe insets).
 - 2026-10-31 09:30 [lead] T33: Built bench_sim with worker scaling. Profiled 11th Gen i5-1155G7 across 150-7.6k units; authored 5-track optimization roadmap in docs/CPU_GPU_UTILIZATION_REPORT.md.
 - 2026-10-31 10:15 [lead] T34: Optimized distribute_around 2-opt coordinates and increased JobSystem kSpinFor to 250us (30.6% speedup at 7.6k units).

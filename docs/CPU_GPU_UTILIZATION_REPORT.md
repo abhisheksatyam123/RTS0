@@ -97,7 +97,7 @@ Within `Simulation::tick(dt)`, only 5 loops use `JobSystem::for_each_index`. The
   - *Design:* Maintain per-thread work queues (Chase-Lev deque) to eliminate mutex contention and reduce barrier synchronization latency to $< 1\,\mu\text{s}$.
 - [ ] **TODO-JOB-02:** Pipeline Movement & Separation (Task DAG).
   - *Design:* Overlap independent stages (e.g. formation updates and combat target acquisition) so threads don't idle between phases.
-- [ ] **TODO-JOB-03:** Core Pinning & SMT Awareness.
+- [x] **TODO-JOB-03:** Core Pinning & SMT Awareness.
   - *Design:* Restrict worker thread count to physical cores (hw/2 on SMT systems) to eliminate hyperthread cache thrashing.
 
 ### Track 4: GPU Offloading via Vulkan Compute Shaders

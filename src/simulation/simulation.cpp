@@ -14391,7 +14391,9 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 			if constexpr (decltype(walker)::value) {
 				if (!(e.j & UnitGrid::PACKED_FLAG)) lim = body;
 			}
-			if (std::fabs(e.x - pxi) > lim || std::fabs(e.z - pzi) > lim) return;
+			const float adx = std::fabs(e.x - pxi);
+			const float adz = std::fabs(e.z - pzi);
+			if (adx > lim || adz > lim || (adx + adz) > lim * 1.41421356f) return;
 			const int32_t j = (int32_t)(e.j & ~UnitGrid::PACKED_FLAG);
 			if ((size_t)j == i) return;
 			const PushUnit &b = pu[j];
@@ -22296,7 +22298,10 @@ void Simulation::tick_unit_ai(float dt) {
 			}
 		}
 	}
-	for (size_t i = 0; i < units_.count; ++i) units_.attacked_by[i] = 0;
+	const size_t clear_n = units_.count;
+	JobSystem::instance().for_each_index(clear_n, [&](size_t i) {
+		units_.attacked_by[i] = 0;
+	}, 256);
 }
 
 bool Simulation::any_can_damage_building(const uint32_t *unit_ids, size_t count, uint32_t building_id) const {

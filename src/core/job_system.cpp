@@ -1,6 +1,9 @@
 #include "job_system.h"
 #include <algorithm>
 #include <chrono>
+#include <fstream>
+#include <set>
+#include <string>
 
 #if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
 #include <immintrin.h>
@@ -19,8 +22,8 @@ namespace {
 // shorter than a sleeping thread takes to wake, so sleeping workers would miss most of each loop.
 // It spins briefly, then yields its core to any other thread (Godot's) while it waits, and sleeps
 // once no job came for kWatchFor (between turns and frames).
-constexpr auto kSpinFor = std::chrono::microseconds(250);
-constexpr auto kWatchFor = std::chrono::microseconds(1500);
+constexpr auto kSpinFor = std::chrono::microseconds(500);
+constexpr auto kWatchFor = std::chrono::microseconds(2000);
 } // namespace
 
 JobSystem &JobSystem::instance() {
@@ -28,13 +31,42 @@ JobSystem &JobSystem::instance() {
 	return js;
 }
 
+unsigned JobSystem::physical_core_count() {
+	unsigned logical = std::max(1u, std::thread::hardware_concurrency());
+#if defined(__linux__)
+	std::ifstream cpuinfo("/proc/cpuinfo");
+	if (cpuinfo.is_open()) {
+		std::set<std::pair<int, int>> phys_cores;
+		std::string line;
+		int phys_id = 0, core_id = -1;
+		while (std::getline(cpuinfo, line)) {
+			if (line.compare(0, 11, "physical id") == 0) {
+				auto pos = line.find(':');
+				if (pos != std::string::npos) phys_id = std::atoi(line.c_str() + pos + 1);
+			} else if (line.compare(0, 7, "core id") == 0) {
+				auto pos = line.find(':');
+				if (pos != std::string::npos) {
+					core_id = std::atoi(line.c_str() + pos + 1);
+					phys_cores.insert({phys_id, core_id});
+				}
+			}
+		}
+		if (!phys_cores.empty()) {
+			return (unsigned)phys_cores.size();
+		}
+	}
+#endif
+	return logical > 2 ? std::max(2u, logical / 2) : logical;
+}
+
 void JobSystem::start(unsigned worker_count) {
 	std::lock_guard<std::mutex> lock(mu_);
 	if (started_) return;
-	unsigned hw = std::max(1u, std::thread::hardware_concurrency());
 	if (worker_count == 0) {
-		// Leave a core for Godot's render/main threads; remaining cores run sim jobs.
-		worker_count = hw > 2 ? hw - 1 : 1;
+		// Bound default worker count to physical cores (TODO-JOB-03) to avoid SMT cache
+		// contention; main thread participates in parallel_for alongside workers.
+		unsigned phys = physical_core_count();
+		worker_count = phys > 1 ? phys - 1 : 1;
 	}
 	stop_ = false;
 	workers_.reserve(worker_count);

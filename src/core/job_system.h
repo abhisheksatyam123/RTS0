@@ -19,6 +19,7 @@ public:
 	static JobSystem &instance();
 
 	void start(unsigned worker_count = 0);
+	static unsigned physical_core_count();
 	void stop();
 	~JobSystem() { stop(); }
 	bool running() const { return started_; }
