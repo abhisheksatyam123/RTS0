@@ -2,6 +2,7 @@
 // See fog_mirage.h for the 0 A.D. sources this ports.
 #include "fog_mirage.h"
 
+#include "../core/job_system.h"
 #include "../simulation/simulation.h"
 
 #include <algorithm>
@@ -519,9 +520,10 @@ void LosShading::generate_bitmap(const uint8_t *fow, int res, std::vector<uint8_
 	}
 	// 7-tap binomial blur (1 6 15 20 15 6 1)/64, horizontal then vertical.
 	// hz: pitch rows of fr columns (horizontal pass; padding rows stay 0).
-	thread_local std::vector<uint8_t> hz;
+	static std::vector<uint8_t> hz;
 	hz.assign((size_t)pitch * (size_t)fr, 0);
-	for (int j = pad; j < fr + pad; ++j) {
+	JobSystem::instance().for_each_index((size_t)fr, [&](size_t row_idx) {
+		const int j = (int)row_idx + pad;
 		const uint8_t *p = &a[(size_t)j * pitch];
 		uint8_t *o = &hz[(size_t)j * fr];
 		for (int i = 0; i < fr; ++i) {
@@ -529,9 +531,9 @@ void LosShading::generate_bitmap(const uint8_t *fow, int res, std::vector<uint8_
 					15u * p[i + 4] + 6u * p[i + 5] + 1u * p[i + 6];
 			o[i] = (uint8_t)(v >> 6);
 		}
-	}
+	}, 16);
 	const size_t s = (size_t)fr;
-	for (int j = 0; j < fr; ++j) {
+	JobSystem::instance().for_each_index((size_t)fr, [&](size_t j) {
 		uint8_t *o = &out[(size_t)j * fr];
 		const uint8_t *p0 = &hz[(size_t)j * fr];
 		for (int i = 0; i < fr; ++i) {
@@ -539,7 +541,7 @@ void LosShading::generate_bitmap(const uint8_t *fow, int res, std::vector<uint8_
 					15u * p0[i + 4 * s] + 6u * p0[i + 5 * s] + 1u * p0[i + 6 * s];
 			o[i] = (uint8_t)(v >> 6);
 		}
-	}
+	}, 16);
 }
 
 void LosShading::set_target(const uint8_t *fow, int res) {

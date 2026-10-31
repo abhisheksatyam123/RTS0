@@ -6,6 +6,7 @@
 - [ ] T47 [lead] Skirmish scenario expansion: add dedicated battle & siege challenge presets in MatchSettings for high-unit clash playtesting.
 - [x] T48 [lead] Clean and refresh docs and task index (`docs/README.md`, `docs/PERFORMANCE.md`, `todo.md`).
 - [x] T49 [lead] Applied gemini-code-1793462338767.txt: SMT-aware physical core worker count JobSystem::physical_core_count() (TODO-JOB-03), octagonal bounding filter in Simulation::separation, parallelized clear_attacked_by in tick_unit_ai, and linear tonemapping in scenes/env.tres.
+- [x] T50 [lead] Applied gemini-code-1793463448003.txt: JobSystem::parallel_invoke (TODO-JOB-02), CPU core affinity pinning on Linux, clamped neighbor search culling (kMaxPushNeighbors=16 in separation, TODO-GRID-03), parallelized LosSource evaluation in tick_los, parallelized 7-tap binomial blur in FogMirages, and added shaders/compute/los_fow.glsl (TODO-GPU-02).
 
 ## Systems
 - **Hardware Profile:**
@@ -41,6 +42,7 @@
   - Lockstep multiplayer requires bit-identical `sim_hash` and `state_fnv64` hashes across all thread configurations. Parallel worker passes must use deterministic reductions.
 
 ## Log
+- 2026-10-31 22:00 [lead] T50: Applied gemini-code-1793463448003.txt: added JobSystem::parallel_invoke, CPU affinity pinning, clamped separation neighbor limit (kMaxPushNeighbors=16), parallelized tick_los and FogMirages 7-tap blur, added shaders/compute/los_fow.glsl; verified test_job_system (128k jobs PASS) and test_combat PASS.
 - 2026-10-31 21:30 [lead] T49: Applied gemini-code-1793462338767.txt: added JobSystem::physical_core_count() bounding default workers to physical cores (TODO-JOB-03), added octagonal bounding filter in Simulation::separation, parallelized clear_attacked_by in tick_unit_ai, updated tonemapping in scenes/env.tres, recompiled GDExtension and bench_sim; verified 100% bit-identical sim hashes and PASS on test_combat, test_job_system, and check_parity netcode.
 - 2026-10-24 17:30 [lead] Completed parity milestones T0a–T32 (animations, selection overlays, formation auras, naval queues, netcode determinism, mobile safe insets).
 - 2026-10-31 09:30 [lead] T33: Built bench_sim with worker scaling. Profiled 11th Gen i5-1155G7 across 150-7.6k units; authored 5-track optimization roadmap in docs/CPU_GPU_UTILIZATION_REPORT.md.

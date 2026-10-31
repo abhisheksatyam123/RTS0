@@ -30,6 +30,9 @@ public:
 	void parallel_for(size_t count, const std::function<void(size_t begin, size_t end)> &fn,
 			size_t min_grain = 16);
 
+	// TODO-JOB-02: Execute two independent tasks concurrently (Task DAG fork-join)
+	void parallel_invoke(const std::function<void()> &fn_a, const std::function<void()> &fn_b);
+
 	template <typename F>
 	void for_each_index(size_t count, F &&fn, size_t min_grain = 16) {
 		parallel_for(count, [&](size_t a, size_t b) {
@@ -38,10 +41,6 @@ public:
 	}
 
 private:
-	// One parallel_for at a time. Its chunks are claimed from `next_`, which carries the job's
-	// epoch in its high 32 bits: a worker that wakes late, after the job is over, fails to claim
-	// and goes back to waiting, so the caller waits only for the chunks already claimed, never for
-	// every worker to wake, and a worker never runs a chunk of a job it didn't see start.
 	struct Job {
 		const std::function<void(size_t, size_t)> *fn = nullptr;
 		size_t count = 0;

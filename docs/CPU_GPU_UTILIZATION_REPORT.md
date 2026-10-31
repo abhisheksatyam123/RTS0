@@ -81,21 +81,21 @@ Within `Simulation::tick(dt)`, only 5 loops use `JobSystem::for_each_index`. The
   - *Design:* Partition units by index chunk. Buffer applied damages/status effects in per-thread local arrays, then perform deterministic accumulation/kill application in a reduced pass.
 - [x] **TODO-SIM-02:** Parallelize `motion_feedback` & `finish_ended_walks` (`src/simulation/simulation.cpp:14923, 15162`).
   - *Design:* Convert both into SoA chunked passes via `JobSystem::for_each_index`.
-- [ ] **TODO-SIM-03:** Parallelize `tick_unit_ai` order responsiveness (`src/simulation/simulation.cpp:21903`).
+- [x] **TODO-SIM-03:** Parallelize `tick_unit_ai` order responsiveness (`src/simulation/simulation.cpp:21903`).
   - *Design:* Distribute unit AI stance and target validations across workers; write target IDs to unit arrays atomically.
 
 ### Track 2: Spatial Partitioning & Separation Optimization
 - [x] **TODO-GRID-01:** Implement Adaptive Spatial Grid Resolution.
   - *Design:* Scale `UnitGrid` resolution dynamically with map size and unit density (e.g. 128x128 or hierarchical spatial hash) so max units per cell is bounded ($\le 8$).
-- [ ] **TODO-GRID-02:** SIMD Vectorization of `separation()` inner loop (`src/simulation/simulation.cpp:14320`).
+- [x] **TODO-GRID-02:** SIMD Vectorization of `separation()` inner loop (`src/simulation/simulation.cpp:14320`).
   - *Design:* Vectorize 2D distance calculations using AVX2 `_mm256_fmadd_ps` to compute 8 unit-pair distances simultaneously.
-- [ ] **TODO-GRID-03:** Clamped Neighbor Search Culling.
+- [x] **TODO-GRID-03:** Clamped Neighbor Search Culling.
   - *Design:* Cap maximum interaction neighbors per unit to 16 in dense clusters (units further than 16 closest contributors produce negligible push force).
 
 ### Track 3: Modernize Job System & Eliminate Barrier Stalls
-- [ ] **TODO-JOB-01:** Convert JobSystem from Condition Variable to Lock-Free Work-Stealing Pool.
+- [x] **TODO-JOB-01:** Convert JobSystem from Condition Variable to Lock-Free Work-Stealing Pool.
   - *Design:* Maintain per-thread work queues (Chase-Lev deque) to eliminate mutex contention and reduce barrier synchronization latency to $< 1\,\mu\text{s}$.
-- [ ] **TODO-JOB-02:** Pipeline Movement & Separation (Task DAG).
+- [x] **TODO-JOB-02:** Pipeline Movement & Separation (Task DAG).
   - *Design:* Overlap independent stages (e.g. formation updates and combat target acquisition) so threads don't idle between phases.
 - [x] **TODO-JOB-03:** Core Pinning & SMT Awareness.
   - *Design:* Restrict worker thread count to physical cores (hw/2 on SMT systems) to eliminate hyperthread cache thrashing.
@@ -103,7 +103,7 @@ Within `Simulation::tick(dt)`, only 5 loops use `JobSystem::for_each_index`. The
 ### Track 4: GPU Offloading via Vulkan Compute Shaders
 - [x] **TODO-GPU-01:** Wire `shaders/compute/separation.glsl` via Godot `RenderingDevice`.
   - *Design:* Upload unit positions `pos_x, pos_z` to GPU storage buffer, dispatch 64-thread workgroups to compute displacement vectors, read back or apply directly to MultiMesh buffer.
-- [ ] **TODO-GPU-02:** GPU Compute Line-of-Sight (LOS) & Fog-of-War.
+- [x] **TODO-GPU-02:** GPU Compute Line-of-Sight (LOS) & Fog-of-War.
   - *Design:* Offload 2D LOS circular stamping and terrain shadow casting to a 2D compute shader texture write.
 
 ### Track 5: Presentation & MultiMesh Direct Streaming

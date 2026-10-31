@@ -17,6 +17,7 @@
 #include "presentation/reference_data.h"
 #include "presentation/user_config.h"
 #include "graphics/assets/model_library.h"
+#include "graphics/gpu_separation.h"
 #include "core/job_system.h"
 #include "core/diagnostics/logger.h"
 
@@ -56,6 +57,7 @@ void uninitialize_rtso_module(ModuleInitializationLevel p_level) {
 	if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE) {
 		return;
 	}
+	rtso::GpuSeparation::instance().cleanup();
 	rtso::JobSystem::instance().stop();
 	rtso::ModelLibrary::clear();
 }

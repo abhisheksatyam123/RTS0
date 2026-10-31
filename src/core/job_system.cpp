@@ -1,9 +1,14 @@
 #include "job_system.h"
 #include <algorithm>
 #include <chrono>
+#include <cstdlib>
 #include <fstream>
 #include <set>
 #include <string>
+#if defined(__linux__)
+#include <pthread.h>
+#include <sched.h>
+#endif
 
 #if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
 #include <immintrin.h>
@@ -70,8 +75,20 @@ void JobSystem::start(unsigned worker_count) {
 	}
 	stop_ = false;
 	workers_.reserve(worker_count);
+	unsigned logical = std::max(1u, std::thread::hardware_concurrency());
+	unsigned phys = physical_core_count();
+	unsigned stride = (logical >= phys * 2 && phys > 0) ? 2u : 1u;
 	for (unsigned i = 0; i < worker_count; ++i) {
-		workers_.emplace_back([this]() { worker_main(); });
+		workers_.emplace_back([this, i, stride, logical]() {
+#if defined(__linux__)
+			cpu_set_t cpuset;
+			CPU_ZERO(&cpuset);
+			unsigned target_cpu = ((i + 1) * stride) % logical;
+			CPU_SET(target_cpu, &cpuset);
+			pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
+#endif
+			worker_main();
+		});
 	}
 	started_ = true;
 }
@@ -164,14 +181,7 @@ void JobSystem::parallel_for(size_t count, const std::function<void(size_t, size
 	size_t grain = std::max(min_grain, (count + width * 4 - 1) / (width * 4));
 	size_t chunks = (count + grain - 1) / grain;
 
-	// Close the last job's claim word before its fields change. A worker that ran that job's last
-	// chunk may still be in run_chunks, with `next_` read under the last job's tag and its chunk
-	// index at that job's count. Were it to read this job's (larger) chunk count before `next_`
-	// moved on, its compare-and-swap would still succeed: it would run a chunk past the last job's
-	// end, with this job's fields, and count it off `remaining_`, so this job would finish early, or
-	// never. With the new tag and no chunk left in `next_` first, that compare-and-swap fails. The
-	// job's fields are written after it, and its chunk count is read and written in sequentially
-	// consistent order with `next_`, so a worker that reads the new count also reads the closed word.
+	// Close the last job's claim word before its fields change.
 	const uint32_t epoch = epoch_.load(std::memory_order_relaxed) + 1;
 	next_.store(((uint64_t)epoch << 32) | 0xFFFFFFFFull, std::memory_order_seq_cst);
 	job_.fn = &fn;
@@ -190,6 +200,20 @@ void JobSystem::parallel_for(size_t count, const std::function<void(size_t, size
 	// Only chunks a worker already claimed can be left; they finish shortly.
 	while (remaining_.load(std::memory_order_acquire) != 0) RTSO_CPU_RELAX();
 	in_parallel_.store(false);
+}
+
+void JobSystem::parallel_invoke(const std::function<void()> &fn_a, const std::function<void()> &fn_b) {
+	if (!started_ || workers_.empty()) {
+		fn_a();
+		fn_b();
+		return;
+	}
+	parallel_for(2, [&](size_t a, size_t b) {
+		for (size_t i = a; i < b; ++i) {
+			if (i == 0) fn_a();
+			else fn_b();
+		}
+	}, 1);
 }
 
 } // namespace rtso

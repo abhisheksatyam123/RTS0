@@ -14384,9 +14384,12 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 		// is passed over before its data is read. The hundredth covers float rounding.
 		float skip = std::max(reach + step_max, ri + r_max) + 0.01f;
 		float body = 0.0f; // set below: the furthest on an axis a body could overlap this one's
+		int push_neighbors = 0;
+		constexpr int kMaxPushNeighbors = 16; // TODO-GRID-03: Clamped neighbor search culling in dense clusters
 		// `walker` (see the queries below): pass over the pairs with a unit that stands further than
 		// `body` on either axis.
 		auto push = [&](const UnitGrid::Packed &e, auto walker) SEP_INLINE {
+			if (push_neighbors >= kMaxPushNeighbors) return;
 			float lim = skip;
 			if constexpr (decltype(walker)::value) {
 				if (!(e.j & UnitGrid::PACKED_FLAG)) lim = body;
@@ -14450,6 +14453,7 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 			const float max_dist = same_group ? combined
 					: combined * PUSH_RADIUS + (moving_push ? PUSH_MOVING_EXT : PUSH_STATIC_EXT);
 			if (h2 > max_dist * max_dist) return;
+			++push_neighbors;
 			combined = max_dist * (moving_push ? PUSH_MOVING_SPREAD : PUSH_STATIC_SPREAD);
 			// a is the unit with the lower id; sign turns i's view into a's.
 			const bool i_is_a = idi < b.id;
@@ -40174,11 +40178,21 @@ void Simulation::tick_los() {
 	if (los_.res() != grid_res_) reset_los();
 	const size_t nu = units_.count;
 	if (los_unit_src_.size() < nu) los_unit_src_.resize(nu);
-	for (size_t u = 0; u < los_unit_src_.size(); ++u) {
-		LosSource want;
-		if (u < nu && units_.alive[u])
-			want = los_.source_near(los_unit_src_[u], units_.pos_x[u], units_.pos_z[u], unit_vision_at(u), units_.team[u]);
-		los_.update(los_unit_src_[u], want);
+	const size_t total_u = los_unit_src_.size();
+	if (total_u >= 128 && JobSystem::instance().running()) {
+		std::vector<LosSource> wants(total_u);
+		JobSystem::instance().for_each_index(total_u, [&](size_t u) {
+			if (u < nu && units_.alive[u])
+				wants[u] = los_.source_near(los_unit_src_[u], units_.pos_x[u], units_.pos_z[u], unit_vision_at(u), units_.team[u]);
+		}, 64);
+		for (size_t u = 0; u < total_u; ++u) los_.update(los_unit_src_[u], wants[u]);
+	} else {
+		for (size_t u = 0; u < total_u; ++u) {
+			LosSource want;
+			if (u < nu && units_.alive[u])
+				want = los_.source_near(los_unit_src_[u], units_.pos_x[u], units_.pos_z[u], unit_vision_at(u), units_.team[u]);
+			los_.update(los_unit_src_[u], want);
+		}
 	}
 	los_unit_src_.resize(nu);
 	const size_t nb = buildings_.size();
