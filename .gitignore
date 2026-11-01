@@ -71,3 +71,7 @@ logs/
 # Large extra 0 A.D. PSA dumps from --all-animations (~30MB). Curated clips are stored:
 # assets/animations/{biped,citizen,gather,cavalry}_*.psa
 # Full dump: python3 tools/extract_0ad_assets.py --all-animations
+
+# Extracted 0 A.D. asset drop kept next to the tree (75 MB zip + unpacked copy)
+/rts0_zip_code.zip
+/rts0_zip_code/
