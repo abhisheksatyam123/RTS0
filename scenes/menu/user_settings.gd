@@ -147,6 +147,15 @@ func _exit_tree() -> void:
 		Input.set_custom_mouse_cursor(null, Input.CURSOR_WAIT)
 	preload("res://scenes/common/stone_theme.gd").clear_cache()
 	preload("res://scenes/common/modern_theme.gd").clear_cache()
+	preload("res://scenes/reference/reference_common.gd").clear_cache()
+	preload("res://scenes/session/summary_screen.gd").clear_cache()
+	preload("res://scenes/session/barter_dialog.gd").clear_cache()
+	preload("res://scenes/menu/lobby.gd").clear_cache()
+	_hotkeys = null
+	cfg = null
+	_cas_material = null
+	_translation = null
+	_cjk_font = null
 
 ## "-version" (Godot keeps "--version" for its own, except after "--").
 static func version_requested(args: PackedStringArray) -> bool:

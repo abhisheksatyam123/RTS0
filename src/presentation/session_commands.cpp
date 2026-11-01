@@ -1142,3 +1142,22 @@ void RtsoMain::_on_queue_slot_cancel(int slot_idx) {
 	command_panel_.production_queue().cancel(slot_idx);
 }
 
+
+void RtsoMain::select_all_military() {
+	if (!sim) return;
+	PackedInt32Array ids;
+	auto uview = sim->units();
+	const uint8_t me = local_player();
+	for (size_t i = 0; i < uview.count; ++i) {
+		if (!uview.alive[i] || uview.team[i] != me) continue;
+		const uint16_t tmpl = uview.tmpl[i];
+		const rtso::TechClasses tc = tmpl < rtso::CIV_UNIT_TEMPLATE_COUNT ? rtso::civ_unit_template(tmpl).tech_classes : rtso::unit_tech_classes(uview.unit_type[i]);
+		if ((tc & (rtso::TC_MELEE | rtso::TC_RANGED)) != 0) {
+			ids.push_back((int32_t)uview.id[i]);
+		}
+	}
+	if (!ids.is_empty()) {
+		selected_ids = ids;
+		selected_building_id = 0;
+	}
+}

@@ -39,6 +39,9 @@ using rtso::sprintf0;
 void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("enter_build_mode", "enable", "btype"), &RtsoMain::enter_build_mode, DEFVAL(rtso::BLD_HOUSE));
 	ClassDB::bind_method(D_METHOD("clear_selection"), &RtsoMain::clear_selection);
+	ClassDB::bind_method(D_METHOD("has_selection"), &RtsoMain::has_selection);
+	ClassDB::bind_method(D_METHOD("is_placing_building"), &RtsoMain::is_placing_building);
+	ClassDB::bind_method(D_METHOD("select_all_military"), &RtsoMain::select_all_military);
 	ClassDB::bind_method(D_METHOD("_on_minimap_clicked", "world_pos"), &RtsoMain::_on_minimap_clicked);
 	ClassDB::bind_method(D_METHOD("_on_flare_requested", "world_pos"), &RtsoMain::_on_flare_requested);
 	ClassDB::bind_method(D_METHOD("_on_minimap_order", "world_pos"), &RtsoMain::_on_minimap_order);

@@ -93,6 +93,7 @@ private:
 		StringName tools_clip;
 		int64_t player_rgba = -1;     // owner colour last pushed to the model (-1: none yet)
 		int64_t silhouette_rgba = -1; // silhouette colour last pushed (-1: none yet, -2: silhouettes off)
+		int8_t shadows_on = -1;       // shadow casting state (-1: unset, 0: off > 30m, 1: on <= 30m)
 	};
 
 	// What a structure's decals or particles were made for: its GLB id, scale and
@@ -428,8 +429,14 @@ private:
 	static constexpr int FAUNA_CLIP_COUNT = 7;  // idle, move, attack, death, idle2, death2, feeding
 	static constexpr int CROWD_FRAMES_PER_CLIP = 12;
 	static constexpr int CROWD_PHASES = 3;
-	static constexpr float LOD_FAR_DIST = 25.0f;
+	static constexpr float LOD_NEAR_DIST = 20.0f;
+	static constexpr float LOD_NEAR_DIST_SQ = LOD_NEAR_DIST * LOD_NEAR_DIST;
+	static constexpr float LOD_SHADOW_DIST = 30.0f;
+	static constexpr float LOD_SHADOW_DIST_SQ = LOD_SHADOW_DIST * LOD_SHADOW_DIST;
+	static constexpr float LOD_FAR_DIST = 50.0f;
 	static constexpr float LOD_FAR_DIST_SQ = LOD_FAR_DIST * LOD_FAR_DIST;
+	static constexpr float FX_CULL_DIST = 25.0f;
+	static constexpr float FX_CULL_DIST_SQ = FX_CULL_DIST * FX_CULL_DIST;
 	struct CrowdPuppet {
 		String clip;
 		Ref<ArrayMesh> posed_frames[CROWD_FRAMES_PER_CLIP];
@@ -445,10 +452,14 @@ private:
 		MultiMeshInstance3D *lod_mmi[CROWD_CLIP_COUNT][CROWD_PHASES] = {};
 		Ref<MultiMesh> lod_mm[CROWD_CLIP_COUNT][CROWD_PHASES];
 		PackedFloat32Array lod_buffer[CROWD_CLIP_COUNT][CROWD_PHASES];
+		MultiMeshInstance3D *proxy_mmi = nullptr;
+		Ref<MultiMesh> proxy_mm;
+		PackedFloat32Array proxy_buffer;
 		CrowdPuppet puppet[CROWD_CLIP_COUNT];
 		bool clip_baked[CROWD_CLIP_COUNT] = {};
 		Ref<Mesh> rest;
 		Ref<Mesh> lod_rest;
+		Ref<Mesh> proxy_rest;
 		bool no_scene = false; // model has no skinned scene: rest pose only
 		// The model's id and the ModelLibrary entry values a frame's unit loop reads.
 		String model_id;
@@ -581,8 +592,9 @@ public:
 	void _notification(int p_what);
 	void cleanup();
 	bool cleaned_up_ = false;
-	static Ref<ArrayMesh> load_mesh(const Ref<Mesh> &src, bool decimate_lod = false);
+	static Ref<ArrayMesh> load_mesh(const Ref<Mesh> &src, bool decimate_lod = false, bool ultra_low = false);
 	MultiMesh *crowd_lod_mm(CrowdBatch &b, int clip, int phase = 0);
+	MultiMesh *crowd_proxy_mm(CrowdBatch &b);
 
 	void _ready() override;
 	void sync(const rtso::Simulation *sim, float delta, const PackedInt32Array &selected_ids);

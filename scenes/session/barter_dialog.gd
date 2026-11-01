@@ -58,6 +58,9 @@ static func grayscale() -> ShaderMaterial:
 		_grayscale.shader = sh
 	return _grayscale
 
+static func clear_cache() -> void:
+	_grayscale = null
+
 func _ready() -> void:
 	visible = false
 	# TradeDialog.xml: sprite="ModernDialog", centred on 50%-70.

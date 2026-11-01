@@ -1012,6 +1012,9 @@ public:
 	Dictionary get_match_summary() const;
 	int get_unit_count() const { return sim ? (int)sim->unit_count() : 0; }
 	PackedInt32Array get_selected_ids() const { return selected_ids; }
+	bool has_selection() const { return !selected_ids.is_empty() || selected_building_id != 0; }
+	bool is_placing_building() const { return build_mode; }
+	void select_all_military();
 	// Named saves (0 A.D. gui/savedgames): writes path and its .json metadata.
 	bool save_game_as(String name, String description);
 	// Replays (0 A.D. ps/Replay.cpp + gui/replaymenu).

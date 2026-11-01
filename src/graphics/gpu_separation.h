@@ -49,7 +49,7 @@ private:
 	bool ensure_pipeline();
 	bool ensure_los_pipeline();
 
-	bool enabled_ = true;
+	bool enabled_ = false; // Opt-in only: lockstep simulation must stay bit-identical across CPU/GPU/headless peers
 	bool attempted_init_ = false;
 	bool attempted_los_init_ = false;
 	godot::RID shader_;

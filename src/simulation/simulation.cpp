@@ -1819,7 +1819,8 @@ void Simulation::rebuild_nav_grid() {
 			// under its centre (which the pass below keeps open) and one no land unit can stand on (deep
 			// water, a steep slope) don't wait: no 1 m way can keep them open.
 			GateDoor *own = next_door < gate_doors.size() && gate_doors[next_door].gate == &b ? &gate_doors[next_door++] : nullptr;
-			const auto [gcx, gcy] = nav_grid_.world_to_cell(b.x, b.z);
+			const std::pair<int, int> gccell = nav_grid_.world_to_cell(b.x, b.z);
+			const int gcx = gccell.first, gcy = gccell.second;
 			for_each_gate_side(b, [&](float x, float z, float hu, float hv) {
 				rtso::nav::rasterize_rect_with_clearance(
 					rtso::nav::Vec2(x, z), rtso::nav::footprint_u(b), rtso::nav::footprint_v(b),
@@ -16756,7 +16757,8 @@ void Simulation::leave_foundation(size_t i, const Building &b) {
 	// builder on the site's shore edge stood for good (its walk ending on the site, at the shore).
 	const bool ship = unit_is_ship(units_.unit_type[i]);
 	const uint8_t pass = ship ? unit_ship_pass(units_.unit_type[i]) : unit_land_pass(i);
-	const auto [ux, uy] = nav_grid_.world_to_cell(units_.pos_x[i], units_.pos_z[i]);
+	const std::pair<int, int> ucell_lf = nav_grid_.world_to_cell(units_.pos_x[i], units_.pos_z[i]);
+	const int ux = ucell_lf.first, uy = ucell_lf.second;
 	const bool from_open = !ship && nav_grid_.is_passable_for(ux, uy, pass);
 	auto open = [&](float x, float z) {
 		auto [cx, cy] = nav_grid_.world_to_cell(x, z);
@@ -16857,7 +16859,8 @@ void Simulation::builder_stand_point(size_t i, const Building &b, float x, float
 	if (unit_is_ship(ut)) return;
 	const uint8_t pass = (ut == UNIT_CAVALRY || ut == UNIT_CHARIOT || ut == UNIT_CAMEL || ut == UNIT_SCYTHED_CHARIOT)
 			? PASS_CAVALRY : PASS_INFANTRY;
-	auto [ux, uy] = nav_grid_.world_to_cell(x, z);
+	const std::pair<int, int> ucell_bsp = nav_grid_.world_to_cell(x, z);
+	const int ux = ucell_bsp.first, uy = ucell_bsp.second;
 	// Open: on a passable navcell the builder can reach, and its clearance clear of every other
 	// structure touching the ring (a point on a neighbour's edge passes the navcell test).
 	const float clear = unit_clearance_at(i);
@@ -26115,7 +26118,8 @@ uint32_t Simulation::petra_find_hunt(size_t u, float px, float pz, const PetraHu
 	const bool fast = formation_unit_mounted(ut) || ut == UNIT_WAR_DOG;
 	const bool ranged = template_has_ranged_attack(units_.tmpl[u], ut, civ_of(petra_pid_));
 	const uint8_t pass = fast ? PASS_CAVALRY : PASS_INFANTRY;
-	auto [ucx, ucz] = nav_grid_.world_to_cell(units_.pos_x[u], units_.pos_z[u]);
+	const std::pair<int, int> ucell_pfh = nav_grid_.world_to_cell(units_.pos_x[u], units_.pos_z[u]);
+	int ucx = ucell_pfh.first, ucz = ucell_pfh.second;
 	// getLandAccess (accessibility.js getAccessValue) goes by terrain alone: a unit on a navcell a
 	// structure or a tree blocks (a rider at a wood's edge, the scout stopped beside its Civic Centre)
 	// is on the land of the open cells round it, not cut off from every hunt.
@@ -40761,8 +40765,10 @@ void Simulation::fauna_path_aim(size_t f, float tx, float tz, float &ax, float &
 	// Bulls and adult elephants are "large" (pathfinder.xml), whose clearance a path on the steep tiles keeps.
 	const uint8_t pass = info.is_naval() ? PASS_SHIP : info.is_large() ? PASS_INFANTRY | PASS_LARGE : PASS_INFANTRY;
 	const float fx = fauna_.pos_x[f], fz = fauna_.pos_z[f];
-	auto [sx, sy] = nav_grid_.world_to_cell(fx, fz);
-	auto [gx, gy] = nav_grid_.world_to_cell(tx, tz);
+	const std::pair<int, int> scell = nav_grid_.world_to_cell(fx, fz);
+	const int sx = scell.first, sy = scell.second;
+	const std::pair<int, int> gcell = nav_grid_.world_to_cell(tx, tz);
+	const int gx = gcell.first, gy = gcell.second;
 	// CheckMovement's line, but impassable navcells round the end are the goal's own (a corral,
 	// a unit standing against a wall): only a gap of passable ones after a block means a detour.
 	auto line_clear = [&]() {

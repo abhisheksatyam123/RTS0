@@ -8,6 +8,11 @@
 #if defined(__linux__)
 #include <pthread.h>
 #include <sched.h>
+#elif defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#elif defined(__APPLE__)
+#include <sys/sysctl.h>
 #endif
 
 #if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
@@ -22,13 +27,11 @@
 namespace rtso {
 
 namespace {
-// A worker that runs out of chunks keeps watching for the next job for a while before it sleeps:
-// a tick's parallel loops are a few hundred microseconds long and come a millisecond or so apart,
-// shorter than a sleeping thread takes to wake, so sleeping workers would miss most of each loop.
-// It spins briefly, then yields its core to any other thread (Godot's) while it waits, and sleeps
-// once no job came for kWatchFor (between turns and frames).
-constexpr auto kSpinFor = std::chrono::microseconds(500);
-constexpr auto kWatchFor = std::chrono::microseconds(2000);
+// Cross-platform adaptive worker backoff: spin for at most kMaxSpinIters iterations, then yield
+// the logical core before sleeping on cv_work_ after kWatchFor. This avoids starving SMT sibling
+// threads and GPU drivers on any platform without machine-specific hardware heuristics.
+constexpr int kMaxSpinIters = 32;
+constexpr auto kWatchFor = std::chrono::microseconds(200);
 } // namespace
 
 JobSystem &JobSystem::instance() {
@@ -44,6 +47,7 @@ unsigned JobSystem::physical_core_count() {
 		std::set<std::pair<int, int>> phys_cores;
 		std::string line;
 		int phys_id = 0, core_id = -1;
+		unsigned fallback_cores = 0;
 		while (std::getline(cpuinfo, line)) {
 			if (line.compare(0, 11, "physical id") == 0) {
 				auto pos = line.find(':');
@@ -54,11 +58,39 @@ unsigned JobSystem::physical_core_count() {
 					core_id = std::atoi(line.c_str() + pos + 1);
 					phys_cores.insert({phys_id, core_id});
 				}
+			} else if (fallback_cores == 0 && line.compare(0, 9, "cpu cores") == 0) {
+				auto pos = line.find(':');
+				if (pos != std::string::npos) {
+					int c = std::atoi(line.c_str() + pos + 1);
+					if (c > 0) fallback_cores = (unsigned)c;
+				}
 			}
 		}
 		if (!phys_cores.empty()) {
 			return (unsigned)phys_cores.size();
 		}
+		if (fallback_cores > 0) {
+			return fallback_cores;
+		}
+	}
+#elif defined(_WIN32)
+	DWORD len = 0;
+	GetLogicalProcessorInformation(nullptr, &len);
+	if (len > 0) {
+		std::vector<SYSTEM_LOGICAL_PROCESSOR_INFORMATION> buf(len / sizeof(SYSTEM_LOGICAL_PROCESSOR_INFORMATION));
+		if (GetLogicalProcessorInformation(buf.data(), &len)) {
+			unsigned cores = 0;
+			for (const auto &info : buf) {
+				if (info.Relationship == RelationProcessorCore) ++cores;
+			}
+			if (cores > 0) return cores;
+		}
+	}
+#elif defined(__APPLE__)
+	int cores = 0;
+	size_t sz = sizeof(cores);
+	if (sysctlbyname("hw.physicalcpu", &cores, &sz, nullptr, 0) == 0 && cores > 0) {
+		return (unsigned)cores;
 	}
 #endif
 	return logical > 2 ? std::max(2u, logical / 2) : logical;
@@ -67,21 +99,26 @@ unsigned JobSystem::physical_core_count() {
 void JobSystem::start(unsigned worker_count) {
 	std::lock_guard<std::mutex> lock(mu_);
 	if (started_) return;
+	unsigned phys = physical_core_count();
 	if (worker_count == 0) {
-		// Bound default worker count to physical cores (TODO-JOB-03) to avoid SMT cache
-		// contention; main thread participates in parallel_for alongside workers.
-		unsigned phys = physical_core_count();
+		if (const char *env_w = std::getenv("RTSO_MAX_WORKERS")) {
+			int w = std::atoi(env_w);
+			if (w > 0) worker_count = (unsigned)w;
+		}
+	}
+	if (worker_count == 0) {
+		// Bound default worker count to physical cores (TODO-JOB-03) across Linux, Windows, and macOS
+		// so total parallel_width (workers + main thread) never oversubscribes SMT threads.
 		worker_count = phys > 1 ? phys - 1 : 1;
 	}
 	if (worker_count >= kMaxParticipants) worker_count = kMaxParticipants - 1;
 	stop_ = false;
 	workers_.reserve(worker_count);
 	unsigned logical = std::max(1u, std::thread::hardware_concurrency());
-	unsigned phys = physical_core_count();
 	unsigned stride = (logical >= phys * 2 && phys > 0) ? 2u : 1u;
 	for (unsigned i = 0; i < worker_count; ++i) {
 		workers_.emplace_back([this, i, stride, logical]() {
-#if defined(__linux__)
+#if defined(__linux__) && !defined(__ANDROID__)
 			cpu_set_t cpuset;
 			CPU_ZERO(&cpuset);
 			unsigned target_cpu = ((i + 1) * stride) % logical;
@@ -118,16 +155,14 @@ void JobSystem::worker_main(unsigned worker_idx) {
 		uint32_t e = epoch_.load(std::memory_order_acquire);
 		if (e == seen && !stop_.load(std::memory_order_acquire)) {
 			const auto start = std::chrono::steady_clock::now();
-			const auto spin_until = start + kSpinFor, until = start + kWatchFor;
-			bool spinning = true;
+			const auto until = start + kWatchFor;
 			for (int k = 0;; ++k) {
-				if (spinning) RTSO_CPU_RELAX();
+				if (k < kMaxSpinIters) RTSO_CPU_RELAX();
 				else std::this_thread::yield();
 				e = epoch_.load(std::memory_order_acquire);
 				if (e != seen || stop_.load(std::memory_order_acquire)) break;
-				if (spinning && (k & 15) != 15) continue;
+				if (k < kMaxSpinIters) continue;
 				const auto now = std::chrono::steady_clock::now();
-				spinning = now < spin_until;
 				if (now >= until) {
 					std::unique_lock<std::mutex> lock(mu_);
 					sleepers_.fetch_add(1, std::memory_order_seq_cst);
@@ -193,7 +228,7 @@ void JobSystem::parallel_for(size_t count, const std::function<void(size_t, size
 	const uint32_t epoch = epoch_.load(std::memory_order_relaxed) + 1;
 	next_.store(((uint64_t)epoch << 32) | 0xFFFFFFFFull, std::memory_order_seq_cst);
 
-	// Partition [0, chunks) across active participant queues for work-stealing
+	// Partition [0, chunks) across participant queues for work-stealing
 	const uint32_t nq = (uint32_t)std::max<size_t>(1, std::min(width, chunks));
 	const uint32_t base_per_q = (uint32_t)chunks / nq;
 	const uint32_t extra = (uint32_t)chunks % nq;
@@ -219,8 +254,12 @@ void JobSystem::parallel_for(size_t count, const std::function<void(size_t, size
 		cv_work_.notify_all();
 	}
 	run_chunks(epoch, 0);
-	// Only chunks a worker already claimed can be left; they finish shortly.
-	while (remaining_.load(std::memory_order_acquire) != 0) RTSO_CPU_RELAX();
+	// Adaptive backoff while waiting for the last claimed worker chunks: spin for 32 iterations,
+	// then yield the logical core so SMT sibling threads and the OS scheduler are not starved.
+	for (int spin = 0; remaining_.load(std::memory_order_acquire) != 0; ++spin) {
+		if (spin < kMaxSpinIters) RTSO_CPU_RELAX();
+		else std::this_thread::yield();
+	}
 	in_parallel_.store(false);
 }
 
