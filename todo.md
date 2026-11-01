@@ -1,6 +1,6 @@
 ## Tasks
 - [x] T62 [lead] Test game on connected Android device across scenarios: profiled live 1,500-unit Frontline Clash battle on Motorola moto g45 5G (Adreno 619 / SM6375) over wireless ADB; measured framerate, draw call counts, primitive throughput, thread CPU utilization, memory, and identified top bottlenecks.
-- [ ] T61 [lead] Launch frontline clash scenario to test gameplay, performance, rendering, and simulation issues.
+- [x] T61 [lead] Launch frontline clash scenario to test gameplay, performance, rendering, and simulation issues: verified on Linux x86_64 desktop (44.9 FPS @ 2000 units, 0.30ms sim physics, 454 draws) and Android arm64 mobile (10-13 FPS @ 1500 units, 0-29ms sim physics, 750-1856 draws, 0 leaks, 0 crashes); identified primary mobile bottlenecks as draw call serialization and primitive density.
 - [x] T58 [lead] Eliminate exit resource and RID leaks (ISSUE-LEAK-01): clean static caches in ModelLibrary, instance_params, and WorldView (Texture2DArray, Shader, ShaderMaterial, ArrayMesh, Image).
 - [x] T59 [lead] Update tools/check_parity.py to align with canonical 0 A.D. implementations for Market, Auras, Territory-live, Market-live, Aura-live, and RMS so all unit parity tests PASS.
 - [x] T60 [lead] Verification pass: check_parity (all units 100% PASS), headless E2E test suite (clash, hotkeys, edge, follow, birds_eye), and run_realistic_perf_test.py (0 leaks, 0 errors).
