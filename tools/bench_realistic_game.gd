@@ -284,5 +284,16 @@ func run() -> void:
 		out_file.store_string(json_str)
 		out_file.close()
 
-	await frames(5)
+	await frames(2)
+	cam_rig = null
+	if main != null:
+		root.remove_child(main)
+		main.free()
+		main = null
+	if DisplayServer.get_name() != "headless":
+		Input.set_custom_mouse_cursor(null, Input.CURSOR_ARROW)
+		Input.set_custom_mouse_cursor(null, Input.CURSOR_WAIT)
+	load("res://scenes/common/stone_theme.gd").clear_cache()
+	load("res://scenes/common/modern_theme.gd").clear_cache()
+	await frames(2)
 	quit(0)

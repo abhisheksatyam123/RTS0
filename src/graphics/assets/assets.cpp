@@ -16,7 +16,7 @@ bool Assets::res_exists(const String &path) {
 	// a file system lookup: answers for res:// paths are kept. Others (user://) are asked afresh.
 	if (!path.begins_with("res://")) return ResourceLoader::get_singleton()->exists(path);
 	static std::shared_mutex mu;
-	static HashMap<String, bool> known;
+	static auto &known = *new HashMap<String, bool>();
 	{
 		std::shared_lock<std::shared_mutex> read_lock(mu);
 		if (const bool *b = known.getptr(path)) return *b;

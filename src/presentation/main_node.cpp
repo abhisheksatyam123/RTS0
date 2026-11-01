@@ -11,6 +11,7 @@
 #include <cstring>
 #include <godot_cpp/classes/theme.hpp>
 #include "popup_safe.h"
+#include "session_skin.h"
 #include "simulation/petra_chat.h"
 #include "simulation/rms_generator.h"
 #include <godot_cpp/core/class_db.hpp>
@@ -60,6 +61,7 @@ RtsoMain::~RtsoMain() {
 	}
 	ghost_mat_ok.unref();
 	ghost_mat_bad.unref();
+	rtso::clear_session_skins();
 	delete sim;
 	sim = nullptr;
 	rtso::GpuSeparation::instance().cleanup();
@@ -70,6 +72,7 @@ void RtsoMain::_notification(int p_what) {
 		if (view) view->cleanup();
 		ghost_mat_ok.unref();
 		ghost_mat_bad.unref();
+		rtso::clear_session_skins();
 		rtso::GpuSeparation::instance().cleanup();
 	}
 	if (p_what == NOTIFICATION_WM_SIZE_CHANGED) {

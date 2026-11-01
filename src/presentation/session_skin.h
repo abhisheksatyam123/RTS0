@@ -26,6 +26,16 @@ inline godot::Ref<godot::Theme> modern_skin() {
 	return s->call("theme");
 }
 
+inline void clear_session_skins() {
+	using namespace godot;
+	ResourceLoader *rl = ResourceLoader::get_singleton();
+	if (!rl) return;
+	Ref<Script> st = rl->load("res://scenes/common/stone_theme.gd");
+	if (st.is_valid()) st->call("clear_cache");
+	Ref<Script> mt = rl->load("res://scenes/common/modern_theme.gd");
+	if (mt.is_valid()) mt->call("clear_cache");
+}
+
 } // namespace rtso
 
 #endif

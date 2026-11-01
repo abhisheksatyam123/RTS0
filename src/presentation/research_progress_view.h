@@ -218,7 +218,7 @@ public:
 	// The technology's 0.28 icon (data/reference/templates.json techs.<template>.icon).
 	static godot::Ref<godot::Texture2D> icon(uint8_t tech) {
 		using namespace godot;
-		static Dictionary techs;
+		static Dictionary &techs = *new Dictionary();
 		static bool loaded = false;
 		if (!loaded) {
 			loaded = true;

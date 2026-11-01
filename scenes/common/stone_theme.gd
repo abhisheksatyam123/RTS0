@@ -81,6 +81,10 @@ static func session_theme() -> Theme:
 		_session = _build_session()
 	return _session
 
+static func clear_cache() -> void:
+	_theme = null
+	_session = null
+
 static func _build_session() -> Theme:
 	var modern: GDScript = load("res://scenes/common/modern_theme.gd")
 	var t := Theme.new()

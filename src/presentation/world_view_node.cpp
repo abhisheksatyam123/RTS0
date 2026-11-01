@@ -11,6 +11,7 @@
 #include "../graphics/assets/instance_params.h"
 #include "../graphics/assets/packed_siege_models.h"
 #include "../animation/psa_loader.h"
+#include <cassert>
 #include <chrono>
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/variant/transform3d.hpp>
@@ -2082,7 +2083,7 @@ static std::string building_table_key_uncached(const String &id) {
 // The key of a building model in the per-model tables, asked for every building every frame: kept
 // per id, as the answer depends only on the id and the packed files.
 static const std::string &building_table_key(const String &id) {
-	static HashMap<String, std::string> keys;
+	static auto &keys = *new HashMap<String, std::string>();
 	if (const std::string *k = keys.getptr(id)) return *k;
 	return keys.insert(id, building_table_key_uncached(id))->value;
 }
@@ -4519,6 +4520,13 @@ static void set_mm_count(const Ref<MultiMesh> &mm, int n) {
 	if (mm->get_instance_count() != n) mm->set_instance_count(n);
 }
 
+static void set_mm_buffer_checked(const Ref<MultiMesh> &mm, const PackedFloat32Array &buf, int n) {
+	if (mm.is_null() || n <= 0) return;
+	const int stride = 12 + (mm->is_using_colors() ? 4 : 0) + (mm->is_using_custom_data() ? 4 : 0);
+	assert(buf.size() == (int64_t)n * stride);
+	if (buf.size() == (int64_t)n * stride) mm->set_buffer(buf);
+}
+
 void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedInt32Array &selected_ids) {
 	if (!sim) return;
 	if (delta < 0.0f) delta = 0.0f;
@@ -5120,10 +5128,10 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		for (int c = 0; c < CROWD_CLIP_COUNT; ++c) {
 			for (int p = 0; p < CROWD_PHASES; ++p) {
 				if (row[c][p] > 0 && cb.mm[c][p].is_valid()) {
-					cb.mm[c][p]->set_buffer(cb.buffer[c][p]);
+					set_mm_buffer_checked(cb.mm[c][p], cb.buffer[c][p], row[c][p]);
 				}
 				if (lod_row[c][p] > 0 && cb.lod_mm[c][p].is_valid()) {
-					cb.lod_mm[c][p]->set_buffer(cb.lod_buffer[c][p]);
+					set_mm_buffer_checked(cb.lod_mm[c][p], cb.lod_buffer[c][p], lod_row[c][p]);
 				}
 			}
 		}
@@ -5592,11 +5600,11 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			if (arrow_ptr) write_xf12(arrow_ptr + (arrow_i++) * 12, xf);
 		}
 	}
-	if (arrow_n > 0 && arrow_mm.is_valid()) arrow_mm->set_buffer(arrow_buf_);
-	if (bolt_n > 0 && bolt_mm.is_valid()) bolt_mm->set_buffer(bolt_buf_);
-	if (stone_n > 0 && stone_proj_mm.is_valid()) stone_proj_mm->set_buffer(stone_buf_);
-	if (jav_n > 0 && javelin_mm.is_valid()) javelin_mm->set_buffer(javelin_buf_);
-	if (sling_n > 0 && sling_mm.is_valid()) sling_mm->set_buffer(sling_buf_);
+	set_mm_buffer_checked(arrow_mm, arrow_buf_, arrow_n);
+	set_mm_buffer_checked(bolt_mm, bolt_buf_, bolt_n);
+	set_mm_buffer_checked(stone_proj_mm, stone_buf_, stone_n);
+	set_mm_buffer_checked(javelin_mm, javelin_buf_, jav_n);
+	set_mm_buffer_checked(sling_mm, sling_buf_, sling_n);
 
 	// =========================================================================
 	// 4. Resources: Tree Varieties, Gold Veins, Stone Mines, Fruit Bushes
@@ -5607,7 +5615,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	auto mix_prop = [&](uint64_t v) { props_key = (props_key ^ v) * 1099511628211ull; };
 	for (char c : sim->current_map_id()) mix_prop((uint8_t)c);
 	for (char c : sim->current_map_biome()) mix_prop((uint8_t)c);
-	mix_prop((uint64_t)los_.generation());
+	mix_prop(((uint64_t)los_.generation() << 1) | (uint64_t)los_.settled());
 	mix_prop((uint64_t)rtso::user_config::generation());
 	mix_prop((uint64_t)(drawn_water_height(sim) * 1000.0f));
 	mix_prop((uint64_t)fres.size());
@@ -5909,9 +5917,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	}
 	for (int ft = 0; ft < fauna_rows_; ++ft) {
 		for (int c = 0; c < FAUNA_CLIP_COUNT; ++c) {
-			if (f_counts[ft][c] > 0 && fauna_mm[ft][c].is_valid()) {
-				fauna_mm[ft][c]->set_buffer(fauna_buf_[ft][c]);
-			}
+			set_mm_buffer_checked(fauna_mm[ft][c], fauna_buf_[ft][c], f_counts[ft][c]);
 		}
 	}
 	// A hovered tree, mine, bush or shoal (as last seen): its selection ring and

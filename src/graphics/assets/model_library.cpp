@@ -2172,7 +2172,7 @@ const ModelLibrary::Entry &ModelLibrary::get(const String &category, const Strin
 		if (category == "units") prefetch_unit_helmets(id);
 		found = cache().getptr(key);
 	}
-	static Entry empty;
+	static const Entry &empty = *new Entry();
 	if (!found) return empty;
 	if (!ids) ids = &entry_index().insert(category, HashMap<String, const Entry *>())->value;
 	ids->insert(id, found);
@@ -2203,6 +2203,7 @@ void ModelLibrary::clear() {
 	}
 	player_color_cutout_shader().unref();
 	player_color_shader().unref();
+	clear_instanced_shaders();
 }
 
 } // namespace rtso

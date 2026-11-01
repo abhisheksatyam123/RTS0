@@ -23,6 +23,7 @@ bool gl_compatibility();
 // Loads a shader that may declare `instance uniform`s; under Compatibility its
 // source is loaded with those as plain uniforms. Cached per path.
 Ref<Shader> load_instanced_shader(const String &path);
+void clear_instanced_shaders();
 
 // Sets an instance uniform of `gi`'s materials whose shader came from
 // load_instanced_shader: set_instance_shader_parameter, or under Compatibility

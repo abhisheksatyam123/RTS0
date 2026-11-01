@@ -567,9 +567,9 @@ void LosShading::set_target(const uint8_t *fow, int res) {
 	}
 	since_recompute_ = 0.0f;
 	settled_ = false;
+	++gen_;
 	if (resized || shown_.size() != target_.size()) {
 		shown_ = target_;
-		++gen_;
 	}
 }
 
@@ -605,7 +605,7 @@ bool LosShading::interpolate(float dt) {
 		diff_any |= (uint8_t)(v != t[i]);
 	}
 	settled_ = diff_any == 0;
-	++gen_;
+	if (settled_) ++gen_;
 	return true;
 }
 

@@ -2211,7 +2211,7 @@ private:
 	// data/reference/templates.json (tools/extract_0ad_reference.py), read once.
 	static const godot::Dictionary &reference_templates() {
 		using namespace godot;
-		static Dictionary all;
+		static Dictionary &all = *new Dictionary();
 		static bool loaded = false;
 		if (!loaded) {
 			loaded = true;

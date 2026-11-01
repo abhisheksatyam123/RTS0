@@ -141,6 +141,13 @@ func _ready() -> void:
 		print(version_string())
 		get_tree().quit.call_deferred()
 
+func _exit_tree() -> void:
+	if not is_headless():
+		Input.set_custom_mouse_cursor(null, Input.CURSOR_ARROW)
+		Input.set_custom_mouse_cursor(null, Input.CURSOR_WAIT)
+	preload("res://scenes/common/stone_theme.gd").clear_cache()
+	preload("res://scenes/common/modern_theme.gd").clear_cache()
+
 ## "-version" (Godot keeps "--version" for its own, except after "--").
 static func version_requested(args: PackedStringArray) -> bool:
 	return args.has("-version") or args.has("--version")

@@ -194,7 +194,7 @@ void JobSystem::parallel_for(size_t count, const std::function<void(size_t, size
 	next_.store(((uint64_t)epoch << 32) | 0xFFFFFFFFull, std::memory_order_seq_cst);
 
 	// Partition [0, chunks) across active participant queues for work-stealing
-	const uint32_t nq = (uint32_t)std::min(width, chunks);
+	const uint32_t nq = (uint32_t)std::max<size_t>(1, std::min(width, chunks));
 	const uint32_t base_per_q = (uint32_t)chunks / nq;
 	const uint32_t extra = (uint32_t)chunks % nq;
 	uint32_t cur_chunk = 0;
