@@ -1,4 +1,5 @@
 ## Tasks
+- [ ] T61 [lead] Launch frontline clash scenario to test gameplay, performance, rendering, and simulation issues.
 - [x] T58 [lead] Eliminate exit resource and RID leaks (ISSUE-LEAK-01): clean static caches in ModelLibrary, instance_params, and WorldView (Texture2DArray, Shader, ShaderMaterial, ArrayMesh, Image).
 - [x] T59 [lead] Update tools/check_parity.py to align with canonical 0 A.D. implementations for Market, Auras, Territory-live, Market-live, Aura-live, and RMS so all unit parity tests PASS.
 - [x] T60 [lead] Verification pass: check_parity (all units 100% PASS), headless E2E test suite (clash, hotkeys, edge, follow, birds_eye), and run_realistic_perf_test.py (0 leaks, 0 errors).
@@ -83,3 +84,9 @@
 - 2026-10-31 16:15 [lead] T42: Resolved SPIR-V runtime compilation in GpuSeparation; verified 7.6k unit compute dispatch in 9.41ms on Intel Iris Xe GT2.
 - 2026-10-31 20:40 [lead] T43: Staged, committed, and pushed all modified and new files for T33–T42 optimization roadmap to origin/main (commit 3d8e99a10).
 - 2026-10-31 21:00 [lead] T48: Cleaned and updated docs/README.md, docs/PERFORMANCE.md, todo.md, and scratchpad/todo.md with current status and optimization links.
+- 2026-11-01 04:15 [lead] Initiated scenario launch (frontline_clash) via run_game.sh with autostart.
+- 2026-11-01 05:32 [lead] Applied rts0_tracks_m_to_q.patch (uncommitted). Fixed world_view_node.cpp:5609 cast (biome string hash). Live clash_1500 on patched build: 1.9 fps, 5 errors, exit-time RID/shader leaks. Baseline check on 8d7f99a60 (worktree $HOME/tmp/rts0_base): clash exited 1 with 82 errors, so baseline comparison is invalid until environment is fixed.
+- 2026-11-01 05:33 [lead] Baseline fixed (copied .godot import cache into worktree). Clash_1500 baseline 8d7f99a60: 58.2 fps, p95 35 ms, 530k prims. Patched build: 1.9 fps, 298k prims. Patch is the regression source.
+- 2026-11-01 05:33 [lead] Code read of patch (not profiled): suspect per-frame full MultiMesh set_buffer uploads (world_view_node.cpp projectile/fauna blocks) and an empty static_props_key_ dirty-check body (world_view_node.cpp, 'static_props_key_ = props_key;' only). Unverified; needs profiling.
+- 2026-11-01 05:33 [lead] Correction: static_props_key_ branch is not empty; it guards the static props rebuild (world_view_node.cpp:5620). Remaining suspect: per-frame full MultiMesh set_buffer uploads.
+- 2026-11-01 06:23 [lead] Wrote docs/PATCH_REVIEW_m_to_q.md with 7 issues (P1 build break, P2 nondeterministic bench, P3 leak detector blind, P4 per-frame props rebuild, P5 set_buffer stride risk, P6 nq==0, P7 gitignored assets). A/B with fixed camera clash, 9 interleaved runs: base 52.5-54.5 fps, patched 53.3-54.7 fps, no regression. Earlier 1.9 fps claim retracted: caused by bench --camera dynamic (base also 6.6 fps).

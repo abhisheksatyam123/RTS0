@@ -355,6 +355,8 @@ private:
 	// The javelins and sling stones 0.28's javelinists and slingers launch
 	// (data/unit_projectiles.json by roster template, tools/extract_unit_projectiles.py).
 	Ref<MultiMesh> javelin_mm, sling_mm;
+	PackedFloat32Array arrow_buf_, bolt_buf_, stone_buf_, javelin_buf_, sling_buf_;
+	uint64_t static_props_key_ = 0;
 	float javelin_scale = 1.0f, sling_scale = 1.0f;
 	std::vector<uint8_t> tmpl_projectile_; // per roster template: 0 the sim's, 1 javelin, 2 sling, 3 fire javelin, 4 bolt, 5 unlit stone
 	void load_unit_projectiles();
@@ -390,8 +392,10 @@ private:
 		float baseline = 0.0f;
 		float target = 0.0f;
 		float progress = 0.3f;
+		uint32_t stamp = 0;
 	};
 	std::unordered_map<uint32_t, OverlayFade> selection_fades_;
+	uint32_t fade_cat_mask_ = 0;
 	float update_overlay_fade(uint32_t key, float target_alpha, float delta);
 	void draw_structure_outlines(const rtso::Simulation *sim, float delta);
 	Decal *get_or_create_ring_decal(size_t index);
@@ -496,6 +500,7 @@ private:
 	static constexpr int FAUNA_ROWS = rtso::FAUNA_COUNT + FAUNA_LOOK_ROWS;
 	MultiMeshInstance3D *fauna_mmi[FAUNA_ROWS][FAUNA_CLIP_COUNT] = {};
 	Ref<MultiMesh> fauna_mm[FAUNA_ROWS][FAUNA_CLIP_COUNT];
+	PackedFloat32Array fauna_buf_[FAUNA_ROWS][FAUNA_CLIP_COUNT];
 	CrowdPuppet fauna_puppet[FAUNA_ROWS][FAUNA_CLIP_COUNT] = {};
 	bool fauna_puppet_baked[FAUNA_ROWS] = {};
 	// A species' model loads when the map has one (ensure_fauna_row), not at startup:

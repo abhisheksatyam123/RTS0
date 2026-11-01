@@ -5529,6 +5529,21 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	if (javelin_mm.is_valid()) set_mm_count(javelin_mm, jav_n);
 	if (sling_mm.is_valid()) set_mm_count(sling_mm, sling_n);
 
+	auto prep_buf12 = [](PackedFloat32Array &buf, int n) -> float * {
+		if (buf.size() != n * 12) buf.resize(n * 12);
+		return n > 0 ? buf.ptrw() : nullptr;
+	};
+	auto write_xf12 = [](float *dp, const Transform3D &xf) {
+		dp[0] = (float)xf.basis.rows[0].x; dp[1] = (float)xf.basis.rows[0].y; dp[2] = (float)xf.basis.rows[0].z; dp[3] = (float)xf.origin.x;
+		dp[4] = (float)xf.basis.rows[1].x; dp[5] = (float)xf.basis.rows[1].y; dp[6] = (float)xf.basis.rows[1].z; dp[7] = (float)xf.origin.y;
+		dp[8] = (float)xf.basis.rows[2].x; dp[9] = (float)xf.basis.rows[2].y; dp[10] = (float)xf.basis.rows[2].z; dp[11] = (float)xf.origin.z;
+	};
+	float *arrow_ptr = prep_buf12(arrow_buf_, arrow_n);
+	float *bolt_ptr = prep_buf12(bolt_buf_, bolt_n);
+	float *stone_ptr = prep_buf12(stone_buf_, stone_n);
+	float *jav_ptr = prep_buf12(javelin_buf_, jav_n);
+	float *sling_ptr = prep_buf12(sling_buf_, sling_n);
+
 	int arrow_i = 0, bolt_i = 0, stone_i = 0, jav_i = 0, sling_i = 0;
 
 	for (size_t p = 0; p < projectiles.size(); ++p) {
@@ -5558,10 +5573,10 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 				emit_world_fx(stone_fx_, pos, stone_proj_scale, delta);
 			}
 			xf.basis = xf.basis.scaled(Vector3(stone_proj_scale, stone_proj_scale, stone_proj_scale));
-			stone_proj_mm->set_instance_transform(stone_i++, xf);
+			if (stone_ptr) write_xf12(stone_ptr + (stone_i++) * 12, xf);
 		} else if (vis == 1 && bolt_mm.is_valid()) {
 			xf.basis = xf.basis.scaled(Vector3(bolt_scale, bolt_scale, bolt_scale));
-			bolt_mm->set_instance_transform(bolt_i++, xf);
+			if (bolt_ptr) write_xf12(bolt_ptr + (bolt_i++) * 12, xf);
 		} else if (const uint8_t k = launched(proj)) {
 			const float sc = k == 2 ? sling_scale : javelin_scale;
 			if (k == 3) { // attack_ranged_javelinist_fire: jav_projectile_flame.xml's flame and smoke,
@@ -5570,20 +5585,40 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 				emit_world_fx(javelin_fx_, pos, 2.09f / 3.13f, delta);
 			}
 			xf.basis = xf.basis.scaled(Vector3(sc, sc, sc));
-			if (k != 2) javelin_mm->set_instance_transform(jav_i++, xf);
-			else sling_mm->set_instance_transform(sling_i++, xf);
+			if (k != 2) { if (jav_ptr) write_xf12(jav_ptr + (jav_i++) * 12, xf); }
+			else { if (sling_ptr) write_xf12(sling_ptr + (sling_i++) * 12, xf); }
 		} else if (arrow_mm.is_valid()) {
 			xf.basis = xf.basis.scaled(Vector3(arrow_scale, arrow_scale, arrow_scale));
-			arrow_mm->set_instance_transform(arrow_i++, xf);
+			if (arrow_ptr) write_xf12(arrow_ptr + (arrow_i++) * 12, xf);
 		}
-
 	}
+	if (arrow_n > 0 && arrow_mm.is_valid()) arrow_mm->set_buffer(arrow_buf_);
+	if (bolt_n > 0 && bolt_mm.is_valid()) bolt_mm->set_buffer(bolt_buf_);
+	if (stone_n > 0 && stone_proj_mm.is_valid()) stone_proj_mm->set_buffer(stone_buf_);
+	if (jav_n > 0 && javelin_mm.is_valid()) javelin_mm->set_buffer(javelin_buf_);
+	if (sling_n > 0 && sling_mm.is_valid()) sling_mm->set_buffer(sling_buf_);
 
 	// =========================================================================
 	// 4. Resources: Tree Varieties, Gold Veins, Stone Mines, Fruit Bushes
 	// =========================================================================
 	// Explored supplies show as last seen (Fogging.js); unexplored ones not at all.
 	const auto &fres = mirages_.resources();
+	uint64_t props_key = 1469598103934665603ull;
+	auto mix_prop = [&](uint64_t v) { props_key = (props_key ^ v) * 1099511628211ull; };
+	for (char c : sim->current_map_id()) mix_prop((uint8_t)c);
+	for (char c : sim->current_map_biome()) mix_prop((uint8_t)c);
+	mix_prop((uint64_t)los_.generation());
+	mix_prop((uint64_t)rtso::user_config::generation());
+	mix_prop((uint64_t)(drawn_water_height(sim) * 1000.0f));
+	mix_prop((uint64_t)fres.size());
+	for (const auto &r : fres) mix_prop(((uint64_t)r.id << 16) ^ ((uint64_t)r.type << 8) ^ ((uint64_t)r.subtype << 4) ^ (uint64_t)r.flora);
+	const auto &tv_all = mirages_.treasures();
+	mix_prop((uint64_t)tv_all.size());
+	for (const auto &t : tv_all) mix_prop(((uint64_t)t.id << 8) ^ (uint64_t)t.type);
+	mix_prop((uint64_t)sim->scenery().size());
+	update_birds(sim, delta);
+	if (props_key != static_props_key_) {
+	static_props_key_ = props_key;
 	size_t n_tree = 0, fd = 0, nru = 0, fish_n = 0, n_mine[MINE_KINDS] = {};
 	if (sim->current_map_biome() != mine_biome_) pick_mine_models(sim->current_map_biome());
 	if (sim->game_time() < mine_large_time_ || sim->current_map_id() != mine_large_map_) {
@@ -5713,8 +5748,6 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		}
 	}
 
-	update_birds(sim, delta);
-
 	// Gaia scenery: the 0 A.D. actor mesh (metres, 0 A.D. axes, origin on the
 	// ground) scaled like its obstruction and turned by its map orientation
 	// (Basis about y by `angle` takes local x to (cos, -sin), CCmpObstruction's
@@ -5757,6 +5790,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			scenery_mm->set_instance_color(is++, Color(base.r * lit, base.g * lit, base.b * lit, 1.0f));
 		}
 	}
+	} // end static_props_key_ dirty check
 
 	// =========================================================================
 	// 5. Wildlife Fauna MultiMeshes
@@ -5798,11 +5832,15 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		int clip = fauna_clip_of(fview.behavior[f], vx * vx + vz * vz, fview.alive[f] != 0);
 		f_counts[ft][with_fauna_variant(clip, ft, fview.id[f])]++;
 	}
+	float *fauna_ptr[FAUNA_ROWS][FAUNA_CLIP_COUNT] = {};
 	for (int ft = 0; ft < fauna_rows_; ++ft) {
 		cycle_fauna_meshes(fauna_puppet[ft], fauna_mm[ft], f_counts[ft], FAUNA_CLIP_COUNT, FAUNA_DEATH_SLOTS);
 		for (int c = 0; c < FAUNA_CLIP_COUNT; ++c) {
 			if (fauna_mm[ft][c].is_valid()) {
-				set_mm_count(fauna_mm[ft][c], f_counts[ft][c]);
+				const int cnt = f_counts[ft][c];
+				set_mm_count(fauna_mm[ft][c], cnt);
+				if (fauna_buf_[ft][c].size() != cnt * 16) fauna_buf_[ft][c].resize(cnt * 16);
+				fauna_ptr[ft][c] = cnt > 0 ? fauna_buf_[ft][c].ptrw() : nullptr;
 			}
 		}
 	}
@@ -5834,10 +5872,14 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			emit_run_dust(fid, Vector3(fx, fy, fz), fsc, delta);
 		if (fview.alive[f]) emit_unit_fx(fid, xf, fsc, delta);
 		int fslot = f_written[row][clip]++;
-		if (fauna_mm[row][clip].is_valid()) {
-			fauna_mm[row][clip]->set_instance_transform(fslot, xf);
+		if (float *fp = fauna_ptr[row][clip]) {
+			fp += fslot * 16;
+			write_xf12(fp, xf);
 			// 0.28 picks each animal's coat by its variant frequencies (data/unit_variants.json).
-			fauna_mm[row][clip]->set_instance_custom_data(fslot, Color(1.0f, 1.0f, 1.0f, 1.0f + 0.999f * rtso::ModelLibrary::variant_draw(fview.id[f])));
+			fp[12] = 1.0f;
+			fp[13] = 1.0f;
+			fp[14] = 1.0f;
+			fp[15] = 1.0f + 0.999f * rtso::ModelLibrary::variant_draw(fview.id[f]);
 		}
 		const bool f_sel = !sel_set.empty() && sel_set.count((int32_t)fview.id[f]);
 		const bool f_high = !highlight_set_.empty() && highlight_set_.count((int32_t)fview.id[f]);
@@ -5865,9 +5907,16 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			draw_status_stack(sim, Vector3(fx, fy + sb.height_offset * fm, fz), sb.bar_width * fm, sb.bar_height * fm, fm, st);
 		}
 	}
+	for (int ft = 0; ft < fauna_rows_; ++ft) {
+		for (int c = 0; c < FAUNA_CLIP_COUNT; ++c) {
+			if (f_counts[ft][c] > 0 && fauna_mm[ft][c].is_valid()) {
+				fauna_mm[ft][c]->set_buffer(fauna_buf_[ft][c]);
+			}
+		}
+	}
 	// A hovered tree, mine, bush or shoal (as last seen): its selection ring and
 	// StatusBars.js ResourceSupply bar.
-	if (!highlight_set_.empty() || !selection_fades_.empty()) {
+	if (!highlight_set_.empty() || (fade_cat_mask_ & (1u << 4))) {
 		for (const auto &r : mirages_.resources()) {
 			if (r.subtype == rtso::RES_SUB_GRAIN) continue;
 			const bool high = highlight_set_.count((int32_t)r.id) > 0;
@@ -6175,9 +6224,11 @@ float RtsoWorldView::update_overlay_fade(uint32_t key, float target_alpha, float
 		f.baseline = 0.0f;
 		f.target = target_alpha;
 		f.progress = 0.0f;
+		f.stamp = unit_vis_stamp;
 		it = selection_fades_.emplace(key, f).first;
 	}
 	OverlayFade &f = it->second;
+	f.stamp = unit_vis_stamp;
 	if (std::abs(f.target - target_alpha) > 0.01f) {
 		f.baseline = f.alpha;
 		f.target = target_alpha;
@@ -6201,12 +6252,13 @@ float RtsoWorldView::update_overlay_fade(uint32_t key, float target_alpha, float
 		selection_fades_.erase(it);
 		return 0.0f;
 	}
+	fade_cat_mask_ |= (1u << ((key >> 28) & 0xFu));
 	return std::clamp(f.alpha, 0.0f, 1.0f);
 }
 
 void RtsoWorldView::draw_structure_outlines(const rtso::Simulation *sim, float delta) {
 	size_t used = 0;
-	if (!sel_buildings_.empty() || !highlight_set_.empty() || !selection_fades_.empty()) {
+	if (!sel_buildings_.empty() || !highlight_set_.empty() || (fade_cat_mask_ & ((1u << 2) | (1u << 6)))) {
 		if (outline_mesh_.is_null()) {
 			outline_mesh_.instantiate();
 			outline_mesh_->set_size(Vector3(1.0f, 0.04f, 1.0f));
@@ -6299,4 +6351,15 @@ void RtsoWorldView::draw_structure_outlines(const rtso::Simulation *sim, float d
 		}
 	}
 	for (size_t k = used; k < outline_bars_.size(); ++k) outline_bars_[k]->set_visible(false);
+	// Sweep orphaned selection_fades_ entries (entities destroyed/culled mid-fade) and rebuild fade_cat_mask_
+	uint32_t next_mask = 0;
+	for (auto it = selection_fades_.begin(); it != selection_fades_.end();) {
+		if (it->second.stamp != unit_vis_stamp) {
+			it = selection_fades_.erase(it);
+		} else {
+			next_mask |= (1u << ((it->first >> 28) & 0xFu));
+			++it;
+		}
+	}
+	fade_cat_mask_ = next_mask;
 }

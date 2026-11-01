@@ -85,6 +85,14 @@ class RtsoMiniMapView : public Control {
 	Ref<ImageTexture> shroud_tex_;
 	std::vector<uint8_t> shroud_cache_;
 	bool shroud_round_ = false;
+	Vector2 disc_sz_;
+	PackedVector2Array disc_pts_;
+	PackedVector2Array disc_uv_;
+	std::vector<Vector2> quad_pts_;
+	std::vector<Color> quad_cols_;
+	PackedVector2Array quad_packed_pts_;
+	PackedColorArray quad_packed_cols_;
+	PackedInt32Array quad_packed_idx_;
 	Color player_color(uint8_t pid) const;
 
 protected:

@@ -340,39 +340,54 @@ bool RtsoMiniMapView::ensure_territory_texture() {
 }
 
 namespace {
-// Filled rectangles gathered into one triangle array: Godot 4.3's RD canvas
-// renderer issues a draw call per draw_rect, and a late-game minimap's dots were
-// ~2200 of a frame's ~2450 draw calls on the Mobile renderer.
-// Triangles draw in the order added, so the layers stack as before.
-struct QuadBatch {
-	std::vector<Vector2> pts;
-	std::vector<Color> cols;
-	void add(const Rect2 &r, const Color &c) {
+// Filled rectangles gathered into one triangle array using persistent buffers on RtsoMiniMapView.
+struct QuadBatchRef {
+	std::vector<Vector2> &pts;
+	std::vector<Color> &cols;
+	PackedVector2Array &p;
+	PackedColorArray &c;
+	PackedInt32Array &idx;
+	void begin(size_t reserve_quads = 2048) {
+		pts.clear();
+		cols.clear();
+		if (pts.capacity() < reserve_quads * 4) {
+			pts.reserve(reserve_quads * 4);
+			cols.reserve(reserve_quads * 4);
+		}
+	}
+	void add(const Rect2 &r, const Color &col) {
 		const Vector2 a = r.position, b = r.position + r.size;
-		pts.insert(pts.end(), { a, Vector2(b.x, a.y), b, Vector2(a.x, b.y) });
-		cols.insert(cols.end(), { c, c, c, c });
+		pts.push_back(a);
+		pts.push_back(Vector2(b.x, a.y));
+		pts.push_back(b);
+		pts.push_back(Vector2(a.x, b.y));
+		cols.push_back(col);
+		cols.push_back(col);
+		cols.push_back(col);
+		cols.push_back(col);
 	}
 	void flush(RID item) {
 		const int n = (int)pts.size();
 		if (n == 0) return;
-		PackedVector2Array p;
-		PackedColorArray c;
-		PackedInt32Array idx;
-		p.resize(n);
-		c.resize(n);
-		idx.resize(n / 4 * 6);
+		if (p.size() != n) p.resize(n);
+		if (c.size() != n) c.resize(n);
+		const int want_idx = (n / 4) * 6;
+		if (idx.size() != want_idx) {
+			const int old_quads = (int)idx.size() / 6;
+			idx.resize(want_idx);
+			int32_t *ix = idx.ptrw();
+			for (int q = old_quads; q < n / 4; ++q) {
+				const int32_t v = q * 4;
+				ix[q * 6 + 0] = v;
+				ix[q * 6 + 1] = v + 1;
+				ix[q * 6 + 2] = v + 2;
+				ix[q * 6 + 3] = v;
+				ix[q * 6 + 4] = v + 2;
+				ix[q * 6 + 5] = v + 3;
+			}
+		}
 		std::memcpy(p.ptrw(), pts.data(), sizeof(Vector2) * n);
 		std::memcpy(c.ptrw(), cols.data(), sizeof(Color) * n);
-		int32_t *ix = idx.ptrw();
-		for (int q = 0; q < n / 4; ++q) {
-			const int32_t v = q * 4;
-			ix[q * 6 + 0] = v;
-			ix[q * 6 + 1] = v + 1;
-			ix[q * 6 + 2] = v + 2;
-			ix[q * 6 + 3] = v;
-			ix[q * 6 + 4] = v + 2;
-			ix[q * 6 + 5] = v + 3;
-		}
 		RenderingServer::get_singleton()->canvas_item_add_triangle_array(item, idx, p, c);
 		pts.clear();
 		cols.clear();
@@ -469,23 +484,23 @@ void RtsoMiniMapView::_draw() {
 	// (minimap_view.cpp) -> RGBA8 overlay; closes REMAINING_GAPS.md:148.
 	// A circular map's minimap shader (minimap.fs CIRCULAR_MINIMAP) discards everything
 	// past the map's circle, so there the layers below are drawn inside the disc only.
-	PackedVector2Array disc;
-	if (round) {
+	if (round && (disc_pts_.size() != 96 || disc_sz_ != sz)) {
 		const int n = 96;
-		disc.resize(n);
+		disc_sz_ = sz;
+		disc_pts_.resize(n);
+		disc_uv_.resize(n);
 		const Vector2 c = sz * 0.5f;
 		const float r = std::min(sz.x, sz.y) * 0.5f;
 		for (int i = 0; i < n; ++i) {
 			const float a = 6.2831853f * (float)i / (float)n;
-			disc.set(i, c + Vector2(std::cos(a), std::sin(a)) * r);
+			const Vector2 pt = c + Vector2(std::cos(a), std::sin(a)) * r;
+			disc_pts_.set(i, pt);
+			disc_uv_.set(i, Vector2(pt.x / sz.x, pt.y / sz.y));
 		}
 	}
 	if (show_territory && ensure_territory_texture()) {
 		if (round) {
-			PackedVector2Array uv;
-			uv.resize(disc.size());
-			for (int i = 0; i < disc.size(); ++i) uv.set(i, Vector2(disc[i].x / sz.x, disc[i].y / sz.y));
-			draw_polygon(disc, PackedColorArray({Color(1, 1, 1, 1)}), uv, territory_tex_);
+			draw_polygon(disc_pts_, PackedColorArray({Color(1, 1, 1, 1)}), disc_uv_, territory_tex_);
 		} else {
 			draw_texture_rect(territory_tex_, Rect2(Vector2(0, 0), sz), false, Color(1, 1, 1, 1));
 		}
@@ -494,7 +509,9 @@ void RtsoMiniMapView::_draw() {
 	if (shroud_mode != SHROUD_OFF) draw_shroud();
 
 	const RID canvas = get_canvas_item();
-	QuadBatch quads;
+	QuadBatchRef quads{quad_pts_, quad_cols_, quad_packed_pts_, quad_packed_cols_, quad_packed_idx_};
+	quads.begin();
+	const uint64_t ping_now_ms = entity_pings_.empty() ? 0 : Time::get_singleton()->get_ticks_msec();
 	// 2. Draw Resource Nodes: what the player has seen, live or miraged
 	if (show_resources) {
 		for (const auto &r : mir().resources()) {
@@ -531,7 +548,7 @@ void RtsoMiniMapView::_draw() {
 			box_sz = 5.0f;
 		}
 
-		if (!entity_pings_.empty() && entity_ping_lit(b.id, Time::get_singleton()->get_ticks_msec()))
+		if (ping_now_ms && entity_ping_lit(b.id, ping_now_ms))
 			col = Color(1, 1, 1); // MiniMapTexture: a pinging entity's vertex is white
 		quads.add(Rect2(pos - Vector2(box_sz * 0.5f, box_sz * 0.5f), Vector2(box_sz, box_sz)), col);
 	}
@@ -561,7 +578,7 @@ void RtsoMiniMapView::_draw() {
 
 		Vector2 pos = map_to_mini(units.pos_x[i], units.pos_z[i]);
 		Color col = player_color(units.team[i]);
-		if (!entity_pings_.empty() && entity_ping_lit(units.id[i], Time::get_singleton()->get_ticks_msec())) col = Color(1, 1, 1);
+		if (ping_now_ms && entity_ping_lit(units.id[i], ping_now_ms)) col = Color(1, 1, 1);
 		float rad = (units.unit_type[i] == rtso::UNIT_CAVALRY || units.unit_type[i] == rtso::UNIT_TRADER) ? 3.0f : 2.0f;
 		quads.add(Rect2(pos.x - rad * 0.5f, pos.y - rad * 0.5f, rad, rad), col);
 	}
