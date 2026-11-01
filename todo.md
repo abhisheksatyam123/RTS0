@@ -1,4 +1,5 @@
 ## Tasks
+- [x] T63 [lead] Implement exact 0 A.D. canonical touch control model across scenes/common/touch_input.gd and scenes/session/touch_controls.gd/touch_controls.tscn: reconciled 0 A.D. context-sensitive tap (LMB vs RMB), bandbox arming, ground hold clear, 2-finger zoom/pan/rotate, offscreen pointer parking, HUD info suppression, and TouchActionBar Auto chip (cycling OFF/WORK/TOWN/WAR helper levels); verified with 100% PASS on tools/e2e_touch_input.gd (0 failures), tools/e2e_touch_match.gd (0 failures), and camera hotkeys/edge suite; exported signed build/android/RTS0.apk.
 - [x] T62 [lead] Test game on connected Android device across scenarios: profiled live 1,500-unit Frontline Clash battle on Motorola moto g45 5G (Adreno 619 / SM6375) over wireless ADB; measured framerate, draw call counts, primitive throughput, thread CPU utilization, memory, and identified top bottlenecks.
 - [x] T61 [lead] Launch frontline clash scenario to test gameplay, performance, rendering, and simulation issues: verified on Linux x86_64 desktop (44.9 FPS @ 2000 units, 0.30ms sim physics, 454 draws) and Android arm64 mobile (10-13 FPS @ 1500 units, 0-29ms sim physics, 750-1856 draws, 0 leaks, 0 crashes); identified primary mobile bottlenecks as draw call serialization and primitive density.
 - [x] T58 [lead] Eliminate exit resource and RID leaks (ISSUE-LEAK-01): clean static caches in ModelLibrary, instance_params, and WorldView (Texture2DArray, Shader, ShaderMaterial, ArrayMesh, Image).
@@ -51,6 +52,7 @@
   - Lockstep multiplayer requires bit-identical `sim_hash` and `state_fnv64` hashes across all thread configurations. Parallel worker passes must use deterministic reductions.
 
 ## Log
+- 2026-11-01 14:15 [lead] Completed T63: Reconciled 0 A.D. canonical touch input controller and touch controls across scenes/common/touch_input.gd, scenes/session/touch_controls.gd, and scenes/session/touch_controls.tscn. Added TouchActionBar Auto chip (OFF->WORK->TOWN->WAR). 100% PASS on tools/e2e_touch_input.gd and tools/e2e_touch_match.gd. Re-exported signed build/android/RTS0.apk.
 - 2026-11-01 04:30 [lead] Successfully applied rts0_tracks_h_to_l.patch and validated rts0_all_improvements.patch:
   - Track H (GPU Spatial Hash Grid Separation): upgraded shaders/compute/separation.glsl with 64x64 spatial grid (O(N) neighbor scan) and radii buffer; integrated compute_forces_grid in src/graphics/gpu_separation.cpp/h.
   - Track I (GPU FoW Compute Shader): hooked LosShading::register_gpu_hook and atomicOr packing in shaders/compute/los_fow.glsl and src/presentation/fog_mirage.cpp/h.

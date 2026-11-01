@@ -12,12 +12,19 @@ anchor_top = 0.5
 anchor_right = 1.0
 anchor_bottom = 0.5
 offset_left = -64.0
-offset_top = -140.0
+offset_top = -170.0
 offset_right = -12.0
-offset_bottom = 140.0
+offset_bottom = 170.0
 grow_horizontal = 0
 grow_vertical = 2
 theme_override_constants/separation = 8
+
+[node name="BtnAuto" type="Button" parent="RightBar"]
+custom_minimum_size = Vector2(52, 42)
+layout_mode = 2
+tooltip_text = "AUTO: OFF: You control everything."
+text = "🤖
+OFF"
 
 [node name="BtnArmy" type="Button" parent="RightBar"]
 custom_minimum_size = Vector2(52, 42)
@@ -104,6 +111,7 @@ toggle_mode = true
 text = "⌥
 Alt"
 
+[connection signal="pressed" from="RightBar/BtnAuto" to="." method="_on_auto_pressed"]
 [connection signal="pressed" from="RightBar/BtnArmy" to="." method="_on_army_pressed"]
 [connection signal="pressed" from="RightBar/BtnIdle" to="." method="_on_idle_pressed"]
 [connection signal="pressed" from="RightBar/BtnStop" to="." method="_on_stop_pressed"]
