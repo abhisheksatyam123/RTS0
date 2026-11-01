@@ -25,8 +25,8 @@ Status key: **Done**, ported and in use · **Ported**, ported and tested but not
 | Vendored file | Status | RTS0 location | Notes |
 |---|---|---|---|
 | `Fixed.h/.cpp`, `Sqrt.h/.cpp` | Ported | `src/core/math/fixed.h` | `rtso::Fixed` (16.16), `isqrt64`, `atan2_approx` and `sincos_approx`. Bit-identical to vendor across 7.4M checks. Tested by `tools/test_fixed.cpp`. The sim still uses `float` (see todo 5). |
-| `MathUtil.h` | Not planned | | Small helpers that `<algorithm>`/`<cmath>` already cover. |
-| `Vector2D.h`, `Vector3D.h`, `Matrix3D.h/.cpp` | Not planned | | Presentation uses Godot's `Vector2`/`Vector3`/`Transform3D`. |
+| `MathUtil.h` | Replaced | `<algorithm>`, `<cmath>` | Small helpers that the standard library already covers. |
+| `Vector2D.h`, `Vector3D.h`, `Matrix3D.h/.cpp` | Replaced | Godot `Vector2`/`Vector3`/`Transform3D` | Presentation uses Godot's math types; the sim uses its own position arrays. |
 
 ### Networking (`src/0ad/network/`)
 
@@ -36,13 +36,13 @@ Status key: **Done**, ported and in use · **Ported**, ported and tested but not
 | `NetHost`, `NetServer`, `NetClient`, `NetSession`, `NetMessage(s)`, `NetProtocol`, `NetEnet` | Done | `src/network/net_host.h/.cpp`, `net_types.h` | UDP peer/server transport and packet protocol with ACKs, retransmission and handshake instead of ENet. |
 | `NetStats` | Done | `src/network/net_host.h` `NetStats` | Per-peer network telemetry, latency and packet loss tracking. |
 | `NetFileTransfer` | Done | `src/network/turn_manager.h/.cpp`, `net_host.h/.cpp` | Late-join turn-0 and running state resync via `NMT_JOIN_SYNC_STATE` (32) and `NMT_JOIN_SYNC_CHECK` (33) with `sendGameStartTo` replacing ENet file transfer. |
-| `lobby/XmppClient` | Not planned | `src/network/lobby_client.h` | RTS0 uses an HTTP lobby (`tools/lobby_server.py`) instead of XMPP. |
+| `lobby/XmppClient`, `lobby/IXmppClient` | Replaced | `src/network/lobby_client.h`, `tools/lobby_server.py` | RTS0 uses an HTTP lobby instead of XMPP. |
 
 ### Other
 
 | Vendored file | Status | Notes |
 |---|---|---|
-| `ps/CStr.h` | Not planned | `std::string` and Godot `String` cover it. |
+| `ps/CStr.h` | Replaced | `std::string` and Godot `String` | Covered by the standard library and Godot string types. |
 
 ## Todo, in priority order
 
