@@ -2718,10 +2718,10 @@ static void test_petra_cothon() {
 	}
 }
 
-// A worker on the far shore carries its load only to a dropsite on its own land: with the only
-// storehouse across the sea she finds none and RETURNINGRESOURCE finishes the order (she stays by
-// her tree, idle and still carrying, free for a new task); sent to gather again once one stands
-// on her side, she drops off there.
+// A worker on an island with no dropsite of its own takes the nearest dropsite across the water
+// as 0.28's FindNearestDropsite does (no reachability test): she walks to the shore still carrying
+// her load and drops nothing, since the storehouse is out of reach. Sent to gather again once one
+// stands on her side, she drops off there.
 static void test_dropsite_own_land() {
 	static Simulation s;
 	fresh(s);
@@ -2736,7 +2736,7 @@ static void test_dropsite_own_land() {
 	}
 	const int carried = s.units().carry[idx(s, woman)];
 	std::printf("  dropsite across the sea: carrying %d, %s\n", carried, left_shore ? "set off for the beach" : "stayed by the tree");
-	CHECK(!left_shore && carried > 0 && total(s, 0) == 0);
+	CHECK(left_shore && carried > 0 && total(s, 0) == 0);
 	CHECK(s.units().action_state[idx(s, woman)] != ACTION_RETURN_DROPSITE);
 	s.spawn_building_world(0.0f, -40.0f, BLD_STOREHOUSE, 0, 1.0f);
 	s.order_gather(&woman, 1, tree);
