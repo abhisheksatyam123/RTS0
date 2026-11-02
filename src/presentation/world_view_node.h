@@ -93,6 +93,7 @@ private:
 		StringName tools_clip;
 		int64_t player_rgba = -1;     // owner colour last pushed to the model (-1: none yet)
 		int64_t silhouette_rgba = -1; // silhouette colour last pushed (-1: none yet, -2: silhouettes off)
+		int8_t shadows_on = -1;       // shadow casting state (-1: unset, 0: off > 30m, 1: on <= 30m)
 	};
 
 	// What a structure's decals or particles were made for: its GLB id, scale and
@@ -355,6 +356,8 @@ private:
 	// The javelins and sling stones 0.28's javelinists and slingers launch
 	// (data/unit_projectiles.json by roster template, tools/extract_unit_projectiles.py).
 	Ref<MultiMesh> javelin_mm, sling_mm;
+	PackedFloat32Array arrow_buf_, bolt_buf_, stone_buf_, javelin_buf_, sling_buf_;
+	uint64_t static_props_key_ = 0;
 	float javelin_scale = 1.0f, sling_scale = 1.0f;
 	std::vector<uint8_t> tmpl_projectile_; // per roster template: 0 the sim's, 1 javelin, 2 sling, 3 fire javelin, 4 bolt, 5 unlit stone
 	void load_unit_projectiles();
@@ -390,8 +393,10 @@ private:
 		float baseline = 0.0f;
 		float target = 0.0f;
 		float progress = 0.3f;
+		uint32_t stamp = 0;
 	};
 	std::unordered_map<uint32_t, OverlayFade> selection_fades_;
+	uint32_t fade_cat_mask_ = 0;
 	float update_overlay_fade(uint32_t key, float target_alpha, float delta);
 	void draw_structure_outlines(const rtso::Simulation *sim, float delta);
 	Decal *get_or_create_ring_decal(size_t index);
@@ -424,18 +429,37 @@ private:
 	static constexpr int FAUNA_CLIP_COUNT = 7;  // idle, move, attack, death, idle2, death2, feeding
 	static constexpr int CROWD_FRAMES_PER_CLIP = 12;
 	static constexpr int CROWD_PHASES = 3;
+	static constexpr float LOD_NEAR_DIST = 20.0f;
+	static constexpr float LOD_NEAR_DIST_SQ = LOD_NEAR_DIST * LOD_NEAR_DIST;
+	static constexpr float LOD_SHADOW_DIST = 30.0f;
+	static constexpr float LOD_SHADOW_DIST_SQ = LOD_SHADOW_DIST * LOD_SHADOW_DIST;
+	static constexpr float LOD_FAR_DIST = 50.0f;
+	static constexpr float LOD_FAR_DIST_SQ = LOD_FAR_DIST * LOD_FAR_DIST;
+	static constexpr float FX_CULL_DIST = 25.0f;
+	static constexpr float FX_CULL_DIST_SQ = FX_CULL_DIST * FX_CULL_DIST;
 	struct CrowdPuppet {
 		String clip;
 		Ref<ArrayMesh> posed_frames[CROWD_FRAMES_PER_CLIP];
+		Ref<ArrayMesh> lod_frames[CROWD_FRAMES_PER_CLIP];
 		int baked_count = 0;
 		int last_frame[CROWD_PHASES] = {-1, -1, -1};
+		int last_lod_frame[CROWD_PHASES] = {-1, -1, -1};
 	};
 	struct CrowdBatch {
 		MultiMeshInstance3D *mmi[CROWD_CLIP_COUNT][CROWD_PHASES] = {};
 		Ref<MultiMesh> mm[CROWD_CLIP_COUNT][CROWD_PHASES];
+		PackedFloat32Array buffer[CROWD_CLIP_COUNT][CROWD_PHASES];
+		MultiMeshInstance3D *lod_mmi[CROWD_CLIP_COUNT][CROWD_PHASES] = {};
+		Ref<MultiMesh> lod_mm[CROWD_CLIP_COUNT][CROWD_PHASES];
+		PackedFloat32Array lod_buffer[CROWD_CLIP_COUNT][CROWD_PHASES];
+		MultiMeshInstance3D *proxy_mmi = nullptr;
+		Ref<MultiMesh> proxy_mm;
+		PackedFloat32Array proxy_buffer;
 		CrowdPuppet puppet[CROWD_CLIP_COUNT];
 		bool clip_baked[CROWD_CLIP_COUNT] = {};
 		Ref<Mesh> rest;
+		Ref<Mesh> lod_rest;
+		Ref<Mesh> proxy_rest;
 		bool no_scene = false; // model has no skinned scene: rest pose only
 		// The model's id and the ModelLibrary entry values a frame's unit loop reads.
 		String model_id;
@@ -487,6 +511,7 @@ private:
 	static constexpr int FAUNA_ROWS = rtso::FAUNA_COUNT + FAUNA_LOOK_ROWS;
 	MultiMeshInstance3D *fauna_mmi[FAUNA_ROWS][FAUNA_CLIP_COUNT] = {};
 	Ref<MultiMesh> fauna_mm[FAUNA_ROWS][FAUNA_CLIP_COUNT];
+	PackedFloat32Array fauna_buf_[FAUNA_ROWS][FAUNA_CLIP_COUNT];
 	CrowdPuppet fauna_puppet[FAUNA_ROWS][FAUNA_CLIP_COUNT] = {};
 	bool fauna_puppet_baked[FAUNA_ROWS] = {};
 	// A species' model loads when the map has one (ensure_fauna_row), not at startup:
@@ -563,6 +588,13 @@ protected:
 public:
 	RtsoWorldView();
 	~RtsoWorldView();
+
+	void _notification(int p_what);
+	void cleanup();
+	bool cleaned_up_ = false;
+	static Ref<ArrayMesh> load_mesh(const Ref<Mesh> &src, bool decimate_lod = false, bool ultra_low = false);
+	MultiMesh *crowd_lod_mm(CrowdBatch &b, int clip, int phase = 0);
+	MultiMesh *crowd_proxy_mm(CrowdBatch &b);
 
 	void _ready() override;
 	void sync(const rtso::Simulation *sim, float delta, const PackedInt32Array &selected_ids);

@@ -26,6 +26,25 @@ inline godot::Ref<godot::Theme> modern_skin() {
 	return s->call("theme");
 }
 
+inline void clear_session_skins() {
+	using namespace godot;
+	ResourceLoader *rl = ResourceLoader::get_singleton();
+	if (!rl) return;
+	const char *scripts[] = {
+		"res://scenes/common/stone_theme.gd",
+		"res://scenes/common/modern_theme.gd",
+		"res://scenes/reference/reference_common.gd",
+		"res://scenes/session/summary_screen.gd",
+		"res://scenes/session/barter_dialog.gd",
+		"res://scenes/menu/lobby.gd",
+	};
+	for (const char *path : scripts) {
+		if (!rl->exists(path)) continue;
+		Ref<Script> s = rl->load(path);
+		if (s.is_valid() && s->has_method("clear_cache")) s->call("clear_cache");
+	}
+}
+
 } // namespace rtso
 
 #endif

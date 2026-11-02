@@ -92,6 +92,8 @@ func _process(_delta: float) -> void:
 			# A client loading the host's saved game waits for its world to come.
 			if is_instance_valid(match_node) and match_node.has_method("net_loading_hold") and match_node.net_loading_hold():
 				return
+			if _settle == SETTLE_FRAMES and DisplayServer.get_name() != "headless":
+				RenderingServer.force_draw(false)
 			_settle -= 1
 			if _settle <= 0:
 				_finish()

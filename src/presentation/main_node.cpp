@@ -1,3 +1,4 @@
+#include "graphics/gpu_separation.h"
 #include <algorithm>
 #include <cmath>
 #include "network/chat_routing.h"
@@ -10,6 +11,7 @@
 #include <cstring>
 #include <godot_cpp/classes/theme.hpp>
 #include "popup_safe.h"
+#include "session_skin.h"
 #include "simulation/petra_chat.h"
 #include "simulation/rms_generator.h"
 #include <godot_cpp/core/class_db.hpp>
@@ -53,10 +55,26 @@ RtsoMain::RtsoMain() {
 
 RtsoMain::~RtsoMain() {
 	net_host_.stop();
+	if (view) {
+		view->cleanup();
+		view = nullptr;
+	}
+	ghost_mat_ok.unref();
+	ghost_mat_bad.unref();
+	rtso::clear_session_skins();
 	delete sim;
+	sim = nullptr;
+	rtso::GpuSeparation::instance().cleanup();
 }
 
 void RtsoMain::_notification(int p_what) {
+	if (p_what == NOTIFICATION_PREDELETE) {
+		if (view) view->cleanup();
+		ghost_mat_ok.unref();
+		ghost_mat_bad.unref();
+		rtso::clear_session_skins();
+		rtso::GpuSeparation::instance().cleanup();
+	}
 	if (p_what == NOTIFICATION_WM_SIZE_CHANGED) {
 		apply_safe_area_insets();
 	}
@@ -301,6 +319,7 @@ void RtsoMain::_on_minimap_clicked(Vector2 world_pos) {
 		return;
 	}
 	if (cam_rig) {
+		cam_rig->set_follow_id(0);
 		cam_rig->set_target_pos(Vector3(world_pos.x, 0.0f, world_pos.y));
 	}
 }
@@ -843,13 +862,13 @@ void RtsoMain::order_guard_units(uint32_t target_id) {
 void RtsoMain::spawn_large_battle(int total_units) {
 	if (!sim) return;
 	clear_selection();
-	if (banner_panel) banner_panel->set_visible(false);
 	stop_replay_recording(); // a debug spawn is not a command, so a replay could not reproduce it
 	sim->spawn_war(total_units);
 	if (cam_rig) {
 		cam_rig->set_target_pos(Vector3(0, 0, 0));
 	}
-	print_line(String("[RTS0] Spawned massive war simulation: ") + String::num_int64(total_units) + " units across 128m map.");
+	show_notice(String("FRONTLINE CLASH: ") + String::num_int64(total_units) + " units deployed!");
+	print_line(String("[RTS0] Spawned massive war simulation: ") + String::num_int64(total_units) + " units across map.");
 }
 
 void RtsoMain::update_ghost_mesh() {
@@ -1345,7 +1364,7 @@ void RtsoMain::perform_group(int grp, GroupAction action) {
 			selected_ids.clear();
 			set_selected_structures({});
 		}
-		if (action == GROUP_SNAP && cam_rig) cam_rig->set_target_pos(snap_pos);
+		if (action == GROUP_SNAP && cam_rig) { cam_rig->set_follow_id(0); cam_rig->set_target_pos(snap_pos); }
 		return;
 	}
 	// selection.js addList: the select sound only for what the recall adds, in its first's voice
@@ -1364,7 +1383,7 @@ void RtsoMain::perform_group(int grp, GroupAction action) {
 		selected_ids = recall;
 		set_selected_structures(recall_buildings);
 	}
-	if (action == GROUP_SNAP && cam_rig && snap_id != 0) cam_rig->set_target_pos(snap_pos);
+	if (action == GROUP_SNAP && cam_rig && snap_id != 0) { cam_rig->set_follow_id(0); cam_rig->set_target_pos(snap_pos); }
 	play_select_added(before_units, before_structs);
 }
 
@@ -1539,7 +1558,7 @@ void RtsoMain::follow_command(const rtso::NetCommand &c) {
 			type != NetCommandType::NET_CMD_TRAIN_TEMPLATE && type != NetCommandType::NET_CMD_TRAIN_FROM_UNIT &&
 			type != NetCommandType::NET_CMD_RALLY && !c.entity_ids.empty()) {
 		// Focus the commanded entities, but keep the focus when training.
-		follow_focus(c.entity_ids[0], false);
+		follow_focus(c.entity_ids[0], false, true);
 	}
 	// DrawTargetMarker for "walk", "attack-walk" and "patrol".
 	if (type == NetCommandType::NET_CMD_MOVE || type == NetCommandType::NET_CMD_ATTACK_MOVE || type == NetCommandType::NET_CMD_PATROL)
@@ -1564,12 +1583,17 @@ void RtsoMain::follow_command(const rtso::NetCommand &c) {
 }
 
 // selection_panels_helpers.js setCameraFollow: a unit is followed, a structure looked at.
-void RtsoMain::follow_focus(uint32_t id, bool select) {
+void RtsoMain::follow_focus(uint32_t id, bool select, bool continuous_track) {
 	if (!sim || !cam_rig || !id) return;
 	auto uv = sim->units();
 	for (size_t i = 0; i < uv.count; ++i)
 		if (uv.id[i] == id && uv.alive[i]) {
-			cam_rig->set_follow_id(id);
+			if (continuous_track) {
+				cam_rig->set_follow_id(id);
+			} else {
+				cam_rig->set_follow_id(0);
+				cam_rig->set_target_pos(Vector3(uv.pos_x[i], 0, uv.pos_z[i]));
+			}
 			if (select) {
 				clear_selection();
 				selected_ids.push_back((int32_t)id);

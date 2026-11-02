@@ -78,6 +78,41 @@ func run() -> void:
 	await key(KEY_SPACE)
 	check(int(main.debug_camera()["follow"]) == man, "the camera follows the attacked unit")
 
+	# Verify follow cancellation on any user mouse or key interaction
+	var mb_l := InputEventMouseButton.new()
+	mb_l.button_index = MOUSE_BUTTON_LEFT
+	mb_l.pressed = true
+	root.push_input(mb_l)
+	await frames(2)
+	check(int(main.debug_camera()["follow"]) == 0, "left click cancels follow immediately")
+	mb_l.pressed = false
+	root.push_input(mb_l)
+	await frames(2)
+
+	await key(KEY_SPACE)
+	check(int(main.debug_camera()["follow"]) == man, "Space re-engages follow")
+	var mb_r := InputEventMouseButton.new()
+	mb_r.button_index = MOUSE_BUTTON_RIGHT
+	mb_r.pressed = true
+	root.push_input(mb_r)
+	await frames(2)
+	check(int(main.debug_camera()["follow"]) == 0, "right click cancels follow immediately")
+	mb_r.pressed = false
+	root.push_input(mb_r)
+	await frames(2)
+
+	await key(KEY_SPACE)
+	check(int(main.debug_camera()["follow"]) == man, "Space re-engages follow")
+	main._on_minimap_clicked(b)
+	await frames(2)
+	check(int(main.debug_camera()["follow"]) == 0, "minimap click cancels follow immediately")
+
+	await key(KEY_SPACE)
+	check(int(main.debug_camera()["follow"]) == man, "Space re-engages follow")
+	await key(KEY_W)
+	await frames(2)
+	check(int(main.debug_camera()["follow"]) == 0, "pan key W cancels follow immediately")
+
 	print("3. camera.pan (MouseMiddle) drags the view while held, and follows a rebind")
 	var at := root.get_final_transform() * Vector2(512, 400)
 	var mb := InputEventMouseButton.new()
@@ -113,6 +148,18 @@ func run() -> void:
 	Input.parse_input_event(j)
 	await frames(2)
 	hk.reload()
+
+	print("4. Edge scrolling toggles and margin")
+	var rigs: Array = main.find_children("*", "RtsoCameraRig", true, false)
+	if not rigs.is_empty():
+		var rig = rigs[0]
+		check(rig.is_edge_scroll_enabled(), "edge scrolling is enabled by default")
+		rig.set_edge_scroll_enabled(false)
+		check(not rig.is_edge_scroll_enabled(), "edge scrolling toggles off")
+		rig.set_edge_scroll_enabled(true)
+		check(rig.get_edge_scroll_margin() > 0.0, "edge scroll margin is positive (%.1f)" % rig.get_edge_scroll_margin())
+		rig.set_edge_scroll_margin(16.0)
+		check(is_equal_approx(rig.get_edge_scroll_margin(), 16.0), "edge scroll margin set to 16")
 
 	print("FAILURES: ", failures)
 	quit(1 if failures else 0)

@@ -12,6 +12,7 @@
 #ifndef RTSO_FOG_MIRAGE_H
 #define RTSO_FOG_MIRAGE_H
 
+#include <cstddef>
 #include <cstdint>
 #include <unordered_map>
 #include <vector>
@@ -222,8 +223,13 @@ public:
 	void snap();
 
 	int res() const { return res_ * UPSAMPLE; } // bitmap pixels per side
+	bool settled() const { return settled_; }
+	uint32_t generation() const { return gen_; }
 	const std::vector<uint8_t> &target() const { return target_; }
 	const std::vector<uint8_t> &shown() const { return shown_; }
+
+	using GpuBitmapFn = bool (*)(const uint8_t *fow, int res, std::vector<uint8_t> &out);
+	static void register_gpu_hook(GpuBitmapFn fn);
 
 	// CLOSTexture::GenerateBitmap, exposed for tests: out is res * UPSAMPLE pixels a side.
 	static void generate_bitmap(const uint8_t *fow, int res, std::vector<uint8_t> &out);
@@ -234,6 +240,7 @@ private:
 	std::vector<uint8_t> target_;
 	std::vector<uint8_t> shown_;
 	bool settled_ = true;
+	uint32_t gen_ = 1;
 	std::vector<uint8_t> last_fow_;
 };
 

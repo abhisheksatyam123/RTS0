@@ -11,6 +11,7 @@
 #include <godot_cpp/classes/input_event_screen_drag.hpp>
 #include <godot_cpp/classes/input_event_screen_touch.hpp>
 #include <godot_cpp/classes/viewport.hpp>
+#include <godot_cpp/classes/display_server.hpp>
 #include <godot_cpp/core/math.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
 #include "../simulation/simulation.h"
@@ -21,6 +22,10 @@ using namespace godot;
 void RtsoCameraRig::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_target_pos", "pos"), &RtsoCameraRig::set_target_pos);
 	ClassDB::bind_method(D_METHOD("camera_data"), &RtsoCameraRig::camera_data);
+	ClassDB::bind_method(D_METHOD("set_camera_data", "data"), &RtsoCameraRig::set_camera_data);
+	ClassDB::bind_method(D_METHOD("set_cinema_view", "on"), &RtsoCameraRig::set_cinema_view);
+	ClassDB::bind_method(D_METHOD("cinema_view"), &RtsoCameraRig::cinema_view);
+	ClassDB::bind_method(D_METHOD("get_camera"), &RtsoCameraRig::get_camera);
 	ClassDB::bind_method(D_METHOD("zoom", "delta_zoom"), &RtsoCameraRig::zoom);
 	ClassDB::bind_method(D_METHOD("reset_camera"), &RtsoCameraRig::reset_camera);
 	ClassDB::bind_method(D_METHOD("toggle_birds_eye"), &RtsoCameraRig::toggle_birds_eye);
@@ -29,6 +34,13 @@ void RtsoCameraRig::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_speed_multipliers"), &RtsoCameraRig::get_speed_multipliers);
 	ClassDB::bind_method(D_METHOD("set_edge_scroll_enabled", "enabled"), &RtsoCameraRig::set_edge_scroll_enabled);
 	ClassDB::bind_method(D_METHOD("is_edge_scroll_enabled"), &RtsoCameraRig::is_edge_scroll_enabled);
+	ClassDB::bind_method(D_METHOD("set_edge_scroll_margin", "margin"), &RtsoCameraRig::set_edge_scroll_margin);
+	ClassDB::bind_method(D_METHOD("get_edge_scroll_margin"), &RtsoCameraRig::get_edge_scroll_margin);
+	ClassDB::bind_method(D_METHOD("set_edge_scroll_speed", "speed"), &RtsoCameraRig::set_edge_scroll_speed);
+	ClassDB::bind_method(D_METHOD("get_edge_scroll_speed"), &RtsoCameraRig::get_edge_scroll_speed);
+	ClassDB::bind_method(D_METHOD("cancel_follow"), &RtsoCameraRig::cancel_follow);
+	ClassDB::bind_method(D_METHOD("set_follow_id", "id"), &RtsoCameraRig::set_follow_id);
+	ClassDB::bind_method(D_METHOD("follow_id"), &RtsoCameraRig::follow_id);
 	ClassDB::bind_method(D_METHOD("set_map_bounds_half", "h"), &RtsoCameraRig::set_map_bounds_half);
 	ClassDB::bind_method(D_METHOD("get_map_bounds_half"), &RtsoCameraRig::get_map_bounds_half);
 	ClassDB::bind_method(D_METHOD("set_map_circular", "on"), &RtsoCameraRig::set_map_circular);
@@ -38,7 +50,20 @@ void RtsoCameraRig::_bind_methods() {
 RtsoCameraRig::RtsoCameraRig() {}
 RtsoCameraRig::~RtsoCameraRig() {}
 
+void RtsoCameraRig::_notification(int what) {
+	if (what == NOTIFICATION_WM_MOUSE_EXIT || what == NOTIFICATION_VP_MOUSE_EXIT || what == NOTIFICATION_WM_WINDOW_FOCUS_OUT) {
+		mouse_in_window_ = false;
+		mmb_dragging = false;
+	} else if (what == NOTIFICATION_WM_MOUSE_ENTER || what == NOTIFICATION_VP_MOUSE_ENTER || what == NOTIFICATION_WM_WINDOW_FOCUS_IN) {
+		mouse_in_window_ = true;
+	}
+}
+
+
 void RtsoCameraRig::_ready() {
+	// Negative priority ensures camera rig processes before standard priority (0) nodes,
+	// eliminating 1-frame latency between camera transforms and WorldView frustum culling.
+	set_process_priority(-100);
 	cam = memnew(Camera3D);
 	cam->set_fov(45.0f); // 0 A.D. default.cfg: [view] fov = 45.0
 	add_child(cam);
@@ -52,6 +77,11 @@ void RtsoCameraRig::_ready() {
 	zoom_default_ = (float)uc::get_number("view.zoom.default") / kMetresPerUnit;
 	zoom_speed_ = (float)uc::get_number("view.zoom.speed") / kMetresPerUnit;
 	zoom_speed_wheel_ = (float)uc::get_number("view.zoom.speed.wheel") / kMetresPerUnit;
+	edge_scroll_enabled = uc::get_bool("view.edgescroll");
+	edge_scroll_margin_ = (float)uc::get_number("view.edgescroll.margin");
+	if (edge_scroll_margin_ <= 0.0f) edge_scroll_margin_ = 12.0f;
+	edge_scroll_speed_ = (float)uc::get_number("view.edgescroll.speed");
+	if (edge_scroll_speed_ <= 0.0f) edge_scroll_speed_ = 1.0f;
 	zoom_height = target_zoom = zoom_default_;
 	pitch_deg = target_pitch_deg = pre_birds_eye_pitch_ = pitch_default_;
 	target_pos = Vector3(0, 0, 0);
@@ -60,11 +90,14 @@ void RtsoCameraRig::_ready() {
 // CCameraController::Update: with the camera constrained, its look-at point stays
 // CAMERA_EDGE_MARGIN inside the map's square edges, or inside its circle on a circular map.
 void RtsoCameraRig::clamp_to_map(Vector3 &p) const {
-	if (!constrain_) return;
+	if (!constrain_) {
+		if (sim_) p.y = sim_->get_terrain_height(p.x, p.z);
+		return;
+	}
 	const float r = std::max(0.0f, map_bounds_half - kEdgeMargin);
 	if (map_circular_) {
 		const float d = Math::sqrt(p.x * p.x + p.z * p.z);
-		if (d > r) {
+		if (d > r && d > 0.0001f) {
 			p.x *= r / d;
 			p.z *= r / d;
 		}
@@ -72,10 +105,15 @@ void RtsoCameraRig::clamp_to_map(Vector3 &p) const {
 		p.x = Math::clamp(p.x, -r, r);
 		p.z = Math::clamp(p.z, -r, r);
 	}
+	if (sim_) p.y = sim_->get_terrain_height(p.x, p.z);
 }
 
 void RtsoCameraRig::set_target_pos(Vector3 pos) {
-	target_pos = Vector3(pos.x, 0.0f, pos.z);
+	float y = pos.y;
+	if (sim_) {
+		y = sim_->get_terrain_height(pos.x, pos.z);
+	}
+	target_pos = Vector3(pos.x, y, pos.z);
 	clamp_to_map(target_pos);
 }
 
@@ -119,6 +157,12 @@ void RtsoCameraRig::follow_to(Vector3 pos) {
 
 void RtsoCameraRig::_unhandled_input(const Ref<InputEvent> &event) {
 	if (cinema_view_) return;
+
+	Ref<InputEventMouseMotion> mm = event;
+	if (mm.is_valid()) {
+		mouse_in_window_ = true;
+	}
+
 	Ref<InputEventMouseButton> mb = event;
 	if (mb.is_valid() || Ref<InputEventKey>(event).is_valid()) {
 		// CameraController camera.pan (MouseMiddle by default): drag the view while it is held.
@@ -126,6 +170,21 @@ void RtsoCameraRig::_unhandled_input(const Ref<InputEvent> &event) {
 		if (pan != mmb_dragging) {
 			mmb_dragging = pan;
 			if (mb.is_valid()) return;
+		}
+	}
+
+	// Cancel follow immediately on any user mouse or keyboard interaction
+	if (follow_id_ != 0) {
+		if (mb.is_valid() && mb->is_pressed()) {
+			follow_id_ = 0;
+		} else {
+			Ref<InputEventKey> k = event;
+			if (k.is_valid() && k->is_pressed()) {
+				const auto hk = rtso::hotkeys::fired(k);
+				if (!rtso::hotkeys::has(hk, "camera.follow") && !rtso::hotkeys::has(hk, "camera.lastattackfocus")) {
+					follow_id_ = 0;
+				}
+			}
 		}
 	}
 	if (mb.is_valid()) {
@@ -152,12 +211,18 @@ void RtsoCameraRig::_unhandled_input(const Ref<InputEvent> &event) {
 	}
 
 	// Middle mouse drag motion
-	Ref<InputEventMouseMotion> mm = event;
 	if (mm.is_valid() && mmb_dragging) {
+		if (!rtso::hotkeys::held("camera.pan")) {
+			mmb_dragging = false;
+			return;
+		}
 		follow_id_ = 0;
 		Vector2 rel = mm->get_relative();
-		float cos_y = Math::cos(target_yaw);
-		float sin_y = Math::sin(target_yaw);
+		// Bounded delta protects against extreme mouse jump spikes or cursor wrapping
+		rel.x = Math::clamp(rel.x, -100.0f, 100.0f);
+		rel.y = Math::clamp(rel.y, -100.0f, 100.0f);
+		float cos_y = Math::cos(yaw_angle);
+		float sin_y = Math::sin(yaw_angle);
 		// 0.28 view.drag.speed (default 0.5) and view.drag.inverted.
 		float drag_scale = (zoom_height / 28.0f) * 0.06f *
 				(float)std::clamp(rtso::user_config::get_number("view.drag.speed"), 0.01, 0.6) / 0.5f;
@@ -173,22 +238,24 @@ void RtsoCameraRig::_unhandled_input(const Ref<InputEvent> &event) {
 		return;
 	}
 
-	// camera.reset is dispatched by the main node, since R also picks the
-	// barracks while placing a building.
-
 	// Pinch to Zoom (Touch / Trackpad)
 	Ref<InputEventMagnifyGesture> mag = event;
 	if (mag.is_valid()) {
-		zoom((1.0f - mag->get_factor()) * 18.0f);
+		follow_id_ = 0;
+		float f = std::clamp((float)mag->get_factor(), 0.1f, 10.0f);
+		zoom((1.0f - f) * 18.0f);
 		return;
 	}
 
 	// Trackpad / Touch Pan Gesture
 	Ref<InputEventPanGesture> pan = event;
 	if (pan.is_valid()) {
+		follow_id_ = 0;
 		Vector2 delta = pan->get_delta();
-		float cos_y = Math::cos(target_yaw);
-		float sin_y = Math::sin(target_yaw);
+		delta.x = Math::clamp(delta.x, -40.0f, 40.0f);
+		delta.y = Math::clamp(delta.y, -40.0f, 40.0f);
+		float cos_y = Math::cos(yaw_angle);
+		float sin_y = Math::sin(yaw_angle);
 		Vector3 world_dir(
 			delta.x * cos_y - delta.y * sin_y,
 			0.0f,
@@ -202,6 +269,11 @@ void RtsoCameraRig::_unhandled_input(const Ref<InputEvent> &event) {
 
 void RtsoCameraRig::_process(double delta) {
 	if (cinema_view_) return; // back at the rig's own view when the path ends
+
+	if (mmb_dragging && !rtso::hotkeys::held("camera.pan")) {
+		mmb_dragging = false;
+	}
+
 	Vector3 input_dir(0, 0, 0);
 
 	// Held camera hotkeys (0 A.D. [hotkey.camera]: WASD/arrows scroll, Q/E and
@@ -231,54 +303,114 @@ void RtsoCameraRig::_process(double delta) {
 		if (on("camera.zoom.out")) zoom(zoom_speed_ * zm);
 	}
 
-	// Edge scrolling (active when mouse is near viewport boundaries and no key pan active)
-	if (edge_scroll_enabled && input_dir.length_squared() < 0.001f) {
-		Viewport *vp = get_viewport();
+	// Edge scrolling (active when window has focus, mouse is inside viewport, NOT over UI, and no MMB drag or key scroll active)
+	bool window_has_focus = true;
+	DisplayServer *ds = DisplayServer::get_singleton();
+	if (ds && (!ds->window_is_focused() || ds->get_name() == "headless")) {
+		window_has_focus = false;
+	}
+
+	Viewport *vp = get_viewport();
+	const bool mouse_over_ui = (vp && vp->gui_get_hovered_control() != nullptr);
+
+	if (edge_scroll_enabled && window_has_focus && mouse_in_window_ && !mouse_over_ui && !mmb_dragging && input_dir.length_squared() < 0.001f) {
 		if (vp) {
 			Vector2 mpos = vp->get_mouse_position();
 			Rect2 vprect = vp->get_visible_rect();
-			const float margin = 14.0f;
+			const float margin = edge_scroll_margin_;
 			if (vprect.has_point(mpos)) {
-				if (mpos.x <= margin) input_dir.x -= 1.0f;
-				else if (mpos.x >= vprect.size.x - margin) input_dir.x += 1.0f;
-				if (mpos.y <= margin) input_dir.z -= 1.0f;
-				else if (mpos.y >= vprect.size.y - margin) input_dir.z += 1.0f;
+				// Deadzone check: prevent edge drift when cursor is resting exactly on outer boundary pixel
+				if (mpos.x > 0.0f && mpos.x < vprect.size.x && mpos.y > 0.0f && mpos.y < vprect.size.y) {
+					if (mpos.x <= margin) {
+						float factor = std::clamp((margin - mpos.x) / margin, 0.0f, 1.0f);
+						input_dir.x -= factor * edge_scroll_speed_;
+					} else if (mpos.x >= vprect.size.x - margin) {
+						float factor = std::clamp((mpos.x - (vprect.size.x - margin)) / margin, 0.0f, 1.0f);
+						input_dir.x += factor * edge_scroll_speed_;
+					}
+					if (mpos.y <= margin) {
+						float factor = std::clamp((margin - mpos.y) / margin, 0.0f, 1.0f);
+						input_dir.z -= factor * edge_scroll_speed_;
+					} else if (mpos.y >= vprect.size.y - margin) {
+						float factor = std::clamp((mpos.y - (vprect.size.y - margin)) / margin, 0.0f, 1.0f);
+						input_dir.z += factor * edge_scroll_speed_;
+					}
+				}
 			}
 		}
 	}
 
-	// Camera-relative panning
+	// Camera-relative panning from user input
 	if (input_dir.length_squared() > 0.001f) {
-		follow_id_ = 0;
-		input_dir.normalize();
-		float cos_y = Math::cos(target_yaw);
-		float sin_y = Math::sin(target_yaw);
+		follow_id_ = 0; // Manual pan immediately cancels follow
+		float len = input_dir.length();
+		if (len > 1.0f) input_dir /= len;
+		float cos_y = Math::cos(yaw_angle);
+		float sin_y = Math::sin(yaw_angle);
 		Vector3 world_dir(
 			input_dir.x * cos_y - input_dir.z * sin_y,
 			0.0f,
 			input_dir.x * sin_y + input_dir.z * cos_y
 		);
-		target_pos += world_dir * speed * speed_mul_[SPEED_SCROLL] * (float)delta;
+		target_pos += world_dir * (speed * speed_mul_[SPEED_SCROLL] * (float)delta);
 		clamp_to_map(target_pos);
+	} else if (follow_id_ != 0 && sim_) {
+		// Only track followed unit when NO user manual pan input was active
+		bool alive = false;
+		auto fview = sim_->units();
+		for (size_t i = 0; i < fview.count; ++i) {
+			if (fview.id[i] == follow_id_ && fview.alive[i]) {
+				const float th = sim_->get_terrain_height(fview.pos_x[i], fview.pos_z[i]);
+				target_pos = Vector3(fview.pos_x[i], th, fview.pos_z[i]);
+				clamp_to_map(target_pos);
+				alive = true;
+				break;
+			}
+		}
+		if (!alive) follow_id_ = 0;
 	}
 
-	// Smooth interpolations
-	Vector3 cur_pos = get_global_position();
-	set_global_position(cur_pos.lerp(target_pos, (float)delta * 9.0f));
+	// Smooth interpolations: unconditionally stable exponential approach (1 - exp(-k * dt))
+	const float dt = std::clamp((float)delta, 0.0f, 0.1f);
+	const float t_pos   = 1.0f - Math::exp(-9.0f * dt);
+	const float t_rot   = 1.0f - Math::exp(-8.0f * dt);
+	const float t_zoom  = 1.0f - Math::exp(-8.0f * dt);
+	const float t_pitch = 1.0f - Math::exp(-8.0f * dt);
 
-	yaw_angle = Math::lerp(yaw_angle, target_yaw, (float)delta * 8.0f);
+	Vector3 cur_pos = get_global_position();
+	if (cur_pos.distance_squared_to(target_pos) < 1e-6f) {
+		cur_pos = target_pos;
+	} else {
+		cur_pos = cur_pos.lerp(target_pos, t_pos);
+	}
+	set_global_position(cur_pos);
+
+	target_yaw = Math::wrapf(target_yaw, -(float)Math_PI, (float)Math_PI);
+	yaw_angle = Math::lerp_angle(yaw_angle, target_yaw, t_rot);
+	yaw_angle = Math::wrapf(yaw_angle, -(float)Math_PI, (float)Math_PI);
+	if (Math::abs(target_yaw - yaw_angle) < 1e-4f) yaw_angle = target_yaw;
 	set_rotation(Vector3(0, yaw_angle, 0));
 
 	if (constrain_) { // ClampSmoothly each frame: re-constraining brings zoom and tilt back in range
 		target_zoom = Math::clamp(target_zoom, zoom_min_, zoom_max_);
 		if (!birds_eye_) target_pitch_deg = Math::clamp(target_pitch_deg, pitch_min_, pitch_max_);
 	}
-	zoom_height = Math::lerp(zoom_height, target_zoom, (float)delta * 8.0f);
-	pitch_deg = Math::lerp(pitch_deg, target_pitch_deg, (float)delta * 8.0f);
+	zoom_height = Math::lerp(zoom_height, target_zoom, t_zoom);
+	if (Math::abs(target_zoom - zoom_height) < 1e-4f) zoom_height = target_zoom;
+
+	pitch_deg = Math::lerp(pitch_deg, target_pitch_deg, t_pitch);
+	if (Math::abs(target_pitch_deg - pitch_deg) < 1e-4f) pitch_deg = target_pitch_deg;
+
 	if (cam) {
 		const float pitch = Math::deg_to_rad(pitch_deg);
+		const float cos_p = Math::cos(pitch);
+		const float sin_p = Math::sin(pitch);
+		const float cam_local_y = zoom_height * sin_p;
+		const float cam_local_z = zoom_height * cos_p;
+
 		// SetupCameraMatrix: zoom_height away from the look-at point along the view.
-		cam->set_position(Vector3(0, zoom_height * Math::sin(pitch), zoom_height * Math::cos(pitch)));
+		cam->set_position(Vector3(0, cam_local_y, cam_local_z));
 		cam->set_rotation(Vector3(-pitch, 0, 0));
+		cam->force_update_transform();
 	}
 }

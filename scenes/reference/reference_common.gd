@@ -18,6 +18,10 @@ static func ref() -> RtsoReference:
 		_ref = RtsoReference.new()
 	return _ref
 
+static func clear_cache() -> void:
+	_ref = null
+	_text.clear()
+
 static func text() -> Dictionary:
 	if _text.is_empty() and FileAccess.file_exists(TEXT_PATH):
 		var d = JSON.parse_string(FileAccess.get_file_as_string(TEXT_PATH))

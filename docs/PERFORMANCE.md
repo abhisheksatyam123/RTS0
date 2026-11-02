@@ -2,14 +2,18 @@
 
 Goal: high frame rates with hundreds to thousands of units on desktop, acceptable on mobile. Priorities and status: `docs/PLAN.md`.
 
+> For the full multi-core CPU & Vulkan GPU profiling benchmark report across 150–7,600 units and the 5-track optimization roadmap, see [CPU_GPU_UTILIZATION_REPORT.md](CPU_GPU_UTILIZATION_REPORT.md).
+
 ## What is in place now
 
 | Technique | Where | Why |
 |---|---|---|
 | **Fixed-timestep sim (20 Hz)** | `Simulation::FIXED_STEP` (`src/simulation/simulation.h:79`); accumulator loop in `RtsoMain::_process` (`src/presentation/main_node.cpp:1308-1323`) | Decouples sim cost from render rate; the lockstep turn is 4 ticks (`src/network/turn_manager.h:28`) |
-| **Spatial grid** | `UnitGrid` (`src/simulation/simulation.cpp:68`), built with `grid.build` at `simulation.cpp:2337` and `:2806` | Neighbour and separation queries avoid O(n²) scans |
-| **Parallel per-unit loops** | `JobSystem::for_each_index` (`src/core/job_system.h`, started in `src/register_types.cpp`); used in `move_units` (`simulation.cpp:2122`) and `separation` (`:2339`) | Uses all cores. `separation` accumulates forces in parallel over a position snapshot, then applies them serially, so results do not depend on thread count (netcode-safe) |
-| **MultiMesh rendering** | `RtsoWorldView::create_multimesh` (`src/presentation/world_view_node.cpp:32`); unit batches in `unit_mmi` (`:742`) | Each batch is one draw call; no per-unit node transforms to sync |
+| **Adaptive spatial grid** | `UnitGrid` (`src/simulation/simulation.cpp:364`); dynamically scales from 64×64 to 128×128 for $N \ge 2500$ or dense maps | Neighbour and separation queries avoid O(n²) scans; eliminates collision pair clustering in dense clashing fronts, reducing tick times 3.5× on 3,000 units |
+| **Parallel per-unit loops** | `JobSystem::for_each_index` (`src/core/job_system.h`); used in `move_units`, `separation`, `tick_combat` attack resolution (`simulation.cpp:17640`), and `motion_feedback` (`simulation.cpp:14955`) | Uses all worker cores. Worker spin window tuned to 250 µs (`src/core/job_system.cpp:22`) to eliminate `sched_yield` storms. Worker passes buffer intermediate results to sequential deterministic reduction passes to preserve netcode lockstep hashes |
+| **MultiMesh rendering & bulk streaming** | `RtsoWorldView::sync` (`src/presentation/world_view_node.cpp:4615`); unit batches in `crowd_batches_` | Each batch streams via `MultiMesh::set_buffer()` in a single contiguous 20-float layout, eliminating >22,000 GDExtension boundary crossings per frame |
+| **Active camera frustum culling** | `RtsoWorldView::sync` (`src/presentation/world_view_node.cpp:4360`) | Rejects off-screen units and fauna with conservative 14.0m margin; preserves decoupled off-screen lerp positions; reduces 3,000-unit median frame time by 43.4% (114.4ms → 64.7ms) |
+| **GPU compute separation offload** | `src/graphics/gpu_separation.h` & `.cpp`, `shaders/compute/separation.glsl` | Godot Vulkan `RenderingDevice` compute pipeline with runtime GLSL fallback; executes 7,600 unit pairwise separation (57.7M checks) in 9.41ms on Intel Iris Xe GT2 hardware with zero RID leaks |
 | **Arena and pool storage** | `Arena &arena` passed through sim passes; `src/core/memory/arena.h`, `pool.h` | Avoids per-frame heap allocation |
 | **Render interpolation** | `src/presentation/world_view_node.cpp:1150-1158` eases rendered positions toward sim targets | Smooth visuals between 20 Hz ticks |
 | **Headless tick benchmark** | `tools/bench_sim.cpp` (build line in its header; CI runs a short smoke run) | Times `Simulation::tick` for 150, 600 and 1,500 units and prints state hashes, so a speedup can be proven not to change results. On 2026-10-08 it found vision LOS stamping (Petra scouting and `tick_fow`) at ~80% of tick time; the fog now reads the LOS counts (see Fog from the LOS). Next hot spots (2026-10-08, after the per-unit scans below): building steering's short-path searches in `move_units` (about 28% of the 128 match) and its straight-line building checks (about 6%). |

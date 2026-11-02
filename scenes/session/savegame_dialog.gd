@@ -26,9 +26,18 @@ const MSGBOX := preload("res://scenes/common/msgbox.gd")
 
 signal closed
 
+static func _ms() -> Node:
+	var loop = Engine.get_main_loop()
+	return (loop as SceneTree).root.get_node_or_null("MatchSettings") if loop is SceneTree else null
+
+
 const SAVE_ROOT := "user://saves"
-const ReplayPage = preload("res://scenes/menu/replay_browser.gd")
-const SetupPage = preload("res://scenes/menu/gamesetup.gd")
+static func _replay_page():
+	return load("res://scenes/menu/replay_browser.gd")
+
+static func _setup_page():
+	return load("res://scenes/menu/gamesetup.gd")
+
 const Mods := preload("res://scenes/menu/mods.gd")
 const GOLD := Color(0.9, 0.75, 0.31)
 const INCOMPATIBLE := Color8(96, 96, 96)
@@ -82,7 +91,7 @@ func _ready() -> void:
 func _entry(path: String, meta: Dictionary) -> Dictionary:
 	var settings: Dictionary = meta.get("settings", {})
 	var map_id := str(meta.get("map_id", settings.get("map_id", "")))
-	var info := ReplayPage.map_info(map_id)
+	var info: Dictionary = _replay_page().map_info(map_id)
 	var v := int(meta.get("save_version", 0))
 	var date := str(meta.get("date", "")).replace("T", " ")
 	if meta.has("timestamp"):
@@ -124,8 +133,10 @@ func refresh() -> void:
 			var e := _entry(path, meta)
 			# SavegameList campaignFilter: a campaign's saves only inside that run, the others only outside one;
 			# with the filter off they list greyed, as incompatible.
-			if str(meta.get("settings", {}).get("campaign_run", "")) != MatchSettings.campaign_run:
-				if compatibility_filter.button_pressed or MatchSettings.campaign_run != "":
+			var ms := _ms()
+			var cur_run := str(ms.campaign_run) if ms else ""
+			if str(meta.get("settings", {}).get("campaign_run", "")) != cur_run:
+				if compatibility_filter.button_pressed or cur_run != "":
 					continue
 				e.compatible = false
 			if compatibility_filter.button_pressed and not e.compatible:
@@ -203,10 +214,10 @@ func save_label(s: Dictionary) -> String:
 ## The 0.28 map path behind a map id: maps/random/<script> for a random map, else
 ## maps/<skirmishes|scenarios|tutorials>/<name>.
 static func map_path(map_id: String) -> String:
-	for r in SetupPage.RMS_MAPS:
+	for r in _setup_page().RMS_MAPS:
 		if r[0] == map_id:
-			return "maps/random/" + SetupPage.rms_script(map_id)
-	var type := str(SetupPage._map_types_data().get("maps", {}).get(map_id, {}).get("type", "skirmish"))
+			return "maps/random/" + _setup_page().rms_script(map_id)
+	var type := str(_setup_page()._map_types_data().get("maps", {}).get(map_id, {}).get("type", "skirmish"))
 	return "maps/%s/%s" % [{"scenario": "scenarios", "tutorial": "tutorials"}.get(type, "skirmishes"), map_id]
 
 ## Every handler's onSelectionChange.
@@ -228,17 +239,17 @@ func _show_details(s: Dictionary) -> void:
 		return
 	var m: Dictionary = s.meta
 	labels.name.text = s.map
-	var tex: Texture2D = SetupPage.map_preview(s.map_id) if s.map_id != "" else null
+	var tex: Texture2D = (_setup_page().map_preview(s.map_id) as Texture2D) if s.map_id != "" else null
 	if tex == null and FileAccess.file_exists(s.path.get_basename() + ".png"):
 		var img := Image.load_from_file(ProjectSettings.globalize_path(s.path.get_basename() + ".png"))
 		if img:
 			tex = ImageTexture.create_from_image(img)
 	labels.preview.texture = tex
 	labels.players.text = str(s.players.size())
-	labels.time.text = ReplayPage.time_to_string(float(m.get("game_time", 0.0)))
+	labels.time.text = _replay_page().time_to_string(float(m.get("game_time", 0.0)))
 	labels.type.text = s.map_type
-	labels.size.text = ReplayPage.map_size_name(s.size)
-	labels.victory.text = ReplayPage.victory_name(s.victory)
+	labels.size.text = _replay_page().map_size_name(s.size)
+	labels.victory.text = _replay_page().victory_name(s.victory)
 	# SavegameDetails: the save's mods (modsToString), in orange when they differ.
 	var v := int(m.get("save_version", 0))
 	var mods_text := "RTS0 (save format v%d)" % v
@@ -246,7 +257,7 @@ func _show_details(s: Dictionary) -> void:
 		mods_text = ", ".join((m.mods as Array).map(func(x) -> String: return Mods.mod_to_string(x) if x is Dictionary else ""))
 	labels.version.text = L10n.sprintf(L10n.t("Mods: %(mods)s"), {"mods": mods_text})
 	labels.version.add_theme_color_override("font_color", Color.WHITE if s.mods_ok else Color.ORANGE)
-	players_text.text = ReplayPage.player_info(s, true)
+	players_text.text = _replay_page().player_info(s, true)
 
 # --- Actions (SavegameLoader.js, SavegameWriter.js, SavegameDeleter.js) ---------------
 
@@ -350,10 +361,13 @@ func _save_to(name: String) -> void:
 func _load(path: String) -> void:
 	# Loading ends the current match (as in 0 A.D.): the match scene starts over,
 	# rebuilds the map from the save's setup, then loads the save on top.
-	MatchSettings.load_save_path = path
-	MatchSettings.replay_dir = ""
+	var ms := _ms()
+	if ms:
+		ms.load_save_path = path
+		ms.replay_dir = ""
 	get_tree().paused = false
-	MatchSettings.go("res://scenes/main.tscn")
+	if ms:
+		ms.go("res://scenes/main.tscn")
 
 func close() -> void:
 	closed.emit()
@@ -514,7 +528,9 @@ func _build() -> void:
 	description = LineEdit.new()
 	description.name = "SaveGameDesc"
 	description.visible = mode == "save"
-	MatchSettings.prepare_line_edit(description)
+	var ms := _ms()
+	if ms:
+		ms.prepare_line_edit(description)
 	description.text_changed.connect(func(_t): _description_changed = true)
 	# SavegameWriter: Enter in the description always writes a new save; only the
 	# Save button overwrites the selected one.

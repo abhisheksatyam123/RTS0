@@ -64,9 +64,17 @@ bool gl_compatibility() {
 	return compat == 1;
 }
 
-Ref<Shader> load_instanced_shader(const String &path) {
-	// Never freed: a static Ref<Shader> would be destroyed after Godot shuts down (crash on exit).
+static HashMap<String, Ref<Shader>> &instanced_shader_cache() {
 	static HashMap<String, Ref<Shader>> &cache = *new HashMap<String, Ref<Shader>>();
+	return cache;
+}
+
+void clear_instanced_shaders() {
+	instanced_shader_cache().clear();
+}
+
+Ref<Shader> load_instanced_shader(const String &path) {
+	HashMap<String, Ref<Shader>> &cache = instanced_shader_cache();
 	if (const Ref<Shader> *s = cache.getptr(path)) return *s;
 	Ref<Shader> sh;
 	if (!gl_compatibility()) {

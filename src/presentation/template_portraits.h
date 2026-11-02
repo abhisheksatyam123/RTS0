@@ -36,7 +36,7 @@ namespace portraits {
 
 inline const godot::Dictionary &reference() {
 	using namespace godot;
-	static Dictionary all;
+	static Dictionary &all = *new Dictionary();
 	static bool loaded = false;
 	if (!loaded) {
 		loaded = true;

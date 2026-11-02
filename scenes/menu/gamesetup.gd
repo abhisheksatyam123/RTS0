@@ -17,6 +17,10 @@ const MODERN := preload("res://scenes/common/modern_theme.gd")
 const ScenarioStart = preload("res://scenes/menu/scenario_start.gd")
 const MapBrowser = preload("res://scenes/menu/map_browser.gd")
 const L10n = preload("res://scenes/menu/l10n.gd")
+static func _lobby_session() -> Node:
+	var loop = Engine.get_main_loop()
+	return (loop as SceneTree).root.get_node_or_null("LobbySession") if loop is SceneTree else null
+
 const TAB_BUTTONS_JS := preload("res://scenes/common/tab_buttons.gd")
 const MAP_BROWSER_HOTKEY := "gamesetup.mapbrowser.open"
 # Loaded at run time: game_description.gd preloads this page.
@@ -997,7 +1001,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			open.queue_free()
 		else:
 			open_civ_reference(want)
-	elif "lobby" in fired and LobbySession.signed_in():
+	elif "lobby" in fired and (_lobby_session() != null and _lobby_session().signed_in()):
 		# LobbyButton.xml hotkey="lobby": the lobby dialog over the setup.
 		get_viewport().set_input_as_handled()
 		open_lobby_dialog()
@@ -1343,7 +1347,7 @@ func description_info() -> Dictionary:
 		"explore_map": st["explore"], "reveal_map": st["reveal"], "ally_view": st["ally_view"],
 		"cheats": %Cheats.button_pressed if _mp_role != "none" else true,
 		"biome": _selected_biome(), "rated": _rated != null and _rated.button_pressed,
-		"player_count": (st["types"] as Array).size(), "lobby_game": _mp_role != "none" and LobbySession.signed_in()}
+		"player_count": (st["types"] as Array).size(), "lobby_game": _mp_role != "none" and (_lobby_session() != null and _lobby_session().signed_in())}
 
 ## The description scrolls in the Map Preview panel, beside the preview under
 ## the map's name line; the panel takes the page's spare height.
@@ -2016,6 +2020,7 @@ func _build_options() -> void:
 	bio.item_selected.connect(_on_biome_selected)
 	_make_option(%SpeedSlot)
 	_render_speeds()
+	_build_battle_presets()
 	_mute_spin(%SpinSeed)
 	_mute_spin($VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots)
 	$VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots.value_changed.connect(
@@ -2034,6 +2039,58 @@ func _build_options() -> void:
 	%BtnReroll.pressed.connect(_on_reroll_seed)
 	%SpinSeed.value_changed.connect(
 		func(_v: float) -> void: _update_preview())
+
+
+# Track G (T47): Quick Scenario Presets in Match Settings ("Frontline Clash" & "Fortress Siege")
+var _battle_preset_id := ""
+
+func _build_battle_presets() -> void:
+	var tab := get_node_or_null("%GameTypeTab")
+	if tab == null or tab.find_child("BattlePresetsRow", false, false) != null:
+		return
+	var row := HBoxContainer.new()
+	row.name = "BattlePresetsRow"
+	row.add_theme_constant_override("separation", 6)
+	var lbl := Label.new()
+	lbl.name = "BattlePresetLabel"
+	lbl.text = tr("Battle Presets")
+	lbl.tooltip_text = tr("Quick scenario presets for large-scale pitched battles and fortress sieges.")
+	lbl.mouse_filter = Control.MOUSE_FILTER_PASS
+	row.add_child(lbl)
+	var btn_clash := Button.new()
+	btn_clash.name = "BtnPresetFrontlineClash"
+	btn_clash.text = tr("Frontline Clash")
+	btn_clash.tooltip_text = tr("Frontline Clash: 800 vs 800 infantry and cavalry pitched battle.")
+	btn_clash.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn_clash.pressed.connect(func(): apply_scenario_preset("frontline_clash"))
+	row.add_child(btn_clash)
+	var btn_siege := Button.new()
+	btn_siege.name = "BtnPresetFortressSiege"
+	btn_siege.text = tr("Fortress Siege")
+	btn_siege.tooltip_text = tr("Fortress Siege: Defend a fortified Acropolis against catapult waves.")
+	btn_siege.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn_siege.pressed.connect(func(): apply_scenario_preset("fortress_siege"))
+	row.add_child(btn_siege)
+	tab.add_child(row)
+
+func apply_scenario_preset(preset_id: String) -> void:
+	if not has_node("/root/MatchSettings"):
+		return
+	var ms := get_node("/root/MatchSettings")
+	if not ms.has_method("apply_battle_preset"):
+		return
+	var p: Dictionary = ms.apply_battle_preset(preset_id)
+	if p.is_empty():
+		return
+	_battle_preset_id = preset_id
+	var state := page_state()
+	for k in p:
+		if state.has(k):
+			state[k] = p[k]
+	_apply_settings(state)
+	refresh_map_list()
+	refresh_slots()
+	_update_preview()
 
 func _mute_spin(sb: SpinBox) -> void:
 	if sb:
@@ -2469,6 +2526,7 @@ func _on_start_pressed() -> void:
 		return
 	var ms := get_node("/root/MatchSettings")
 	ms.map_id = str(m["id"])
+	ms.battle_preset = _battle_preset_id
 	ms.campaign_run = "" # a match from Game Setup is not a campaign level
 	ms.campaign_level = ""
 	ms.campaign_map_name = ""
@@ -2633,11 +2691,12 @@ func _build_net_controls() -> void:
 	lobby_btn.name = "LobbyButton"
 	lobby_btn.text = "Lobby"
 	lobby_btn.tooltip_text = "Show the multiplayer lobby in a dialog window."
-	lobby_btn.visible = LobbySession.signed_in()
+	lobby_btn.visible = _lobby_session() != null and _lobby_session().signed_in()
 	lobby_btn.pressed.connect(open_lobby_dialog)
 	$VBox/Header.add_child(lobby_btn)
 	# CancelButton: back to the lobby while signed in to it.
-	($VBox/HBox/Right/Buttons/BtnBack as Button).tooltip_text = "Return to the lobby." if LobbySession.signed_in() else "Return to the main menu."
+	var _ls_back := _lobby_session()
+	($VBox/HBox/Right/Buttons/BtnBack as Button).tooltip_text = "Return to the lobby." if (_ls_back and _ls_back.signed_in()) else "Return to the main menu."
 	lobby_btn.owner = self
 	lobby_btn.unique_name_in_owner = true
 	# 0.28 Rating.js "Rated Game" and Cheats.js, which the host sets in a

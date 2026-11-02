@@ -193,6 +193,7 @@ void RtsoMain::_ready() {
 
 	cam_rig = memnew(RtsoCameraRig);
 	add_child(cam_rig);
+	if (sim) cam_rig->set_simulation(sim);
 
 	view = memnew(RtsoWorldView);
 	add_child(view);
@@ -908,6 +909,11 @@ void RtsoMain::_ready() {
 		if (!net_saved_game_.is_empty()) call_deferred("_start_menu_net"); // Host Saved Game
 	} else {
 		apply_match_settings();
+		if (view && sim) {
+			view->warm_models(sim, [this](int done, int total) {
+				load_progress(75 + 18 * done / std::max(1, total), "Pre-warming faction shaders");
+			});
+		}
 		begin_match_recording(nullptr);
 		call_deferred("_start_menu_net");
 	}
@@ -975,17 +981,28 @@ void RtsoMain::_process(double delta) {
 		}
 	}
 	if (cam_rig) {
+		if (sim && !cam_rig->get_simulation()) cam_rig->set_simulation(sim);
 		// Letters pick buildings while placing one, and typing never moves the camera.
 		Control *focus = get_viewport() ? get_viewport()->gui_get_focus_owner() : nullptr;
 		const bool typing = focus && (Object::cast_to<LineEdit>(focus) || focus->is_class("TextEdit"));
 		cam_rig->set_key_scroll_mode(typing ? RtsoCameraRig::KEYS_NONE
 				: build_mode ? RtsoCameraRig::KEYS_ARROWS_ONLY : RtsoCameraRig::KEYS_ALL);
+		// Cancel follow immediately on any user mouse interaction, box dragging, or build placement
+		Input *in = Input::get_singleton();
+		const bool user_interacted = in && (
+			in->is_mouse_button_pressed(MOUSE_BUTTON_LEFT) ||
+			in->is_mouse_button_pressed(MOUSE_BUTTON_RIGHT) ||
+			in->is_mouse_button_pressed(MOUSE_BUTTON_MIDDLE)
+		);
+		if (user_interacted || dragging || wall_drag_mode || build_mode) {
+			if (cam_rig->follow_id() != 0) cam_rig->set_follow_id(0);
+		}
+
 		if (const uint32_t fid = sim ? cam_rig->follow_id() : 0) {
 			bool alive = false;
 			auto fview = sim->units();
 			for (size_t i = 0; i < fview.count; ++i) {
 				if (fview.id[i] == fid && fview.alive[i]) {
-					cam_rig->follow_to(Vector3(fview.pos_x[i], 0, fview.pos_z[i]));
 					alive = true;
 					break;
 				}

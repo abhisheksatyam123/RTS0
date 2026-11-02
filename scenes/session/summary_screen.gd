@@ -626,6 +626,11 @@ static func _dropdown_font() -> FontVariation:
 		_dd_font.spacing_bottom = -5
 	return _dd_font
 
+static func clear_cache() -> void:
+	_bold_font = null
+	_dd_font = null
+	pending.clear()
+
 func _label(text: String, size := 14, color := Color.WHITE) -> Label:
 	var l := Label.new()
 	l.text = text

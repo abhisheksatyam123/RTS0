@@ -1,3 +1,4 @@
+#include "../graphics/gpu_separation.h"
 // P4.6: RtsoMain's debug_* hooks, the queries and steps the Godot e2e tests drive the session through.
 
 #include <algorithm>
@@ -559,6 +560,34 @@ Vector2 RtsoMain::debug_spawn_offset(const String &template_id, int count, int p
 // Test hook: spawns `count` of the roster template `template_id` (e.g.
 // "athen/support_female_citizen") for the local player in a row by its Civic Centre,
 // 3 m apart from debug_spawn_offset.
+Dictionary RtsoMain::debug_test_gpu_separation(int count) {
+	Dictionary out;
+	if (count <= 0) count = 1000;
+	bool avail = rtso::GpuSeparation::instance().is_available();
+	out["available"] = avail;
+	if (!avail) {
+		out["success"] = false;
+		return out;
+	}
+	std::vector<float> pos(count * 2);
+	for (int i = 0; i < count; ++i) {
+		pos[i * 2 + 0] = (float)(i % 50) * 1.5f;
+		pos[i * 2 + 1] = (float)(i / 50) * 1.5f;
+	}
+	std::vector<float> forces(count * 2, 0.0f);
+	uint64_t t0 = Time::get_singleton()->get_ticks_usec();
+	bool ok = rtso::GpuSeparation::instance().compute_forces((size_t)count, pos.data(), forces.data(), 4.0f, 2.5f, 50.0f);
+	uint64_t t1 = Time::get_singleton()->get_ticks_usec();
+	out["success"] = ok;
+	out["elapsed_us"] = (int64_t)(t1 - t0);
+	float sum = 0.0f;
+	for (int i = 0; i < count; ++i) {
+		sum += std::sqrt(forces[i * 2 + 0] * forces[i * 2 + 0] + forces[i * 2 + 1] * forces[i * 2 + 1]);
+	}
+	out["force_sum"] = sum;
+	return out;
+}
+
 PackedInt32Array RtsoMain::debug_spawn_units(const String &template_id, int count, int player, int near_player) {
 	PackedInt32Array out;
 	if (!sim) return out;

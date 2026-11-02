@@ -19,6 +19,7 @@ public:
 	static JobSystem &instance();
 
 	void start(unsigned worker_count = 0);
+	static unsigned physical_core_count();
 	void stop();
 	~JobSystem() { stop(); }
 	bool running() const { return started_; }
@@ -29,6 +30,9 @@ public:
 	void parallel_for(size_t count, const std::function<void(size_t begin, size_t end)> &fn,
 			size_t min_grain = 16);
 
+	// TODO-JOB-02: Execute two independent tasks concurrently (Task DAG fork-join)
+	void parallel_invoke(const std::function<void()> &fn_a, const std::function<void()> &fn_b);
+
 	template <typename F>
 	void for_each_index(size_t count, F &&fn, size_t min_grain = 16) {
 		parallel_for(count, [&](size_t a, size_t b) {
@@ -37,19 +41,28 @@ public:
 	}
 
 private:
-	// One parallel_for at a time. Its chunks are claimed from `next_`, which carries the job's
-	// epoch in its high 32 bits: a worker that wakes late, after the job is over, fails to claim
-	// and goes back to waiting, so the caller waits only for the chunks already claimed, never for
-	// every worker to wake, and a worker never runs a chunk of a job it didn't see start.
+	// TODO-JOB-01: Cache-line aligned per-worker work-stealing queue (Chase-Lev style range deque).
+	// Each participant thread pops from its own [head, tail) chunk range first (zero cross-core
+	// atomic contention) and steals from other threads' queues when its local range is exhausted.
+	struct alignas(64) WorkerQueue {
+		std::atomic<uint64_t> head{0};
+		uint32_t tail = 0;
+		uint8_t pad[64 - sizeof(std::atomic<uint64_t>) - sizeof(uint32_t)]{};
+	};
+
+	static constexpr size_t kMaxParticipants = 64;
+
 	struct Job {
 		const std::function<void(size_t, size_t)> *fn = nullptr;
 		size_t count = 0;
 		size_t grain = 1;
 		std::atomic<uint32_t> chunks{0};
+		uint32_t num_queues = 1;
 	};
-	void worker_main();
+	void worker_main(unsigned worker_idx);
 	// Runs chunks of the job of `epoch` until none is left (or another job has begun).
-	void run_chunks(uint32_t epoch);
+	void run_chunks(uint32_t epoch, unsigned participant_idx);
+	WorkerQueue queues_[kMaxParticipants];
 	std::mutex mu_;
 	std::condition_variable cv_work_;
 	std::vector<std::thread> workers_;

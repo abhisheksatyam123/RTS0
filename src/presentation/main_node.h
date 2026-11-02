@@ -844,6 +844,7 @@ public:
 	Dictionary debug_selection_state();
 	Array debug_command_row();
 	void _on_top_counter_gui_input(const Ref<InputEvent> &event);
+	Dictionary debug_test_gpu_separation(int count = 1000);
 	PackedInt32Array debug_spawn_units(const String &template_id, int count, int player = -1, int near_player = -1);
 	void debug_complete_research(int player, int tech); // tests: the technology finishes for the player
 	void debug_set_capture_points(int64_t building_id, int player, float points); // tests: taken from the owner
@@ -1009,6 +1010,11 @@ public:
 	Dictionary get_civ_info(int civ_idx) const;
 	Dictionary get_tech_tree() const;
 	Dictionary get_match_summary() const;
+	int get_unit_count() const { return sim ? (int)sim->unit_count() : 0; }
+	PackedInt32Array get_selected_ids() const { return selected_ids; }
+	bool has_selection() const { return !selected_ids.is_empty() || selected_building_id != 0; }
+	bool is_placing_building() const { return build_mode; }
+	void select_all_military();
 	// Named saves (0 A.D. gui/savedgames): writes path and its .json metadata.
 	bool save_game_as(String name, String description);
 	// Replays (0 A.D. ps/Replay.cpp + gui/replaymenu).
@@ -1250,7 +1256,7 @@ private:
 	void set_follow_player(bool on);
 	bool is_follow_player() const { return follow_player_; }
 	void follow_player_tick();
-	void follow_focus(uint32_t id, bool select);
+	void follow_focus(uint32_t id, bool select, bool continuous_track = false);
 	void follow_command(const rtso::NetCommand &c);
 	bool observer_view_gaia_ = false; // Gaia picked (its view is the observer's)
 	void sync_observer_view_picker();

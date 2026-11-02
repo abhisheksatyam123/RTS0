@@ -12,46 +12,59 @@ anchor_top = 0.5
 anchor_right = 1.0
 anchor_bottom = 0.5
 offset_left = -64.0
-offset_top = -140.0
+offset_top = -170.0
 offset_right = -12.0
-offset_bottom = 140.0
+offset_bottom = 170.0
 grow_horizontal = 0
 grow_vertical = 2
 theme_override_constants/separation = 8
 
+[node name="BtnAuto" type="Button" parent="RightBar"]
+custom_minimum_size = Vector2(52, 42)
+layout_mode = 2
+tooltip_text = "AUTO: OFF: You control everything."
+text = "🤖
+OFF"
+
 [node name="BtnArmy" type="Button" parent="RightBar"]
 custom_minimum_size = Vector2(52, 42)
 layout_mode = 2
+tooltip_text = "Select all military units"
 text = "⚔️
 Army"
 
 [node name="BtnIdle" type="Button" parent="RightBar"]
 custom_minimum_size = Vector2(52, 42)
 layout_mode = 2
+tooltip_text = "Cycle idle workers"
 text = "🧑
 Idle"
 
 [node name="BtnStop" type="Button" parent="RightBar"]
 custom_minimum_size = Vector2(52, 42)
 layout_mode = 2
+tooltip_text = "Stop current orders"
 text = "🛑
 Stop"
 
 [node name="BtnBuild" type="Button" parent="RightBar"]
 custom_minimum_size = Vector2(52, 42)
 layout_mode = 2
+tooltip_text = "Open building placement"
 text = "🔨
 Build"
 
 [node name="BtnMarket" type="Button" parent="RightBar"]
 custom_minimum_size = Vector2(52, 42)
 layout_mode = 2
+tooltip_text = "Open Agora / Market trading"
 text = "⚖️
 Agora"
 
 [node name="BtnDiplo" type="Button" parent="RightBar"]
 custom_minimum_size = Vector2(52, 42)
 layout_mode = 2
+tooltip_text = "Open Diplomacy dialog"
 text = "🏛️
 Diplo"
 
@@ -60,11 +73,19 @@ anchors_preset = 4
 anchor_top = 0.5
 anchor_bottom = 0.5
 offset_left = 12.0
-offset_top = -76.0
+offset_top = -105.0
 offset_right = 64.0
-offset_bottom = 76.0
+offset_bottom = 105.0
 grow_vertical = 2
 theme_override_constants/separation = 8
+
+[node name="BtnBox" type="Button" parent="LeftBar"]
+custom_minimum_size = Vector2(52, 42)
+layout_mode = 2
+tooltip_text = "Box Select: drag to draw selection box (when off, drag pans camera)"
+toggle_mode = true
+text = "📦
+Box"
 
 [node name="BtnShift" type="Button" parent="LeftBar"]
 custom_minimum_size = Vector2(52, 42)
@@ -77,7 +98,7 @@ Shift"
 [node name="BtnCtrl" type="Button" parent="LeftBar"]
 custom_minimum_size = Vector2(52, 42)
 layout_mode = 2
-tooltip_text = "Ctrl: garrison (then hold on a building), attack-move, remove from the selection"
+tooltip_text = "Ctrl: garrison, attack-move, group orders"
 toggle_mode = true
 text = "⌃
 Ctrl"
@@ -90,12 +111,14 @@ toggle_mode = true
 text = "⌥
 Alt"
 
+[connection signal="pressed" from="RightBar/BtnAuto" to="." method="_on_auto_pressed"]
 [connection signal="pressed" from="RightBar/BtnArmy" to="." method="_on_army_pressed"]
 [connection signal="pressed" from="RightBar/BtnIdle" to="." method="_on_idle_pressed"]
 [connection signal="pressed" from="RightBar/BtnStop" to="." method="_on_stop_pressed"]
 [connection signal="pressed" from="RightBar/BtnBuild" to="." method="_on_build_pressed"]
 [connection signal="pressed" from="RightBar/BtnMarket" to="." method="_on_market_pressed"]
 [connection signal="pressed" from="RightBar/BtnDiplo" to="." method="_on_diplo_pressed"]
+[connection signal="toggled" from="LeftBar/BtnBox" to="." method="_on_box_toggled"]
 [connection signal="toggled" from="LeftBar/BtnShift" to="." method="_on_shift_toggled"]
 [connection signal="toggled" from="LeftBar/BtnCtrl" to="." method="_on_ctrl_toggled"]
 [connection signal="toggled" from="LeftBar/BtnAlt" to="." method="_on_alt_toggled"]

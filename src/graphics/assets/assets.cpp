@@ -4,6 +4,7 @@
 #include <godot_cpp/templates/hash_map.hpp>
 
 #include <mutex>
+#include <shared_mutex>
 
 using namespace godot;
 
@@ -14,14 +15,14 @@ bool Assets::res_exists(const String &path) {
 	// the same few hundred paths every frame (decals, ambient effects, building variants), each
 	// a file system lookup: answers for res:// paths are kept. Others (user://) are asked afresh.
 	if (!path.begins_with("res://")) return ResourceLoader::get_singleton()->exists(path);
-	static std::mutex mu;
-	static HashMap<String, bool> known;
+	static std::shared_mutex mu;
+	static auto &known = *new HashMap<String, bool>();
 	{
-		std::lock_guard<std::mutex> lock(mu);
+		std::shared_lock<std::shared_mutex> read_lock(mu);
 		if (const bool *b = known.getptr(path)) return *b;
 	}
 	const bool found = ResourceLoader::get_singleton()->exists(path);
-	std::lock_guard<std::mutex> lock(mu);
+	std::unique_lock<std::shared_mutex> write_lock(mu);
 	known.insert(path, found);
 	return found;
 }

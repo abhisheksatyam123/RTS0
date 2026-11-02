@@ -14,6 +14,7 @@ Each doc owns one topic. When a fact belongs to another doc's topic, link to tha
 | Building, exporting, CI | [BUILD.md](BUILD.md) | |
 | Netcode model, multiplayer rules, playtest harnesses | [MULTIPLAYER.md](MULTIPLAYER.md) | Code-level notes: [src/network/README.md](../src/network/README.md). |
 | Performance strategy and benchmarks | [PERFORMANCE.md](PERFORMANCE.md) | |
+| CPU & GPU utilization profiling & scaling roadmap | [CPU_GPU_UTILIZATION_REPORT.md](CPU_GPU_UTILIZATION_REPORT.md) | Multi-core CPU & Vulkan GPU profiling across 150–7,600 units, 5-track optimization roadmap |
 | Session HUD parity with 0 A.D. `gui/session` | [UI_PARITY.md](UI_PARITY.md) | |
 | Petra AI parity with 0 A.D. `ai/petra` | [AI_PETRA.md](AI_PETRA.md) | |
 | Asset coverage and asset todo | [ASSET_MANIFEST_TODO.md](ASSET_MANIFEST_TODO.md) | The only place asset counts live. |

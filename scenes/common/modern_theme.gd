@@ -21,6 +21,10 @@ static func theme() -> Theme:
 		_theme = _build()
 	return _theme
 
+static func clear_cache() -> void:
+	_theme = null
+	_bold = null
+
 static func _tex(file: String) -> Texture2D:
 	return load(DIR + file) if ResourceLoader.exists(DIR + file) else null
 

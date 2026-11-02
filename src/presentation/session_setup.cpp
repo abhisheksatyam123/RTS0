@@ -83,14 +83,16 @@ static uint32_t spawn_map_wall(rtso::Simulation &sim, const Dictionary &b, uint8
 				rtso::Simulation::STRUCT_OFF_TRAIN);
 		return id;
 	}
+	const String tmpl = b.get("template", "");
+	const bool low_wall = tmpl.contains("cart/s_wall_");
 	const String ws = b.get("wallset", "stone"), piece = b.get("piece", "wall");
-	const uint8_t kind = ws == "palisade" ? rtso::WALLSET_PALISADE : ws == "siege" ? rtso::WALLSET_SIEGE : rtso::WALLSET_STONE;
+	const uint8_t kind = (ws == "palisade" || low_wall) ? rtso::WALLSET_PALISADE : ws == "siege" ? rtso::WALLSET_SIEGE : rtso::WALLSET_STONE;
 	const uint8_t p = piece == "tower" ? rtso::Simulation::MAP_WALL_TOWER
 			: piece == "gate" ? rtso::Simulation::MAP_WALL_GATE : rtso::Simulation::MAP_WALL_SEGMENT;
 	const uint32_t id = sim.spawn_map_wall_piece(player, kind, p, (float)b.get("x", 0.0), (float)b.get("z", 0.0),
 			(float)b.get("angle", 0.0), (float)b.get("length", 9.0));
-	// cart/s_wall_long, the Low Wall: its own gate upgrade price.
-	if (id && String(b.get("template", "")).ends_with("cart/s_wall_long")) sim.set_structure_off(id, rtso::Simulation::STRUCT_LOW_WALL);
+	// cart/s_wall_*, the Low Wall: palisade classes (Defensive Palisade, no Wall) and its own gate upgrade price.
+	if (id && low_wall) sim.set_structure_off(id, rtso::Simulation::STRUCT_LOW_WALL);
 	// palisades_spike_* (<TerritoryDecay disable=""/>).
 	if (id && (bool)b.get("no_decay", false)) sim.set_structure_no_decay(id);
 	if (id && (bool)b.get("no_capture", false)) sim.set_structure_uncapturable(id);
@@ -197,6 +199,23 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 	random_map_ = false;
 
 	// 1. Procedural Random Map Generation (RMS Engine)
+	if (map_id == "frontline_clash" || map_id == "random_frontline_clash") {
+		random_map_ = true;
+		load_progress(40, "Generating battle arena");
+		sim->generate_random_map(rtso::MAP_MAINLAND, seed, 2, (float)random_map_size * 0.5f, random_map_teams);
+		load_progress(70, "Building terrain");
+		view->rebuild_terrain(sim);
+
+		if (cam_rig) {
+			cam_rig->set_simulation(sim);
+			cam_rig->set_map_bounds_half(sim->map_half());
+			cam_rig->set_map_circular(false);
+			cam_rig->set_target_pos(Vector3(0, 0, 0));
+		}
+
+		UtilityFunctions::print("[RtsoMain] Generated battle arena for Frontline Clash (seed=", (int64_t)seed, ")");
+		return true;
+	}
 	if (map_id.begins_with("random_") || map_id.begins_with("procedural_") ||
 		map_id == "continental" || map_id == "archipelago" || map_id == "oasis" ||
 		map_id == "highlands" || map_id == "valley" || map_id == "mediterranean" ||
@@ -232,8 +251,8 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		view->rebuild_terrain(sim);
 
 		if (cam_rig) {
+			cam_rig->set_simulation(sim);
 			cam_rig->set_map_bounds_half(sim->map_half());
-		cam_rig->set_map_circular(sim->circular_map());
 			cam_rig->set_map_circular(sim->circular_map());
 			for (const auto &b : sim->buildings()) {
 				if (b.team == local_player() && rtso::is_civic_centre(b.type)) {
@@ -626,6 +645,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 	load_progress(70, "Building terrain");
 	view->rebuild_terrain(sim);
 	if (cam_rig) {
+		cam_rig->set_simulation(sim);
 		cam_rig->set_map_bounds_half(sim->map_half());
 		// 0 A.D. opens on the player's civic centre (session.js initGUIObjects
 		// jumps to it); scenarios without one fall back to Player 1's start. A map's
@@ -957,11 +977,34 @@ void RtsoMain::apply_match_settings() {
 	UtilityFunctions::print("[RtsoMain] GameSetup ", map_id, " seed ", (int64_t)seed,
 			" civ ", rtso::civ_info(sim->player_civ(local_player() < rtso::MAX_PLAYERS ? local_player() : 0)).name,
 			" vs ", rtso::civ_info(sim->team_civ(1)).name);
+
+	// Track G (T47): Apply Skirmish & Siege Battle Presets ("frontline_clash" / "fortress_siege")
+	const String preset = ms->has_method("get") ? (String)ms->get("battle_preset") : "";
+	const bool is_frontline = (preset == "frontline_clash" || map_id == "frontline_clash");
+	if (is_frontline) {
+		int battle_units = ms->has_method("get") ? (int)ms->get("battle_units") : 0;
+		if (battle_units <= 0) battle_units = 1600;
+		spawn_large_battle(battle_units);
+		if (ms->has_method("set")) ms->set("battle_preset", "");
+	} else if (preset == "fortress_siege") {
+		sim->set_waves_enabled(true);
+		for (const auto &b : sim->buildings()) {
+			if (b.team == local_player() && rtso::is_civic_centre(b.type)) {
+				sim->spawn_building_world(b.x + 14.0f, b.z + 10.0f, rtso::BLD_FORTRESS, local_player(), 1.0f);
+				sim->spawn_building_world(b.x - 14.0f, b.z + 10.0f, rtso::BLD_TOWER, local_player(), 1.0f);
+				sim->spawn_building_world(b.x + 14.0f, b.z - 10.0f, rtso::BLD_TOWER, local_player(), 1.0f);
+				break;
+			}
+		}
+		if (ms->has_method("set")) ms->set("battle_preset", "");
+	}
+
 	// Map just (re)spawned - select the human player's units like the old
 	// _ready tail did (it ran before any map existed, so it selected nothing).
 	clear_selection();
 	auto uview = sim->units();
-	for (size_t i = 0; i < uview.count; ++i) {
+	const size_t max_initial_sel = is_frontline ? 40 : 1000;
+	for (size_t i = 0; i < uview.count && selected_ids.size() < (int64_t)max_initial_sel; ++i) {
 		if (uview.team[i] == local_player()) selected_ids.push_back((int32_t)uview.id[i]);
 	}
 }

@@ -6,8 +6,13 @@
 #include <godot_cpp/classes/input_event.hpp>
 #include <godot_cpp/variant/vector3.hpp>
 #include <godot_cpp/variant/dictionary.hpp>
+#include <godot_cpp/core/math.hpp>
 
 using namespace godot;
+
+namespace rtso {
+class Simulation;
+}
 
 class RtsoCameraRig : public Node3D {
 	GDCLASS(RtsoCameraRig, Node3D);
@@ -32,6 +37,9 @@ class RtsoCameraRig : public Node3D {
 	void clamp_to_map(Vector3 &p) const;
 	bool mmb_dragging = false;
 	bool edge_scroll_enabled = true;
+	float edge_scroll_margin_ = 12.0f;
+	float edge_scroll_speed_ = 1.0f;
+	bool mouse_in_window_ = false;
 	// Camera pitch in degrees below the horizon (0 A.D. camera.rotate.up/down).
 	float pitch_deg = 35.0f;
 	float target_pitch_deg = 35.0f;
@@ -49,6 +57,7 @@ class RtsoCameraRig : public Node3D {
 	// 0 A.D. camera.{scroll,rotate,zoom}.speed.{increase,decrease}: the keyboard
 	// (and edge) scroll, rotate and zoom speeds, as factors of RTS0's defaults.
 	Vector3 speed_mul_ = Vector3(1, 1, 1);
+	const rtso::Simulation *sim_ = nullptr;
 
 protected:
 	static void _bind_methods();
@@ -57,9 +66,13 @@ public:
 	RtsoCameraRig();
 	~RtsoCameraRig();
 
+	void _notification(int what);
 	void _ready() override;
 	void _process(double delta) override;
 	void _unhandled_input(const Ref<InputEvent> &event) override;
+
+	void set_simulation(const rtso::Simulation *sim) { sim_ = sim; }
+	const rtso::Simulation *get_simulation() const { return sim_; }
 
 	Camera3D *get_camera() const { return cam; }
 	Vector3 get_target_pos() const { return target_pos; }
@@ -83,9 +96,14 @@ public:
 	void set_key_scroll_mode(int mode) { key_scroll_mode_ = mode; }
 	void set_follow_id(uint32_t id) { follow_id_ = id; }
 	uint32_t follow_id() const { return follow_id_; }
+	void cancel_follow() { follow_id_ = 0; }
 	// Keeps the followed unit centred; called every frame by the main node.
 	void follow_to(Vector3 pos);
 	void set_edge_scroll_enabled(bool enabled) { edge_scroll_enabled = enabled; }
+	float get_edge_scroll_margin() const { return edge_scroll_margin_; }
+	void set_edge_scroll_margin(float m) { edge_scroll_margin_ = Math::max(1.0f, m); }
+	float get_edge_scroll_speed() const { return edge_scroll_speed_; }
+	void set_edge_scroll_speed(float s) { edge_scroll_speed_ = Math::max(0.01f, s); }
 	void set_cinema_view(bool on) { cinema_view_ = on; mmb_dragging = false; }
 	bool cinema_view() const { return cinema_view_; }
 	// session.js getSavedGameData / restoreSavedGameData's camera (Engine.SetCameraData):
@@ -100,8 +118,20 @@ public:
 		target_yaw = yaw_angle = (float)(double)d.get("yaw", target_yaw);
 		target_pitch_deg = pitch_deg = (float)(double)d.get("pitch", target_pitch_deg);
 		target_zoom = zoom_height = (float)(double)d.get("zoom", target_zoom);
+		if (constrain_) {
+			target_pitch_deg = pitch_deg = Math::clamp(target_pitch_deg, pitch_min_, pitch_max_);
+			target_zoom = zoom_height = Math::clamp(target_zoom, zoom_min_, zoom_max_);
+		}
 		follow_id_ = 0;
 		set_target_pos(Vector3((float)(double)d.get("x", target_pos.x), target_pos.y, (float)(double)d.get("z", target_pos.z)));
+		set_global_position(target_pos);
+		set_rotation(Vector3(0, yaw_angle, 0));
+		if (cam) {
+			const float pitch = Math::deg_to_rad(pitch_deg);
+			cam->set_position(Vector3(0, zoom_height * Math::sin(pitch), zoom_height * Math::cos(pitch)));
+			cam->set_rotation(Vector3(-pitch, 0, 0));
+			cam->force_update_transform();
+		}
 	}
 	enum SpeedKind { SPEED_SCROLL = 0, SPEED_ROTATE = 1, SPEED_ZOOM = 2 };
 	// CCameraController: multiplies (or divides) by view.<kind>.speed.modifier.

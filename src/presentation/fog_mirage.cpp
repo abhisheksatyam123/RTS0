@@ -2,6 +2,7 @@
 // See fog_mirage.h for the 0 A.D. sources this ports.
 #include "fog_mirage.h"
 
+#include "../core/job_system.h"
 #include "../simulation/simulation.h"
 
 #include <algorithm>
@@ -64,15 +65,15 @@ void los_view_grid(const Simulation &sim, uint8_t viewer, std::vector<uint8_t> &
 	const uint8_t mask = sim.los_shared_mask(viewer);
 	const uint8_t unseen = sim.explore_map() ? (uint8_t)Simulation::FOW_EXPLORED : (uint8_t)Simulation::FOW_UNEXPLORED;
 	const auto &state = los.state();
-	for (size_t i = 0; i < n; ++i) {
+	JobSystem::instance().for_each_index(n, [&](size_t i) {
 		// A circular map's off-world cells stay black for everyone, even with the map revealed or
 		// explored (CCmpRangeManager GetLosVisibilityPosition, ExploreMap).
-		if (los.off_world((int)i)) { out[i] = (uint8_t)Simulation::FOW_UNEXPLORED; continue; }
-		if (sees_all) { out[i] = (uint8_t)Simulation::FOW_VISIBLE; continue; }
+		if (los.off_world((int)i)) { out[i] = (uint8_t)Simulation::FOW_UNEXPLORED; return; }
+		if (sees_all) { out[i] = (uint8_t)Simulation::FOW_VISIBLE; return; }
 		const uint16_t st = state[i];
 		out[i] = (st & mask) ? (uint8_t)Simulation::FOW_VISIBLE
 				: ((st >> 8) & mask) ? (uint8_t)Simulation::FOW_EXPLORED : unseen;
-	}
+	}, 512);
 }
 
 uint8_t FogMirages::los_at(float x, float z) const {
@@ -474,6 +475,14 @@ void FogMirages::pass(const Simulation &sim, uint8_t viewer) {
 // LosShading (CLOSTexture)
 // =============================================================================
 
+namespace {
+LosShading::GpuBitmapFn g_los_gpu_fn = nullptr;
+} // namespace
+
+void LosShading::register_gpu_hook(GpuBitmapFn fn) {
+	g_los_gpu_fn = fn;
+}
+
 void LosShading::generate_bitmap(const uint8_t *fow, int res, std::vector<uint8_t> &out) {
 	const int fr = res * UPSAMPLE; // bitmap pixels a side
 	out.assign((size_t)fr * (size_t)fr, 0);
@@ -521,25 +530,28 @@ void LosShading::generate_bitmap(const uint8_t *fow, int res, std::vector<uint8_
 	// hz: pitch rows of fr columns (horizontal pass; padding rows stay 0).
 	thread_local std::vector<uint8_t> hz;
 	hz.assign((size_t)pitch * (size_t)fr, 0);
-	for (int j = pad; j < fr + pad; ++j) {
-		const uint8_t *p = &a[(size_t)j * pitch];
-		uint8_t *o = &hz[(size_t)j * fr];
+	const uint8_t *a_ptr = a.data();
+	uint8_t *hz_ptr = hz.data();
+	JobSystem::instance().for_each_index((size_t)fr, [&](size_t row_idx) {
+		const int j = (int)row_idx + pad;
+		const uint8_t *p = &a_ptr[(size_t)j * pitch];
+		uint8_t *o = &hz_ptr[(size_t)j * fr];
 		for (int i = 0; i < fr; ++i) {
 			const unsigned v = 1u * p[i] + 6u * p[i + 1] + 15u * p[i + 2] + 20u * p[i + 3] +
 					15u * p[i + 4] + 6u * p[i + 5] + 1u * p[i + 6];
 			o[i] = (uint8_t)(v >> 6);
 		}
-	}
+	}, 16);
 	const size_t s = (size_t)fr;
-	for (int j = 0; j < fr; ++j) {
+	JobSystem::instance().for_each_index((size_t)fr, [&](size_t j) {
 		uint8_t *o = &out[(size_t)j * fr];
-		const uint8_t *p0 = &hz[(size_t)j * fr];
+		const uint8_t *p0 = &hz_ptr[(size_t)j * fr];
 		for (int i = 0; i < fr; ++i) {
 			const unsigned v = 1u * p0[i] + 6u * p0[i + s] + 15u * p0[i + 2 * s] + 20u * p0[i + 3 * s] +
 					15u * p0[i + 4 * s] + 6u * p0[i + 5 * s] + 1u * p0[i + 6 * s];
 			o[i] = (uint8_t)(v >> 6);
 		}
-	}
+	}, 16);
 }
 
 void LosShading::set_target(const uint8_t *fow, int res) {
@@ -550,22 +562,29 @@ void LosShading::set_target(const uint8_t *fow, int res) {
 	const bool resized = res != res_;
 	res_ = res;
 	last_fow_.assign(fow, fow + n);
-	generate_bitmap(fow, res, target_);
+	if (!g_los_gpu_fn || !g_los_gpu_fn(fow, res, target_)) {
+		generate_bitmap(fow, res, target_);
+	}
 	since_recompute_ = 0.0f;
 	settled_ = false;
-	if (resized || shown_.size() != target_.size()) shown_ = target_;
+	++gen_;
+	if (resized || shown_.size() != target_.size()) {
+		shown_ = target_;
+	}
 }
 
 void LosShading::snap() {
 	shown_ = target_;
 	since_recompute_ = 1.0f;
 	settled_ = true;
+	++gen_;
 }
 
 bool LosShading::interpolate(float dt) {
 	if (shown_.size() != target_.size()) {
 		shown_ = target_;
 		settled_ = true;
+		++gen_;
 		return true;
 	}
 	if (settled_) return false;
@@ -586,6 +605,7 @@ bool LosShading::interpolate(float dt) {
 		diff_any |= (uint8_t)(v != t[i]);
 	}
 	settled_ = diff_any == 0;
+	if (settled_) ++gen_;
 	return true;
 }
 

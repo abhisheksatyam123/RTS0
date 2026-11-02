@@ -294,11 +294,22 @@ int main(int argc, char **argv) {
 	int ticks = 600;
 	bool serial = false;
 	bool trace = false;
+	Scenario custom{}; // used when --scenario is a bare number
+	bool have_custom = false;
+	int workers = -1;
 	for (int i = 1; i < argc; ++i) {
 		if (std::strcmp(argv[i], "--scenario") == 0 && i + 1 < argc) {
 			which = argv[++i];
+			char *end = nullptr;
+			const long n = std::strtol(which, &end, 10);
+			if (end && *end == 0 && n >= 2 && n <= 1000000) {
+				custom = {"custom", (int)n, 4004u};
+				have_custom = true;
+			}
 		} else if (std::strcmp(argv[i], "--ticks") == 0 && i + 1 < argc) {
 			ticks = std::atoi(argv[++i]);
+		} else if (std::strcmp(argv[i], "--workers") == 0 && i + 1 < argc) {
+			workers = std::atoi(argv[++i]);
 		} else if (std::strcmp(argv[i], "--serial") == 0) {
 			serial = true;
 		} else if (std::strcmp(argv[i], "--trace") == 0) {
@@ -313,7 +324,10 @@ int main(int argc, char **argv) {
 		return 2;
 	}
 
-	if (!serial) JobSystem::instance().start();
+	if (!serial) {
+		if (workers >= 0) JobSystem::instance().start((unsigned)workers);
+		else JobSystem::instance().start();
+	}
 	std::printf("bench_sim: ticks=%d fixed_step=%.4f job_workers=%u mode=%s trace=%s\n",
 		ticks, (double)Simulation::FIXED_STEP, JobSystem::instance().worker_count(),
 		serial ? "serial" : "pool", trace ? "on" : "off");
@@ -323,6 +337,7 @@ int main(int argc, char **argv) {
 		"sim_hash", "state_fnv64", "trace");
 	int ran = 0;
 	for (const Scenario &sc : kScenarios) {
+		if (have_custom) break;
 		if (std::strcmp(which, "all") != 0 && std::strcmp(which, sc.name) != 0) continue;
 		Result r = run_scenario(sc, ticks, trace);
 		++ran;
@@ -334,6 +349,17 @@ int main(int argc, char **argv) {
 			r.name, units, r.ticks_run, r.mean_ms, r.p95_ms, r.max_ms, r.total_ms,
 			r.game_over ? "yes" : "no", r.sim_hash,
 			(unsigned long long)r.state_fnv, trace_s);
+		std::fflush(stdout);
+	}
+	if (have_custom) {
+		Result r = run_scenario(custom, ticks, trace);
+		++ran;
+		char units[32];
+		std::snprintf(units, sizeof units, "%zu->%zu", r.units_start, r.units_end);
+		std::printf("%-8s %-13s %6zu %9.4f %9.4f %9.4f %10.2f %4s 0x%08X   0x%016llx %s\n",
+			r.name, units, r.ticks_run, r.mean_ms, r.p95_ms, r.max_ms, r.total_ms,
+			r.game_over ? "yes" : "no", r.sim_hash,
+			(unsigned long long)r.state_fnv, "-");
 		std::fflush(stdout);
 	}
 	if (ran == 0) {

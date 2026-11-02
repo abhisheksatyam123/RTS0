@@ -394,7 +394,11 @@ inline void sincos_approx(Fixed a, Fixed& sin_out, Fixed& cos_out)
 	cos_out = cz.Multiply(Fixed::Pi() - cz2.Multiply(Fixed::Pi() * 2 - Fixed::FromInt(5) - cz2.Multiply(Fixed::Pi() - Fixed::FromInt(3)))) / 2;
 }
 
+using CFixed_15_16 = Fixed;
+
 } // namespace fixed
+
+using CFixed_15_16 = fixed::CFixed_15_16;
 
 } // namespace rtso
 

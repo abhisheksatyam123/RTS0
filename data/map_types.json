@@ -2648,6 +2648,33 @@
 		"zagros_mountains": {
 			"keywords": [],
 			"type": "skirmish"
+		},
+		"frontline_clash": {
+			"keywords": [
+				"battle",
+				"clash",
+				"huge",
+				"combat",
+				"epic"
+			],
+			"settings": {
+				"LockTeams": true,
+				"RevealMap": true,
+				"VictoryConditions": [
+					"conquest"
+				],
+				"players": [
+					{
+						"civ": "athen",
+						"team": 0
+					},
+					{
+						"civ": "spart",
+						"team": 1
+					}
+				]
+			},
+			"type": "scenario"
 		}
 	},
 	"player_placements": {

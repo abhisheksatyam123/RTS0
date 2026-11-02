@@ -297,8 +297,26 @@ void RtsoMain::_on_call_to_arms_pressed() {
 // g_EntityCommands execute() for the command row, and the hotkeys that run them.
 void RtsoMain::_on_entity_command(const String &name) {
 	if (!sim) return;
-	const uint32_t *ids = (const uint32_t *)selected_ids.ptr();
-	const size_t n = selected_ids.size();
+	std::vector<uint32_t> owned_ids;
+	owned_ids.reserve(selected_ids.size());
+	const uint8_t me = local_player();
+	const bool ctrl_all = sim->controls_all(me);
+	auto uview = sim->units();
+	for (int s = 0; s < selected_ids.size(); ++s) {
+		const uint32_t uid = (uint32_t)selected_ids[s];
+		if (ctrl_all || sim->fauna_selectable_by(me, uid)) {
+			owned_ids.push_back(uid);
+			continue;
+		}
+		for (size_t u = 0; u < uview.count; ++u) {
+			if (uview.id[u] == uid) {
+				if (uview.alive[u] && uview.team[u] == me) owned_ids.push_back(uid);
+				break;
+			}
+		}
+	}
+	const uint32_t *ids = owned_ids.data();
+	const size_t n = owned_ids.size();
 	auto arm = [&](bool &mode) {
 		if (n == 0) return;
 		attack_move_mode = patrol_mode = guard_mode = call_to_arms_mode = garrison_mode = turret_mode = repair_mode = false;
@@ -373,6 +391,7 @@ void RtsoMain::_on_entity_command(const String &name) {
 	} else if (name == "focus-rally") {
 		// The first selected entity with a rally point, else the first one's position.
 		if (!cam_rig) return;
+		cam_rig->set_follow_id(0);
 		const std::vector<uint32_t> structs = selected_structures();
 		const auto &bs = sim->buildings();
 		auto find_b = [&](uint32_t id) -> const rtso::Simulation::Building * {
@@ -1123,3 +1142,22 @@ void RtsoMain::_on_queue_slot_cancel(int slot_idx) {
 	command_panel_.production_queue().cancel(slot_idx);
 }
 
+
+void RtsoMain::select_all_military() {
+	if (!sim) return;
+	PackedInt32Array ids;
+	auto uview = sim->units();
+	const uint8_t me = local_player();
+	for (size_t i = 0; i < uview.count; ++i) {
+		if (!uview.alive[i] || uview.team[i] != me) continue;
+		const uint16_t tmpl = uview.tmpl[i];
+		const rtso::TechClasses tc = tmpl < rtso::CIV_UNIT_TEMPLATE_COUNT ? rtso::civ_unit_template(tmpl).tech_classes : rtso::unit_tech_classes(uview.unit_type[i]);
+		if ((tc & (rtso::TC_MELEE | rtso::TC_RANGED)) != 0) {
+			ids.push_back((int32_t)uview.id[i]);
+		}
+	}
+	if (!ids.is_empty()) {
+		selected_ids = ids;
+		selected_building_id = 0;
+	}
+}

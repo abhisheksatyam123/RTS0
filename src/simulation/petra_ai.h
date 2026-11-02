@@ -169,7 +169,8 @@ enum PetraQueue : uint8_t {
 	PETRA_Q_PLAN,        // plan_<name>
 	PETRA_Q_PLAN_CHAMP,  // plan_<name>_champ
 	PETRA_Q_PLAN_SIEGE,  // plan_<name>_siege
-	PETRA_Q_COUNT
+	PETRA_Q_COUNT,
+	PETRA_Q_SHIPYARD = PETRA_Q_MILITARY_BUILDING
 };
 
 // queueManager.js funds the queues that hold a plan, by priority, up to that plan's cost.

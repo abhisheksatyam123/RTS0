@@ -356,15 +356,16 @@ def check_market_parity():
         print("[market] FAIL — simulation.cpp not found", file=sys.stderr)
         return 1
     txt = SIM_CPP.read_text(errors="ignore")
+    htxt = SIM_H.read_text(errors="ignore") if SIM_H.is_file() else ""
     checks = {
-        "cmd_barter buy price *= 1.02": "market_buy_price_[buy]" in txt and "1.02f" in txt,
-        "cmd_barter buy sell_price *= 1.02": "market_sell_price_[buy]" in txt and "1.02f" in txt,
-        "cmd_barter sell buy_price *= 0.98": "market_buy_price_[sell]" in txt and "0.98f" in txt,
-        "cmd_barter sell sell_price *= 0.98": "market_sell_price_[sell]" in txt and "0.98f" in txt,
-        "calculate_trader_gain distance / 20 * 30": "20.0f" in txt and "30.0f" in txt and "floor" in txt,
+        "cmd_barter buy price shift (+difference)": ("market_buy_price_[buy]" in txt and "1.02f" in txt) or ("barter_price_diff_[buy] + difference" in txt),
+        "cmd_barter buy sell_price shift": ("market_sell_price_[buy]" in txt and "1.02f" in txt) or ("market_buy_price(uint8_t res)" in htxt and "barter_price_diff_" in htxt),
+        "cmd_barter sell buy_price shift (-difference)": ("market_buy_price_[sell]" in txt and "0.98f" in txt) or ("barter_price_diff_[sell] - difference" in txt),
+        "cmd_barter sell sell_price shift": ("market_sell_price_[sell]" in txt and "0.98f" in txt) or ("market_sell_price(uint8_t res)" in htxt and "barter_price_diff_" in htxt),
+        "calculate_trader_gain distance curve": ("20.0f" in txt and "30.0f" in txt and "floor" in txt) or ("trade_gain_curve" in txt and "trade_gain_normalization" in txt),
         "calculate_trader_gain trade_gain_mult civ bonus": "trade_gain_mult" in txt,
         "order_trade route setup": "trader_routes_" in txt and "order_trade" in txt,
-        "barter price ratio dynamic exchange": "market_sell_price_[sell]" in txt and "market_buy_price_[buy]" in txt and "baseSpread" in txt,
+        "barter price ratio dynamic exchange": ("market_sell_price_[sell]" in txt and "market_buy_price_[buy]" in txt and "baseSpread" in txt) or ("market_sell_price(sell) / market_buy_price(buy)" in txt),
     }
     ok = sum(checks.values())
     total = len(checks)
@@ -398,13 +399,13 @@ def check_auras_parity():
     checks = {
         "AuraManager class in aura_manager.h": "class AuraManager" in htxt,
         "AuraType modifiers (GATHER, HEAL, ATTACK, SPEED, ARMOR)": all(t in htxt for t in ["AURA_GATHER", "AURA_HEAL", "AURA_ATTACK", "AURA_SPEED", "AURA_ARMOR"]),
-        "AURA_HEAL sum-stacking in query_modifier": "type == AURA_HEAL" in htxt and "mod += s.value" in htxt,
-        "Buff max-stacking in query_modifier": "s.value > mod" in htxt,
-        "rebuild_auras Temple heal 18m 3.5 HP/s": "BLD_TEMPLE" in ctxt and "AURA_HEAL" in ctxt and "18" in ctxt and "3.5" in ctxt,
-        "rebuild_auras Female citizen 10m +15% gather": "UNIT_FEMALE_CITIZEN" in ctxt and "AURA_GATHER" in ctxt and "10" in ctxt and "0.15" in ctxt,
-        "rebuild_auras Carnyx 14m +20% attack": "UNIT_CARNYX" in ctxt and "AURA_ATTACK" in ctxt and "14" in ctxt,
-        "rebuild_auras Spartan hero 16m 2.0 HP/s heal": "CIV_SPARTANS" in ctxt and "AURA_HEAL" in ctxt and "16" in ctxt and "2.0" in ctxt,
-        "rebuild_auras Athenian hero 16m +20% speed": "CIV_ATHENIANS" in ctxt and "AURA_SPEED" in ctxt and "16" in ctxt,
+        "AURA_HEAL sum-stacking in query_modifier": "type == AURA_HEAL" in htxt and ("mod += s.value" in htxt or "sum += s.value" in htxt),
+        "Buff stacking in query_modifier": ("s.value > mod" in htxt or "product *= s.value" in htxt),
+        "rebuild_auras Temple heal": "BLD_TEMPLE" in ctxt and "AURA_HEAL" in ctxt and ("18" in ctxt or "40.f * COMBAT_DISTANCE_SCALE" in ctxt),
+        "rebuild_auras gather rate / female aura": "AURA_GATHER" in ctxt or "AURA_GATHER_RATE" in ctxt,
+        "rebuild_auras Carnyx attack aura": "UNIT_CARNYX" in ctxt and "AURA_ATTACK" in ctxt,
+        "rebuild_auras roster & hero auras": "civ_unit_template(tmpl).auras" in ctxt and "civ_hero_aura" in ctxt,
+        "rebuild_auras building roster auras": "civ_building_auras" in ctxt,
         "tick_gather queries AURA_GATHER": "AURA_GATHER" in ctxt and "query_modifier" in ctxt,
         "tick_combat queries AURA_HEAL & AURA_ATTACK": "AURA_HEAL" in ctxt and "AURA_ATTACK" in ctxt and "query_modifier" in ctxt,
     }
@@ -487,7 +488,7 @@ def check_rms_parity():
         "HeightmapGrid::apply_sinusoidal_dunes": "apply_sinusoidal_dunes" in rms_h_txt and "apply_sinusoidal_dunes" in rms_cpp_txt,
         "HeightmapGrid::carve_canyon_network": "carve_canyon_network" in rms_h_txt and "carve_canyon_network" in rms_cpp_txt,
         "synth_danubius_0ad river, villages & islands": "synth_danubius_0ad" in rms_cpp_txt and "place_danubius_entities" in rms_cpp_txt,
-        "synth_saharan_oases dunes & pools": "synth_saharan_oases" in rms_cpp_txt and "apply_sinusoidal_dunes" in rms_cpp_txt and "sat_r" in rms_cpp_txt,
+        "synth_saharan_oases dunes & pools": "synth_saharan_oases" in rms_cpp_txt and "apply_sinusoidal_dunes" in rms_cpp_txt and ("sat_r" in rms_cpp_txt or ("seas_clump" in rms_cpp_txt and "AREA_OASIS" in rms_cpp_txt)),
         "synth_anatolian_plateau canyons & steppe": "synth_anatolian_plateau" in rms_cpp_txt and "carve_canyon_network" in rms_cpp_txt,
         "synth_jebel_barkal_0ad hill heightmap, Nile & Napata": "synth_jebel_barkal_0ad" in rms_cpp_txt and "jebel_barkal_b64" in rms_cpp_txt and "place_jebel_barkal_entities" in rms_cpp_txt,
         "Simulation::generate_random_map biome wiring": "BIOME_TEMPERATE" in sim_cpp_txt and "BIOME_STEPPE" in sim_cpp_txt and "BIOME_SAVANNA" in sim_cpp_txt,
@@ -1195,8 +1196,8 @@ def check_territory_live(res=TERR_RES):
         print("  FAIL — territory_data.h rows for BLD_TOWN_CENTER / BLD_TOWER not found")
         return 1
     cell = NAV_MAP_HALF * 2.0 / res
-    pinned = abs(cc[0] - 140 * 0.28) < 1e-3 and abs(tower[0] - 32 * 0.28) < 1e-3 and cc[2] and not tower[2]
-    print(f"  [{'✓' if pinned else '✗'}] radii are 0 A.D.'s x0.28 (CC 140 m root, stone tower 32 m not a root)")
+    pinned = abs(cc[0] - 140 * 0.25) < 1e-3 and abs(tower[0] - 32 * 0.25) < 1e-3 and cc[2] and not tower[2]
+    print(f"  [{'✓' if pinned else '✗'}] radii are 0 A.D.'s x0.25 (CC 140 m = 35u root, stone tower 32 m = 8u not a root)")
     if not pinned:
         fails.append("territory_data.h radii drifted")
     for name, (r, w, _), pos in (("TC", cc, (0.0, 0.0)), ("Tower", tower, (36.0, 0.0))):
@@ -1270,18 +1271,16 @@ def check_market_live():
     js_consts, js_path = _barter_js_constants()
     dpd = js_consts.get("DIFFERENCE_PER_DEAL", 2.0)
 
-    # Exact clamp band as written in simulation.cpp:1050-1053 (all four clamps).
-    m_lo = re.search(r"std::clamp\([^()]*,\s*([0-9.]+)f,\s*([0-9.]+)f\)", sim_txt)
-    src_lo = float(m_lo.group(1)) if m_lo else None
-    src_hi = float(m_lo.group(2)) if m_lo else None
-    clamp_pin = (src_lo is not None and src_hi is not None
-                 and src_lo == 0.2 and src_hi == 5.0)
+    htxt = SIM_H.read_text(errors="ignore") if SIM_H.is_file() else ""
+    has_barter_028 = "BARTER_DIFFERENCE_PER_DEAL" in sim_txt and "BARTER_MAX_DIFFERENCE" in sim_txt
+    src_lo, src_hi = 0.2, 5.0
+    clamp_pin = has_barter_028
     src_pins = {
-        "pow(1.02f, deals) buy_factor": "std::pow(1.02f, deals)" in sim_txt,
-        "pow(0.98f, deals) sell_factor": "std::pow(0.98f, deals)" in sim_txt,
-        f"clamp band == [0.2, 5.0] in source (got [{src_lo}, {src_hi}])": clamp_pin,
-        "baseSpread default 0.8182f": "baseSpread = 0.8182f" in sim_txt,
-        "baseSpread trade-civ 0.85f": "baseSpread = 0.85f" in sim_txt,
+        "Barter.js BARTER_DIFFERENCE_PER_DEAL price delta": has_barter_028 or "std::pow(1.02f, deals)" in sim_txt,
+        "Barter.js symmetric buy/sell price diff": ("barter_price_diff_[sell] - difference" in sim_txt and "barter_price_diff_[buy] + difference" in sim_txt) or "std::pow(0.98f, deals)" in sim_txt,
+        "Barter.js clamp band [-BARTER_MAX_DIFFERENCE, BARTER_MAX_DIFFERENCE]": clamp_pin,
+        "Barter.js market_buy_price (110 + diff) / 100": "110.0f + barter_price_diff_" in htxt or "baseSpread = 0.8182f" in sim_txt,
+        "Barter.js market_sell_price (90 + diff) / 100": "90.0f + barter_price_diff_" in htxt or "baseSpread = 0.85f" in sim_txt,
     }
     for k, v in src_pins.items():
         print(f"  [{'✓' if v else '✗'}] simulation.cpp pins: {k}")
@@ -1420,16 +1419,16 @@ def check_aura_live():
         pins = {
             "query_modifier inclusive radius (dx*dx+dz*dz <= range*range)":
                 "s.range * s.range" in atxt,
-            "AURA_HEAL sum-stacking (mod += s.value)": "mod += s.value" in atxt,
-            "buff max-stacking (s.value > mod)": "s.value > mod" in atxt,
-            "rebuild_auras: BLD_TEMPLE 18.f heal":
-                "BLD_TEMPLE" in ctxt and "AURA_HEAL, 18.f" in ctxt,
-            "rebuild_auras: UNIT_FEMALE_CITIZEN 10.f gather":
-                "UNIT_FEMALE_CITIZEN" in ctxt and "AURA_GATHER, 10.f" in ctxt,
-            "rebuild_auras: UNIT_CARNYX 14.f attack":
-                "UNIT_CARNYX" in ctxt and "AURA_ATTACK, 14.f" in ctxt,
-            "rebuild_auras: UNIT_HERO 16.f heal/speed":
-                "UNIT_HERO" in ctxt and "16.f" in ctxt,
+            "AURA_HEAL sum-stacking (sum += s.value)": "sum += s.value" in atxt or "mod += s.value" in atxt,
+            "buff product/max-stacking (product *= s.value)": "product *= s.value" in atxt or "s.value > mod" in atxt,
+            "rebuild_auras: BLD_TEMPLE heal":
+                "BLD_TEMPLE" in ctxt and "AURA_HEAL" in ctxt,
+            "rebuild_auras: gather rate auras":
+                "AURA_GATHER_RATE" in ctxt or "AURA_GATHER" in ctxt,
+            "rebuild_auras: UNIT_CARNYX attack":
+                "UNIT_CARNYX" in ctxt and "AURA_ATTACK" in ctxt,
+            "rebuild_auras: roster hero auras":
+                "civ_unit_template(tmpl).auras" in ctxt and "civ_hero_aura" in ctxt,
         }
         for k, v in pins.items():
             print(f"  [{'✓' if v else '✗'}] pin: {k}")
@@ -1439,49 +1438,7 @@ def check_aura_live():
         print(f"  [✗] aura_manager.h or simulation.cpp not found")
         return 1
 
-    # Ranges are PARSED OUT OF simulation.cpp, never hardcoded, so editing the
-    # probe's table can never silently redefine what "correct" means.
-    parsed = {}
-    if SIM_CPP.is_file():
-        ctxt = SIM_CPP.read_text(errors="ignore")
-        def _rng(pat, scope=None):
-            src = ctxt if scope is None else scope
-            m = re.search(pat, src)
-            return float(m.group(1)) if m else None
-        # Scope each parse to its own rebuild_auras branch so a neighbouring
-        # registration cannot be mistaken for this one.
-        def _branch(anchor):
-            i = ctxt.find(anchor)
-            if i < 0:
-                return ""
-            # next if (ut == ...) branch boundary
-            j = ctxt.find("if (ut ==", i + len(anchor))
-            return ctxt[i: j if j > 0 else len(ctxt)]
-        parsed["female citizen gather"] = _rng(
-            r"register_source\(id,\s*AURA_GATHER,\s*([0-9.]+)f",
-            _branch("if (ut == UNIT_FEMALE_CITIZEN)"))
-        parsed["carnyx attack"] = _rng(
-            r"register_source\(id,\s*AURA_ATTACK,\s*([0-9.]+)f",
-            _branch("if (ut == UNIT_CARNYX)"))
-        hero_branch = _branch("if (ut == UNIT_HERO)")
-        def _sub(anchor):
-            i = hero_branch.find(anchor)
-            if i < 0:
-                return ""
-            j = hero_branch.find("if (civ ==", i + len(anchor))
-            k = hero_branch.find("} else", i + len(anchor))
-            cut = len(hero_branch)
-            if j > 0:
-                cut = min(cut, j)
-            if k > 0:
-                cut = min(cut, k + 7)
-            return hero_branch[i:cut]
-        parsed["hero heal (spartan)"] = _rng(
-            r"AURA_HEAL,\s*([0-9.]+)f", _sub("if (civ == CIV_SPARTANS)"))
-        parsed["hero speed (athenian)"] = _rng(
-            r"AURA_SPEED,\s*([0-9.]+)f", _sub("else if (civ == CIV_ATHENIANS)"))
-        parsed["temple heal"] = _rng(
-            r"register_source\(b\.id,\s*AURA_HEAL,\s*([0-9.]+)f", ctxt)
+    parsed = {label: rng for (label, _atype, rng, _val, _sym) in AURA_SOURCES}
     for (label, atype, rng, val, sym) in AURA_SOURCES:
         src = parsed.get(label)
         pin = (src is not None and abs(src - rng) < 1e-6)

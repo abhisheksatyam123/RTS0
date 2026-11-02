@@ -66,6 +66,7 @@ public:
 		};
 		std::vector<Rig> rigs;
 		std::vector<Surf> surfs;
+		std::vector<std::vector<godot::Transform3D>> palettes;
 	};
 
 	static const Entry &get(const godot::String &category, const godot::String &id);
