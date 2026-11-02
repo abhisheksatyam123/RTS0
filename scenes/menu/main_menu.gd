@@ -137,6 +137,11 @@ const COMMUNITY_BUTTONS := [
 	["Translate the Game", "Click to open the 0 A.D. translate page in your browser.", "https://gitea.wildfiregames.com/0ad/0ad/wiki/Localization", [0.0, 8, 1.0, -8, -76, -44]],
 	["Donate", "Help with the project expenses by donating.", "https://play0ad.com/community/donate/", [0.0, 8, 1.0, -8, -40, -8]],
 ]
+## MainMenuItemHandler.prototype.ButtonHeight and Margin.
+const BUTTON_HEIGHT := 28
+const MARGIN := 4
+var _right_top: ColorRect
+var _right_bottom: ColorRect
 var community_buttons: Array[Button] = []
 ## The URL the last community button opened (a test reads it; headless opens nothing).
 var opened_url := ""
@@ -154,6 +159,22 @@ func _ready() -> void:
 
 	submenu_panel.visible = false
 	move_child(submenu_panel, main_panel.get_index()) # it slides out from behind the panel
+	# menupanel.xml MainMenuPanelRightBorderTop/Bottom: the right edge in two 2 px strips.
+	for i in 2:
+		var edge := ColorRect.new()
+		edge.name = "MainMenuPanelRightBorder" + ("Top" if i == 0 else "Bottom")
+		edge.color = Color8(230, 190, 80)
+		edge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		edge.anchor_left = 1.0
+		edge.anchor_right = 1.0
+		edge.anchor_bottom = 1.0
+		edge.offset_left = -2
+		main_panel.add_child(edge)
+		if i == 0:
+			_right_top = edge
+		else:
+			_right_bottom = edge
+			edge.visible = false
 	# Back at the main menu, nothing played next belongs to a campaign until one is started.
 	if has_node("/root/MatchSettings"):
 		get_node("/root/MatchSettings").campaign_run = ""
@@ -459,18 +480,30 @@ func _toggle_submenu(menu_id: String, anchor_button: Button) -> void:
 		btn.disabled = item.get("needs_campaign", false) and CampaignRun.current_filename() == ""
 		btn.text = item["label"]
 		btn.tooltip_text = _item_tooltip(item)
-		btn.custom_minimum_size = Vector2(220, 34)
+		btn.custom_minimum_size = Vector2(0, BUTTON_HEIGHT)
 		btn.alignment = HORIZONTAL_ALIGNMENT_CENTER
 		var action = item["action"]
 		btn.pressed.connect(func(): _execute_action(action))
 		btn.mouse_entered.connect(_play_hover)
 		submenu_buttons_box.add_child(btn)
 
-	# Position adjacent to the anchor button
-	var btn_global_pos = anchor_button.global_position
+	# MainMenuItemHandler.openSubmenu: as wide as the menu panel, from the anchor
+	# button's top less Margin down to ButtonHeight + Margin per item, its buttons
+	# lined up with the menu's; it ends against the panel's right edge. RTS0 keeps
+	# it on screen when a short window would cut it off.
+	# (A font taller than 0.28's makes the menu's buttons taller; the submenu's follow.)
+	var n: int = data["items"].size()
+	var bh := maxf(BUTTON_HEIGHT, anchor_button.size.y)
 	var main_global_rect = main_panel.get_global_rect()
-	var target_x: float = main_global_rect.position.x + main_global_rect.size.x + 4
-	submenu_panel.global_position.y = clamp(btn_global_pos.y - 12, 10, get_viewport_rect().size.y - submenu_panel.size.y - 10)
+	var target_x: float = main_global_rect.end.x
+	submenu_panel.size = Vector2(main_global_rect.size.x, (bh + MARGIN) * n + MARGIN)
+	submenu_panel.global_position.y = clampf(anchor_button.global_position.y - MARGIN, 0.0,
+			maxf(0.0, get_viewport_rect().size.y - submenu_panel.size.y))
+	# MainMenuPanelRightBorderTop/Bottom: the panel's right edge stops where the submenu joins it.
+	_right_top.offset_bottom = submenu_panel.global_position.y - main_global_rect.position.y + MARGIN
+	_right_top.anchor_bottom = 0.0
+	_right_bottom.offset_top = submenu_panel.global_position.y + submenu_panel.size.y - main_global_rect.position.y
+	_right_bottom.visible = true
 	# MainMenuItemHandler.onTick: it slides out from behind the panel at MenuSpeed.
 	var was_open: bool = submenu_panel.visible
 	submenu_panel.visible = true
@@ -488,6 +521,10 @@ func _close_submenu() -> void:
 	if _slide:
 		_slide.kill()
 	submenu_panel.visible = false
+	if _right_top:
+		_right_top.anchor_bottom = 1.0
+		_right_top.offset_bottom = 0.0
+		_right_bottom.visible = false
 
 ## colorizeHotkey: "%(hotkey)s" becomes the item's hotkey keys.
 func _item_tooltip(item: Dictionary) -> String:

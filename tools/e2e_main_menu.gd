@@ -97,6 +97,26 @@ func run() -> void:
 	check(multi == ["Game Lobby", "Connect by IP", "Host New Game", "Host Saved Game", "Replays"], "Multiplayer: " + str(multi))
 	var settings: Array = items(menu, "settings").map(func(b): return b.text)
 	check(settings == ["Options", "Hotkeys", "Language", "Mod Selection", "Welcome Screen"], "Settings: " + str(settings))
+	# menupanel.xml / MainMenuItemHandler: the panel at 60..300, the submenu as wide,
+	# against its right edge, 28 px buttons at a 32 px pitch lined up with the menu's,
+	# and the panel's right border open where the submenu joins it.
+	var anchor: Button = menu.get_node("MainPanel/Buttons/BtnSettings")
+	menu._toggle_submenu("settings", anchor)
+	await frames(3)
+	var mp_rect: Rect2 = menu.main_panel.get_global_rect()
+	var sub: Control = menu.submenu_panel
+	var sb: Array = menu.submenu_buttons_box.get_children().filter(func(b): return not b.is_queued_for_deletion())
+	var rt: Control = menu.main_panel.get_node("MainMenuPanelRightBorderTop")
+	var rb: Control = menu.main_panel.get_node("MainMenuPanelRightBorderBottom")
+	var bh: float = anchor.size.y # 28, taller with the headless font
+	check(mp_rect.position.x == 60.0 and mp_rect.size.x == 240.0 and sub.size == Vector2(240, (bh + 4) * 5 + 4)
+		and sb.size() == 5 and sb[0].size == Vector2(236, bh) and sb[1].global_position.y - sb[0].global_position.y == bh + 4
+		and is_equal_approx(sb[0].global_position.y, anchor.global_position.y)
+		and is_equal_approx(rt.get_global_rect().end.y, sub.global_position.y + 4) and rb.visible
+		and is_equal_approx(rb.get_global_rect().position.y, sub.global_position.y + sub.size.y),
+		"the submenu is 0.28's: %s, buttons %s at %s, anchor at %s" % [sub.get_global_rect(), sb[0].size, sb[0].global_position, anchor.global_position])
+	menu._close_submenu()
+	check(not rb.visible and rt.size.y == menu.main_panel.size.y, "closing it closes the panel's right border")
 
 	print("3. Hotkeys")
 	menu._execute_action("open_hotkeys")

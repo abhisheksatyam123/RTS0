@@ -226,20 +226,60 @@ public:
 	// The unit's own voice line for a 0 A.D. sound group (select, order_*,
 	// trained). One voice at a time, like 0 A.D.'s Priority-ordered voice.
 	bool play_voice(uint8_t civ, uint8_t unit_type, const std::string &action) {
+		// Ships, siege engines, elephants, dogs, wagons and the catafalque answer with
+		// their templates' own SoundGroups (template_unit_ship, _siege, _siege_ram,
+		// _champion_elephant, _support_elephant, _dog, _support_wagon, _catafalque),
+		// and orders those templates name no group for play nothing.
+		const char *group = voice_group_of(action);
+		const std::string g = group ? group : "";
+		const bool sel = g == "select", walk = g == "walk", atk = g == "attack";
+		switch (unit_type) {
+			case UNIT_TRIREME: case UNIT_FISHING_BOAT: case UNIT_MERCHANT_SHIP:
+				if (sel) return play_one_of("actor/ship", {"ship_select_01.ogg"});
+				if (walk) return play_one_of("actor/ship", {"ship_move.ogg"}, 0.5f);
+				if (atk || g == "gather") return play_one_of("actor/ship", {"warship_move_01.ogg"});
+				return false;
+			case UNIT_SIEGE_RAM:
+				if (sel) return play_one_of("attack/siege", {"siege_select_10.ogg"});
+				if (walk) return play_one_of("attack/siege", {"ram_move.ogg"});
+				if (atk) return play_one_of("attack/siege", {"ram_attack_order.ogg"});
+				return false;
+			case UNIT_CATAPULT: case UNIT_BOLT_SHOOTER:
+				if (sel) return play_one_of("attack/siege", {"siege_select_10.ogg"});
+				if (walk || atk) return play_one_of("attack/siege", {"ram_move.ogg"});
+				return false;
+			case UNIT_ELEPHANT: case UNIT_WORKER_ELEPHANT: {
+				const bool worker = unit_type == UNIT_WORKER_ELEPHANT;
+				if (sel) return play_one_of("actor/fauna/animal", {"elephant_select1.ogg", "elephant_select2.ogg"});
+				if (walk || g == "gather" || g == "garrison" || (worker && g == "build"))
+					return play_one_of("actor/fauna/animal", {"elephant_order1.ogg", "elephant_order2.ogg"});
+				if (atk && !worker)
+					return play_one_of("actor/fauna/animal", {"elephant_attack1.ogg", "elephant_attack2.ogg", "elephant_attack3.ogg",
+							"elephant_order1.ogg", "elephant_order2.ogg", "elephant_select1.ogg", "elephant_select2.ogg",
+							"elephant_order1.ogg", "elephant_order2.ogg", "elephant_select1.ogg", "elephant_select2.ogg"});
+				return false;
+			}
+			case UNIT_WAR_DOG:
+				if (sel) return play_one_of("voice/global", {"civ_dog_bark.ogg"});
+				if (walk || atk) return play_one_of("voice/global", {"civ_dog_move.ogg"});
+				return false;
+			case UNIT_WAGON:
+				return (sel || walk) && play_one_of("attack/siege", {"siege_select_10.ogg"});
+			case UNIT_CATAFALQUE:
+				if (sel) return play_one_of("attack/siege", {"siege_select_10.ogg"});
+				if (walk) return play_one_of("actor/singlesteps", {"fs_grass8.ogg", "fs_grass1.ogg", "fs_grass2.ogg", "fs_grass3.ogg",
+						"fs_grass4.ogg", "fs_grass5.ogg", "fs_grass6.ogg", "fs_grass7.ogg"});
+				return false;
+			default: break;
+		}
 		const VoiceKind kind = voice_kind(unit_type);
 		if (kind == VoiceKind::NONE) return false;
-		if (kind == VoiceKind::DOG) return play_group("voice/global", action == "select" ? "civ_dog_bark" : "civ_dog_move", 0.8f);
 		if (kind == VoiceKind::HORSE) {
 			const char *pre = action == "select" ? "horse_select" : action == "attack" ? "horse_attack" : "horse_select";
 			return play_group("actor/fauna/animal", pre, 0.8f);
 		}
-		if (kind == VoiceKind::ELEPHANT) {
-			const char *pre = action == "select" ? "elephant_select" : action == "attack" ? "elephant_attack" : "elephant_order";
-			return play_group("actor/fauna/animal", pre, 0.8f);
-		}
 		// An order plays one of its 0.28 group's clips, or nothing when the language
 		// has no such group for this phenotype (no woman trades).
-		const char *group = voice_group_of(action);
 		if (!group) return false;
 		const auto &clips = voice_group_clips(voice_language(civ), kind == VoiceKind::FEMALE, group);
 		return !clips.empty() && play_path(clips[rng_() % clips.size()], 1.0f);
