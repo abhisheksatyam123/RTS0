@@ -3933,57 +3933,129 @@ static void test_attack_maybe_update() {
 	CHECK(on_structure, "a siege engine on a unit turns to a structure in reach");
 }
 
-// attackPlan.js UpdateTarget: an attack with nothing left of its enemy on its land helps another
-// started attack on that land (its target) before picking another enemy's nearest structure.
-static void test_attack_helps_other_attack() {
+// attackPlan.js getNearestTarget runs checkTargetObstruction for a rush too: a house of the
+// enemy it prefers, walled in by another enemy's palisade, gives way to the piece in its path,
+// and the palisade's owner becomes the enemy ("Obstruction also can change the enemy target").
+static void test_rush_target_obstruction() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(5);
 	s->reset();
 	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 5, 3, 96.0f);
-	s->set_player_active(0, true, false);
-	s->set_player_active(1, true, true);
-	s->set_player_active(2, true, false);
+	for (uint8_t p = 0; p < 3; ++p) s->set_player_active(p, true, p == 1);
 	s->set_victory_condition(VICTORY_ENDLESS);
 	run_for(*s, 1.0f);
-	float c1x = 0.0f, c1z = 0.0f;
-	uint32_t c2 = 0;
-	float c2x = 0.0f, c2z = 0.0f;
-	for (auto &b : s->buildings_) {
-		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { c1x = b.x; c1z = b.z; }
-		if (b.team == 2 && b.type == BLD_TOWN_CENTER) { c2 = b.id; c2x = b.x; c2z = b.z; }
-		if (b.team == 0) s->destroy_building(b);
+	float c0x = 0.0f, c0z = 0.0f, c1x = 0.0f, c1z = 0.0f;
+	for (const auto &b : s->buildings()) {
+		if (b.type != BLD_TOWN_CENTER) continue;
+		if (b.team == 0) { c0x = b.x; c0z = b.z; }
+		if (b.team == 1) { c1x = b.x; c1z = b.z; }
 	}
 	for (size_t j = 0; j < s->units_.count; ++j)
-		if (s->units_.alive[j] && s->units_.team[j] == 0) { s->units_.alive[j] = 0; s->units_.action_state[j] = ACTION_DYING; }
+		if (s->units_.alive[j] && s->units_.team[j] != 1) { s->units_.alive[j] = 0; s->units_.action_state[j] = ACTION_DYING; }
 	run_for(*s, 0.5f);
-	// Player 0's last house halfway to player 2, and player 2's house beside it.
-	const float ax = c1x + (c2x - c1x) * 0.5f, az = c1z + (c2z - c1z) * 0.5f;
-	const uint32_t h0 = s->spawn_building_world(ax, az, BLD_HOUSE, 0, 1.0f);
-	const uint32_t h2 = s->spawn_building_world(ax + 6.0f, az + 6.0f, BLD_HOUSE, 2, 1.0f);
-	auto army = [&](float x, float z, int n) {
-		std::vector<uint32_t> v;
-		for (int k = 0; k < n; ++k) v.push_back(s->spawn_unit(x + (float)k, z, 1, UNIT_SPEARMAN, 1.0e5f));
-		return v;
-	};
-	Simulation::AttackPlan a, b;
-	a.kind = b.kind = PETRA_ATTACK_ATTACK;
-	a.state = b.state = Simulation::AttackPlan::ATTACKED;
-	a.state_timer = b.state_timer = 10.0f;
-	a.squad = army(ax - 4.0f, az - 4.0f, 4);
-	a.target_player = 0; a.target_building_id = h0; a.target_x = ax; a.target_z = az;
-	b.squad = army(c2x - 12.0f, c2z - 12.0f, 2);
-	b.target_player = 2; b.target_building_id = c2; b.target_x = c2x; b.target_z = c2z;
-	a.initial_squad_size = 4; b.initial_squad_size = 2;
-	s->petra_started_attacks_.push_back(a);
-	s->petra_started_attacks_.push_back(b);
-	for (auto &bl : s->buildings_) if (bl.id == h0) s->destroy_building(bl);
-	run_ai_turns(*s, 2);
-	uint32_t now = 0;
-	for (const auto &p : s->petra_started_attacks_)
-		if (!p.squad.empty() && p.squad[0] == a.squad[0]) now = p.target_building_id;
-	std::printf("  helping: the attack whose house fell now targets %s\n",
-	            now == c2 ? "the other attack's civic centre" : now == h2 ? "the nearest house of the other enemy" : "something else");
-	CHECK(now == c2, "an attack with no target left on its land joins another attack's target");
+	const float dx = c1x - c0x, dz = c1z - c0z, d = std::sqrt(dx * dx + dz * dz), ux = dx / d, uz = dz / d;
+	const float hx = c0x + ux * 21.5f, hz = c0z + uz * 21.5f; // just out of the civic centre's 80 m (20 tiles)
+	const uint32_t house = s->spawn_building_world(hx, hz, BLD_HOUSE, 0, 1.0f);
+	const float r = 7.0f;
+	for (float o = -r; o < r + 0.01f; o += 1.5f)
+		for (const auto &p : {std::pair{hx + o, hz - r}, std::pair{hx + o, hz + r}, std::pair{hx - r, hz + o}, std::pair{hx + r, hz + o}})
+			s->spawn_building_world(p.first, p.second, BLD_PALISADE, 2, 1.0f);
+	s->rebuild_nav_grid();
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	const float from[2] = {hx + ux * 20.0f, hz + uz * 20.0f};
+	float nx = 0.0f, nz = 0.0f, rx = 0.0f, rz = 0.0f;
+	const uint32_t nearest = s->petra_nearest_target(PETRA_ATTACK_RUSH, false, 0, from[0], from[1], 0, nx, nz);
+	const uint32_t rush = s->find_petra_rush_target(rx, rz, 0, from, 0, false, false);
+	const auto it = s->building_id_to_idx_.find(rush);
+	const bool wall = it != s->building_id_to_idx_.end() && is_wall_piece(s->buildings_[it->second].type) && s->buildings_[it->second].team == 2;
+	std::printf("  rush: player 0's nearest is %s; the rush targets %s\n", nearest == house ? "the walled house" : "something else",
+	            wall ? "player 2's palisade in the way" : rush == house ? "the house" : "something else");
+	CHECK(nearest == house, "the walled house is player 0's nearest undefended structure");
+	CHECK(wall, "the rush targets the other enemy's palisade in its path");
+}
+
+// attackPlan.js update: a "maybe" re-pick (siege on a unit, a slow unit on a fleeing woman)
+// comes 5 s (10 s approaching) after the last, for a unit in the 10-a-turn window. Every unit
+// of a big army gets one, at about that cadence.
+static void test_attack_maybe_cadence() {
+	int missed = 0, slow = 0;
+	for (size_t stride = 1; stride <= 8; ++stride)
+		for (size_t k = 0; k < stride; ++k)
+			for (uint32_t id = 0; id < 24; ++id)
+				for (const bool approaching : {false, true}) {
+					int due = 0;
+					const uint32_t turns = 240;
+					for (uint32_t t = 0; t < turns; ++t)
+						due += Simulation::petra_attack_window(t, k, stride) && Simulation::petra_attack_maybe_due(t, stride, id, approaching);
+					if (due == 0) ++missed;
+					// No rarer than once per max(every, stride) turns, rounded up to whole visits.
+					const uint32_t every = approaching ? 6u : 3u, gap = (uint32_t)stride * ((every + (uint32_t)stride - 1) / (uint32_t)stride);
+					if ((uint32_t)due + 1 < turns / gap) ++slow;
+				}
+	std::printf("  maybe re-picks: %d unit slots never due, %d slower than the cadence\n", missed, slow);
+	CHECK(missed == 0, "every unit of a big army comes up for a maybe re-pick");
+	CHECK(slow == 0, "at the 5 s (10 s) cadence");
+	// A small army (one window) keeps the per-turn rule: every 3rd turn by id.
+	CHECK(Simulation::petra_attack_maybe_due(9, 1, 3, false) && !Simulation::petra_attack_maybe_due(10, 1, 3, false), "every third turn");
+}
+
+// attackPlan.js UpdateTarget: an attack with nothing left of its enemy on its land helps another
+// started attack on that land (its target) before picking another enemy's nearest structure.
+static void test_attack_helps_other_attack() {
+	// Once fighting, and on arrival when its target fell during the march (state "" runs
+	// UpdateTarget at once).
+	for (const bool walking : {false, true}) {
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(5);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 5, 3, 96.0f);
+		s->set_player_active(0, true, false);
+		s->set_player_active(1, true, true);
+		s->set_player_active(2, true, false);
+		s->set_victory_condition(VICTORY_ENDLESS);
+		run_for(*s, 1.0f);
+		float c1x = 0.0f, c1z = 0.0f;
+		uint32_t c2 = 0;
+		float c2x = 0.0f, c2z = 0.0f;
+		for (auto &b : s->buildings_) {
+			if (b.team == 1 && b.type == BLD_TOWN_CENTER) { c1x = b.x; c1z = b.z; }
+			if (b.team == 2 && b.type == BLD_TOWN_CENTER) { c2 = b.id; c2x = b.x; c2z = b.z; }
+			if (b.team == 0) s->destroy_building(b);
+		}
+		for (size_t j = 0; j < s->units_.count; ++j)
+			if (s->units_.alive[j] && s->units_.team[j] == 0) { s->units_.alive[j] = 0; s->units_.action_state[j] = ACTION_DYING; }
+		run_for(*s, 0.5f);
+		// Player 0's last house halfway to player 2, and player 2's house beside it.
+		const float ax = c1x + (c2x - c1x) * 0.5f, az = c1z + (c2z - c1z) * 0.5f;
+		const uint32_t h0 = s->spawn_building_world(ax, az, BLD_HOUSE, 0, 1.0f);
+		const uint32_t h2 = s->spawn_building_world(ax + 6.0f, az + 6.0f, BLD_HOUSE, 2, 1.0f);
+		auto army = [&](float x, float z, int n) {
+			std::vector<uint32_t> v;
+			for (int k = 0; k < n; ++k) v.push_back(s->spawn_unit(x + (float)k, z, 1, UNIT_SPEARMAN, 1.0e5f));
+			return v;
+		};
+		Simulation::AttackPlan a, b;
+		a.kind = b.kind = PETRA_ATTACK_ATTACK;
+		a.state = b.state = Simulation::AttackPlan::ATTACKED;
+		if (walking) a.state = Simulation::AttackPlan::WALKING; // no path left: it arrives this turn
+		a.state_timer = b.state_timer = 10.0f;
+		a.squad = army(ax - 4.0f, az - 4.0f, 4);
+		a.target_player = 0; a.target_building_id = h0; a.target_x = ax; a.target_z = az;
+		b.squad = army(c2x - 12.0f, c2z - 12.0f, 2);
+		b.target_player = 2; b.target_building_id = c2; b.target_x = c2x; b.target_z = c2z;
+		a.initial_squad_size = 4; b.initial_squad_size = 2;
+		s->petra_started_attacks_.push_back(a);
+		s->petra_started_attacks_.push_back(b);
+		for (auto &bl : s->buildings_) if (bl.id == h0) s->destroy_building(bl);
+		run_ai_turns(*s, 2);
+		uint32_t now = 0;
+		for (const auto &p : s->petra_started_attacks_)
+			if (!p.squad.empty() && p.squad[0] == a.squad[0]) now = p.target_building_id;
+		std::printf("  helping (%s): the attack whose house fell now targets %s\n", walking ? "on arrival" : "fighting",
+		            now == c2 ? "the other attack's civic centre" : now == h2 ? "the nearest house of the other enemy" : "something else");
+		CHECK(now == c2, "an attack with no target left on its land joins another attack's target");
+	}
 }
 
 // defenseManager.js checkEvents: an attacked structure in a base with no anchor on its land
@@ -10379,6 +10451,8 @@ int main(int argc, char **argv) {
 	RUN(test_attack_blocked_by_walls);
 	RUN(test_attack_maybe_update);
 	RUN(test_attack_helps_other_attack);
+	RUN(test_attack_maybe_cadence);
+	RUN(test_rush_target_obstruction);
 	RUN(test_scuttle_undefendable);
 	RUN(test_sandbox_builds_no_defenses);
 	RUN(test_rush_any_phase);
