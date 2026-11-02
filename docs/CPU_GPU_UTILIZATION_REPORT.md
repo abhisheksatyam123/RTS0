@@ -89,7 +89,7 @@ Within `Simulation::tick(dt)`, only 5 loops use `JobSystem::for_each_index`. The
   - *Design:* Scale `UnitGrid` resolution dynamically with map size and unit density (e.g. 128x128 or hierarchical spatial hash) so max units per cell is bounded ($\le 8$).
 - [x] **TODO-GRID-02:** SIMD Vectorization of `separation()` inner loop (`src/simulation/simulation.cpp:14320`).
   - *Design:* Vectorize 2D distance calculations using AVX2 `_mm256_fmadd_ps` to compute 8 unit-pair distances simultaneously.
-- [x] **TODO-GRID-03:** Clamped Neighbor Search Culling.
+- [ ] **TODO-GRID-03:** Clamped Neighbor Search Culling. Dropped (#PRNUM): 0.28's Push takes every unit in range (CCmpUnitMotion_System.cpp), and the cap kept the pairs met first in grid order, not the closest, so a 30-unit group walk (test_unit_pushing) ended spread past its checks.
   - *Design:* Cap maximum interaction neighbors per unit to 16 in dense clusters (units further than 16 closest contributors produce negligible push force).
 
 ### Track 3: Modernize Job System & Eliminate Barrier Stalls
