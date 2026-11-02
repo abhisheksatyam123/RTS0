@@ -191,7 +191,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 134; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 135; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_FAUNA_QUEUED_TARGET = 135; // each animal's set-aside attack target (fauna_queued_target_)
 	static constexpr uint32_t SAVE_VERSION_GATHER_CLAIMS = 134; // each unit's place at its supply and when it took it
 	static constexpr uint32_t SAVE_VERSION_PETRA_SHIP_IDLE = 133; // each Petra idle ship's last idle position and stationary turn (moveApart)
 	static constexpr uint32_t SAVE_VERSION_PETRA_TARGET_ORDER = 132; // the targetList in discovery order (no longer sorted)
@@ -3423,6 +3424,9 @@ private:
 	// Each animal's obstructed turns on a walk its owner sent it on (0.28 CCmpUnitMotion
 	// m_FailedMovements, serialized for animals as for units); save v114 adds it.
 	uint8_t fauna_failed_[FaunaStorage::MAX_FAUNA] = {};
+	// The target of the Attack order an animal set aside when it turned on a melee attacker
+	// (UnitAI COMBAT.Attacked PushOrderFront): it goes back to it once that fight ends (0 = none).
+	uint32_t fauna_queued_target_[FaunaStorage::MAX_FAUNA] = {};
 	IdIndex fauna_id_to_idx_;
 	std::unordered_map<uint32_t, std::vector<uint32_t>> transport_passengers_;
 	// UnitMotionFlying.js state of each flying unit (units/plane), by unit id, so it saves and

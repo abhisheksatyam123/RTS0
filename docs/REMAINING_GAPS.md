@@ -121,7 +121,7 @@ Checked and matching: animal stances and target search (GetQueryRange, nearest f
 |---|-----|--------|--------|
 | FA1 | Killing an animal collected no Looter resources. 0.28 Health.js KilledBy calls the killer's Looter.Collect, so Britons' infantry (Woad Warriors) and Looter auras (Brennus, Lugius, Philip's catafalque) earn their bonus on every animal with Loot (not trainable livestock) | medium | Fixed (`test_fauna` 18) |
 | FA2 | An animal swinging at its target switched to any melee attacker. 0.28's ATTACKING.Attacked reacts only to Capture; COMBAT.Attacked answers melee only while approaching or chasing | medium | Fixed (`test_fauna` 19) |
-| FA3 | An animal that turned on a melee attacker forgets its first target; 0.28 pushes the new Attack in front and goes back to the old one afterwards. Needs a saved per-animal field | low | Open |
+| FA3 | An animal that turned on a melee attacker forgets its first target; 0.28 pushes the new Attack in front and goes back to the old one afterwards | low | Fixed: `fauna_queued_target_` (save v135), `test_fauna` 19 |
 | FA4 | A defensive or passive-defensive animal answered an attacker outside its vision, then gave up and stopped roaming. 0.28's AttackEntityInZone ignores it | low | Fixed (`test_fauna` 19) |
 | FA5 | Animals give up a chase the tick the target leaves their vision; 0.28 checks ShouldAbandonChase on the 1 s APPROACHING/CHASING timer. Running is decided once on CHASING entry, and Roam/Feed times are drawn in milliseconds, not whole seconds | nit | Fixed (`tick_fauna`) |
 | FA6 | A collector that lost a treasure race stopped at once. 0.28's TreasureCollector timer runs its full CollectTime, then finds the treasure gone | low | Fixed (`test_treasures` 3d) |
