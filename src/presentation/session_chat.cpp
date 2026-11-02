@@ -24,7 +24,7 @@ using rtso::sprintf0;
 // Player numbers typed after "wololo" and "exodia" are 0 A.D.'s (0 = Gaia, 1 = the first player).
 bool RtsoMain::chat_try_cheat(const String &text) {
 	using S = rtso::Simulation;
-	// resource: the resource for CHEAT_ADD_RESOURCE, the unit list for CHEAT_CREATE_UNITS (1 heroes).
+	// resource: the resource for CHEAT_ADD_RESOURCE, the unit list for CHEAT_CREATE_UNITS (1 heroes, 2 planes).
 	struct CheatCode { const char *name; uint8_t action; int resource; const char *def; bool numeric; };
 	constexpr uint8_t kPlayRetro = 0xFF; // retroMe.json "playRetro": the player's own music
 	static const CheatCode kCheats[] = {
@@ -38,6 +38,7 @@ bool RtsoMain::chat_try_cheat(const String &text) {
 		{"exodia", S::CHEAT_DEFEAT_PLAYER, 0, "2", true},
 		{"salad bowl", S::CHEAT_CREATE_UNITS, 0, "13", true},
 		{"iwanttopwnthem", S::CHEAT_CREATE_UNITS, 1, "1", true}, // createHeros.json
+		{"how do you turn this on?", S::CHEAT_CREATE_UNITS, 2, "1", true}, // createPlane.json
 		{"retro me", kPlayRetro, 0, "0_8Bit_Bonus_Track.ogg", false},
 		{"back to the future", S::CHEAT_CHANGE_PHASE, 0, "", false},
 		{"brainiac", S::CHEAT_RESEARCH, 0, "", false},
@@ -339,7 +340,8 @@ bool RtsoMain::chat_reaches(uint8_t from, uint8_t to, const std::string &tag, ui
 	auto stance = [this](uint8_t a, uint8_t b, uint8_t s) { return sim && sim->get_diplomacy(a, b) == s; };
 	return rtso::chat_tag_reaches(from, to, tag, rtso::MAX_PLAYERS,
 			[&](uint8_t a, uint8_t b) { return stance(a, b, rtso::Simulation::DIPLO_ALLY); },
-			[&](uint8_t a, uint8_t b) { return stance(a, b, rtso::Simulation::DIPLO_ENEMY); }, to_client,
+			// StartCeasefire turns every enemy neutral while it lasts, so /enemies reaches no one.
+			[&](uint8_t a, uint8_t b) { return stance(a, b, rtso::Simulation::DIPLO_ENEMY) && !sim->ceasefire_active(); }, to_client,
 			player_finished(from), player_finished(to));
 }
 
