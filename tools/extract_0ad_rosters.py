@@ -939,14 +939,14 @@ MAP_HOUSES = ["BLD_STALL", "BLD_HUT", "BLD_LONGHOUSE", "BLD_PERS_HOUSE_A", "BLD_
 # 0 A.D. structure classes in civ bonus "affects" lists, as RTS0 BuildingTypes.
 BUILDING_CLASS = {
     "Structure": BUILDING_BITS,
-    "Wall": ["BLD_WALL_SEGMENT", "BLD_GATE", "BLD_WALL_TOWER"],
-    "Tower": ["BLD_TOWER", "BLD_SENTRY_TOWER", "BLD_TOWER_GREAT"], "Field": ["BLD_FIELD"],
+    "Wall": ["BLD_WALL_SEGMENT", "BLD_GATE", "BLD_WALL_TOWER", "BLD_SIEGE_WALL", "BLD_SIEGE_WALL_GATE"],
+    "Tower": ["BLD_TOWER", "BLD_SENTRY_TOWER", "BLD_TOWER_GREAT", "BLD_TOWER_BOLT", "BLD_TOWER_ARTILLERY", "BLD_TOWER_DOUBLE"], "Field": ["BLD_FIELD"],
     "Storehouse": ["BLD_STOREHOUSE"],
-    "House": ["BLD_HOUSE"] + MAP_HOUSES,
-    "Economic": ["BLD_STOREHOUSE", "BLD_FARMSTEAD", "BLD_MARKET", "BLD_CORRAL", "BLD_HOUSE"] + MAP_HOUSES + [
+    "House": ["BLD_HOUSE", "BLD_APARTMENT", "BLD_INN", "BLD_WAREHOUSE", "BLD_TAVERN", "BLD_TENT"] + MAP_HOUSES,
+    "Economic": ["BLD_STOREHOUSE", "BLD_FARMSTEAD", "BLD_MARKET", "BLD_CORRAL", "BLD_HOUSE"] + [
                  "BLD_TRADING_POST",  # trading_post_* inherit template_structure_economic_market
                  "BLD_MILL"],  # mill_greek: rotary_mill|template_structure_economic_farmstead
-    "CivCentre": ["BLD_TOWN_CENTER", "BLD_IMPERIAL_COURT", "BLD_CRANNOG", "BLD_MILITARY_COLONY"], "Naval": ["BLD_DOCK"], "Wonder": ["BLD_WONDER"],
+    "CivCentre": ["BLD_TOWN_CENTER", "BLD_IMPERIAL_COURT", "BLD_CRANNOG", "BLD_MILITARY_COLONY"], "Naval": ["BLD_DOCK", "BLD_SUPER_DOCK", "BLD_CRANNOG"], "Wonder": ["BLD_WONDER"],
     # military_colony inherits template_structure_civic_civil_centre; the temples of Vesta, Mars,
     # Amun and Isis (ptol/temple_2) template_structure_civic_temple; han/academy and the
     # mercenary camps template_structure_military_barracks.
