@@ -350,6 +350,19 @@ Petra's config.js (difficulty, behaviour, personality, population scaling, prior
 | PG3 | ~~Petra's population-scaled settings (popScaling, worker target, phase, barracks, forge and trader thresholds) re-read World or Team Population's split after each defeat; config.js setConfig reads getPopulationMax once~~ | low | Fixed: `petra_config_max_pop` takes the split among every seated player |
 | PG4 | ~~Garrison holders are checked on a global every-second-turn beat; garrisonManager.js:134 keeps a per-holder holderTimeUpdate set at registration and after each check, so a new holder's first check can come about 1.5 s sooner than in 0.28~~ | low | Fixed: `petra_holders_` keeps each holder's registration or last-check time (save 135) |
 
+### Germans end to end: Compare's sixteenth 0.28 pass (2026-11-03)
+
+The Germans (germ) roster, techs, buildings, civ bonuses and auras against 0.28. Matched: 31 unit rows' stats, names and phases, the promotion chains, the 3 techs, about 26 structures, the civ bonuses and the 9 auras. Open: the trainer bits of 7 roster rows. The generator (tools/extract_0ad_rosters.py, KEEP_TRAINERS = False) derives them and adds wagon, temple and arsenal bits 0.28 does not list, so this needs the generator fixed and civ_roster_data.h regenerated, which the shared 0.28 folder cannot yet do.
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| GE1 | infantry_spearman_b and infantry_slinger_b can be trained at BLD_WAGON_ENCAMPMENT_FORTIFIED (civ_roster_data.h:1069, 1071); 0.28 trains them at the encampment only (structures/germ/encampment.xml:48-52) | low | Open: Compare; generator trainer derivation |
+| GE2 | support_wagon is trainable at BLD_WAGON_ENCAMPMENT_FORTIFIED (civ_roster_data.h:1113); 0.28 lists it at the encampment only | low | Open: Compare; generator |
+| GE3 | support_civilian trains at BLD_TOWN_CENTER and both wagon encampments (civ_roster_data.h:1089); 0.28 trains civilians at houses (support_civilian_house) | medium | Open: Compare; generator |
+| GE4 | support_healer_b trains at BLD_TEMPLE (civ_roster_data.h:1093); 0.28 temple.xml lists champion_healer only | low | Open: Compare; generator |
+| GE5 | siege_ram trains at BLD_ARSENAL (civ_roster_data.h:1085); 0.28 arsenal.xml lists siege_ram_covered only (siege_ram comes from great_hall and encampment_fortified) | low | Open: Compare; generator |
+| GE6 | germ/catafalque hp 1000 (civ_roster_data.h:1099) is the generator's class-default fallback; 0.28's catafalque chain has no Max HP | uncertain | Open: Compare |
+
 ### Aura templates: Compare's fifteenth 0.28 pass (2026-11-03)
 
 Every 0.28 aura file (151 under data/auras/) against the port's aura tables: affects for all 119 hero auras match 0.28's class matches over the 548 roster templates, and 273 of 294 unit-level modifiers match. The remaining differences are below.
