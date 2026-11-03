@@ -8,7 +8,6 @@
 #include "nav/building_steering.h"
 #include "nav/rasterize.h"
 #include "../core/job_system.h"
-#include "../graphics/gpu_separation.h"
 #include <cstdio>
 #if defined(_MSC_VER) && !defined(__clang__)
 #include <intrin.h>
@@ -4574,19 +4573,16 @@ Simulation::PlacementResult Simulation::check_wall_piece(uint8_t player, const W
 		const std::vector<std::pair<int, int>> c = building_cells(g);
 		ignored.insert(ignored.end(), c.begin(), c.end());
 		if (g.type != BLD_WALL_TOWER && !is_wallset_tower_piece(g.type, g.half_size)) continue;
-		// The segments joined to a tower share its group too (SetControlGroup2), where they reach
-		// into it: their cells around the tower.
-		const float near = g.half_size + GRID;
+		// The segments joined to a tower (reaching into it) share its group too (SetControlGroup2),
+		// so a piece in that group may overlap the whole of them.
 		for (const Building &o : buildings_) {
 			if (o.id == g.id || o.team != g.team || !is_wallset_piece(o.type, o.half_size) ||
 					is_wallset_tower_piece(o.type, o.half_size))
 				continue;
 			const nav::Vec2 gap = nav::footprint_gap(o, g.x, g.z);
 			if (gap.x > g.half_size || gap.y > g.half_size) continue;
-			for (const auto &cell : building_cells(o)) {
-				const float ccx = (cell.first + 0.5f) * GRID, ccz = (cell.second + 0.5f) * GRID;
-				if (std::fabs(ccx - g.x) <= near && std::fabs(ccz - g.z) <= near) ignored.push_back(cell);
-			}
+			const std::vector<std::pair<int, int>> oc = building_cells(o);
+			ignored.insert(ignored.end(), oc.begin(), oc.end());
 		}
 	}
 	std::vector<uint32_t> ids(ignore, ignore + ignore_n);
@@ -5467,6 +5463,7 @@ void Simulation::cmd_set_rally_point(uint8_t player_id, uint32_t building_id, fl
 		return;
 	}
 	b.has_rally_point = true;
+	b.rally_emergency = false; // a player's rally: its units spawn outside and walk in
 	b.rally_x = rx;
 	b.rally_z = rz;
 	b.rally_target_res_id = res_id;
@@ -14251,25 +14248,6 @@ const float FAUNA_PUSH_RADIUS_LARGE = unit_collision_radius(UNIT_ELEPHANT);
 #endif
 
 
-namespace {
-GpuSeparation::AvailFn g_gpu_sep_avail_fn = nullptr;
-GpuSeparation::DispatchFn g_gpu_sep_dispatch_fn = nullptr;
-} // namespace
-
-void GpuSeparation::register_live_hooks(AvailFn avail, DispatchFn dispatch) {
-	g_gpu_sep_avail_fn = avail;
-	g_gpu_sep_dispatch_fn = dispatch;
-}
-
-bool GpuSeparation::live_available() {
-	return g_gpu_sep_avail_fn && g_gpu_sep_avail_fn();
-}
-
-bool GpuSeparation::live_dispatch(size_t count, const float *pos_xz, const float *radii, float *out_forces,
-                                  float cell_size, float min_dist, float strength) {
-	return g_gpu_sep_dispatch_fn && g_gpu_sep_dispatch_fn(count, pos_xz, radii, out_forces, cell_size, min_dist, strength);
-}
-
 void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 	const size_t n = units_.count;
 	// Pressure changes on the last tick of each turn, as MoveSubset decays it after the turn's moves
@@ -14510,24 +14488,6 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 		mov[i] = u.moving;
 	}
 	const float min_push = PUSH_MIN_FORCE * dt / PUSH_TURN;
-	// Track E (T45): Live GPU Compute Separation Dispatch when unit_count > 1000 and GpuSeparation::is_available() is true
-	const size_t unit_count = n;
-	float *gpu_forces = nullptr;
-	if (gpu_push_ && unit_count > 1000 && GpuSeparation::live_available()) {
-		float *pos_xz = arena.alloc_array<float>(N * 2);
-		float *radii = arena.alloc_array<float>(N);
-		float *out_f = arena.alloc_array<float>(N * 2);
-		if (pos_xz && radii && out_f) {
-			for (size_t k = 0; k < N; ++k) {
-				pos_xz[k * 2 + 0] = epx[k];
-				pos_xz[k * 2 + 1] = epz[k];
-				radii[k] = pu[k].r;
-			}
-			if (GpuSeparation::live_dispatch(N, pos_xz, radii, out_f, 4.0f, 2.5f, dt / PUSH_REDUCTION)) {
-				gpu_forces = out_f;
-			}
-		}
-	}
 	if (n_big) {
 		if (!grid.pack(arena, N, epx, epz, mov) || !grid.alloc_split_flagged(arena)) return;
 		if (!big.pack(arena, N, epx, epz, mov) || !big.alloc_split_flagged(arena)) return;
@@ -14757,14 +14717,6 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 			const float damp = (float)(PUSH_MAX_PRESSURE - std::min<int>(PUSH_MAX_DAMPING_PRESSURE, pressure)) / PUSH_MAX_PRESSURE;
 			ax *= damp;
 			az *= damp;
-		}
-		if (gpu_forces && ax == 0.0f && az == 0.0f && !body_overlap) {
-			const float gx = gpu_forces[i * 2 + 0] * PUSH_SCALE;
-			const float gz = gpu_forces[i * 2 + 1] * PUSH_SCALE;
-			if (gx * gx + gz * gz > min_push * min_push) {
-				ax = gx;
-				az = gz;
-			}
 		}
 		fx[i] = ax;
 		fz[i] = az;
@@ -22005,7 +21957,7 @@ bool Simulation::can_gather(size_t i, size_t r) const {
 // The rally command a unit of this type gets when the rally point is the trainer itself
 // (Commands.js "garrison" rather than "repair"): garrison, unless a builder would repair it.
 bool Simulation::self_garrison_rally(const Building &b, uint8_t unit_type, uint16_t tmpl) const {
-	if (!b.has_rally_point || b.rally_target_bld_id != b.id || turret_points_of(b)) return false;
+	if (!b.rally_emergency || !b.has_rally_point || b.rally_target_bld_id != b.id || turret_points_of(b)) return false;
 	if (b.build_progress < 1.0f || !structure_has_enough_health(b)) return false;
 	(void)unit_type;
 	(void)tmpl;
@@ -24564,7 +24516,10 @@ bool Simulation::petra_train_emergency_units(const std::vector<std::pair<float, 
 		}
 	}
 	if (!petra_train_template(PETRA_Q_EMERGENCY, cc.id, found, 1, false, PETRA_ORDER_EMERGENCY)) return false;
-	if (autogarrison && !emergency) cmd_set_rally_point(petra_pid_, cc.id, cc.x, cc.z, 0, cc.id);
+	if (autogarrison && !emergency) {
+		cmd_set_rally_point(petra_pid_, cc.id, cc.x, cc.z, 0, cc.id);
+		if (auto it = building_id_to_idx_.find(cc.id); it != building_id_to_idx_.end()) buildings_[it->second].rally_emergency = true;
+	}
 	return true;
 }
 
@@ -38339,6 +38294,7 @@ bool Simulation::save_state(const char *filepath) const {
 		out.write((const char *)&b.capture_timer, sizeof(b.capture_timer));
 		out.write((const char *)&b.template_off, sizeof(b.template_off));
 		out.write((const char *)&b.trickle_tick, sizeof(b.trickle_tick));
+		out.write((const char *)&b.rally_emergency, sizeof(b.rally_emergency));
 
 		uint32_t q_sz = (uint32_t)b.queue.size();
 		out.write((const char *)&q_sz, sizeof(q_sz));
@@ -38828,6 +38784,8 @@ bool Simulation::load_state(const char *filepath) {
 		if (version >= SAVE_VERSION_STRUCTURE_OFF) in.read((char *)&bld.template_off, sizeof(bld.template_off));
 		bld.trickle_tick = 0; // older saves: the match clock's phase, as they paid
 		if (version >= SAVE_VERSION_TRICKLE_TIMER) in.read((char *)&bld.trickle_tick, sizeof(bld.trickle_tick));
+		bld.rally_emergency = false; // older saves: a player's rally
+		if (version >= SAVE_VERSION_RALLY_EMERGENCY) in.read((char *)&bld.rally_emergency, sizeof(bld.rally_emergency));
 		bld.set_extents(bld.half_size, building_half_depth(bld.type, bld.half_size, bld.civ)); // its civ's wall depth
 		const auto &bi = building_type_info(bld.type);
 		bld.capture_regen_rate = bi.capture_regen_rate;
