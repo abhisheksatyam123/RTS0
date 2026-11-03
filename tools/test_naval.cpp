@@ -2287,6 +2287,35 @@ static void test_ship_round_wreck_corner() {
 	}
 }
 
+// tradeManager.js: tradeRoute is kept between checks. checkRoutes runs on a trade event (a market
+// or dock built or lost), for an idle trader and for prospection; RTS0 checked the routes every AI
+// turn, so a route opened by receding enemy territory was used at once rather than at the next event.
+static void test_petra_route_kept_between_events() {
+	static Simulation s;
+	fresh(s);
+	s.set_player_active(1, true, true);
+	s.set_player_resources(1, 5000, 5000, 5000, 5000);
+	s.players_[1].phase = 2;
+	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	s.spawn_building_world(-50.0f, 52.0f, BLD_MARKET, 1);
+	s.spawn_building_world(30.0f, 52.0f, BLD_MARKET, 1);
+	s.petra_pid_ = 1;
+	s.petra_manage_trading(Simulation::FIXED_STEP);
+	const bool first = s.petra_route_cache_.valid;
+	const int gain = s.petra_route_cache_.routes.best.gain;
+	s.petra_route_cache_.routes.best.gain = 12345; // a marker: a recheck would overwrite it
+	s.petra_manage_trading(Simulation::FIXED_STEP);
+	const bool kept = s.petra_route_cache_.routes.best.gain == 12345;
+	s.spawn_building_world(-50.0f, -52.0f, BLD_MARKET, 1); // a new market: a trade event
+	s.petra_manage_trading(Simulation::FIXED_STEP);
+	const bool rechecked = s.petra_route_cache_.routes.best.gain != 12345;
+	std::printf("Petra trade route kept between events: first check %d (gain %d), kept with no event %d, rechecked on a new market %d\n",
+	            (int)first, gain, (int)kept, (int)rechecked);
+	CHECK(first && gain > 0);
+	CHECK(kept);
+	CHECK(rechecked);
+}
+
 // navalManager.js moveApart / entityExtend.js gatherTreasure(water): Petra's idle ship goes
 // for the nearest treasure on its own sea, not a nearer one on land.
 static void test_petra_ship_treasure() {
@@ -3536,6 +3565,7 @@ int main() {
 	test_ship_round_wreck();
 	test_ship_round_wreck_corner();
 	test_petra_ship_treasure();
+	test_petra_route_kept_between_events();
 	test_petra_idle_ship_once();
 	test_crannog_takes_fish();
 	test_ship_leaves_dock_site();
