@@ -275,6 +275,41 @@ void RtsoCameraRig::_unhandled_input(const Ref<InputEvent> &event) {
 	}
 }
 
+// Shows the pixel-art outline quad when the Options toggle (UserSettings.cfg "pixelart") is on.
+// The quad is built on first use under the camera, with a custom AABB so it is never culled.
+// Compatibility gets the depth-only outline shader; Forward+ / Mobile get the normal-aware one.
+void RtsoCameraRig::sync_pixel_art() {
+	if (!cam || !is_inside_tree()) return;
+	bool want = false;
+	if (Node *us = get_node_or_null(NodePath("/root/UserSettings"))) {
+		Variant cfg_v = us->get("cfg");
+		Object *cfg = cfg_v;
+		if (cfg) want = cfg->call("get_bool", "pixelart");
+	}
+	if (want && !pixel_quad_) {
+		// GL Compatibility has no rendering device (as user_settings.gd's FSR check).
+		const bool compat = RenderingServer::get_singleton()->get_rendering_device() == nullptr;
+		Ref<Shader> sh = ResourceLoader::get_singleton()->load(
+				compat ? "res://shaders/pixel_art_post_depth.gdshader" : "res://shaders/pixel_art_post.gdshader");
+		if (!sh.is_valid()) return;
+		Ref<ShaderMaterial> mat;
+		mat.instantiate();
+		mat->set_shader(sh);
+		Ref<QuadMesh> quad;
+		quad.instantiate();
+		quad->set_size(Vector2(2.0f, 2.0f));
+		quad->set_material(mat);
+		pixel_quad_ = memnew(MeshInstance3D);
+		pixel_quad_->set_mesh(quad);
+		pixel_quad_->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_OFF);
+		pixel_quad_->set_custom_aabb(AABB(Vector3(-1e5f, -1e5f, -1e5f), Vector3(2e5f, 2e5f, 2e5f)));
+		cam->add_child(pixel_quad_);
+		pixel_quad_->set_position(Vector3(0.0f, 0.0f, -1.0f));
+	}
+	pixel_on_ = want;
+	if (pixel_quad_) pixel_quad_->set_visible(want);
+}
+
 void RtsoCameraRig::_process(double delta) {
 	sync_pixel_art();
 	if (cinema_view_) return; // back at the rig's own view when the path ends
