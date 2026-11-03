@@ -3614,6 +3614,19 @@ bool Simulation::update_forest_cells() {
 	return true;
 }
 
+// The line test of 0.28's TestLine (CCmpObstructionManager.cpp:918-932): each static square, grown by
+// the clearance, is tested on its own with Geometry::TestRaySquare (Geometry.cpp:259-305), where a
+// line that starts inside a square leaves that square freely but still collides with any other square
+// it enters. A square that holds `pos` (LINE_HOLDS_POS) is skipped; it does not clear the whole line.
+// RTS0 used to call the whole line clear as soon as any square held the start ("separation() pushes it
+// out first"). Among clustered mines that let a unit pushed a hair into one rock's clearance walk
+// straight into the next rock, where the two rocks' separation pushes held it for good (atlas_valleys
+// seed 3 on head 2a71a800a, p4's returner 3636 at (-33, -104)).
+// Cost: the grid pass visits only the obstacles whose footprints may overlap the line's box (to cell
+// resolution) and stops at the first crossing. The full scan over steer_obstacles_ runs only when the
+// grid refuses the box (for_each_in_box returns false: more than 4096 obstacles, or a box whose cells,
+// times the list's 64-bit words, outnumber its obstacles, as in a short list) or when steer_grid_ is not
+// in step with steer_obstacles_. A line that starts inside a square takes the same grid pass as any other.
 bool Simulation::steer_line_blocked(nav::Vec2 pos, nav::Vec2 aim, float max_len, float radius, uint32_t ignore) const {
 	const nav::Vec2 to_aim = aim - pos;
 	const float len = to_aim.length();
@@ -3621,16 +3634,18 @@ bool Simulation::steer_line_blocked(nav::Vec2 pos, nav::Vec2 aim, float max_len,
 	const nav::Vec2 end = len > max_len ? pos + to_aim * (max_len / len) : aim;
 	const float reach = std::min(len, max_len);
 	const nav::detail::SegmentBox box(pos, end, radius);
-	bool blocked = false, holds = false;
+	auto crosses = [&](const SteerObstacle &o) {
+		return nav::detail::line_hit(o, pos, end, aim, radius, ignore, reach, box) == nav::detail::LINE_CROSSES;
+	};
+	bool blocked = false;
 	if (steer_grid_.size() == steer_obstacles_.size() &&
 			steer_grid_.for_each_in_box(box.x0 - box.radius, box.z0 - box.radius, box.x1 + box.radius, box.z1 + box.radius, [&](uint32_t k) {
-				const int hit = nav::detail::line_hit(steer_obstacles_[k], pos, end, aim, radius, ignore, reach, box);
-				holds = hit == nav::detail::LINE_HOLDS_POS;
-				blocked = blocked || hit == nav::detail::LINE_CROSSES;
-				return holds;
+				return blocked = crosses(steer_obstacles_[k]);
 			}))
-		return blocked && !holds;
-	return nav::line_blocked_by_buildings(pos, aim, max_len, radius, steer_obstacles_, ignore);
+		return blocked;
+	for (const SteerObstacle &o : steer_obstacles_)
+		if (crosses(o)) return true;
+	return false;
 }
 
 // The standing structures that block movement (an open gate's two sides) and the mines, as move_units
@@ -13133,12 +13148,15 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			// (ComputeGoal, CCmpUnitMotion.h:1664-1773), which a search reaches without crossing it.
 			const bool gathering = units_.action_state[i] == ACTION_GATHER && units_.target_resource_id[i] != 0;
 			const uint32_t steer_ignore = units_.action_state[i] == ACTION_GATHER ? units_.target_resource_id[i] : units_.target_building_id[i];
-			// A large unit standing inside one structure's clearance whose line enters another's
-			// (large_step_barred) is obstructed, as PerformMove's CheckMovement fails it, and takes a short
-			// path round them. steer_line_blocked passes such a line, as separation() pushes the default
-			// class out of a structure first. 0.28 never has a unit inside a grown square; its vertex
-			// pathfinder, given a start inside one, only leaves that square's vertices unclipped
-			// (VertexPathfinder.cpp:703-712), and its one-sided edges let the path leave it (:110-140).
+			// A unit standing inside one structure's or mine's clearance whose line enters another's is
+			// treated as obstructed and takes a short path round them: steer_line_blocked skips only the
+			// squares that hold the unit, as TestLine does, and a large unit's line is tested at its own
+			// clearance too (large_step_barred). 0.28 would fail such a step on CheckMovement (PerformMove,
+			// CCmpUnitMotion.h:1302, 1343). RTS0 bars no default-class step or push by this rule (G84), so
+			// a default-class unit can still stand inside a grown square and be steered from there. 0.28
+			// never has a unit inside a grown square; its vertex pathfinder, given a start inside one, only
+			// leaves that square's vertices unclipped (VertexPathfinder.cpp:703-712), and its one-sided
+			// edges let the path leave it (:110-140).
 			auto large_line_barred = [&] {
 				const float ldx = aim_x - px[i], ldz = aim_z - pz[i], len = std::sqrt(ldx * ldx + ldz * ldz);
 				if (len < 1e-4f) return false;
