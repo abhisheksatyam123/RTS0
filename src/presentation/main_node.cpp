@@ -1,4 +1,3 @@
-#include "graphics/gpu_separation.h"
 #include <algorithm>
 #include <cmath>
 #include "network/chat_routing.h"
@@ -64,7 +63,6 @@ RtsoMain::~RtsoMain() {
 	rtso::clear_session_skins();
 	delete sim;
 	sim = nullptr;
-	rtso::GpuSeparation::instance().cleanup();
 }
 
 void RtsoMain::_notification(int p_what) {
@@ -73,7 +71,6 @@ void RtsoMain::_notification(int p_what) {
 		ghost_mat_ok.unref();
 		ghost_mat_bad.unref();
 		rtso::clear_session_skins();
-		rtso::GpuSeparation::instance().cleanup();
 	}
 	if (p_what == NOTIFICATION_WM_SIZE_CHANGED) {
 		apply_safe_area_insets();
