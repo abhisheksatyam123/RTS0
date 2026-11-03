@@ -2378,7 +2378,8 @@ struct MotionTurn {
 	float want_x = 0.0f, want_z = 0.0f; // the steps it tried this turn, summed
 	uint8_t failed = 0;  // m_FailedMovements: obstructed turns in a row
 	uint8_t stepped = 0; // it tried a step this turn
-	uint8_t blocked = 0; // a closed gate stopped one of this turn's steps
+	uint8_t blocked = 0; // bit 1: a closed gate stopped one of this turn's steps; bit 2: separation() slid a plain
+	                     // walk off a standing body with no other push (simulation.cpp MOTION_BLOCKED, MOTION_SLID)
 	uint8_t pressure = 0; // MotionState::pushingPressure (0-255): how pushed the unit is; kept when a turn resets
 };
 static_assert(sizeof(MotionTurn) == 20, "MotionTurn is saved raw");

@@ -14246,6 +14246,10 @@ constexpr uint32_t PUSH_PRESSURE_DECAY = (6u << 16) / 10; // <PressureDecay> 0.6
 // 0 A.D. marks a unit pushed back to under 1/2 m^2 of its move obstructed: 15% of an infantryman's
 // 1.8 m step, the share motion_feedback also uses, as RTS0 walks and pushes at different scales.
 constexpr float PUSH_OBSTRUCTED_PROGRESS = 0.15f;
+// MotionTurn::blocked's bits (saved raw, so a turn judged after a load sees them): a closed gate
+// stopped one of the turn's steps (move_units' blocked steps), and separation() slid a plain walker off
+// a standing body with no other push on it (motion_feedback counts neither as a move).
+constexpr uint8_t MOTION_BLOCKED = 1, MOTION_SLID = 2;
 // An animal pushes with its UnitMotion PassabilityClass Clearance (CCmpUnitMotion.h:636-649 hands it
 // to the obstruction, and Push adds the two Clearances, CCmpUnitMotion_System.cpp:689), as a unit
 // does: here as a body whose push clearance is r * PUSH_CLEARANCE_PER_RADIUS, the units' crowd scale.
@@ -14326,11 +14330,15 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 	float *fz = arena.alloc_array<float>(N);
 	float *bfx = arena.alloc_array<float>(N); // building pushes
 	float *bfz = arena.alloc_array<float>(N);
-	if (!fx || !fz || !bfx || !bfz) return;
+	// slid[i]: unit i's push this tick is its slide off a standing body (below), with no push from a
+	// walker or an animal beside it (set only for the push a walker's MOTION_SLID records, below).
+	uint8_t *slid = arena.alloc_array<uint8_t>(N);
+	if (!fx || !fz || !bfx || !bfz || !slid) return;
 	memset(fx, 0, N * sizeof(float));
 	memset(fz, 0, N * sizeof(float));
 	memset(bfx, 0, N * sizeof(float));
 	memset(bfz, 0, N * sizeof(float));
+	memset(slid, 0, N * sizeof(uint8_t));
 
 	// UnitMotionFlying has no obstruction (units/plane Obstruction disable): a plane pushes no one
 	// and nothing pushes it.
@@ -14544,6 +14552,7 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 		float az = 0.0f;
 		int added_pressure = 0;
 		bool body_overlap = false; // an idle unit whose body overlaps another idle unit's
+		float slide_x = 0.0f, slide_z = 0.0f; // the slides off standing bodies in (ax, az)
 		// A unit further than `skip` on either axis neither overlaps this one's body nor comes
 		// within `reach` of it once both averages are taken (each moved at most step_max), so it
 		// is passed over before its data is read. The hundredth covers float rounding.
@@ -14675,6 +14684,8 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 					kx = -wz * q;
 					kz = wx * q;
 				}
+				slide_x += kx;
+				slide_z += kz;
 			}
 			ax += kx;
 			az += kz;
@@ -14715,6 +14726,13 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 				gr.visit_flagged_or_near(pxi, pzi, q, q, body, walk_pair);
 			else
 				gr.visit_packed_within(pxi, pzi, q, q, !my_group || g, push_pair);
+		}
+		// The push is a slide off a standing body when nothing else on the unit is above MinimalForce:
+		// the rest of its push (the pushes of walkers and animals, which 0 A.D. makes and a slide is not)
+		// would not move it on its own. Only the walker is judged, as the slide needs its step this tick.
+		if ((slide_x != 0.0f || slide_z != 0.0f) && is_unit) {
+			const float rx = (ax - slide_x) * PUSH_SCALE, rz = (az - slide_z) * PUSH_SCALE;
+			slid[i] = rx * rx + rz * rz <= min_push * min_push;
 		}
 		ax *= PUSH_SCALE;
 		az *= PUSH_SCALE;
@@ -14909,6 +14927,15 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 			if (pass == PASS_INFANTRY && land_step_barred(px[i], pz[i], nx, nz, unit_clearance_at(i))) return;
 			if (edge_step_barred(px[i], pz[i], nx, nz, unit_clearance_at(i))) return; // nor past a circular map's edge
 		}
+		// A plain walker that only a slide off a standing body moved this tick made no move of its own: 0.28
+		// never pushes a moving walker off a standing unit of another control group (CCmpUnitMotion_System.cpp:
+		// 677, 682-687; a formation's members are exempt), so its HandleObstructedMove sees a unit that has not
+		// moved (motion_feedback, MOTION_SLID). Only ORDER_WALK walks are judged so: a gatherer's walk to its
+		// dropsite and a builder's walk off a foundation are judged too, while gather and build orders keep
+		// main's count (judging those as well broke test_unit_pushing 35 and slowed 40, MIGRATION.md).
+		// A push off a building does not clear the mark: the rule covers standing units and animals only.
+		if (slid[i] && units_.order_kind[i] == ORDER_WALK && (ux != 0.0f || uz != 0.0f) && (nx != px[i] || nz != pz[i]))
+			units_.motion[i].blocked |= MOTION_SLID;
 		px[i] = nx;
 		pz[i] = nz;
 	});
@@ -15234,7 +15261,10 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 		const float ax = units_.pos_x[i] - m.from_x, az = units_.pos_z[i] - m.from_z;
 		// A step a closed gate stopped failed CheckMovement: 0 A.D. doesn't move the unit at all
 		// then, where RTS0 lets it slide along the gate.
-		const bool blocked = m.blocked;
+		const bool blocked = m.blocked & MOTION_BLOCKED;
+		// separation() slid it off a standing unit's body on a tick of this turn: an RTS0 nudge, which 0.28
+		// never makes to a moving walker of another control group (CCmpUnitMotion_System.cpp:677, 682-687).
+		const bool slid = m.blocked & MOTION_SLID;
 		m.want_x = m.want_z = 0.0f;
 		m.stepped = m.blocked = 0;
 		const float ww = wx * wx + wz * wz, progress = wx * ax + wz * az;
@@ -15243,7 +15273,13 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 			continue;
 		}
 		if (!blocked && progress >= OBSTRUCTED_PROGRESS * ww) continue; // slowed, not stopped
-		const bool moved = !blocked && ax * ax + az * az >= OBSTRUCTED_PROGRESS * OBSTRUCTED_PROGRESS * ww;
+		// HandleObstructedMove(moved), CCmpUnitMotion.h:1099, 1378: moved is pos != initialPos, which in 0.28
+		// only the unit's own steps and pushes among walkers make. A turn that a slide off a standing body
+		// moved (progress under 15%) is no move: counted as one, it held the failed count at 2 for good on a
+		// walker pressed between a structure and an idle unit it stood inside (Cycladic Archipelago
+		// seed 3, archer 2860 at a Petra boarding point), which never reached MoveFailed. The bit covers the
+		// whole turn, so a walker's own push in that turn is discarded with the slide (residual, MIGRATION.md).
+		const bool moved = !blocked && !slid && ax * ax + az * az >= OBSTRUCTED_PROGRESS * OBSTRUCTED_PROGRESS * ww;
 		// CCmpUnitMotion.h:1378 HandleObstructedMove: a turn on which the unit moved but was obstructed
 		// again once m.failed >= OBSTRUCTED_AT skips the failed-count increment, yet still requests its
 		// short or long path for this turn.
