@@ -232,6 +232,12 @@ func run() -> void:
 		press(label)
 	main._on_minimap_order(Vector2(0.5, 0.5)) # a fresh order for the pathfinders to search
 	await frames(6)
+	# The selected units walked off from the base: look at one, so its boxes are on screen.
+	var walkers: Array = main.debug_selection_state()["units"]
+	if not walkers.is_empty():
+		var wp: Vector2 = walkers[0]["pos"]
+		rig.set_target_pos(Vector3(wp.x, 0, wp.y))
+		await frames(30)
 	d = main.debug_dev_overlay()
 	check(int(d["path_search_tiles"]) > 0, "the pathfinder overlay shows the last long path search's tiles (%d)" % int(d["path_search_tiles"]))
 	check(int(d["short_path_vertexes"]) >= 2, "and the last short path search's graph (%d vertices)" % int(d["short_path_vertexes"]))
