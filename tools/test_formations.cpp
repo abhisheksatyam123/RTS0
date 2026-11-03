@@ -606,10 +606,10 @@ static void test_patrol() {
 	centroid(s, inf, cx, cz);
 	reached = cx > 16.0f;
 	check(waited && reached, "it reaches the far end and surveys it (CHECKINGWAYPOINT)");
-	run(s, 1.5f);
+	run(s, 1.8f);
 	check(ctrl(s, fid)->order == Simulation::FORDER_PATROL_WAIT, "for PatrolWaitTime");
-	run(s, 2.0f);
-	check(ctrl(s, fid)->order == Simulation::FORDER_PATROL && ctrl(s, fid)->goal_x < -15.0f, "then patrols back");
+	run(s, 0.4f); // CHECKINGWAYPOINT looks at 0, 1 and 2 s and leaves on the third
+	check(ctrl(s, fid)->order == Simulation::FORDER_PATROL && ctrl(s, fid)->goal_x < -15.0f, "then patrols back after 2 s");
 	waited = false;
 	for (int k = 0; k < 400 && !waited; ++k) {
 		run(s, 0.1f);

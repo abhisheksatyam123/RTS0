@@ -1250,7 +1250,8 @@ void RtsoMain::_on_panel_entity_gui_input(const Ref<InputEvent> &event, int slot
 				play_civ_voice("select");
 				return;
 			}
-		selected_ids.push_back((int32_t)id);
+		for (int32_t uid : formation_mates((int32_t)id)) // selectAndMoveTo: addList
+			if (!selected_ids.has(uid)) selected_ids.push_back(uid);
 		if (cam_rig) cam_rig->set_follow_id(id);
 		play_civ_voice("select");
 		return;
@@ -1259,7 +1260,8 @@ void RtsoMain::_on_panel_entity_gui_input(const Ref<InputEvent> &event, int slot
 		selected_ids.clear();
 		selected_building_id = 0;
 	}
-	if (!selected_ids.has((int32_t)id)) selected_ids.push_back((int32_t)id);
+	for (int32_t uid : formation_mates((int32_t)id)) // PanelEntity.onPress: addList
+		if (!selected_ids.has(uid)) selected_ids.push_back(uid);
 	play_civ_voice("select");
 }
 

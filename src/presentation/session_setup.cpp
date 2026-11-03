@@ -733,6 +733,7 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 		uint8_t teams[rtso::MAX_PLAYERS] = {};
 		for (uint8_t p = 0; p < rtso::MAX_PLAYERS && p < setup.slot_count; ++p) teams[p] = setup.teams[p];
 		sim->set_setup_teams(teams);
+		rtso::display_colors::set_setup_teams(teams);
 	}
 	sim->apply_team_diplomacy();
 	sync_victory_selector();
@@ -934,6 +935,7 @@ void RtsoMain::apply_match_settings() {
 		for (int p = 0; p < rtso::MAX_PLAYERS && p < slot_teams.size(); ++p)
 			teams[p] = (uint8_t)std::clamp((int)slot_teams[p], 0, 8);
 		sim->set_setup_teams(teams);
+		rtso::display_colors::set_setup_teams(teams);
 	}
 	sim->apply_team_diplomacy(); // stances follow the lobby's teams
 	sync_victory_selector();
@@ -978,14 +980,15 @@ void RtsoMain::apply_match_settings() {
 			" civ ", rtso::civ_info(sim->player_civ(local_player() < rtso::MAX_PLAYERS ? local_player() : 0)).name,
 			" vs ", rtso::civ_info(sim->team_civ(1)).name);
 
-	// Track G (T47): Apply Skirmish & Siege Battle Presets ("frontline_clash" / "fortress_siege")
+	// Track G (T47): Apply Skirmish & Siege Battle Presets ("frontline_clash" / "fortress_siege").
+	// The preset stays in MatchSettings so the replay records it (kSetupKeys); Game Setup
+	// clears it when it opens.
 	const String preset = ms->has_method("get") ? (String)ms->get("battle_preset") : "";
 	const bool is_frontline = (preset == "frontline_clash" || map_id == "frontline_clash");
 	if (is_frontline) {
 		int battle_units = ms->has_method("get") ? (int)ms->get("battle_units") : 0;
 		if (battle_units <= 0) battle_units = 1600;
 		spawn_large_battle(battle_units);
-		if (ms->has_method("set")) ms->set("battle_preset", "");
 	} else if (preset == "fortress_siege") {
 		sim->set_waves_enabled(true);
 		for (const auto &b : sim->buildings()) {
@@ -996,7 +999,6 @@ void RtsoMain::apply_match_settings() {
 				break;
 			}
 		}
-		if (ms->has_method("set")) ms->set("battle_preset", "");
 	}
 
 	// Map just (re)spawned - select the human player's units like the old
@@ -1291,6 +1293,7 @@ void RtsoMain::apply_map_player_overrides() {
 	if (map_has_teams_) {
 		// A map with LockTeams sets the teams itself (0 A.D. gamesetup locks them).
 		sim->set_setup_teams(map_team_);
+		rtso::display_colors::set_setup_teams(map_team_);
 		sim->apply_team_diplomacy();
 	}
 }

@@ -24,6 +24,11 @@ struct State {
 	uint8_t viewer = 0xFF; // the player whose stances pick the colours (0xFF: an observer)
 	uint32_t self = 0x153795, ally = 0x56B41F, neutral = 0xE7C805, enemy = 0x961414;
 	uint32_t config_generation = ~0u;
+	// 0 A.D. Diplomacy.team: each player's Game Setup team (1-4, 0 = none), which no
+	// stance change alters. The simulation's team is its lowest member's id and a
+	// player leaves it on breaking an alliance, so the dialog and team colours read these.
+	uint8_t setup_team[MAX_PLAYERS] = {};
+	bool has_setup_teams = false;
 };
 
 inline State &state() {
@@ -56,6 +61,19 @@ inline void refresh_config() {
 
 inline void toggle() { state().enabled = !state().enabled; }
 
+inline void set_setup_teams(const uint8_t teams[MAX_PLAYERS]) {
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) state().setup_team[p] = teams[p];
+	state().has_setup_teams = true;
+}
+
+// `pid`'s team key: its Game Setup team (0 = none) when one was recorded, else the
+// simulation's team + 1.
+inline int team_key(const Simulation &sim, uint8_t pid) {
+	const State &s = state();
+	if (s.has_setup_teams) return s.setup_team[pid];
+	return sim.player_team(pid) + 1;
+}
+
 // computeTeamColors: the 0xRRGGBB `pid` is drawn in.
 inline uint32_t rgb(const Simulation &sim, uint8_t pid) {
 	const State &s = state();
@@ -64,9 +82,10 @@ inline uint32_t rgb(const Simulation &sim, uint8_t pid) {
 		// Observers see team colours: an active player takes its team's first
 		// active member's colour (a teamless player's team is only itself).
 		if (!sim.player_in_match(pid)) return sim.player_color(pid);
-		const uint8_t team = sim.player_team(pid);
+		const int team = team_key(sim, pid);
+		if (team == 0) return sim.player_color(pid);
 		for (uint8_t q = 0; q < pid; ++q)
-			if (sim.player_in_match(q) && sim.player_team(q) == team) return sim.player_color(q);
+			if (sim.player_in_match(q) && team_key(sim, q) == team) return sim.player_color(q);
 		return sim.player_color(pid);
 	}
 	if (pid == s.viewer) return s.self;
