@@ -132,7 +132,7 @@ func run() -> void:
 			"River, its description on its list item, the setting's tooltip on the dropdown: " + tpl.tooltip_text)
 		select_map(page, "random_lake")
 		await frames(2)
-		check(items.call() == [0, 1, 5] and tpl.text == "River", "Lake offers Circle and River, River stays: " + tpl.text)
+		check(items.call() == [0, 1, 5] and tpl.text == "Random", "Lake offers Circle and River; another map starts on Random (PlayerPlacement.onMapChange): " + tpl.text)
 		select_map(page, "random_cantabrian_highlands")
 		await frames(2)
 		check(items.call() == [0, 1, 4] and tpl.text == "Random", "Cantabrian Highlands has no River: " + tpl.text)
@@ -252,7 +252,7 @@ func run() -> void:
 		check(not tp_slot.is_visible_in_tree(), "RTS0's own Archipelago has no placement")
 		select_map(page, "random_lake")
 		await frames(2)
-		check(tpl.text == "River", "River comes back on Lake")
+		check(tpl.text == "Random", "Lake starts on Random again (PlayerPlacement.onMapChange)")
 	else:
 		# Until F's #429: only Ambush and Frontier, without River.
 		check(not tp_slot.is_visible_in_tree(), "Mainland has no Player Placement yet")

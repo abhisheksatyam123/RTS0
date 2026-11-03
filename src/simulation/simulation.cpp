@@ -782,7 +782,7 @@ void Simulation::reset() {
 	game_over_ = false;
 	victory_ = false;
 	participant_mask_ = defeated_mask_ = winner_mask_ = 0;
-	had_unit_mask_ = 0;
+	had_unit_mask_ = had_structure_mask_ = 0;
 	relic_countdown_players_ = 0;
 	relic_changed_hands_ = false;
 	for (float &w : wonder_hold_) w = 0.0f;
@@ -6413,6 +6413,11 @@ bool Simulation::cmd_set_diplomacy(uint8_t player_id, uint8_t target, uint8_t st
 		return false;
 	// Commands.js "diplomacy": refused during a ceasefire and when teams are locked.
 	if (ceasefire_active() || teams_locked()) return false;
+	// Commands.js notifies every accepted command, even one that changes nothing.
+	note_session({SessionNotice::DIPLOMACY, player_id, target, stance, {}});
+	// Diplomacy.js SetDiplomacyIndex: no change unless both players are still active.
+	auto active = [this](uint8_t p) { return player_in_match(p) && !is_defeated(p) && !((winner_mask() >> p) & 1); };
+	if (!active(player_id) || !active(target)) return true;
 	// Unlocked teams only set the starting alliances: a player who stops allying a
 	// teammate leaves the team. Its stances with the former teammates stay allied both
 	// ways, as 0 A.D.'s were, except the one it just changed. A team's id is its lowest
@@ -6432,8 +6437,6 @@ bool Simulation::cmd_set_diplomacy(uint8_t player_id, uint8_t target, uint8_t st
 			}
 		players_[player_id].team = player_id;
 	}
-	if (diplomacy_[player_id][target] != stance)
-		note_session({SessionNotice::DIPLOMACY, player_id, target, stance, {}}); // Commands.js "diplomacy" notification
 	set_diplomacy(player_id, target, stance);
 	note_diplomacy_changed(player_id, target, stance);
 	// Diplomacy.js OnDiplomacyChanged, "mutual worsening of relations": the other player's
@@ -7847,6 +7850,7 @@ void Simulation::formation_stop(const uint32_t *unit_ids, size_t count) {
 		for (size_t i = 0; i < count; ++i)
 			if (std::find(fc.members.begin(), fc.members.end(), unit_ids[i]) != fc.members.end()) {
 				fc.order = FORDER_IDLE;
+				fc.member_timer = FORMATION_IDLE_FIRST_CHECK;
 				fc.returning = FORDER_IDLE;
 				fc.target_unit = fc.target_building = fc.target_formation = 0;
 				fc.queue.clear();
@@ -8115,6 +8119,7 @@ std::vector<size_t> Simulation::formation_controllers_for(const uint32_t *unit_i
 		fc.offsets_rot = fc.rot;
 		fc.goal_x = fc.x;
 		fc.goal_z = fc.z;
+		fc.member_timer = FORMATION_IDLE_FIRST_CHECK; // a new controller starts in IDLE
 		formations_.push_back(std::move(fc));
 		new_ids.push_back(formations_.back().id);
 	}
@@ -8172,6 +8177,7 @@ void Simulation::order_set_formation(const uint32_t *unit_ids, size_t count, uin
 				UnitOrder carry;
 				if (formation_current_order(fc, carry) && fc.queue.size() < 64) fc.queue.insert(fc.queue.begin(), carry);
 				fc.order = FORDER_IDLE;
+				fc.member_timer = FORMATION_IDLE_FIRST_CHECK;
 				fc.returning = FORDER_IDLE;
 				fc.target_unit = fc.target_building = fc.target_formation = 0;
 				fc.goal_x = fc.x;
@@ -8247,6 +8253,9 @@ void Simulation::formation_merge_twins() {
 					if (formations_[j].id == other_id) { oi = j; break; }
 				if (oi == formations_.size() || formations_[oi].tmpl != fc.tmpl) continue;
 				const FormationController &other = formations_[oi];
+				// Formation.js:949-951: both controllers must be in the world; MEMBER.enter
+				// takes a fighting twin's controller out of it.
+				if (other.order == FORDER_MEMBER) continue;
 				float w, d, ow, od;
 				formation_size(fc, w, d);
 				formation_size(other, ow, od);
@@ -8691,7 +8700,16 @@ void Simulation::tick_formations(float dt) {
 				}
 				if (!resume) set_order((size_t)idx, ORDER_NONE, 0, 0, units_.pos_x[idx], units_.pos_z[idx]);
 			}
+			// PATROL.leave dropped patrolStartPosOrder when the walk turned into a fight, so
+			// PATROL.enter takes the controller's place now as the start (a lone leg then
+			// loops between the waypoint and here).
+			if (resume && fc.returning == FORDER_PATROL && fc.patrol_wait == FORMATION_PATROL_REANCHOR) {
+				fc.patrol_x = fc.x;
+				fc.patrol_z = fc.z;
+			}
+			if (fc.patrol_wait == FORMATION_PATROL_REANCHOR) fc.patrol_wait = 0;
 			fc.order = resume ? fc.returning : FORDER_IDLE;
+			if (!resume) fc.member_timer = FORMATION_IDLE_FIRST_CHECK;
 			fc.returning = FORDER_IDLE;
 			fc.target_unit = fc.target_building = fc.target_formation = 0;
 			if (!resume) {
@@ -8725,6 +8743,7 @@ void Simulation::tick_formations(float dt) {
 				leg.z = fc.goal_z;
 				if (fc.queue.size() < 64) fc.queue.push_back(leg);
 				fc.order = FORDER_IDLE;
+				fc.member_timer = FORMATION_IDLE_FIRST_CHECK;
 				continue;
 			}
 			// Alone in the queue it patrols back to where it started (patrolStartPosOrder).
@@ -8765,6 +8784,7 @@ void Simulation::tick_formations(float dt) {
 			float tx, tz;
 			if (!formation_target_pos(fc, tx, tz)) {
 				fc.order = FORDER_IDLE;
+				fc.member_timer = FORMATION_IDLE_FIRST_CHECK;
 				fc.target_unit = fc.target_building = fc.target_formation = 0;
 				fc.path.clear();
 				for (FormationSlot &sl : fc.slots) sl.following = 0;
@@ -8778,6 +8798,7 @@ void Simulation::tick_formations(float dt) {
 		if (any_fighting && (fc.order == FORDER_ATTACK_WALK || fc.order == FORDER_PATROL)) {
 			// WALKINGANDFIGHTING / PATROLLING Timer: FindWalkAndFightTargets found foes, so the
 			// members fight and the controller waits for them (MEMBER), then walks on.
+			if (fc.order == FORDER_PATROL && fc.queue.empty()) fc.patrol_wait = FORMATION_PATROL_REANCHOR;
 			fc.returning = fc.order;
 			fc.order = FORDER_MEMBER;
 			fc.member_timer = 0.0f;
@@ -8800,6 +8821,7 @@ void Simulation::tick_formations(float dt) {
 		}
 		if (!any_following) {
 			fc.order = FORDER_IDLE;
+			fc.member_timer = FORMATION_IDLE_FIRST_CHECK;
 			fc.target_unit = fc.target_building = fc.target_formation = 0;
 			fc.path.clear();
 			continue;
@@ -8886,9 +8908,10 @@ void Simulation::tick_formations(float dt) {
 			} else if (fc.order == FORDER_PATROL) {
 				fc.order = FORDER_PATROL_WAIT;
 				fc.patrol_wait = 0;
-				fc.member_timer = 0.0f;
+				fc.member_timer = 1.0f; // CHECKINGWAYPOINT StartTimer(0, 1000): the first look is now
 			} else {
 				fc.order = FORDER_IDLE;
+				fc.member_timer = FORMATION_IDLE_FIRST_CHECK;
 			}
 		}
 	}
@@ -19864,6 +19887,7 @@ void Simulation::check_victory_conditions(float dt) {
 	for (int t = 0; t < MAX_TEAMS; ++t) {
 		if (unit_count[t] || structure_count[t]) participant_mask_ |= (uint8_t)(1u << t);
 		if (unit_count[t]) had_unit_mask_ |= (uint8_t)(1u << t);
+		if (structure_count[t]) had_structure_mask_ |= (uint8_t)(1u << t);
 	}
 
 	if (has_victory(VK_WONDER)) {
@@ -19944,11 +19968,10 @@ void Simulation::check_victory_conditions(float dt) {
 	auto defeated = [&](int t) -> int { // the reason, or -1 while the player holds on
 		bool no_units = unit_count[t] == 0;
 		bool no_structures = structure_count[t] == 0;
-		// A Nomad player's structures list starts empty: it fills with what they build or
-		// capture.
-		const PlayerStatistics &st = stats_[t];
-		const bool had_structure = !nomad_ || st.buildings_constructed[STAT_BLD_TOTAL] + st.buildings_captured[STAT_BLD_TOTAL]
-				+ st.buildings_lost[STAT_BLD_TOTAL] > 0;
+		// ConquestStructures.js's "Structure" list fills with what the player holds, foundations
+		// included: a player who starts with none (a Nomad, an army-only start) is not out
+		// until one is lost.
+		const bool had_structure = (had_structure_mask_ >> t) & 1;
 		// A query whose list starts empty never fires, so a nomad who has not built a civic
 		// centre yet is not out until one is lost.
 		bool no_ccs = built_cc_count[t] == 0 && stats_[t].buildings_lost[STAT_BLD_CIV_CENTRE] > 0;
@@ -19985,14 +20008,18 @@ void Simulation::check_victory_conditions(float dt) {
 			end_match(standing);
 			return true;
 		}
+		// EndGameManager.AlliedVictoryCheck: every player left is a mutual ally of the
+		// lowest-numbered one (the other pairs are not checked), and with allied victory off
+		// only one player may be left.
+		int first = -1, left = 0;
 		bool one_side = true;
-		for (int a = 0; a < MAX_TEAMS && one_side; ++a) {
-			if (!((standing >> a) & 1)) continue;
-			for (int b = a + 1; b < MAX_TEAMS; ++b) {
-				if (!((standing >> b) & 1)) continue;
-				if (!allied_victory() || !is_ally((uint8_t)a, (uint8_t)b) || !is_ally((uint8_t)b, (uint8_t)a)) { one_side = false; break; }
-			}
+		for (int b = 0; b < MAX_TEAMS; ++b) {
+			if (!((standing >> b) & 1)) continue;
+			++left;
+			if (first < 0) first = b;
+			else if (!is_ally((uint8_t)first, (uint8_t)b) || !is_ally((uint8_t)b, (uint8_t)first)) one_side = false;
 		}
+		if (left > 1 && !allied_victory()) one_side = false;
 		// Don't hand out a win on a map that never had an enemy on it.
 		bool fought = defeated_mask_ != 0 || record_.enemies_killed > 0 || record_.buildings_destroyed > 0 || wave_number_ > 0;
 		if (one_side && fought) { end_match(standing); return true; }
@@ -22709,7 +22736,8 @@ bool Simulation::cmd_cheat(uint8_t player, uint8_t action, int32_t parameter, ui
 		return true;
 	}
 	case CHEAT_CREATE_UNITS: { // "salad bowl": a spearman of each civ in turn from the selected trainer;
-		// extra 1, "iwanttopwnthem" (createHeros.json): its nine heroes in turn.
+		// extra 1, "iwanttopwnthem" (createHeros.json): its nine heroes in turn; extra 2,
+		// "how do you turn this on?" (createPlane.json): planes.
 		static const char *const kSaladBowl[] = {"athen/infantry_spearman_b", "brit/infantry_spearman_b",
 			"cart/infantry_spearman_b", "gaul/infantry_spearman_b", "iber/infantry_spearman_b",
 			"kush/infantry_spearman_b", "mace/infantry_pikeman_b", "maur/infantry_spearman_b",
@@ -22727,7 +22755,9 @@ bool Simulation::cmd_cheat(uint8_t player, uint8_t action, int32_t parameter, ui
 		};
 		static const std::vector<uint16_t> salad = lookup(kSaladBowl, std::size(kSaladBowl));
 		static const std::vector<uint16_t> heroes = lookup(kHeroes, std::size(kHeroes));
-		const std::vector<uint16_t> &templates = extra == 1 ? heroes : salad;
+		static const char *const kPlane[] = {"plane"};
+		static const std::vector<uint16_t> planes = lookup(kPlane, std::size(kPlane));
+		const std::vector<uint16_t> &templates = extra == 1 ? heroes : extra == 2 ? planes : salad;
 		if (!count || templates.empty()) return false;
 		auto it = building_id_to_idx_.find(selected[0]);
 		if (it == building_id_to_idx_.end()) return false;
@@ -38459,7 +38489,7 @@ bool Simulation::load_state(const char *filepath) {
 	in.read((char *)&game_over_, sizeof(game_over_));
 	in.read((char *)&victory_, sizeof(victory_));
 	participant_mask_ = defeated_mask_ = winner_mask_ = 0;
-	had_unit_mask_ = 0;
+	had_unit_mask_ = had_structure_mask_ = 0;
 	for (float &w : wonder_hold_) w = 0.0f;
 	if (version >= 10) {
 		in.read((char *)&participant_mask_, sizeof(participant_mask_));

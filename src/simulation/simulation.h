@@ -1107,7 +1107,7 @@ public:
 		uint8_t returning = 0;          // order.data.returningState: where MEMBER goes back to
 		float member_timer = 0.0f;      // MEMBER / CHECKINGWAYPOINT one-second timer
 		float patrol_x = 0.0f, patrol_z = 0.0f; // patrolStartPosOrder: the other end of the patrol
-		uint8_t patrol_wait = 0;        // CHECKINGWAYPOINT stopSurveying
+		uint8_t patrol_wait = 0;        // CHECKINGWAYPOINT stopSurveying (FORMATION_PATROL_REANCHOR: see tick_formations)
 		std::vector<uint32_t> twins;    // Formation.js twinFormations (controller ids)
 		// v39: the controller's orderQueue after its current order (Shift-queued orders).
 		std::vector<UnitOrder> queue;
@@ -3814,6 +3814,7 @@ private:
 	// Not saved: a loaded player with units sets it on the next check, and one without units
 	// that had some was already defeated.
 	uint8_t had_unit_mask_ = 0;
+	uint8_t had_structure_mask_ = 0; // the same for ConquestStructures.js's "Structure" list
 	uint8_t defeated_mask_ = 0;
 	bool gpu_push_ = false; // not saved: set by the session each frame
 	uint8_t winner_mask_ = 0;
