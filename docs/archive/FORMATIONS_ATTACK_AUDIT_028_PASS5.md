@@ -1,6 +1,6 @@
 # Petra attacks, pass 5: the launched attack (Formations)
 
-Audit of 2026-11-02 against main ce0c9db2d, tracked as G104 in `docs/REMAINING_GAPS.md`. Sources: 0.28 `attackPlan.js` (AP) `update`, `UpdateWalking`, `UpdateTarget`, `getNearestTarget`, `checkTargetObstruction`, `Abort`, `getAttackAccess`. Passes 1-4 and G42/G75/G94/G97 are not repeated.
+Audit of 2026-11-02 against main ce0c9db2d, tracked as G105 in `docs/REMAINING_GAPS.md`. Sources: 0.28 `attackPlan.js` (AP) `update`, `UpdateWalking`, `UpdateTarget`, `getNearestTarget`, `checkTargetObstruction`, `Abort`, `getAttackAccess`. Passes 1-4 and G42/G75/G94/G97 are not repeated.
 
 ## Fixed (no save change)
 

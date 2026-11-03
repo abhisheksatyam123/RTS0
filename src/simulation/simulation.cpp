@@ -30829,7 +30829,8 @@ uint32_t Simulation::petra_nearest_target(uint8_t kind, bool forced, uint8_t ene
 	// terrain-analysis.js accessibility ignores structures: a target walled in on the land we
 	// search from is on it (checkTargetObstruction then takes the piece in the way). RTS0's
 	// lands are nav regions, which walls split.
-	const uint16_t from_access = petra_access_at(px, pz);
+	// (Only from a search point on the land asked for: same_land is the army's.)
+	const uint16_t from_access = same_land == 0 || petra_land_at(px, pz) == same_land ? petra_access_at(px, pz) : 0;
 	auto reachable = [&](float x, float z, float half) {
 		uint16_t to[8];
 		petra_lands_around(x, z, half, to);
