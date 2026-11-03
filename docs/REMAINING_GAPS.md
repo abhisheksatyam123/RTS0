@@ -350,6 +350,26 @@ Petra's config.js (difficulty, behaviour, personality, population scaling, prior
 | PG3 | ~~Petra's population-scaled settings (popScaling, worker target, phase, barracks, forge and trader thresholds) re-read World or Team Population's split after each defeat; config.js setConfig reads getPopulationMax once~~ | low | Fixed: `petra_config_max_pop` takes the split among every seated player |
 | PG4 | ~~Garrison holders are checked on a global every-second-turn beat; garrisonManager.js:134 keeps a per-holder holderTimeUpdate set at registration and after each check, so a new holder's first check can come about 1.5 s sooner than in 0.28~~ | low | Fixed: `petra_holders_` keeps each holder's registration or last-check time (save 135) |
 
+### Technologies end to end: Compare's seventeenth 0.28 pass (2026-11-03)
+
+Parent-aware audit of tech_data.h against 0.28 data/technologies. Cost, research time, phase, prerequisite, researcher and civ mask match for all 83 committed techs. The effect drifts below are real, but most need a new class or stat in RTS0 (naval ram, ignited, siege class, vision/range), so they are logged rather than fixed here. Uncertain and not logged as drift: warship_arrow_attack's notciv requirement (U1), hellenistic_metropolis's affects beyond CivCentre (U2), cost_healer's replace 0 on healer metal (U3), trireme class collapse (U4), and civbonuses with no row (brit_woad_warriors, cart_stone, gaul_cavalry, mace_storehouse, rome_siege, U5).
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| TE1 | Hellenistic Metropolis gives CivCentre Capturable/CapturePoints x2 in 0.28 (mace, ptol, sele); RTS0 has no capture-point tech stat (tech_data.h:260-261, sim_types.h:631) | low | Open: Compare; needs a capture TechStat |
+| TE2 | Naval Ballistae: Attack/Ranged/MaxRange x1.2 on NavalSiege (rome, cart, ptol, sele, han); RTS0 effect count 0 (tech_data.h:412) and no NavalSiege class | low | Open: Compare; needs a NavalSiege class |
+| TE3 | Naval Ballistae: Vision/Range x1.2 on NavalSiege; absent (tech_data.h:412) and no vision TechStat (sim_types.h:631) | low | Open: Compare; needs a vision TechStat |
+| TE4 | Bronze Ram: Attack/Melee/Damage/Hack x1.3 on NavalRam (athen, spart, pers, rome, cart, mace, ptol, sele); RTS0 effect count 0 (tech_data.h:410); ram ships are triremes with no ram class | medium | Open: Compare; needs a NavalRam class |
+| TE5 | Burning Pitch: Health/Max x1.25 on Ignited (brit, gaul, iber); RTS0 effect count 0 (tech_data.h:408) and no Ignited class | low | Open: Compare; needs an Ignited class |
+| TE6 | Burning Pitch: Attack/Melee/Damage/Fire x1.25; absent (tech_data.h:408) and no fire melee stat (sim_types.h:631-641) | low | Open: Compare; needs a fire melee stat |
+| TE7 | Armor Plating: Health/Max x1.25 on Ram and SiegeTower (mace, kush, ptol, sele, han); RTS0 applies it to Ram only (tech_data.h:283), and siege towers are bolt shooters (TC_BOLTSHOOTER, not TC_RAM) | low | Open: Compare; add the BoltShooter class to the mask |
+| TE8 | Heal range: heal_range Vision/Range +5 on Healers (all 14 civs) is absent (tech_data.h:365, effect row :255) | low | Open: Compare; needs a range stat for healers |
+| TE9 | Heal range 2: heal_range_2 Vision/Range +5 on Healers is absent (tech_data.h:366, effect row :256) | low | Open: Compare; same stat as TE8 |
+| TE10 | Arrow Shooters: tower_range Vision/Range +8 on SentryTower and StoneTower (all 14 civs) is absent (tech_data.h:397, effect row :312) | low | Open: Compare; needs a tower range stat |
+| TE11 | Delian League civ bonus (athen): Cost/BuildTime x0.75 on Ships has no CivBonus row (text only, civ_roster_data.h:944) | low | Open: Compare |
+| TE12 | Elephant civ bonus (maur): Cost/BuildTime x0.7 on Elephants has no CivBonus row (text only, civ_roster_data.h:953) | low | Open: Compare |
+| TE13 | 0 A.D. 0.28 has 49 civ-only technologies (krypteia, ostracism, immortals, silk_road, colonization, architecture_pers/kush, civil_engineering_01/02, civil_service_01/02, tyrtean_paeans, iphicratean_reforms, roman_reforms, ...) that RTS0 does not implement; row E covers only the upgrades that need new structure types | medium | Open: Compare; needs the civ-only tech set |
+
 ### Germans end to end: Compare's sixteenth 0.28 pass (2026-11-03)
 
 The Germans (germ) roster, techs, buildings, civ bonuses and auras against 0.28. Matched: 31 unit rows' stats, names and phases, the promotion chains, the 3 techs, about 26 structures, the civ bonuses and the 9 auras. Re-checked with the generator's own parent-resolving loader: the trainer bits match 0.28's resolved lists. The first audit read only each child structure's own list and missed inherited trainers, so GE1-GE6 are closed (not drift).
