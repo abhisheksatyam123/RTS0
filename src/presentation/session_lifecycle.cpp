@@ -1058,7 +1058,6 @@ void RtsoMain::_process(double delta) {
 			// so a fast game is not bounded by the frame rate.
 			float step = (float)scaled_delta;
 			const int max_turns = std::max(1, (int)game_speed);
-			sim->set_gpu_push(false); // every peer must reach the same state
 			for (int t = 0; t < max_turns && turn_mgr_.tick(step, *sim); ++t) {
 				ticks += rtso::TurnManager::TICKS_PER_TURN;
 				step = 0.0f;
@@ -1145,7 +1144,6 @@ void RtsoMain::_process(double delta) {
 		if (!replay_finished_) {
 			float step = (float)scaled_delta;
 			const int max_turns = std::max(4, (int)std::ceil(game_speed * 2.0f)); // fast replays
-			sim->set_gpu_push(!turn_mgr_.is_replaying());
 			for (int t = 0; t < max_turns && turn_mgr_.tick(step, *sim); ++t) {
 				ticks += rtso::TurnManager::TICKS_PER_TURN;
 				step = 0.0f;

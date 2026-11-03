@@ -18,13 +18,6 @@ namespace rtso {
 namespace {
 constexpr size_t kSpatialBuckets = 4096; // 64x64 periodic grid
 
-bool default_avail_hook() {
-	return GpuSeparation::instance().is_enabled();
-}
-bool default_dispatch_hook(size_t count, const float *pos_xz, const float *radii, float *out_forces,
-                           float cell_size, float min_dist, float strength) {
-	return GpuSeparation::instance().compute_forces_with_radii(count, pos_xz, radii, out_forces, cell_size, min_dist, strength);
-}
 bool default_los_hook(const uint8_t *fow, int res, std::vector<uint8_t> &out) {
 	return GpuSeparation::instance().compute_los_bitmap(fow, res, out);
 }
@@ -57,7 +50,6 @@ godot::Ref<godot::RDShaderSPIRV> load_or_compile_compute(godot::RenderingDevice 
 GpuSeparation &GpuSeparation::instance() {
 	static GpuSeparation s_instance;
 	static bool registered = []() {
-		GpuSeparation::register_live_hooks(&default_avail_hook, &default_dispatch_hook);
 		LosShading::register_gpu_hook(&default_los_hook);
 		return true;
 	}();

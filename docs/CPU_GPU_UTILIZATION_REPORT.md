@@ -101,7 +101,7 @@ Within `Simulation::tick(dt)`, only 5 loops use `JobSystem::for_each_index`. The
   - *Design:* Restrict worker thread count to physical cores (hw/2 on SMT systems) to eliminate hyperthread cache thrashing.
 
 ### Track 4: GPU Offloading via Vulkan Compute Shaders
-- [x] **TODO-GPU-01:** Wire `shaders/compute/separation.glsl` via Godot `RenderingDevice`.
+- [x] **TODO-GPU-01:** Wire `shaders/compute/separation.glsl` via Godot `RenderingDevice`. The shader runs only in `debug_test_gpu_separation`: the simulation keeps the CPU push, since lockstep peers, replays and saves need bit-identical forces (#PRNUM).
   - *Design:* Upload unit positions `pos_x, pos_z` to GPU storage buffer, dispatch 64-thread workgroups to compute displacement vectors, read back or apply directly to MultiMesh buffer.
 - [x] **TODO-GPU-02:** GPU Compute Line-of-Sight (LOS) & Fog-of-War.
   - *Design:* Offload 2D LOS circular stamping and terrain shadow casting to a 2D compute shader texture write.
