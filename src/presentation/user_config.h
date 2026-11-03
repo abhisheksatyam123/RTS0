@@ -39,6 +39,8 @@ bool save();
 uint32_t generation();
 // ConfigDB_HasChanges("user"): a value was changed since the last save() or reload().
 bool has_changes();
+// ConfigDB_SetChanges("user", v): options.js revertChange clears it when nothing else changed.
+void set_changes(bool v);
 // -nosound or -quickstart on the command line (Config.cpp g_DisableAudio).
 bool audio_disabled();
 // Replaces the command line's values (tests); the real ones are read on first use.
@@ -68,6 +70,7 @@ public:
 	bool save();
 	int get_generation() const;
 	bool has_changes() const;
+	void set_changes(bool v);
 	godot::PackedStringArray get_keys() const;
 	bool is_audio_disabled() const;
 	void set_command_args(const godot::PackedStringArray &args);

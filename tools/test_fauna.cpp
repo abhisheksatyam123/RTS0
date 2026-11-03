@@ -1184,6 +1184,23 @@ int main() {
 		s.fauna_start_attack((size_t)w, far);
 		s.fauna_attacked((size_t)w, sp, true);
 		CHECK(s.fauna_.target_unit_id[w] == sp); // approaching: turns on the melee attacker
+		// PushOrderFront: the first target waits, kept through save/load, and comes back once
+		// that fight is over.
+		CHECK(s.fauna_queued_target_[w] == far);
+		{
+			const char *path = "/tmp/rts0_test_fauna_queued.sav";
+			CHECK(s.save_state(path));
+			static Simulation t;
+			CHECK(t.load_state(path));
+			CHECK(t.fauna_queued_target_[fidx(t, wolf)] == far);
+			CHECK(TurnManager().boot_sim_hash(s) == TurnManager().boot_sim_hash(t));
+			std::remove(path);
+		}
+		const int32_t spi = uidx(s, sp);
+		s.units_.hp[spi] = 0.0f;
+		s.units_.alive[spi] = 0;
+		run(s, 0.1f);
+		CHECK(s.fauna_.behavior[w] == FAUNA_ATTACK && s.fauna_.target_unit_id[w] == far && s.fauna_queued_target_[w] == 0);
 
 		fresh(s);
 		const uint32_t bear = s.spawn_fauna(0.0f, 0.0f, FAUNA_BEAR_BROWN);

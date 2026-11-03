@@ -52,6 +52,7 @@ const char *const kSetupKeys[] = {
 	"nomad", "regicide_garrison", "cheats", "disable_spies", "disable_treasures",
 	"slot_diffs", "slot_behs", "slot_colors", "slot_names", "ai_seed", "local_slot",
 	"rated", // Match Settings' Rated game (RatingEnabled)
+	"battle_preset", "battle_units", // Game Setup's Battle Presets spawn their armies and forts on the map
 };
 
 constexpr uint32_t kReplayFormat = 2; // 2: may start from a save (start_save)
