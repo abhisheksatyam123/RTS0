@@ -27443,8 +27443,17 @@ void Simulation::petra_manage_trading(float dt) {
 	if (petra_config_.difficulty <= PETRA_VERY_EASY) return;
 
 	const bool trade_event = petra_check_trade_events(); // checkEvents: then checkTrader for each trader
-	PetraTradeRoutes routes;
-	petra_check_routes(routes);
+	// checkRoutes runs on a trade event, for an idle trader (checkTrader, updateTrader) and for
+	// prospection (prospectForNewMarket); otherwise the last result stands (tradeRoute is kept).
+	bool idle_trader = false;
+	for (size_t i = 0; i < units_.count && !idle_trader; ++i)
+		idle_trader = units_.alive[i] && units_.team[i] == petra_pid_ && unit_is_trader(units_.unit_type[i]) &&
+		              units_.action_state[i] == ACTION_IDLE;
+	if (trade_event || idle_trader || petra_prospect_.active || !petra_route_cache_.valid) {
+		petra_check_routes(petra_route_cache_.routes);
+		petra_route_cache_.valid = true;
+	}
+	const PetraTradeRoutes &routes = petra_route_cache_.routes;
 
 	// Ship roles: ours that sank or changed hands go; a ship marked ROLE_SWITCH_TO_TRADER becomes
 	// a trader once out of its transport plan (transportPlan.js releaseAll).
@@ -37817,6 +37826,7 @@ void Simulation::petra_reset_ai_state() {
 	petra_supply_.clear();
 	petra_room_ = PetraRoom{};
 	petra_prospect_ = PetraProspect{};
+	petra_route_cache_ = PetraRouteCache{};
 	petra_targeted_relics_.clear();
 	petra_defense_targets_ = PetraDefenseTargets{};
 	petra_queue_heads_ = PetraQueueHeads{};
@@ -39796,6 +39806,16 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 				});
 				ar.pod(v.tiles);
 			} else v = S::PetraRoom{}; // older saves kept a bit per kind, which no longer lapses
+		} else if constexpr (std::is_same_v<T, S::PetraRouteCache>) {
+			if (ar.version >= Simulation::SAVE_VERSION_PETRA_ROUTE_CACHE) {
+				ar.pod(v.valid);
+				auto route_io = [&](S::PetraTradeRoute &r) {
+					ar.pod(r.source); ar.pod(r.target); ar.pod(r.gain); ar.pod(r.land); ar.pod(r.sea);
+				};
+				route_io(v.routes.best);
+				route_io(v.routes.potential);
+				io_vec(ar, v.routes.finished, 1u << 16, route_io);
+			} else v = S::PetraRouteCache{}; // older saves: checked again at the next trade update
 		} else if constexpr (std::is_same_v<T, S::PetraProspect>) {
 			if (ar.version >= Simulation::SAVE_VERSION_PETRA_PROSPECT) {
 				ar.pod(v.active); ar.pod(v.seen); ar.pod(v.sig);
