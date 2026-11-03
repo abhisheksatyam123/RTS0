@@ -27576,6 +27576,7 @@ uint16_t Simulation::petra_access_at(float x, float z) const {
 			a.pass = std::move(pass);
 			a.land.assign((size_t)res * res, 0);
 			a.near.assign((size_t)res * res, 0xFFFF);
+			a.shore.clear();
 			uint16_t next = 0;
 			std::vector<uint32_t> stack;
 			for (size_t k0 = 0; k0 < a.pass.size(); ++k0) {
@@ -27616,6 +27617,35 @@ uint16_t Simulation::petra_access_at(float x, float z) const {
 				if (const uint16_t l = a.land[(size_t)nz * res + nx]) { near = l; break; }
 			}
 	return near;
+}
+
+bool Simulation::petra_access_sea_linked(float x, float z) const {
+	const uint16_t acc = petra_access_at(x, z);
+	if (!acc) return false;
+	if (const PetraBase *pb = get_primary_petra_base())
+		if (acc == petra_access_at(pb->x, pb->z)) return true;
+	PetraAccess &a = petra_access_;
+	if (a.shore.empty()) {
+		const int res = a.res, nres = nav_grid_.res;
+		uint16_t top = 0;
+		for (uint16_t l : a.land) top = std::max(top, l);
+		a.shore.assign((size_t)top + 1, 0);
+		const float per = (float)nres / (float)res;
+		for (int y = 0; y < res; ++y)
+			for (int x0 = 0; x0 < res; ++x0) {
+				const uint16_t l = a.land[(size_t)y * res + x0];
+				if (!l || a.shore[l]) continue;
+				const int nb[5][2] = {{0, 0}, {1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+				for (const auto &d : nb) {
+					const int xx = x0 + d[0], yy = y + d[1];
+					if (xx < 0 || yy < 0 || xx >= res || yy >= res) continue;
+					const int nx = std::min(nres - 1, (int)(((float)xx + 0.5f) * per));
+					const int ny = std::min(nres - 1, (int)(((float)yy + 0.5f) * per));
+					if (nav_grid_.global_region_at(nx, ny, PASS_SHIP)) { a.shore[l] = 1; break; }
+				}
+			}
+	}
+	return acc < a.shore.size() && a.shore[acc];
 }
 
 // A structure's land: the land just outside its footprint (a dock's shore side).
@@ -29594,6 +29624,7 @@ bool Simulation::petra_find_strategic_cc_location(uint8_t btype, float &out_x, f
 			// The land last of the tests a tile can fail: its search costs the most.
 			const uint16_t l = petra_land_at(x, z);
 			if (topo.naval_map ? !topo.land_region(l) : l != own_land) continue;
+			if (topo.naval_map && !petra_access_sea_linked(x, z)) continue; // landRegions are access lands with a sea link
 			if (!petra_cc_tile_ok(btype, x, z)) continue;
 			found = true;
 			best = val;
@@ -29733,6 +29764,7 @@ bool Simulation::petra_find_economic_cc_location(uint8_t btype, uint8_t res, boo
 			}
 			const uint16_t l = petra_land_at(x, z);
 			if (topo.naval_map ? !topo.land_region(l) : l != own_land) continue;
+			if (topo.naval_map && !petra_access_sea_linked(x, z)) continue; // landRegions are access lands with a sea link
 			float norm = 0.5f, min_d = 1e30f;
 			bool accessible = false;
 			for (const Cc &c : ccs) {
@@ -33794,6 +33826,10 @@ bool Simulation::petra_boarding_pos(uint16_t land, uint16_t sea, float ship_x, f
 		if (b.type == BLD_DOCK && b.hp > 0.0f && b.team < MAX_PLAYERS && is_ally(petra_pid_, b.team)) docks.push_back(&b);
 	double best = 0.0;
 	bool found = false;
+	// navalManager.js landingZones are shore cells of the destination's access land: a nav
+	// region can join a cliff-bound mesa to a beach pocket below it. A cell off that access is
+	// taken only when none is on it.
+	const uint16_t want_acc = petra_access_at(dest_x, dest_z);
 	for (int y = 0; y < h; ++y)
 		for (int x = 0; x < w; ++x) {
 			if (nav_grid_.global_region_at(x, y, PASS_INFANTRY) != land) continue;
@@ -33807,6 +33843,7 @@ bool Simulation::petra_boarding_pos(uint16_t land, uint16_t sea, float ship_x, f
 			// A landing point the ship could not unload at: try another.
 			if (skip_near && (px - skip_near[0]) * (px - skip_near[0]) + (pz - skip_near[1]) * (pz - skip_near[1]) < 64.0f) continue;
 			double dist = 4.0 * (det::hypot(px - ship_x, pz - ship_z) + det::hypot(dest_x - px, dest_z - pz)); // metres
+			if (want_acc && petra_access_at(px, pz) != want_acc) dist += 1.0e9;
 			if (avoid_enemy) {
 				const int owner = territory_owner_at(px, pz);
 				if (owner >= 0 && owner < MAX_PLAYERS && !is_ally(petra_pid_, (uint8_t)owner)) dist += 1.0e8;
@@ -34224,12 +34261,14 @@ void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt, std::vec
 		if (const auto *p = get_transport_passengers(tp.ship_id)) before = *p;
 		order_disembark(tp.ship_id, units_.pos_x[sidx], units_.pos_z[sidx]);
 		const uint16_t end_land = petra_land_at(tp.drop_x, tp.drop_z);
+		const uint16_t end_acc = petra_access_at(tp.drop_x, tp.drop_z); // transportPlan.js:600-617 compares access
 		std::vector<uint32_t> wrong;
 		for (uint32_t uid : before) {
 			const int32_t i = lookup_unit(uid);
 			if (i < 0 || !units_.alive[i]) continue; // still aboard
 			const uint16_t land = petra_land_at(units_.pos_x[i], units_.pos_z[i]);
-			if (end_land && land && land != end_land) {
+			const uint16_t acc = petra_access_at(units_.pos_x[i], units_.pos_z[i]);
+			if ((end_land && land && land != end_land) || (end_acc && acc && acc != end_acc)) {
 				wrong.push_back(uid);
 				continue;
 			}
