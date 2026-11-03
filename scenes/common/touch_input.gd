@@ -192,12 +192,19 @@ func _is_over_gui(pos: Vector2) -> bool:
 		var cls_name := c.get_class()
 		if cls_name != "SubViewportContainer" and c.name != "WorldView" and c.name != "Background" and cls_name != "RtsoSelectionRect":
 			return true
-	return _check_gui_at(vp, pos)
+	return _check_gui_at(vp, _to_canvas(pos))
+
+# A touch is in window pixels, but control rects are in the viewport's canvas units (the
+# window is stretched over them): the touch's own mouse events take window pixels, the
+# rect tests take canvas units.
+func _to_canvas(window_pos: Vector2) -> Vector2:
+	return get_viewport().get_final_transform().affine_inverse() * window_pos
 
 # The visible control group icon under a point, if any (control_groups_view.h names them).
 func _group_button_at(pos: Vector2) -> Button:
+	var canvas := _to_canvas(pos)
 	for n in get_tree().root.find_children("UnitGroupButton*", "Button", true, false):
-		if (n as Button).is_visible_in_tree() and (n as Button).get_global_rect().has_point(pos):
+		if (n as Button).is_visible_in_tree() and (n as Button).get_global_rect().has_point(canvas):
 			return n
 	return null
 
