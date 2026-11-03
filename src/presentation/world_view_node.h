@@ -751,6 +751,12 @@ private:
 	Ref<QuadMesh> fx_smoke_quad_, fx_flame_quad_;
 	Ref<ParticleProcessMaterial> fx_smoke_ppm_, fx_flame_ppm_;
 	void init_damage_fx();
+	// Blob shadows (BlobShadows.*): one soft dark disc per unit, structure and wood, drawn on
+	// the ground under it, on every renderer (shadow maps are off on phones).
+	void init_blob_shadows();
+	void update_blob_shadows(const rtso::Simulation *sim);
+	MultiMeshInstance3D *blob_mmi_ = nullptr;
+	Ref<MultiMesh> blob_mm_;
 	void update_damage_fx(BuildingVis &v, uint8_t level, float half_size, float height);
 
 	// Territory borders draped on the terrain (0 A.D. CCmpTerritoryManager

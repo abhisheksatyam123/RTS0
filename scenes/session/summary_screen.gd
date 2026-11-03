@@ -629,7 +629,7 @@ static func _dropdown_font() -> FontVariation:
 static func clear_cache() -> void:
 	_bold_font = null
 	_dd_font = null
-	pending.clear()
+	# Not pending: it is the match's hand-off to the summary, and RtsoMain clears these caches as the match leaves.
 
 func _label(text: String, size := 14, color := Color.WHITE) -> Label:
 	var l := Label.new()

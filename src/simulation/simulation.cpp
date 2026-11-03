@@ -27447,8 +27447,17 @@ void Simulation::petra_manage_trading(float dt) {
 	if (petra_config_.difficulty <= PETRA_VERY_EASY) return;
 
 	const bool trade_event = petra_check_trade_events(); // checkEvents: then checkTrader for each trader
-	PetraTradeRoutes routes;
-	petra_check_routes(routes);
+	// checkRoutes runs on a trade event, for an idle trader (checkTrader, updateTrader) and for
+	// prospection (prospectForNewMarket); otherwise the last result stands (tradeRoute is kept).
+	bool idle_trader = false;
+	for (size_t i = 0; i < units_.count && !idle_trader; ++i)
+		idle_trader = units_.alive[i] && units_.team[i] == petra_pid_ && unit_is_trader(units_.unit_type[i]) &&
+		              units_.action_state[i] == ACTION_IDLE;
+	if (trade_event || idle_trader || petra_prospect_.active || !petra_route_cache_.valid) {
+		petra_check_routes(petra_route_cache_.routes);
+		petra_route_cache_.valid = true;
+	}
+	const PetraTradeRoutes &routes = petra_route_cache_.routes;
 
 	// Ship roles: ours that sank or changed hands go; a ship marked ROLE_SWITCH_TO_TRADER becomes
 	// a trader once out of its transport plan (transportPlan.js releaseAll).
@@ -31063,6 +31072,7 @@ bool Simulation::petra_relic_targeted(uint32_t relic_id) const {
 // (isValidTarget sameLand: same_land, else our base's land or across a sea) and
 // structures decaying with no arrows and no garrison.
 uint32_t Simulation::petra_nearest_target(uint8_t kind, bool forced, uint8_t enemy, float px, float pz, uint16_t same_land, float &out_tx, float &out_tz) const {
+	petra_pick_blocked_ = false;
 	if (enemy >= MAX_PLAYERS && !(enemy == GAIA_PLAYER && has_victory(VK_RELIC))) return 0;
 	uint16_t from[8];
 	petra_attack_from_lands(same_land, from);
@@ -31225,6 +31235,7 @@ uint32_t Simulation::find_petra_attack_target(float &out_tx, float &out_tz, uint
 }
 
 uint32_t Simulation::petra_target_obstruction(uint32_t id, float px, float pz, float &tx, float &tz) const {
+	petra_pick_blocked_ = false;
 	auto it = building_id_to_idx_.find(id);
 	if (it == building_id_to_idx_.end()) return id;
 	const Building &target = buildings_[it->second];
@@ -31273,16 +31284,16 @@ uint32_t Simulation::petra_target_obstruction(uint32_t id, float px, float pz, f
 		if (dist > 1e-3f) {
 			const float step = 1.8f / 4.0f + 2.0f * nav_grid_.map_half / (float)std::max(1, nav_grid_.res);
 			const nav::Vec2 l = nav::footprint_local(b, ex + step * (target.x - ex) / dist, ez + step * (target.z - ez) / dist);
-			if (std::fabs(l.x) < b.hu && std::fabs(l.y) < b.hv) { tx = b.x; tz = b.z; return b.id; }
+			if (std::fabs(l.x) < b.hu && std::fabs(l.y) < b.hv) { tx = b.x; tz = b.z; petra_pick_blocked_ = true; return b.id; }
 		}
-		if (gate && crosses(b)) { tx = b.x; tz = b.z; return b.id; }
+		if (gate && crosses(b)) { tx = b.x; tz = b.z; petra_pick_blocked_ = true; return b.id; }
 	}
 	return id;
 }
 
 bool Simulation::petra_plan_blocked(const AttackPlan &plan) const {
 	auto it = building_id_to_idx_.find(plan.target_building_id);
-	return it != building_id_to_idx_.end() && is_wall_piece(buildings_[it->second].type);
+	return it != building_id_to_idx_.end() && plan.blocked;
 }
 
 // headquarters.js gameStart + attackManager.js setRushes: Petra plans village
@@ -31593,7 +31604,7 @@ void Simulation::petra_attack_units(AttackPlan &plan) {
 		const int32_t t = lookup_unit(units_.target_unit_id[j]);
 		return t < 0 || !units_.alive[t] || petra_is_support_unit(units_.unit_type[t]);
 	};
-	// isBlocked: the target is the wall piece that blocks the way.
+	// isBlocked: the target is a blocker on the way (a wall, a house, a gate...).
 	const bool blocked = petra_plan_blocked(plan);
 	std::unordered_set<int32_t> reacted;
 	auto hit = [&](int32_t j, int32_t a) {
@@ -32171,6 +32182,7 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 
 			plan.kind = kind;
 			plan.target_building_id = target_id;
+			plan.blocked = petra_pick_blocked_;
 			plan.target_x = tx;
 			plan.target_z = tz;
 			petra_release_squad(plan.squad);
@@ -32385,6 +32397,7 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 				}
 
 				plan.target_building_id = target_id;
+				plan.blocked = petra_pick_blocked_;
 				plan.target_x = tx;
 				plan.target_z = tz;
 				// chooseTarget: a rush's targetPlayer is the enemy whose structure it picked.
@@ -32694,6 +32707,7 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 					return;
 				}
 				plan.target_building_id = target_id;
+				plan.blocked = petra_pick_blocked_;
 				plan.target_x = tx;
 				plan.target_z = tz;
 				petra_strike_force_.target_building_id = target_id;
@@ -32776,6 +32790,7 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 				const uint32_t next_id = petra_attack_retarget(plan, tx, tz);
 				if (next_id != 0) {
 					plan.target_building_id = next_id;
+					plan.blocked = petra_pick_blocked_;
 					plan.target_x = tx;
 					plan.target_z = tz;
 					petra_strike_force_.target_building_id = next_id;
@@ -32893,6 +32908,7 @@ void Simulation::petra_retake_civic_centres() {
 		plan.type = AttackPlan::PLAN_ASSAULT;
 		plan.target_player = ev.to; // attackPlan.targetPlayer = target.owner(): the captor
 		plan.target_building_id = cc.id;
+		plan.blocked = false;
 		plan.target_x = plan.staging_x = cc.x;
 		plan.target_z = plan.staging_z = cc.z;
 		plan.initial_squad_size = plan.squad.size();
@@ -33090,6 +33106,7 @@ void Simulation::petra_manage_raid(float dt) {
 		petra_release_squad(plan.squad);
 		plan.forced = plan.requested = false;
 		plan.target_building_id = tid;
+		plan.blocked = petra_pick_blocked_;
 		plan.target_x = tx;
 		plan.target_z = tz;
 		plan.state = AttackPlan::MUSTER;
@@ -33408,6 +33425,7 @@ void Simulation::petra_update_started_raid(AttackPlan &plan, float base_x, float
 			uint32_t tid = find_petra_raid_target(tx, tz);
 			if (tid) {
 				plan.target_building_id = tid;
+				plan.blocked = petra_pick_blocked_;
 				plan.target_x = tx;
 				plan.target_z = tz;
 				order_attack_move(plan.squad.data(), plan.squad.size(), tx, tz, false, false, true, petra_attack_avoid(plan, false));
@@ -33973,6 +33991,7 @@ void Simulation::petra_answer_attack_request(uint8_t source, uint8_t target) {
 				plan.target_building_id = 0;
 				if (const uint32_t id = find_petra_attack_target(tx, tz, 0, &plan)) {
 					plan.target_building_id = id;
+					plan.blocked = petra_pick_blocked_;
 					plan.target_x = tx;
 					plan.target_z = tz;
 				}
@@ -35036,9 +35055,9 @@ bool Simulation::petra_find_position(uint8_t btype, const float *base_at, const 
 		const bool wall = b.type == BLD_WALL_SEGMENT || b.type == BLD_WALL_TOWER || b.type == BLD_SIEGE_WALL;
 		if (petra_food_dropsite(b.type)) influence(b.x, b.z, 80.0f, field ? 50.0f : -20.0f);
 		else if (house) {
-			// Close to other houses, further away from other stuff (["Gate", "!Wall"]: gates count).
+			// Close to other houses, and further away from gates (QueuePlanBuilding: ["Gate", "!Wall"]).
 			if (b.type == BLD_HOUSE || b.type == BLD_APARTMENT) { influence(b.x, b.z, 60.0f, 40.0f); has_houses = true; }
-			else if (!wall) influence(b.x, b.z, 60.0f, -40.0f);
+			else if (is_gate_type(b.type)) influence(b.x, b.z, 60.0f, -40.0f);
 		} else if (btype == BLD_FARMSTEAD) {
 			// Away from everything else but fields, corrals and walls (gates count), for room.
 			if (b.type != BLD_FIELD && b.type != BLD_CORRAL && !wall) influence(b.x, b.z, 100.0f, -25.0f);
@@ -35873,8 +35892,16 @@ bool Simulation::petra_is_defender(uint32_t uid) const {
 }
 
 void Simulation::petra_remove_defender(uint32_t uid) {
-	for (PetraDefenseArmy &a : petra_defense_armies_)
+	for (PetraDefenseArmy &a : petra_defense_armies_) {
 		a.defender_ids.erase(std::remove(a.defender_ids.begin(), a.defender_ids.end(), uid), a.defender_ids.end());
+		// defenseArmy.js removeOwn: the defender's foe loses its first entry, and its assignedTo goes.
+		auto to = std::find_if(a.assigned_to.begin(), a.assigned_to.end(), [&](const auto &e) { return e.first == uid; });
+		if (to == a.assigned_to.end()) continue;
+		const uint32_t foe = to->second;
+		auto ag = std::find(a.assigned_against.begin(), a.assigned_against.end(), std::make_pair(foe, uid));
+		if (ag != a.assigned_against.end()) a.assigned_against.erase(ag);
+		a.assigned_to.erase(to);
+	}
 }
 
 // defenseArmy.js "capturing": an army whose one foe is a structure, to capture it (Gaia's)
@@ -36090,6 +36117,7 @@ void Simulation::petra_manage_defense(float dt) {
 			++petra_attack_mgr_.plans_made;
 			plan.type = AttackPlan::PLAN_ASSAULT;
 			plan.target_building_id = b.id;
+			plan.blocked = false;
 			plan.target_player = b.team;
 			plan.target_x = plan.staging_x = b.x;
 			plan.target_z = plan.staging_z = b.z;
@@ -36372,6 +36400,8 @@ void Simulation::petra_manage_defense(float dt) {
 			PetraDefenseArmy &a = armies[i], &b = armies[j];
 			a.foe_ids.insert(a.foe_ids.end(), b.foe_ids.begin(), b.foe_ids.end());
 			a.defender_ids.insert(a.defender_ids.end(), b.defender_ids.begin(), b.defender_ids.end());
+			a.assigned_to.insert(a.assigned_to.end(), b.assigned_to.begin(), b.assigned_to.end());
+			a.assigned_against.insert(a.assigned_against.end(), b.assigned_against.begin(), b.assigned_against.end());
 			armies.erase(armies.begin() + (ptrdiff_t)j--);
 			a.position_last_update = now; // merge: recalculatePosition(force)
 			petra_army_position(armies[i], ix, iz);
@@ -36614,12 +36644,13 @@ void Simulation::petra_manage_defense(float dt) {
 		auto is_foe = [&](uint32_t uid) {
 			return std::find(army.foe_ids.begin(), army.foe_ids.end(), uid) != army.foe_ids.end();
 		};
+		// defenseArmy.js assignedAgainst, kept across turns: an entry goes when its defender leaves the
+		// army (removeOwn) or its foe is gone (removeFoe).
+		auto defender_in = [&](uint32_t uid) { return std::find(army.defender_ids.begin(), army.defender_ids.end(), uid) != army.defender_ids.end(); };
+		std::erase_if(army.assigned_to, [&](const auto &e) { return !defender_in(e.first); });
+		std::erase_if(army.assigned_against, [&](const auto &e) { return !defender_in(e.second) || !is_foe(e.first); });
 		std::unordered_map<uint32_t, int> against;
-		for (uint32_t uid : army.defender_ids) {
-			const int32_t idx = lookup_unit(uid);
-			if (idx >= 0 && units_.action_state[idx] == ACTION_ATTACK && is_foe(units_.target_unit_id[idx]))
-				++against[units_.target_unit_id[idx]];
-		}
+		for (const auto &e : army.assigned_against) ++against[e.first];
 		for (uint32_t uid : army.defender_ids) {
 			int32_t idx = lookup_unit(uid);
 			if (idx < 0) continue;
@@ -36666,6 +36697,11 @@ void Simulation::petra_manage_defense(float dt) {
 			// With no foe left to take (all past the 2/5/8 caps) assignUnit returns false and the
 			// defender is left as it is.
 			if (best_foe != 0) {
+				// assignUnit (DA:366): assignedTo is overridden; the foe's list gets the defender, the old entry stays.
+				auto to = std::find_if(army.assigned_to.begin(), army.assigned_to.end(), [&](const auto &e) { return e.first == uid; });
+				if (to != army.assigned_to.end()) to->second = best_foe;
+				else army.assigned_to.push_back({uid, best_foe});
+				army.assigned_against.push_back({best_foe, uid});
 				++against[best_foe];
 				if (lookup_unit(best_foe) >= 0) {
 					// returnResources: one carrying a load drops it at the nearest own dropsite on
@@ -37823,6 +37859,7 @@ void Simulation::petra_reset_ai_state() {
 	petra_supply_.clear();
 	petra_room_ = PetraRoom{};
 	petra_prospect_ = PetraProspect{};
+	petra_route_cache_ = PetraRouteCache{};
 	petra_targeted_relics_.clear();
 	petra_defense_targets_ = PetraDefenseTargets{};
 	petra_queue_heads_ = PetraQueueHeads{};
@@ -39590,10 +39627,11 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 			ar.pod(v.completing); ar.pod(v.completing_time);
 			io_vec_pod(ar, v.path_x, 4096); io_vec_pod(ar, v.path_z, 4096);
 			ar.pod(v.last_x); ar.pod(v.last_z);
-			if (ar.version >= S::SAVE_VERSION_PETRA_STUCK) { ar.pod(v.pos5_x); ar.pod(v.pos5_z); }
+				if (ar.version >= S::SAVE_VERSION_PETRA_STUCK) { ar.pod(v.pos5_x); ar.pod(v.pos5_z); }
 			if constexpr (Ar::loading)
 				if (v.path_x.size() != v.path_z.size()) ar.ok = false;
 		}
+		if (ar.version >= S::SAVE_VERSION_PETRA_BLOCKED) ar.pod(v.blocked);
 		if constexpr (Ar::loading)
 			if (v.state > S::AttackPlan::ABORT || (v.kind > PETRA_ATTACK_RAID && v.kind != PETRA_ATTACK_UNIQUE)) ar.ok = false;
 	};
@@ -39621,13 +39659,17 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 			// The armies go in the one-army layout: each army's defenders and foes in turn, a 0 id
 			// after each army's list (a save holding one army reads back as that army). Positions
 			// are computed from the foes, so the old position fields stay 0.
-			std::vector<uint32_t> def, foe;
+			std::vector<uint32_t> def, foe, asg_to, asg_ag; // asg_*: pairs in army order, 0 after each army
 			float cx = 0.0f, cz = 0.0f;
 			uint8_t active = 0;
 			if constexpr (!Ar::loading) {
 				for (const PetraDefenseArmy &a : v) {
 					def.insert(def.end(), a.defender_ids.begin(), a.defender_ids.end()); def.push_back(0);
 					foe.insert(foe.end(), a.foe_ids.begin(), a.foe_ids.end()); foe.push_back(0);
+					for (const auto &e : a.assigned_to) { asg_to.push_back(e.first); asg_to.push_back(e.second); }
+					asg_to.push_back(0);
+					for (const auto &e : a.assigned_against) { asg_ag.push_back(e.first); asg_ag.push_back(e.second); }
+					asg_ag.push_back(0);
 				}
 				active = !v.empty();
 			}
@@ -39635,6 +39677,10 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 			std::vector<float> updated; // positionLastUpdate per army
 			if constexpr (!Ar::loading) for (const PetraDefenseArmy &a : v) updated.push_back(a.position_last_update);
 			if (ar.version >= Simulation::SAVE_VERSION_PETRA_ARMY_POSITION_TIME) io_vec(ar, updated, 64, [&](float &f) { ar.pod(f); });
+			if (ar.version >= Simulation::SAVE_VERSION_PETRA_ASSIGNED_AGAINST) {
+				io_vec(ar, asg_to, S::UNIT_LOAD_LIMIT, [&](uint32_t &x) { ar.pod(x); });
+				io_vec(ar, asg_ag, S::UNIT_LOAD_LIMIT, [&](uint32_t &x) { ar.pod(x); });
+			}
 			if constexpr (Ar::loading) {
 				v.clear();
 				if (active) {
@@ -39648,6 +39694,17 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 					};
 					split(def, &PetraDefenseArmy::defender_ids);
 					split(foe, &PetraDefenseArmy::foe_ids);
+					auto split_pairs = [&](const std::vector<uint32_t> &list, auto member) {
+						size_t a = 0;
+						for (size_t k = 0; k < list.size();) {
+							if (list[k] == 0) { ++a; ++k; continue; }
+							if (k + 1 >= list.size() || a >= v.size()) { ar.ok = false; return; }
+							(v[a].*member).push_back({list[k], list[k + 1]});
+							k += 2;
+						}
+					};
+					split_pairs(asg_to, &PetraDefenseArmy::assigned_to);
+					split_pairs(asg_ag, &PetraDefenseArmy::assigned_against);
 					for (size_t a = 0; a < v.size() && a < updated.size(); ++a) v[a].position_last_update = updated[a];
 					if (v.size() > 64) ar.ok = false;
 				}
@@ -39802,6 +39859,16 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 				});
 				ar.pod(v.tiles);
 			} else v = S::PetraRoom{}; // older saves kept a bit per kind, which no longer lapses
+		} else if constexpr (std::is_same_v<T, S::PetraRouteCache>) {
+			if (ar.version >= Simulation::SAVE_VERSION_PETRA_ROUTE_CACHE) {
+				ar.pod(v.valid);
+				auto route_io = [&](S::PetraTradeRoute &r) {
+					ar.pod(r.source); ar.pod(r.target); ar.pod(r.gain); ar.pod(r.land); ar.pod(r.sea);
+				};
+				route_io(v.routes.best);
+				route_io(v.routes.potential);
+				io_vec(ar, v.routes.finished, 1u << 16, route_io);
+			} else v = S::PetraRouteCache{}; // older saves: checked again at the next trade update
 		} else if constexpr (std::is_same_v<T, S::PetraProspect>) {
 			if (ar.version >= Simulation::SAVE_VERSION_PETRA_PROSPECT) {
 				ar.pod(v.active); ar.pod(v.seen); ar.pod(v.sig);
