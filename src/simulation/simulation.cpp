@@ -5466,6 +5466,7 @@ void Simulation::cmd_set_rally_point(uint8_t player_id, uint32_t building_id, fl
 		return;
 	}
 	b.has_rally_point = true;
+	b.rally_emergency = false; // a player's rally: its units spawn outside and walk in
 	b.rally_x = rx;
 	b.rally_z = rz;
 	b.rally_target_res_id = res_id;
@@ -21959,7 +21960,7 @@ bool Simulation::can_gather(size_t i, size_t r) const {
 // The rally command a unit of this type gets when the rally point is the trainer itself
 // (Commands.js "garrison" rather than "repair"): garrison, unless a builder would repair it.
 bool Simulation::self_garrison_rally(const Building &b, uint8_t unit_type, uint16_t tmpl) const {
-	if (!b.has_rally_point || b.rally_target_bld_id != b.id || turret_points_of(b)) return false;
+	if (!b.rally_emergency || !b.has_rally_point || b.rally_target_bld_id != b.id || turret_points_of(b)) return false;
 	if (b.build_progress < 1.0f || !structure_has_enough_health(b)) return false;
 	(void)unit_type;
 	(void)tmpl;
@@ -24518,7 +24519,10 @@ bool Simulation::petra_train_emergency_units(const std::vector<std::pair<float, 
 		}
 	}
 	if (!petra_train_template(PETRA_Q_EMERGENCY, cc.id, found, 1, false, PETRA_ORDER_EMERGENCY)) return false;
-	if (autogarrison && !emergency) cmd_set_rally_point(petra_pid_, cc.id, cc.x, cc.z, 0, cc.id);
+	if (autogarrison && !emergency) {
+		cmd_set_rally_point(petra_pid_, cc.id, cc.x, cc.z, 0, cc.id);
+		if (auto it = building_id_to_idx_.find(cc.id); it != building_id_to_idx_.end()) buildings_[it->second].rally_emergency = true;
+	}
 	return true;
 }
 
@@ -28052,7 +28056,8 @@ size_t Simulation::petra_go_home(const std::vector<uint32_t> &squad, float x, fl
 				const int32_t s = tp->ship_id ? lookup_unit(tp->ship_id) : -1;
 				if (k >= 0 && (!tp->ship_id || (s >= 0 && can_board((size_t)s, (size_t)k)))) {
 					tp->passenger_ids.push_back(uid);
-					order_walk(&units_.id[k], 1, tp->pickup_x, tp->pickup_z, false);
+					// transportPlan.js addUnit only tags the unit (:200-206); onBoarding orders it to the boarding point once a ship is assigned (:310-333), and assignShip walks every passenger then.
+					if (tp->ship_id) order_walk(&units_.id[k], 1, tp->pickup_x, tp->pickup_z, false);
 					joined = true;
 				}
 			}
@@ -28089,7 +28094,8 @@ bool Simulation::petra_require_worker_transport(size_t i, uint16_t from_land, ui
 		const int32_t sidx = tp->ship_id ? lookup_unit(tp->ship_id) : -1;
 		if (!tp->ship_id || (sidx >= 0 && can_board((size_t)sidx, i))) {
 			tp->passenger_ids.push_back(uid);
-			order_walk(&units_.id[i], 1, tp->pickup_x, tp->pickup_z, false);
+			// transportPlan.js addUnit only tags the unit (:200-206); onBoarding orders it to the boarding point once a ship is assigned (:310-333), and assignShip walks every passenger then.
+			if (tp->ship_id) order_walk(&units_.id[i], 1, tp->pickup_x, tp->pickup_z, false);
 			return true;
 		}
 	}
@@ -29536,6 +29542,11 @@ uint32_t Simulation::petra_place_dropsite(uint8_t res, float min_quality, bool *
 			drops.push_back({b.x, b.z});
 	const BuildingTypeInfo &info = building_type_info(BLD_STOREHOUSE);
 	const int foot = info.footprint;
+	// createObstructionMap(gameState, this.accessIndex, template): only tiles on the base's access
+	// land (its anchor's), so builders can walk to the site.
+	uint16_t base_access = 0;
+	if (bmap && base > 0 && (size_t)base <= bmap->anchors.size()) base_access = bmap->anchors[(size_t)base - 1].land;
+	else if (const PetraBase *pb = get_primary_petra_base()) base_access = petra_access_at(pb->x, pb->z);
 	float best = 0.0f;
 	int best_cx = 0, best_cz = 0;
 	for (int iz = bz0; iz <= bz1; ++iz)
@@ -29562,6 +29573,7 @@ uint32_t Simulation::petra_place_dropsite(uint8_t res, float min_quality, bool *
 						if (std::abs(dx) != r && std::abs(dz) != r) continue;
 						const float px = ((float)(cx0 + dx) + 0.5f * (float)foot) * GRID, pz = ((float)(cz0 + dz) + 0.5f * (float)foot) * GRID;
 						if (!petra_cc_tile_ok(BLD_STOREHOUSE, px, pz)) continue;
+						if (base_access && petra_access_at(px, pz) != base_access) continue;
 						fits = true;
 						best_cx = cx0 + dx;
 						best_cz = cz0 + dz;
@@ -29787,6 +29799,7 @@ bool Simulation::petra_find_strategic_cc_location(uint8_t btype, float &out_x, f
 	const PetraNavalTopo &topo = petra_classified_topo(home_land);
 	const PetraBase *pb = get_primary_petra_base();
 	const uint16_t own_land = topo.naval_map ? home_land : (pb ? petra_land_at(pb->x, pb->z) : 0);
+	const uint16_t own_access = pb ? petra_access_at(pb->x, pb->z) : 0;
 	const float favoured = ((btype == BLD_MILITARY_COLONY ? 220.0f : 280.0f) - 40.0f * petra_config_.defensive) / 4.0f;
 	const int w = std::max(1, (int)std::floor(2.0f * map_half_ / kCcTile));
 	const float border = 80.0f / 4.0f;
@@ -29818,6 +29831,9 @@ bool Simulation::petra_find_strategic_cc_location(uint8_t btype, float &out_x, f
 			const uint16_t l = petra_land_at(x, z);
 			if (topo.naval_map ? !topo.land_region(l) : l != own_land) continue;
 			if (topo.naval_map && !petra_access_sea_linked(x, z)) continue; // landRegions are access lands with a sea link
+			// On a land map landRegions is our base's access land alone (startingStrategy.js): a pocket
+			// the nav regions join to ours but a cliff or steep slope cuts off is not one.
+			if (!topo.naval_map && own_access && petra_access_at(x, z) != own_access) continue;
 			if (!petra_cc_tile_ok(btype, x, z)) continue;
 			found = true;
 			best = val;
@@ -29892,6 +29908,7 @@ bool Simulation::petra_find_economic_cc_location(uint8_t btype, uint8_t res, boo
 	const PetraNavalTopo &topo = petra_classified_topo(home_land);
 	const PetraBase *pb = get_primary_petra_base();
 	const uint16_t own_land = topo.naval_map ? home_land : (pb ? petra_land_at(pb->x, pb->z) : 0);
+	const uint16_t own_access = pb ? petra_access_at(pb->x, pb->z) : 0;
 	const float reduce = (btype == BLD_MILITARY_COLONY ? 30.0f : 0.0f) + 30.0f * petra_config_.defensive;
 	const float near_rej = 120.0f * 120.0f / 16.0f, ally_rej = 200.0f * 200.0f / 16.0f, ally_dis = 250.0f * 250.0f / 16.0f;
 	const float max_acc_rej = 410.0f * 410.0f / 16.0f, max_acc_dis = (360.0f - reduce) * (360.0f - reduce) / 16.0f;
@@ -29958,6 +29975,9 @@ bool Simulation::petra_find_economic_cc_location(uint8_t btype, uint8_t res, boo
 			const uint16_t l = petra_land_at(x, z);
 			if (topo.naval_map ? !topo.land_region(l) : l != own_land) continue;
 			if (topo.naval_map && !petra_access_sea_linked(x, z)) continue; // landRegions are access lands with a sea link
+			// On a land map landRegions is our base's access land alone (startingStrategy.js): a pocket
+			// the nav regions join to ours but a cliff or steep slope cuts off is not one.
+			if (!topo.naval_map && own_access && petra_access_at(x, z) != own_access) continue;
 			float norm = 0.5f, min_d = 1e30f;
 			bool accessible = false;
 			for (const Cc &c : ccs) {
@@ -34267,7 +34287,8 @@ void Simulation::petra_require_defense_transport(uint32_t uid, uint16_t from_lan
 		const int32_t si = tp->ship_id ? lookup_unit(tp->ship_id) : -1;
 		if (!tp->ship_id || (si >= 0 && can_board((size_t)si, (size_t)i))) {
 			tp->passenger_ids.push_back(uid);
-			order_walk(&uid, 1, tp->pickup_x, tp->pickup_z, false);
+			// transportPlan.js addUnit only tags the unit (:200-206); onBoarding orders it to the boarding point once a ship is assigned (:310-333), and assignShip walks every passenger then.
+			if (tp->ship_id) order_walk(&uid, 1, tp->pickup_x, tp->pickup_z, false);
 			return;
 		}
 	}
@@ -38272,6 +38293,7 @@ bool Simulation::save_state(const char *filepath) const {
 		out.write((const char *)&b.capture_timer, sizeof(b.capture_timer));
 		out.write((const char *)&b.template_off, sizeof(b.template_off));
 		out.write((const char *)&b.trickle_tick, sizeof(b.trickle_tick));
+		out.write((const char *)&b.rally_emergency, sizeof(b.rally_emergency));
 
 		uint32_t q_sz = (uint32_t)b.queue.size();
 		out.write((const char *)&q_sz, sizeof(q_sz));
@@ -38761,6 +38783,8 @@ bool Simulation::load_state(const char *filepath) {
 		if (version >= SAVE_VERSION_STRUCTURE_OFF) in.read((char *)&bld.template_off, sizeof(bld.template_off));
 		bld.trickle_tick = 0; // older saves: the match clock's phase, as they paid
 		if (version >= SAVE_VERSION_TRICKLE_TIMER) in.read((char *)&bld.trickle_tick, sizeof(bld.trickle_tick));
+		bld.rally_emergency = false; // older saves: a player's rally
+		if (version >= SAVE_VERSION_RALLY_EMERGENCY) in.read((char *)&bld.rally_emergency, sizeof(bld.rally_emergency));
 		bld.set_extents(bld.half_size, building_half_depth(bld.type, bld.half_size, bld.civ)); // its civ's wall depth
 		const auto &bi = building_type_info(bld.type);
 		bld.capture_regen_rate = bi.capture_regen_rate;

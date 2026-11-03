@@ -4297,6 +4297,33 @@ static void test_return_dropsite_lost() {
 	check(dropped2 && s.player(0).res[RES_WOOD] > wood1 && dist(s, v, -56, -56) < 15.0f, "she drops it at the civic centre");
 }
 
+static void test_trained_rally_on_civic_centre() {
+	std::printf("118. a unit trained with its rally on the civic centre spawns outside, then walks in (no spawn inside a footprint)\n");
+	Simulation s;
+	setup(s);
+	const uint32_t cc = s.spawn_building_world(-30, 30, BLD_TOWN_CENTER, 0, 1.0f);
+	s.cmd_set_rally_point(0, cc, -30, 30, 0, cc);
+	check(s.cmd_train(0, cc, UNIT_FEMALE_CITIZEN), "woman queued");
+	int32_t seen = -1;
+	bool outside_at_spawn = false;
+	const bool spawned = run_until(s, 40.0f, [&] {
+		for (size_t i = 0; i < s.units().count; ++i) {
+			if (!s.units().alive[i] || s.units().team[i] != 0 || s.units().unit_type[i] != UNIT_FEMALE_CITIZEN) continue;
+			if (s.units().id[i] == 0) continue;
+			if (seen < 0) {
+				seen = (int32_t)s.units().id[i];
+				outside_at_spawn = s.units().action_state[i] != ACTION_GARRISONED;
+			}
+			return false;
+		}
+		return false;
+	});
+	(void)spawned;
+	check(seen >= 0 && outside_at_spawn, "it appears outside the civic centre (not garrisoned at spawn)");
+	const bool inside = run_until(s, 60.0f, [&] { return act_of(s, (uint32_t)seen) == ACTION_GARRISONED; });
+	check(inside, "and then walks in under the rally order");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -4421,6 +4448,7 @@ int main(int argc, char **argv) {
 	test_capture_regen_timer();
 	test_queued_repair_on_finished();
 	test_return_dropsite_lost();
+	test_trained_rally_on_civic_centre();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;
