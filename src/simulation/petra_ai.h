@@ -377,6 +377,11 @@ struct PetraDefenseArmy {
 	// defenseArmy.js positionLastUpdate: game time of the last position update; breakaways
 	// are checked once it is more than 5 s old (0 after a foe joins: checked next update).
 	float position_last_update = 0.0f;
+	// defenseArmy.js assignedTo and assignedAgainst, kept across turns: each defender's latest foe,
+	// and per foe the defenders assigned against it. An assignment adds an entry and leaves the old
+	// one (assignUnit overrides assignedTo only); removeOwn takes out the first entry of the foe.
+	std::vector<std::pair<uint32_t, uint32_t>> assigned_to;      // (defender, foe)
+	std::vector<std::pair<uint32_t, uint32_t>> assigned_against; // (foe, defender)
 };
 // config.js Defense, squared metres: a foe joins an army within armyCompactSize of its
 // position (PetraConfig::army_compact_sq), breaks away beyond armyBreakawaySize, and two
