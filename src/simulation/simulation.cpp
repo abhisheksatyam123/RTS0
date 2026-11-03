@@ -14490,7 +14490,7 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 	// Track E (T45): Live GPU Compute Separation Dispatch when unit_count > 1000 and GpuSeparation::is_available() is true
 	const size_t unit_count = n;
 	float *gpu_forces = nullptr;
-	if (unit_count > 1000 && GpuSeparation::live_available()) {
+	if (gpu_push_ && unit_count > 1000 && GpuSeparation::live_available()) {
 		float *pos_xz = arena.alloc_array<float>(N * 2);
 		float *radii = arena.alloc_array<float>(N);
 		float *out_f = arena.alloc_array<float>(N * 2);

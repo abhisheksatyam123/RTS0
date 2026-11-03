@@ -13780,7 +13780,7 @@ void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed, uint8_t type) {
 			}
 			// To the millimetre, so land the synth set to a whole metre stays on it.
 			slope_up[j] = slope / metre;
-			metres_up[j] = std::round((own && own->coast ? coast_unmetres(water, h) : (h - water) / metre) * 1000.0f) / 1000.0f;
+			metres_up[j] = std::round(((own ? own->coast : type == MAP_CORINTHIAN_ISTHMUS) ? coast_unmetres(water, h) : (h - water) / metre) * 1000.0f) / 1000.0f;
 			t.tiles[j] = v;
 		}
 	// The script's own height bands and areas, unless a road, forest floor or mine dirt took the tile.
@@ -13852,9 +13852,9 @@ void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed, uint8_t type) {
 	float biome_shore_hi = 0.0f;
 	if (!own) switch (type) {
 		case MAP_ISLANDS: case MAP_LAND_GRAB: case MAP_MIGRATION: case MAP_CONTINENT: case MAP_COAST_RANGE:
-		case MAP_ARCHIPELAGO_0AD: case MAP_UNKNOWN: biome_shore_hi = 3.0f; break;
+		case MAP_ARCHIPELAGO_0AD: case MAP_UNKNOWN: case MAP_GULF_OF_BOTHNIA: biome_shore_hi = 3.0f; break;
 		case MAP_LAKE: biome_shore_hi = 2.4f; break;
-		case MAP_ISLAND_STRONGHOLD: case MAP_GEAR: biome_shore_hi = 2.0f; break;
+		case MAP_ISLAND_STRONGHOLD: case MAP_GEAR: case MAP_CORINTHIAN_ISTHMUS: biome_shore_hi = 2.0f; break;
 		default: break;
 	}
 	if (biome_shore_hi > 0.0f)
@@ -13862,6 +13862,16 @@ void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed, uint8_t type) {
 			if (!free_tile(j)) continue;
 			if (metres_up[j] <= 1.0f) t.tiles[j] = index_of(b.water);
 			else if (metres_up[j] < biome_shore_hi) t.tiles[j] = index_of(b.shore);
+		}
+	// flood.js: paintTerrainBasedOnHeight(1, heightStartingIslands, tMainTerrain) then (heightSeaGround, 1, tTier1Terrain):
+	// the sea ground from -2 m to 1 m takes tier1, the home islands' slopes up to their 2 m the main terrain.
+	// Its heights count from 0 m, not from the water line (synth_flood: the nav water line on 0 m).
+	if (!own && type == MAP_FLOOD && b.tier[0])
+		for (size_t j = 0; j < t.tiles.size(); ++j) {
+			if (!free_tile(j)) continue;
+			const float m = metres_up[j] + water / metre;
+			if (m >= -2.0f && m <= 1.0f) t.tiles[j] = index_of(b.tier[0]);
+			else if (m > 1.0f && m < 2.0f) t.tiles[j] = pick(b.main, 4, (int)(j % (size_t)res), (int)(j / (size_t)res), 11);
 		}
 	// Biome maps whose script paints its areas with g_Terrains' names: neareastern_badlands.js's oasis
 	// (LayeredPainter [[tSand, pForest], [tGrassSand25, pForestOasis], tGrassSand25, tShore, tWaterDeep],
