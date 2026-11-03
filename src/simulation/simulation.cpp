@@ -34125,9 +34125,13 @@ void Simulation::petra_fight_back(size_t i, int32_t a, const std::vector<PetraDe
 		};
 		int32_t best = -1;
 		float best_d2 = 0.0f;
+		// capturableTargets (entityExtend.js allowCapture): only units that can capture the
+		// structure, and each must canAttackTarget the attacker (DM:725).
+		const Building &cap = buildings_[building_id_to_idx_.at(tb)];
 		for (size_t k = 0; k < units_.count; ++k) {
 			if (k == i || !units_.alive[k] || units_.team[k] != petra_pid_ || units_.action_state[k] != ACTION_ATTACK) continue;
 			if (units_.target_building_id[k] != tb || units_.target_unit_id[k] != 0 || !can_hit(k)) continue;
+			if (unit_capture_attack_at(k) <= 0.0f || !can_capture_building(petra_pid_, cap) || !unit_can_target(k, a)) continue;
 			if (hit(units_.id[k]) || std::find(helped.begin(), helped.end(), units_.id[k]) != helped.end()) continue;
 			const float dx = units_.pos_x[k] - units_.pos_x[a], dz = units_.pos_z[k] - units_.pos_z[a];
 			if (best < 0 || dx * dx + dz * dz < best_d2) { best = (int32_t)k; best_d2 = dx * dx + dz * dz; }
@@ -34138,6 +34142,9 @@ void Simulation::petra_fight_back(size_t i, int32_t a, const std::vector<PetraDe
 			order_attack(&hid, 1, units_.id[a]);
 		}
 	}
+	// canAttackTarget (DM:753): a unit that can't attack the attacker (a wall between, a height,
+	// a restricted class) leaves its order alone.
+	if (!unit_can_target(i, a)) return;
 	order_attack(&uid, 1, units_.id[a]);
 }
 

@@ -126,3 +126,11 @@ Sources: 0.28 `defenseManager.js` checkEvents (DM) and `emergencyManager.js`.
 - **E2 (fixed).** DM:681-687 sends an attacked stone thrower to shelter (garrisonSiegeUnit) and never makes it attack, holder found or not. RTS0's fight-back turned an attacked catapult on its attacker. Low.
 - **E3 (fixed).** DM:608-622 checks the scuttle (destroy an undefendable structure at 50-70% of its capture points) on each Attacked event since the last turn. RTS0 asked for a unit attacking the structure at that moment, so arrows from a tower, or a capturer that had just stopped, never triggered it. Now the turn's events. Low.
 - Open, low: `attackedAllies` counts allied units hit per player (RTS0 counts differently, and keeping 0.28's would need a save change); the emergency unload and the order of the per-turn steps differ slightly.
+
+## Pass 5 (2026-11-03): retaliation and the capture helper, tracked as G106
+
+Sources: 0.28 `defenseManager.js` checkEvents tail (DM:698-754) and `entityExtend.js` allowCapture (EE:160-208).
+
+- **R1 the capture helper must be able to capture the structure and attack the attacker (fixed).** DM:712-745 picks the squad-mate that helps a unit capturing a structure from capturableTargets, which holds only units that canCapture it and pass canAttackTarget (DM:725). RTS0's pool (`petra_fight_back`) took any unit attacking that structure, so a siege ram on the structure, which can't capture, could be pulled off onto the attacker. The pool now needs capture attack and `can_capture_building`, and `unit_can_target` on the attacker. Medium. Test: `test_capture_helper_is_a_capturer`.
+- **R2 the victim retaliates only if it can attack the attacker (fixed, untested).** DM:753 orders the victim onto the attacker only through `canAttackTarget`. RTS0 always ordered it, and that force walk dropped a unit's current order. Now it needs `unit_can_target` (wall between, height, restricted class). Low.
+- Checked and matching: ally attackers skipped; fishing-boat flight and ship targets; unit attackers made into armies after the started-plan test; mustering plans still retaliate; support below medium health and stone throwers sheltered; structure attackers ignored; COMBAT and a shooting structure's repair left alone; allAttacked exclusion.

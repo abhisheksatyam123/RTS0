@@ -6847,6 +6847,42 @@ static void test_soldier_fights_back() {
 	CHECK(!cata_fights, "nor a stone thrower: it is only sent to shelter (DM:681-687)");
 }
 
+// defenseManager.js checkEvents (DM:712-753): the squad-mate that helps a capturer hit on its
+// structure is one that can capture it and can attack the attacker. A ram on the same structure
+// can't capture and is left on it.
+static void test_capture_helper_is_a_capturer() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	s->set_diplomacy(0, 1, Simulation::DIPLO_ENEMY);
+	s->set_diplomacy(1, 0, Simulation::DIPLO_ENEMY);
+	run_for(*s, 1.0f);
+	float bx = 0.0f, bz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { bx = b.x; bz = b.z; }
+	// An enemy's barracks, which our units capture.
+	const uint32_t bar = s->spawn_building_world(bx + 10.0f, bz, BLD_BARRACKS, 0, 1.0f);
+	run_for(*s, 0.5f);
+	const uint32_t capturer = s->spawn_unit(bx + 10.0f, bz + 4.0f, 1, UNIT_SPEARMAN, 1.0e5f);
+	const uint32_t ram = s->spawn_unit(bx + 10.0f, bz - 4.0f, 1, UNIT_SIEGE_RAM, 1.0e5f);
+	const uint32_t enemy = s->spawn_unit(bx + 16.0f, bz + 4.0f, 0, UNIT_SPEARMAN, 1.0e5f);
+	const int32_t ci = s->lookup_unit(capturer), ri = s->lookup_unit(ram), ei = s->lookup_unit(enemy);
+	for (int32_t k : {ci, ri}) {
+		s->units_.action_state[k] = ACTION_ATTACK;
+		s->units_.target_building_id[k] = bar;
+		s->units_.order_flags[k] |= ORDER_FLAG_ALLOW_CAPTURE;
+	}
+	const bool capturing = s->unit_capturing(ci);
+	const bool ram_capturing = s->unit_capturing(ri);
+	std::vector<uint32_t> helped;
+	s->petra_fight_back((size_t)ci, ei, {}, helped);
+	std::printf("  capture helper: the capturer capturing %s, the ram %s\n", capturing ? "yes" : "no", ram_capturing ? "yes" : "no");
+	CHECK(capturing && !ram_capturing, "a ram can't capture, so it is not the capture helper's pick");
+	CHECK(s->units_.target_unit_id[ri] == 0 && s->units_.target_building_id[ri] == bar, "the ram stays on the structure");
+}
+
 // defenseArmy.js update and assignUnit: a defender is re-assigned only once it has no orders,
 // so one Petra moved onto another target keeps it; one just drafted with a load drops it at
 // the nearest dropsite first, the attack queued after (returnResources).
@@ -10526,6 +10562,7 @@ int main(int argc, char **argv) {
 	RUN(test_attack_helps_other_attack);
 	RUN(test_attack_maybe_cadence);
 	RUN(test_rush_target_obstruction);
+	RUN(test_capture_helper_is_a_capturer);
 	RUN(test_scuttle_undefendable);
 	RUN(test_sandbox_builds_no_defenses);
 	RUN(test_rush_any_phase);
