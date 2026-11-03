@@ -350,6 +350,19 @@ Petra's config.js (difficulty, behaviour, personality, population scaling, prior
 | PG3 | ~~Petra's population-scaled settings (popScaling, worker target, phase, barracks, forge and trader thresholds) re-read World or Team Population's split after each defeat; config.js setConfig reads getPopulationMax once~~ | low | Fixed: `petra_config_max_pop` takes the split among every seated player |
 | PG4 | ~~Garrison holders are checked on a global every-second-turn beat; garrisonManager.js:134 keeps a per-holder holderTimeUpdate set at registration and after each check, so a new holder's first check can come about 1.5 s sooner than in 0.28~~ | low | Fixed: `petra_holders_` keeps each holder's registration or last-check time (save 135) |
 
+### Germans end to end: Compare's sixteenth 0.28 pass (2026-11-03)
+
+The Germans (germ) roster, techs, buildings, civ bonuses and auras against 0.28. Matched: 31 unit rows' stats, names and phases, the promotion chains, the 3 techs, about 26 structures, the civ bonuses and the 9 auras. Re-checked with the generator's own parent-resolving loader: the trainer bits match 0.28's resolved lists. The first audit read only each child structure's own list and missed inherited trainers, so GE1-GE6 are closed (not drift).
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| GE1 | ~~infantry_spearman_b and infantry_slinger_b can be trained at BLD_WAGON_ENCAMPMENT_FORTIFIED~~ | low | Closed, not drift: 0.28's encampment_fortified.xml has parent structures/germ/encampment, which lists both units, so the bit is 0.28's |
+| GE2 | ~~support_wagon is trainable at BLD_WAGON_ENCAMPMENT_FORTIFIED~~ | low | Closed, not drift: encampment_fortified inherits support_wagon from structures/germ/encampment |
+| GE3 | ~~support_civilian trains at BLD_TOWN_CENTER and both wagon encampments~~ | medium | Closed, not drift: the civic civil centre, encampment and fortified encampment templates list units/{native}/support_civilian, and {native} is germ for this civ |
+| GE4 | ~~support_healer_b trains at BLD_TEMPLE~~ | low | Closed, not drift: template_structure_civic_temple.xml (the parent of germ/temple) lists units/{civ}/support_healer_b |
+| GE5 | ~~siege_ram trains at BLD_ARSENAL~~ | low | Closed, not drift: template_structure_military_arsenal.xml (the parent of germ/arsenal) lists units/{civ}/siege_ram |
+| GE6 | ~~germ/catafalque hp 1000 is the generator's class-default fallback~~ | low | Closed: template_unit_catafalque.xml disables Health, so 0.28 gives no HP; RTS0 treats the catafalque as Health-disabled (simulation.cpp:19308) and the 1000 is a roster placeholder |
+
 ### Aura templates: Compare's fifteenth 0.28 pass (2026-11-03)
 
 Every 0.28 aura file (151 under data/auras/) against the port's aura tables: affects for all 119 hero auras match 0.28's class matches over the 548 roster templates, and 273 of 294 unit-level modifiers match. The remaining differences are below.
