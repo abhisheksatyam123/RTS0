@@ -4,6 +4,8 @@ extends SceneTree
 # (data/voice_groups.json): an Athenian hoplite told to board a ram says the
 # Greek men's garrison group, "As you wish" (civ_male_Asyouwish_1), not the
 # women's garrison line; an Athenian woman says civ_female_garrison_1 or _2.
+# Siege engines answer with template_unit_siege(_ram).xml's own groups: the ram
+# selects with siege_select_10 and moves with ram_move, not a man's voice.
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_order_voices.gd
 # Exit code 0 = pass.
@@ -93,6 +95,19 @@ func run() -> void:
 	print("2. A Greek woman's garrison order")
 	snd = await garrison_voice("athen/support_female_citizen", ram)
 	check(snd.contains("voice/greek/civ/civ_female_garrison_"), "civ_female_garrison.xml: " + snd)
+
+	print("3. Selecting the ram")
+	await frames(10)
+	await click(MOUSE_BUTTON_LEFT, main.debug_unit_screen(ram))
+	snd = str(main.get_audio_state().last_sound)
+	check(snd.ends_with("attack/siege/siege_select_10.ogg"), "siege_select.xml: " + snd)
+
+	print("4. Moving the ram")
+	main.debug_select_units(PackedInt32Array([ram]))
+	await frames(2)
+	await click(MOUSE_BUTTON_RIGHT, main.debug_unit_screen(ram) + Vector2(140, 90))
+	snd = str(main.get_audio_state().last_sound)
+	check(snd.ends_with("attack/siege/ram_move.ogg"), "ram_move.xml: " + snd)
 
 	print("PASS" if failures == 0 else "FAILURES: %d" % failures)
 	quit(1 if failures else 0)
