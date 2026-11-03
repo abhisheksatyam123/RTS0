@@ -112,6 +112,7 @@ int main() {
 	// 5. Conquest Structures: razing structures is enough.
 	{
 		Simulation *sim = fresh(VICTORY_CONQUEST_STRUCTURES);
+		run(*sim, 0.1f); // the structures list fills at the start (ConquestCommon.js)
 		wipe(*sim, 1, false, true);
 		run(*sim, 1.0f);
 		CHECK(sim->is_victory());
@@ -258,10 +259,61 @@ int main() {
 		sim->set_player_active(2, true, false);
 		run(*sim, 0.05f);
 		(void)sim->take_session_notices();
+		// Player 1's structures carry a +10% health modifier; Gaia, which takes them, has none.
+		size_t bi = sim->buildings_.size();
+		for (size_t k = 0; k < sim->buildings_.size(); ++k)
+			if (sim->buildings_[k].team == 1 && sim->buildings_[k].build_progress >= 1.0f) { bi = k; break; }
+		CHECK(bi < sim->buildings_.size());
+		const uint8_t bt = sim->structure_tech_type(sim->buildings_[bi]);
+		const float base_hp = sim->buildings_[bi].max_hp / sim->structure_hp_mult(bt, 1);
+		sim->tech_mods_[1].bld_health[bt] *= 1.1f;
+		sim->buildings_[bi].max_hp = base_hp * sim->structure_hp_mult(bt, 1);
 		CHECK(sim->cmd_resign(1));
 		ns = sim->take_session_notices();
 		CHECK(ns.size() == 1 && ns[0].kind == N::DEFEATED && ns[0].player == 1 && ns[0].tech == N::END_RESIGNED);
+		CHECK(sim->buildings_[bi].team == GAIA_PLAYER && std::fabs(sim->buildings_[bi].max_hp - base_hp) < 0.01f);
 		delete sim;
+	}
+	// 7b. ConquestStructures.js: a player who starts with no structures (an army-only start
+	// on a skirmish map) is not out until it holds one and loses it, foundations included.
+	{
+		Simulation sim;
+		sim.reset();
+		sim.set_victory_condition(VICTORY_CONQUEST_STRUCTURES);
+		sim.spawn_building(0, 0, BLD_TOWN_CENTER, 0, 1.0f);
+		sim.spawn_unit(3.0f, 3.0f, 0, UNIT_VILLAGER);
+		sim.spawn_unit(-40.0f, 40.0f, 1, UNIT_SWORDSMAN);
+		sim.record_.enemies_killed = 1;
+		run(sim, 1.0f);
+		CHECK(!sim.is_game_over() && !sim.is_victory() && !sim.is_defeated(1));
+		const uint32_t f = sim.spawn_building_world(-40.0f, 50.0f, BLD_HOUSE, 1, 0.1f); // a foundation
+		run(sim, 0.5f);
+		CHECK(f && !sim.is_defeated(1));
+		for (auto &b : sim.buildings_)
+			if (b.id == f) b.hp = 0.0f;
+		run(sim, 0.5f);
+		CHECK(sim.is_defeated(1));
+	}
+	// 7c. EndGameManager.AlliedVictoryCheck checks every player left against the lowest-numbered
+	// one only: 0 allied to both 2 and 3, who are enemies, ends the match for all three.
+	{
+		Simulation sim;
+		sim.reset();
+		sim.set_victory_condition(VICTORY_CONQUEST);
+		sim.spawn_building(0, 0, BLD_TOWN_CENTER, 0, 1.0f);
+		sim.spawn_unit(-40.0f, 40.0f, 2, UNIT_SWORDSMAN);
+		sim.spawn_unit(40.0f, 40.0f, 3, UNIT_SWORDSMAN);
+		run(sim, 0.1f);
+		for (uint8_t q : {2, 3}) {
+			sim.set_diplomacy(0, q, Simulation::DIPLO_ALLY);
+			sim.set_diplomacy(q, 0, Simulation::DIPLO_ALLY);
+		}
+		sim.set_diplomacy(2, 3, Simulation::DIPLO_ENEMY);
+		sim.set_diplomacy(3, 2, Simulation::DIPLO_ENEMY);
+		sim.record_.enemies_killed = 1;
+		run(sim, 0.5f);
+		CHECK(sim.is_game_over() || sim.is_victory());
+		CHECK(sim.winner_mask() == 0b1101);
 	}
 	// 8. Endless: nobody is ever defeated.
 	{
@@ -870,6 +922,11 @@ int main() {
 		CHECK(sim.cmd_cheat(0, Simulation::CHEAT_KILL_UNITS, 0, 0, &enemy, 1) && !sim.units_.alive[sim.lookup_unit(enemy)]);
 		const int pop = sim.pop_current(0);
 		CHECK(tc && sim.cmd_cheat(0, Simulation::CHEAT_CREATE_UNITS, 3, 0, &tc, 1) && sim.pop_current(0) == pop + 3);
+		{ // createPlane.json "how do you turn this on?": units/plane from the selected trainer.
+			const size_t before = sim.units_.count;
+			CHECK(sim.cmd_cheat(0, Simulation::CHEAT_CREATE_UNITS, 1, 2, &tc, 1) && sim.units_.count == before + 1);
+			CHECK(std::strcmp(civ_unit_template(sim.units_.tmpl[before]).id, "plane") == 0 && sim.units_.team[before] == 0);
+		}
 		(void)sim.take_session_notices();
 		CHECK(sim.cmd_cheat(0, Simulation::CHEAT_DEFEAT_PLAYER, 1, 0, nullptr, 0) && sim.is_defeated(1));
 		{ // Cheat.js: "%(player)s has been defeated (cheat)."
@@ -999,9 +1056,16 @@ int main() {
 				ns[0].amounts[RES_STONE] == 50 && ns[0].amounts[RES_FOOD] == 100 && ns[0].amounts[RES_WOOD] == 0);
 		CHECK(sim.take_session_notices().empty()); // handed over once
 		CHECK(sim.cmd_set_diplomacy(0, 1, Simulation::DIPLO_NEUTRAL));
-		CHECK(sim.cmd_set_diplomacy(0, 1, Simulation::DIPLO_NEUTRAL)); // no change, no notice
+		CHECK(sim.cmd_set_diplomacy(0, 1, Simulation::DIPLO_NEUTRAL)); // no change: Commands.js still notifies
 		ns = sim.take_session_notices();
-		CHECK(ns.size() == 1 && ns[0].kind == N::DIPLOMACY && ns[0].other == 1 && ns[0].tech == Simulation::DIPLO_NEUTRAL);
+		CHECK(ns.size() == 2 && ns[0].kind == N::DIPLOMACY && ns[0].other == 1 && ns[0].tech == Simulation::DIPLO_NEUTRAL &&
+				ns[1].kind == N::DIPLOMACY);
+		// Diplomacy.js SetDiplomacyIndex: no change toward a player who is out of the game.
+		const uint8_t was = sim.get_diplomacy(0, 1);
+		sim.defeated_mask_ |= 2;
+		CHECK(sim.cmd_set_diplomacy(0, 1, Simulation::DIPLO_ENEMY) && sim.get_diplomacy(0, 1) == was);
+		sim.defeated_mask_ &= ~2;
+		(void)sim.take_session_notices();
 		uint32_t tc = 0;
 		for (const auto &b : sim.buildings())
 			if (b.team == 0 && b.type == BLD_TOWN_CENTER) tc = b.id;
@@ -1129,6 +1193,7 @@ int main() {
 		// Units + Structures: razing the structures is enough, as with Structures alone.
 		Simulation *sim = combined(VK_CONQUEST_UNITS | VK_CONQUEST_STRUCTURES);
 		CHECK(sim->victory_condition() == (VICTORY_COMBINED | VK_CONQUEST_UNITS | VK_CONQUEST_STRUCTURES));
+		run(*sim, 0.1f);
 		wipe(*sim, 1, false, true);
 		run(*sim, 1.0f);
 		CHECK(sim->is_victory());

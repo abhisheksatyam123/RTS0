@@ -102,6 +102,11 @@ public:
 	// DiplomacyPlayerText team caption: 1-based, or "None" for a player alone on its team.
 	// RTS0 keeps a team as its lowest member's id, so teams are numbered in member order.
 	static String team_text(const rtso::Simulation &sim, uint8_t pid) {
+		// DiplomacyPlayerText: the Game Setup team, which no stance change alters.
+		if (rtso::display_colors::state().has_setup_teams) {
+			const int t = rtso::display_colors::state().setup_team[pid];
+			return t > 0 ? String::num_int64(t) : String("None");
+		}
 		int number = 0;
 		bool shared = false;
 		uint8_t seen[rtso::MAX_PLAYERS] = {};
