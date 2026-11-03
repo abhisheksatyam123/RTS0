@@ -1666,6 +1666,10 @@ public:
 	// 0 A.D. Player.js "defeated": a player out of the match. The match goes on until
 	// one side (or, under Last Man Standing, one player) is left; the defeated watch.
 	bool is_defeated(uint8_t pid) const { return pid < MAX_PLAYERS && ((defeated_mask_ >> pid) & 1); }
+	// The GPU pushing forces (GpuSeparation) round differently on each GPU, and a
+	// machine without one computes them on the CPU: allowed only where no other
+	// machine has to reach the same state (not in a networked game or a replay).
+	void set_gpu_push(bool on) { gpu_push_ = on; }
 	uint8_t defeated_mask() const { return defeated_mask_; }
 	uint8_t winner_mask() const { return winner_mask_; }
 	// Players that have held units or structures this match (only they can be defeated).
@@ -2847,6 +2851,12 @@ private:
 	// The key of a search round idle units that found no way from where the unit stands (the memo
 	// holds that spot): it searches again there only every fourth turn.
 	uint32_t idle_stuck_key() const { const uint32_t k = short_path_key_ ^ 0x6C8E9CF5u; return k ? k : 3u; }
+	// The same note where the unit is held: the search that found no way was one from a spot its last
+	// search had found no way from (avoid_idle_units' `no_way`), or came just after a step on the way a
+	// search had found was refused (`path_refused`). It counts as idle_stuck_key everywhere, and also
+	// lets a unit inside its own idle units' crowd walk out through them (avoid_idle_units' `sealed`).
+	uint32_t idle_held_key() const { const uint32_t k = short_path_key_ ^ 0x85EBCA6Bu; return k ? k : 12u; }
+	bool idle_stuck_note(uint32_t k) const { return k == idle_stuck_key() || k == idle_held_key(); }
 	// The keys of a short path round idle units that avoid_idle_units' second search, among smaller
 	// squares shaped as 0.28's, found where RTS0's wider ones found no way, and of its waypoint reached
 	// last tick: the unit's steps on it are tested against those squares too.
@@ -3801,6 +3811,7 @@ private:
 	// that had some was already defeated.
 	uint8_t had_unit_mask_ = 0;
 	uint8_t defeated_mask_ = 0;
+	bool gpu_push_ = false; // not saved: set by the session each frame
 	uint8_t winner_mask_ = 0;
 	float wonder_hold_[MAX_PLAYERS] = {}; // the longest countdown of each player's wonders (Building::wonder_hold)
 	// GetPlayersByDiplomacy("IsExclusiveMutualAlly") under allied victory, else nobody.
@@ -3906,6 +3917,19 @@ private:
 	void petra_fight_back(size_t i, int32_t attacker, const std::vector<PetraDefenseArmy> &armies, std::vector<uint32_t> &helped);
 	bool petra_ship_in_plan(uint32_t ship_id) const;
 	size_t petra_go_home(const std::vector<uint32_t> &squad, float x, float z, uint8_t owner, bool order_here, bool attack = false);
+	// attackPlan.js update's rolling window: 10 units a turn, here every `stride`-th from an
+	// offset that moves each turn.
+	static bool petra_attack_window(uint32_t turn, size_t k, size_t stride) { return stride <= 1 || (k + turn) % stride == 0; }
+	// lastAttackPlanUpdateTime: a "maybe" re-pick waits 5 s (10 s approaching), here every 3rd
+	// (6th) AI turn by unit id; with the window, every 3rd (6th) turn it comes up in, so the
+	// two cadences never miss each other for good.
+	static bool petra_attack_maybe_due(uint32_t turn, size_t stride, uint32_t id, bool approaching) {
+		const uint32_t every = approaching ? 6u : 3u, s = (uint32_t)std::max<size_t>(1, stride), visits = (every + s - 1) / s;
+		return (turn / s + id) % visits == 0;
+	}
+	uint32_t petra_plan_live_target(const AttackPlan &plan, float &tx, float &tz) const;
+	uint16_t petra_attack_access(const std::vector<uint32_t> &squad) const;
+	uint32_t petra_attack_retarget(AttackPlan &plan, float &tx, float &tz);
 	void petra_abort_plan(AttackPlan &plan, uint8_t transport_owner); // attackPlan.js Abort
 	std::vector<PetraChatLine> petra_chat_;
 	std::unordered_map<uint8_t, PetraDiplomacyRequest> petra_diplomacy_requests_;
@@ -4724,6 +4748,10 @@ private:
 	static constexpr float GAIA_STEER_REACH = 2.5f; // world units round a walker whose trees it steers by
 	std::vector<SteerObstacle> gaia_obstacles_;
 	std::vector<uint32_t> gaia_res_idx_; // each one's supply index in resources_, UINT32_MAX for a treasure
+	// Whether ships keep off each one: a treasure whose template blocks movement (every one but
+	// shipwreck_debris.xml, which sets Obstruction/BlockMovement false; TreasureTypeInfo::blocks_movement).
+	// Trees and bushes stand on land, so not them.
+	std::vector<uint8_t> gaia_blocks_ships_;
 	std::vector<uint32_t> mine_candidates_; // the supplies that are mines, for append_mine_obstacles
 	// A tree or bush stays listed once cut down (ensure_gaia_obstacles); a treasure leaves at once.
 	bool gaia_obstacle_live(uint32_t k) const {
@@ -4752,12 +4780,15 @@ private:
 	// it need gaia_obstacles_near; cheaper, as it looks along the line only.
 	bool gaia_in_the_way(float x, float z, float ax, float az, float reach, float radius, uint32_t ignore) const;
 	// Ships keep off floating treasures (template_gaia_treasure shipwrecks: Obstruction/Static,
-	// BlockMovement): when the first SHIP_WRECK_STEER_REACH of ship i's line from (x, z) to (ax, az)
-	// crosses one, grown by its hull, `out` is the nearer way round, a corner of that square.
+	// BlockMovement; not shipwreck debris, which sets it false): when the first SHIP_WRECK_STEER_REACH
+	// of ship i's line from (x, z) to (ax, az) crosses one, grown by its hull, `out` is the first
+	// corner of the shortest way round that square, by one corner or by two along a side, as
+	// VertexPathfinder's search over its corners finds it.
 	static constexpr float SHIP_WRECK_STEER_REACH = 12.0f;
 	bool ship_wreck_steer(size_t i, float x, float z, float ax, float az, nav::Vec2 &out) const;
 	// Whether ship i's step from (x, z) to (nx, nz) enters a floating treasure's square grown by its
-	// hull (not the one it sails to at (ax, az)): move_units refuses it, and the ship slides along.
+	// hull (not the one it sails to at (ax, az), nor debris): move_units refuses it, and the ship
+	// slides along.
 	bool ship_step_into_wreck(size_t i, float x, float z, float nx, float nz, float ax, float az) const;
 	// Navcells a wood closes to long paths: FOREST_CLOSED where trees and bushes leave no way
 	// across the cell (forest_cell_closed), FOREST_CLOSED_LARGE where only the large class's

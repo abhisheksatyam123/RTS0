@@ -30,8 +30,10 @@ namespace {
 // Cross-platform adaptive worker backoff: spin for at most kMaxSpinIters iterations, then yield
 // the logical core before sleeping on cv_work_ after kWatchFor. This avoids starving SMT sibling
 // threads and GPU drivers on any platform without machine-specific hardware heuristics.
+// kWatchFor spans the gap between a tick's parallel loops (about a millisecond): at 200 us workers
+// slept between loops and missed the start of the next (Jebel Barkal 8-player soak ~6% slower).
 constexpr int kMaxSpinIters = 32;
-constexpr auto kWatchFor = std::chrono::microseconds(200);
+constexpr auto kWatchFor = std::chrono::microseconds(2000);
 } // namespace
 
 JobSystem &JobSystem::instance() {

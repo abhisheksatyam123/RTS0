@@ -26,7 +26,8 @@
 //     Petra difficulty per seat, 0 Sandbox to 5 Very Hard; --behs a,b the behaviour, 0 Random
 //     (the default, as in 0.28's game setup), 1 Defensive, 2 Balanced, 3 Aggressive);
 //   - [phase]: each phase-up, and [no-phase] for a player still in Village at the end of a
-//     match of 15+ minutes;
+//     match of 15+ minutes with a finished Civic Centre and more than 10 units ([crushed] for
+//     the rest: war took their base or army);
 //   turns run on the game's worker pool, as in a session; --serial runs them on one thread;
 //   - [foundation]: a player's foundation (not a field) whose progress has not moved for 5 minutes;
 //   - [stats]: statistics that go wrong (a counter that drops, trained units below the
@@ -730,8 +731,16 @@ int main(int argc, char **argv) {
 	if (end_sec >= 15 * 60)
 		for (int p = 0; p < players; ++p)
 			if (!a->is_defeated((uint8_t)p) && a->player((uint8_t)p).phase < 2) {
-				std::printf("[no-phase] p%d still in Village at %d s\n", p, end_sec);
-				++counts["no-phase"];
+				// A player war has crushed (no finished Civic Centre, or 10 units or fewer) is not a
+				// phase-up gap: 0.28's Petra stays in Village then too.
+				int units = 0, ccs = 0;
+				for (size_t i = 0; i < a->units_.count; ++i) units += a->units_.alive[i] && a->units_.team[i] == p;
+				for (const auto &bb : a->buildings_)
+					ccs += bb.team == p && bb.hp > 0 && bb.build_progress >= 1.0f && is_civic_centre(bb.type);
+				const bool crushed = ccs == 0 || units <= 10;
+				std::printf("[%s] p%d still in Village at %d s (%d units, %d Civic Centres)\n", crushed ? "crushed" : "no-phase", p,
+						end_sec, units, ccs);
+				++counts[crushed ? "crushed" : "no-phase"];
 			}
 	// [stat-drift]: every living unit and finished structure against a fresh one of its template,
 	// rank and owner spawned now, and each player's technology modifiers against a recompute: a

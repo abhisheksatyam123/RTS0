@@ -209,6 +209,8 @@ def treasure_rows(loader):
             "amounts": [amounts.get(k, 0) for k in ("food", "wood", "stone", "metal")],
             "width": float(st.attrs.get("width", 1)) if st is not None else 1.0,
             "depth": float(st.attrs.get("depth", 1)) if st is not None else 1.0,
+            # template_gaia.xml BlockMovement true; shipwreck_debris.xml alone sets it false.
+            "blocks_movement": t.value("Obstruction/BlockMovement", "true") == "true",
         })
     return rows
 
@@ -447,13 +449,14 @@ def emit(fauna, treasures, ruins, scenery, corral):
     w("\tint amount[4];             // food, wood, stone, metal")
     w("\tfloat width, depth;       // Obstruction/Static in metres")
     w("\tconst char *model_id;     // assets/models/props/<model_id>.glb (VisualActor, extract_0ad_assets.py ZIP_PROPS)")
+    w("\tbool blocks_movement;     // Obstruction/BlockMovement: shipwreck_debris alone sets it false; ships sail over it")
     w("};")
     w("")
     w("inline const TreasureTypeInfo &treasure_type_info(uint8_t t) {")
     w("\tstatic const TreasureTypeInfo kTable[TREASURE_TYPE_COUNT] = {")
     for r in treasures:
         a = r["amounts"]
-        w(f"\t\t{{{cstr(r['stem'])}, {cstr(r['name'])}, {f(r['collect'])}, {{{a[0]}, {a[1]}, {a[2]}, {a[3]}}}, {f(r['width'])}, {f(r['depth'])}, {cstr(r['model'])}}},")
+        w(f"\t\t{{{cstr(r['stem'])}, {cstr(r['name'])}, {f(r['collect'])}, {{{a[0]}, {a[1]}, {a[2]}, {a[3]}}}, {f(r['width'])}, {f(r['depth'])}, {cstr(r['model'])}, {'true' if r['blocks_movement'] else 'false'}}},")
     w("\t};")
     w("\treturn kTable[t < TREASURE_TYPE_COUNT ? t : 0];")
     w("}")
