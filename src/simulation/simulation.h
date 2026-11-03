@@ -191,7 +191,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 137; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 138; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_FAUNA_QUEUED_TARGET = 137; // each animal's set-aside attack target (fauna_queued_target_)
 	static constexpr uint32_t SAVE_VERSION_PETRA_IDLE_CHECKS = 136; // each Petra base's next gatherer balance check (timeNextIdleCheck)
 	static constexpr uint32_t SAVE_VERSION_PETRA_HOLDER_TIME = 135; // each Petra garrison holder's holderTimeUpdate
@@ -232,6 +232,7 @@ public:
 	static constexpr uint32_t SAVE_VERSION_PETRA_PROSPECT = 100; // Petra's routeProspection and the Trade structures it last saw
 	static constexpr uint32_t SAVE_VERSION_TRADE_ROUTE = 99; // each trader's route waypoints and leg progress (SetupTradeRoute route, reversed on the way back)
 	static constexpr uint32_t SAVE_VERSION_PROJECTILE_DAMAGE = 98; // each projectile's fire-time strengths and shooter (GetTotalAttackEffects at impact); each unit's and animal's previous-turn position (aim velocity); each player's control-all-units flag
+	static constexpr uint32_t SAVE_VERSION_RALLY_EMERGENCY = 138; // Petra's autogarrison rally flag (rally_emergency)
 	static constexpr uint32_t SAVE_VERSION_RALLY_COMMANDS = 97; // each rally position's command and unit or treasure
 	static constexpr uint32_t SAVE_VERSION_PETRA_RAID_SIEGE = 95; // the Petra raid's name and siege class
 	static constexpr uint32_t SAVE_VERSION_PETRA_SUPPLY_ROOM = 94; // each Petra gatherer's supply; structures with no room, for 90 s; the AIs' own random stream
@@ -398,6 +399,9 @@ public:
 		// unit or treasure it names (attack, collect-treasure).
 		uint8_t rally_cmd = 0;
 		uint32_t rally_target_ent_id = 0;
+		// Petra's autogarrison rally (its trainer's own structure): a trained unit is put straight
+		// inside. A rally the player sets on the structure spawns the unit outside, and then walks it in.
+		bool rally_emergency = false;
 		// Shift-added positions after the first (RallyPoint.AddPosition), in order.
 		struct RallyStep {
 			float x, z;
@@ -1667,10 +1671,6 @@ public:
 	// 0 A.D. Player.js "defeated": a player out of the match. The match goes on until
 	// one side (or, under Last Man Standing, one player) is left; the defeated watch.
 	bool is_defeated(uint8_t pid) const { return pid < MAX_PLAYERS && ((defeated_mask_ >> pid) & 1); }
-	// The GPU pushing forces (GpuSeparation) round differently on each GPU, and a
-	// machine without one computes them on the CPU: allowed only where no other
-	// machine has to reach the same state (not in a networked game or a replay).
-	void set_gpu_push(bool on) { gpu_push_ = on; }
 	uint8_t defeated_mask() const { return defeated_mask_; }
 	uint8_t winner_mask() const { return winner_mask_; }
 	// Players that have held units or structures this match (only they can be defeated).
@@ -3816,7 +3816,6 @@ private:
 	uint8_t had_unit_mask_ = 0;
 	uint8_t had_structure_mask_ = 0; // the same for ConquestStructures.js's "Structure" list
 	uint8_t defeated_mask_ = 0;
-	bool gpu_push_ = false; // not saved: set by the session each frame
 	uint8_t winner_mask_ = 0;
 	float wonder_hold_[MAX_PLAYERS] = {}; // the longest countdown of each player's wonders (Building::wonder_hold)
 	// GetPlayersByDiplomacy("IsExclusiveMutualAlly") under allied victory, else nobody.
@@ -4828,8 +4827,8 @@ private:
 	std::vector<GatePassMemo> gate_pass_memo_;
 	nav::ObstacleGrid sep_grid_; // sep_obstacles_ by cell, rebuilt with it
 	// steer_obstacles_ by cell, rebuilt in move_units when they change, and the line test that
-	// looks only at those under the line (the same answer as nav::line_blocked_by_buildings over
-	// all of them).
+	// looks only at those under the line. Unlike nav::line_blocked_by_buildings, that test skips only
+	// the squares holding the line's start (0.28's TestLine), not the whole line.
 	nav::ObstacleGrid steer_grid_;
 	uint32_t steer_grid_key_ = 0;
 	float steer_grid_half_ = 0.0f;

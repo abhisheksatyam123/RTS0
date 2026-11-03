@@ -704,7 +704,9 @@ int main(int argc, char **argv) {
 							s.attack_reach(i), s.unit_vision_at(i), s.units_.stance[i]);
 					report(i, k, 2, "hits-nothing", buf);
 				}
-				if (is_siege(s.units_.unit_type[i]) && ++k.siege_attack_s == 120 && !k.siege_hurt)
+				// A siege engine on a target across water is excused as the hits-nothing check
+				// excuses it (auto_fight_across_water): 0.28 picks the same target again.
+				if (is_siege(s.units_.unit_type[i]) && ++k.siege_attack_s == 120 && !k.siege_hurt && !auto_fight_across_water(i, tu, tb))
 					report(i, k, 3, "siege-never-fires", "");
 			} else {
 				k.tgt = 0; k.no_hurt_s = 0;

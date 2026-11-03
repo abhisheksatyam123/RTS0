@@ -274,11 +274,26 @@
 //     ringed by its builders, a house with a cavalryman on it) start as soon as on main, the unit ending
 //     g_LeaveFoundationRange plus its clearance off the site (1.31 to 1.47), where main's stopped 0.52 to 1.95
 //     off it.
+// 41. Player 4's archer 3636 on Stats' atlas_valleys soak (seed 3) at about 946 s, taking a full load of wood to
+//     storehouse 2683 round a C of eight 7 m rocks (1973-1980), a woman also returning beside him, whose push
+//     carries him into rock 1977's square grown by his clearance, and Petra re-sending him to gather every 32
+//     ticks. Steering's line test called his whole line to the storehouse clear once a square held him: he
+//     dropped his short path round the next rock, walked into it, and the two rocks' squares held him by turns.
+//     On main he does not drop his load in 15 s (300 of 300 ticks inside a rock's square) for any of three
+//     places of the woman. Now the line test skips only the squares that hold him, as 0.28's TestLine does
+//     (CCmpObstructionManager.cpp:918-932, Geometry.cpp:259-305): he keeps his way round and drops his load
+//     after 2.55, 2.45 and 2.65 s.
+// 42. Player 7's woman 2568 in the same game at about 514 s, taking wood to storehouse 2673 past rocks 1981-1992,
+//     a spearman's push carrying her into rock 1985's grown square by its overlap with 1984's. On main she does
+//     not deliver in 20 s (398 of 400 ticks inside) for any of three places of the spearman; now she delivers
+//     after 4.30, 4.65 and 4.30 s. The woman standing inside both squares from the start, (-107.04, -17.58), is
+//     printed for information only: neither main nor this frees her in 20 s (400 of 400 ticks inside).
 #define private public
 #include "simulation/simulation.h"
 #undef private
 #include "network/turn_manager.h"
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -577,6 +592,107 @@ static bool wet_exit_spot(Simulation &s, const Simulation::Building &b, float &w
 			return true;
 		}
 	return false;
+}
+
+// Tests 41-42: a mine of 7 m rocks (Obstruction/Static 7x7, half 0.875 units) between a storehouse and a worker
+// taking a full load of wood to it, from Stats' atlas_valleys seed 3 game (head 2a71a800a) as it dumped them:
+// each rock under its id, which gives it its turn (mine_footprint), the storehouse, and the trees Petra's
+// re-sends named. Flat ground: the long path there is the bare line through the rocks, as the game's was (a
+// mine closes only the navcells it covers whole).
+struct RockScene {
+	uint8_t civ;
+	uint32_t store;
+	float sx, sz;
+	std::vector<std::array<float, 3>> rocks, trees; // id, x, z
+	uint32_t returner, pusher;
+	UnitType returner_type, pusher_type;
+	float vx, vz; // both walk at this velocity when the run starts
+	uint32_t tree, pusher_tree; // the supplies they were sent to
+	std::vector<uint32_t> resend; // the supplies Petra's re-sends name, in turn, every 32 ticks
+};
+struct RockRun {
+	int drop = -1;   // the tick the returner dropped its load, else -1
+	int inside = 0;  // ticks it ended inside a rock's square grown by its clearance
+	float x = 0.0f, z = 0.0f;
+};
+// The returner starts at (ax, az) in RETURN with a full load, and the pusher (when `push`) at (ax + cdx,
+// az + cdz), also full and returning, both walking at the scene's velocity. Runs `ticks` ticks at most.
+static RockRun rock_returner(const RockScene &sc, float ax, float az, bool push, float cdx, float cdz, int ticks) {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(3);
+	s->reset();
+	s->set_map_half(160.0f);
+	s->set_team_civ(0, sc.civ);
+	s->set_team_civ(1, CIV_SPARTANS);
+	s->next_id_ = 9000;
+	s->spawn_building_world(100.0f, 100.0f, BLD_TOWN_CENTER, 1, 1.0f);
+	s->next_id_ = 9100;
+	s->spawn_building_world(-60.0f, -60.0f, BLD_TOWN_CENTER, 0, 1.0f);
+	s->next_id_ = sc.store;
+	s->spawn_building_world(sc.sx, sc.sz, BLD_STOREHOUSE, 0, 1.0f);
+	for (const auto &r : sc.rocks) {
+		s->next_id_ = (uint32_t)r[0];
+		s->spawn_resource_world(r[1], r[2], RES_STONE, 2000, RES_SUB_NONE, 12);
+	}
+	for (const auto &t : sc.trees) {
+		s->next_id_ = (uint32_t)t[0];
+		s->spawn_resource_world(t[1], t[2], RES_WOOD, 200);
+	}
+	s->rebuild_nav_grid();
+	if (!push) { // separation() runs with two units or more
+		s->next_id_ = 9200;
+		s->spawn_unit(-10.0f, -10.0f, 0, UNIT_FEMALE_CITIZEN, 150.0f);
+	}
+	auto returning = [&](uint32_t id, uint32_t tree) {
+		const int i = idx(*s, id);
+		s->units_.res_type_carried[i] = RES_WOOD;
+		s->units_.carry[i] = s->carry_cap((size_t)i, RES_WOOD);
+		s->order_gather(&id, 1, tree);
+		// As tick_gather leaves a full worker: on its way to the dropsite's centre.
+		s->units_.action_state[i] = ACTION_RETURN_DROPSITE;
+		s->units_.target_x[i] = sc.sx;
+		s->units_.target_z[i] = sc.sz;
+		s->units_.vel_x[i] = sc.vx;
+		s->units_.vel_z[i] = sc.vz;
+		const float l = std::hypot(sc.vx, sc.vz);
+		s->units_.heading_x[i] = sc.vx / l;
+		s->units_.heading_z[i] = sc.vz / l;
+	};
+	uint32_t p = 0;
+	if (push) {
+		s->next_id_ = sc.pusher;
+		p = s->spawn_unit(ax + cdx, az + cdz, 0, sc.pusher_type, 150.0f);
+	}
+	s->next_id_ = sc.returner;
+	const uint32_t a = s->spawn_unit(ax, az, 0, sc.returner_type, 150.0f);
+	returning(a, sc.tree);
+	if (p) returning(p, sc.pusher_tree);
+	const int32_t load = s->units_.carry[idx(*s, a)];
+	const float c = s->unit_clearance_at((size_t)idx(*s, a));
+	RockRun run;
+	size_t k = 0;
+	for (int t = 1; t <= ticks && run.drop < 0; ++t) {
+		const int i = idx(*s, a);
+		if (t % 32 == 0 && s->units_.action_state[i] == ACTION_RETURN_DROPSITE) {
+			const uint32_t tree = sc.resend[k++ % sc.resend.size()];
+			s->order_gather(&a, 1, tree);
+		}
+		s->tick(DT);
+		const int j = idx(*s, a);
+		run.x = s->units_.pos_x[j];
+		run.z = s->units_.pos_z[j];
+		if (s->units_.carry[j] < load) run.drop = t;
+		for (size_t r = 0; r < s->resources_.count; ++r) {
+			nav::Footprint f;
+			if (!s->mine_footprint(r, f)) continue;
+			if (nav::PointIsInSquare(nav::Vec2(run.x - f.x, run.z - f.z), nav::footprint_u(f), nav::footprint_v(f),
+					nav::Vec2(f.hu + c, f.hv + c))) {
+				++run.inside;
+				break;
+			}
+		}
+	}
+	return run;
 }
 
 int main() {
@@ -3064,6 +3180,67 @@ int main() {
 		}
 		CHECK(prompt == 3, "an ordinary site with a unit on it starts as soon as on main");
 		CHECK(in_range == 3, "and the unit on it walks to LeaveFoundation's range off it, and stands there");
+	}
+	{
+		// 41. atlas_valleys seed 3, about 946 s: p4's archer 3636 takes a full load of wood to storehouse 2683 at
+		// (-41, -101), round the north end of the C of rocks 1973-1980 between them, Petra ordering him to gather
+		// again every 32 ticks (trees 31 and 20 in turn). He starts where he stood at tick 18921, (-31.759,
+		// -103.505), walking at 3.7 units/s, with woman 3091, also returning, beside him to the north-east; her
+		// push carries him into rock 1977's grown square on the first tick, as a push did in the game. Three
+		// places for her, 0.5 to 0.6 north of him.
+		const RockScene p4 = {CIV_PERSIANS, 2683, -41.0f, -101.0f,
+			{{1973, -38.73f, -101.42f}, {1974, -36.79f, -101.30f}, {1975, -35.17f, -101.70f}, {1976, -33.70f, -102.98f},
+			 {1977, -32.91f, -104.51f}, {1978, -33.61f, -106.57f}, {1979, -35.03f, -108.05f}, {1980, -36.26f, -109.37f}},
+			{{19, -46.31f, -78.76f}, {20, -45.03f, -77.29f}, {26, -22.0f, -118.0f}, {27, -23.39f, -116.75f},
+			 {28, -25.49f, -105.62f}, {31, -18.75f, -110.44f}},
+			3636, 3091, UNIT_ARCHER, UNIT_FEMALE_CITIZEN, -2.256f, 2.892f, 20, 26, {31, 20}};
+		static const float off41[3][2] = {{0.0f, 0.5f}, {0.1f, 0.55f}, {0.2f, 0.6f}};
+		int dropped = 0;
+		float slowest = 0.0f;
+		for (const auto &o : off41) {
+			const RockRun r = rock_returner(p4, -31.759f, -103.505f, true, o[0], o[1], 300);
+			std::printf("  atlas p4's archer among the rocks, woman at (%+.2f, %+.2f): dropped after %.2f s (-1: not in 15 s), "
+			            "%d ticks inside a rock's square, at (%.2f, %.2f)\n",
+			            o[0], o[1], r.drop < 0 ? -1.0f : r.drop * DT, r.inside, r.x, r.z);
+			dropped += r.drop > 0;
+			if (r.drop > 0) slowest = std::max(slowest, r.drop * DT);
+		}
+		CHECK(dropped == 3 && slowest <= 15.0f,
+		      "a returner pushed into one rock's grown square keeps his way round the next rock and drops his load");
+	}
+	{
+		// 42. atlas_valleys seed 3, about 514 s: p7's woman 2568 takes a full load of wood to storehouse 2673 at
+		// (-107, -13), north beyond rocks 1981-1992, Petra ordering her to gather again every 32 ticks (trees 1936,
+		// 1467 and 1459 as it named them). She starts where she stood at tick 10285, just past (-107, -19), walking
+		// north-east at 3 units/s on her way round rock 1983, with spearman 3290, also returning, beside her to the
+		// south-east; his push carries her into rock 1985's grown square, by the overlap of 1984's and 1985's, as a
+		// push did in the game. Three places for him. And, for information only, the woman standing where she stood
+		// for good, (-107.04, -17.58), inside both rocks' squares: steering skips a square that holds the unit, so
+		// only CheckMovement for the default class's steps and pushes would free her there (still left, G84).
+		const RockScene p7 = {CIV_MACEDONIANS, 2673, -107.0f, -13.0f,
+			{{1981, -105.64f, -10.55f}, {1982, -103.11f, -13.32f}, {1983, -104.88f, -15.27f}, {1984, -106.64f, -16.82f},
+			 {1985, -107.80f, -17.96f}, {1986, -109.83f, -18.37f}, {1987, -111.89f, -18.71f}, {1988, -107.54f, -10.29f},
+			 {1989, -109.10f, -10.70f}, {1990, -110.67f, -11.28f}, {1991, -112.06f, -11.24f}, {1992, -113.74f, -10.53f}},
+			{{1459, -151.40f, -42.75f}, {1467, -101.49f, -24.82f}, {1468, -102.95f, -24.75f}, {1469, -94.20f, -30.68f},
+			 {1476, -101.90f, -25.49f}, {1936, -130.87f, -41.95f}},
+			2568, 3290, UNIT_FEMALE_CITIZEN, UNIT_SPEARMAN, 2.4f, 1.8f, 1467, 1476, {1936, 1467, 1936, 1467, 1459, 1467, 1459, 1467}};
+		static const float off42[3][2] = {{0.5f, -0.2f}, {0.6f, -0.3f}, {0.7f, -0.4f}};
+		int dropped = 0;
+		float slowest = 0.0f;
+		for (const auto &o : off42) {
+			const RockRun r = rock_returner(p7, -106.624f, -18.692f, true, o[0], o[1], 400);
+			std::printf("  atlas p7's woman among the rocks, spearman at (%+.2f, %+.2f): dropped after %.2f s (-1: not in 20 s), "
+			            "%d ticks inside a rock's square, at (%.2f, %.2f)\n",
+			            o[0], o[1], r.drop < 0 ? -1.0f : r.drop * DT, r.inside, r.x, r.z);
+			dropped += r.drop > 0;
+			if (r.drop > 0) slowest = std::max(slowest, r.drop * DT);
+		}
+		const RockRun in = rock_returner(p7, -107.04f, -17.58f, false, 0.0f, 0.0f, 400);
+		std::printf("  (information) atlas p7's woman inside rocks 1984's and 1985's squares: dropped after %.2f s (-1: not in 20 s), "
+		            "%d ticks inside a rock's square, at (%.2f, %.2f)\n",
+		            in.drop < 0 ? -1.0f : in.drop * DT, in.inside, in.x, in.z);
+		CHECK(dropped == 3 && slowest <= 20.0f,
+		      "a returner pushed into the overlap of two rocks' grown squares keeps her way round them and delivers");
 	}
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;

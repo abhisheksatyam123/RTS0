@@ -8,7 +8,6 @@
 #include "nav/building_steering.h"
 #include "nav/rasterize.h"
 #include "../core/job_system.h"
-#include "../graphics/gpu_separation.h"
 #include <cstdio>
 #if defined(_MSC_VER) && !defined(__clang__)
 #include <intrin.h>
@@ -3615,6 +3614,19 @@ bool Simulation::update_forest_cells() {
 	return true;
 }
 
+// The line test of 0.28's TestLine (CCmpObstructionManager.cpp:918-932): each static square, grown by
+// the clearance, is tested on its own with Geometry::TestRaySquare (Geometry.cpp:259-305), where a
+// line that starts inside a square leaves that square freely but still collides with any other square
+// it enters. A square that holds `pos` (LINE_HOLDS_POS) is skipped; it does not clear the whole line.
+// RTS0 used to call the whole line clear as soon as any square held the start ("separation() pushes it
+// out first"). Among clustered mines that let a unit pushed a hair into one rock's clearance walk
+// straight into the next rock, where the two rocks' separation pushes held it for good (atlas_valleys
+// seed 3 on head 2a71a800a, p4's returner 3636 at (-33, -104)).
+// Cost: the grid pass visits only the obstacles whose footprints may overlap the line's box (to cell
+// resolution) and stops at the first crossing. The full scan over steer_obstacles_ runs only when the
+// grid refuses the box (for_each_in_box returns false: more than 4096 obstacles, or a box whose cells,
+// times the list's 64-bit words, outnumber its obstacles, as in a short list) or when steer_grid_ is not
+// in step with steer_obstacles_. A line that starts inside a square takes the same grid pass as any other.
 bool Simulation::steer_line_blocked(nav::Vec2 pos, nav::Vec2 aim, float max_len, float radius, uint32_t ignore) const {
 	const nav::Vec2 to_aim = aim - pos;
 	const float len = to_aim.length();
@@ -3622,16 +3634,18 @@ bool Simulation::steer_line_blocked(nav::Vec2 pos, nav::Vec2 aim, float max_len,
 	const nav::Vec2 end = len > max_len ? pos + to_aim * (max_len / len) : aim;
 	const float reach = std::min(len, max_len);
 	const nav::detail::SegmentBox box(pos, end, radius);
-	bool blocked = false, holds = false;
+	auto crosses = [&](const SteerObstacle &o) {
+		return nav::detail::line_hit(o, pos, end, aim, radius, ignore, reach, box) == nav::detail::LINE_CROSSES;
+	};
+	bool blocked = false;
 	if (steer_grid_.size() == steer_obstacles_.size() &&
 			steer_grid_.for_each_in_box(box.x0 - box.radius, box.z0 - box.radius, box.x1 + box.radius, box.z1 + box.radius, [&](uint32_t k) {
-				const int hit = nav::detail::line_hit(steer_obstacles_[k], pos, end, aim, radius, ignore, reach, box);
-				holds = hit == nav::detail::LINE_HOLDS_POS;
-				blocked = blocked || hit == nav::detail::LINE_CROSSES;
-				return holds;
+				return blocked = crosses(steer_obstacles_[k]);
 			}))
-		return blocked && !holds;
-	return nav::line_blocked_by_buildings(pos, aim, max_len, radius, steer_obstacles_, ignore);
+		return blocked;
+	for (const SteerObstacle &o : steer_obstacles_)
+		if (crosses(o)) return true;
+	return false;
 }
 
 // The standing structures that block movement (an open gate's two sides) and the mines, as move_units
@@ -4574,19 +4588,16 @@ Simulation::PlacementResult Simulation::check_wall_piece(uint8_t player, const W
 		const std::vector<std::pair<int, int>> c = building_cells(g);
 		ignored.insert(ignored.end(), c.begin(), c.end());
 		if (g.type != BLD_WALL_TOWER && !is_wallset_tower_piece(g.type, g.half_size)) continue;
-		// The segments joined to a tower share its group too (SetControlGroup2), where they reach
-		// into it: their cells around the tower.
-		const float near = g.half_size + GRID;
+		// The segments joined to a tower (reaching into it) share its group too (SetControlGroup2),
+		// so a piece in that group may overlap the whole of them.
 		for (const Building &o : buildings_) {
 			if (o.id == g.id || o.team != g.team || !is_wallset_piece(o.type, o.half_size) ||
 					is_wallset_tower_piece(o.type, o.half_size))
 				continue;
 			const nav::Vec2 gap = nav::footprint_gap(o, g.x, g.z);
 			if (gap.x > g.half_size || gap.y > g.half_size) continue;
-			for (const auto &cell : building_cells(o)) {
-				const float ccx = (cell.first + 0.5f) * GRID, ccz = (cell.second + 0.5f) * GRID;
-				if (std::fabs(ccx - g.x) <= near && std::fabs(ccz - g.z) <= near) ignored.push_back(cell);
-			}
+			const std::vector<std::pair<int, int>> oc = building_cells(o);
+			ignored.insert(ignored.end(), oc.begin(), oc.end());
 		}
 	}
 	std::vector<uint32_t> ids(ignore, ignore + ignore_n);
@@ -5467,6 +5478,7 @@ void Simulation::cmd_set_rally_point(uint8_t player_id, uint32_t building_id, fl
 		return;
 	}
 	b.has_rally_point = true;
+	b.rally_emergency = false; // a player's rally: its units spawn outside and walk in
 	b.rally_x = rx;
 	b.rally_z = rz;
 	b.rally_target_res_id = res_id;
@@ -13136,12 +13148,15 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			// (ComputeGoal, CCmpUnitMotion.h:1664-1773), which a search reaches without crossing it.
 			const bool gathering = units_.action_state[i] == ACTION_GATHER && units_.target_resource_id[i] != 0;
 			const uint32_t steer_ignore = units_.action_state[i] == ACTION_GATHER ? units_.target_resource_id[i] : units_.target_building_id[i];
-			// A large unit standing inside one structure's clearance whose line enters another's
-			// (large_step_barred) is obstructed, as PerformMove's CheckMovement fails it, and takes a short
-			// path round them. steer_line_blocked passes such a line, as separation() pushes the default
-			// class out of a structure first. 0.28 never has a unit inside a grown square; its vertex
-			// pathfinder, given a start inside one, only leaves that square's vertices unclipped
-			// (VertexPathfinder.cpp:703-712), and its one-sided edges let the path leave it (:110-140).
+			// A unit standing inside one structure's or mine's clearance whose line enters another's is
+			// treated as obstructed and takes a short path round them: steer_line_blocked skips only the
+			// squares that hold the unit, as TestLine does, and a large unit's line is tested at its own
+			// clearance too (large_step_barred). 0.28 would fail such a step on CheckMovement (PerformMove,
+			// CCmpUnitMotion.h:1302, 1343). RTS0 bars no default-class step or push by this rule (G84), so
+			// a default-class unit can still stand inside a grown square and be steered from there. 0.28
+			// never has a unit inside a grown square; its vertex pathfinder, given a start inside one, only
+			// leaves that square's vertices unclipped (VertexPathfinder.cpp:703-712), and its one-sided
+			// edges let the path leave it (:110-140).
 			auto large_line_barred = [&] {
 				const float ldx = aim_x - px[i], ldz = aim_z - pz[i], len = std::sqrt(ldx * ldx + ldz * ldz);
 				if (len < 1e-4f) return false;
@@ -14251,25 +14266,6 @@ const float FAUNA_PUSH_RADIUS_LARGE = unit_collision_radius(UNIT_ELEPHANT);
 #endif
 
 
-namespace {
-GpuSeparation::AvailFn g_gpu_sep_avail_fn = nullptr;
-GpuSeparation::DispatchFn g_gpu_sep_dispatch_fn = nullptr;
-} // namespace
-
-void GpuSeparation::register_live_hooks(AvailFn avail, DispatchFn dispatch) {
-	g_gpu_sep_avail_fn = avail;
-	g_gpu_sep_dispatch_fn = dispatch;
-}
-
-bool GpuSeparation::live_available() {
-	return g_gpu_sep_avail_fn && g_gpu_sep_avail_fn();
-}
-
-bool GpuSeparation::live_dispatch(size_t count, const float *pos_xz, const float *radii, float *out_forces,
-                                  float cell_size, float min_dist, float strength) {
-	return g_gpu_sep_dispatch_fn && g_gpu_sep_dispatch_fn(count, pos_xz, radii, out_forces, cell_size, min_dist, strength);
-}
-
 void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 	const size_t n = units_.count;
 	// Pressure changes on the last tick of each turn, as MoveSubset decays it after the turn's moves
@@ -14510,24 +14506,6 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 		mov[i] = u.moving;
 	}
 	const float min_push = PUSH_MIN_FORCE * dt / PUSH_TURN;
-	// Track E (T45): Live GPU Compute Separation Dispatch when unit_count > 1000 and GpuSeparation::is_available() is true
-	const size_t unit_count = n;
-	float *gpu_forces = nullptr;
-	if (gpu_push_ && unit_count > 1000 && GpuSeparation::live_available()) {
-		float *pos_xz = arena.alloc_array<float>(N * 2);
-		float *radii = arena.alloc_array<float>(N);
-		float *out_f = arena.alloc_array<float>(N * 2);
-		if (pos_xz && radii && out_f) {
-			for (size_t k = 0; k < N; ++k) {
-				pos_xz[k * 2 + 0] = epx[k];
-				pos_xz[k * 2 + 1] = epz[k];
-				radii[k] = pu[k].r;
-			}
-			if (GpuSeparation::live_dispatch(N, pos_xz, radii, out_f, 4.0f, 2.5f, dt / PUSH_REDUCTION)) {
-				gpu_forces = out_f;
-			}
-		}
-	}
 	if (n_big) {
 		if (!grid.pack(arena, N, epx, epz, mov) || !grid.alloc_split_flagged(arena)) return;
 		if (!big.pack(arena, N, epx, epz, mov) || !big.alloc_split_flagged(arena)) return;
@@ -14757,14 +14735,6 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 			const float damp = (float)(PUSH_MAX_PRESSURE - std::min<int>(PUSH_MAX_DAMPING_PRESSURE, pressure)) / PUSH_MAX_PRESSURE;
 			ax *= damp;
 			az *= damp;
-		}
-		if (gpu_forces && ax == 0.0f && az == 0.0f && !body_overlap) {
-			const float gx = gpu_forces[i * 2 + 0] * PUSH_SCALE;
-			const float gz = gpu_forces[i * 2 + 1] * PUSH_SCALE;
-			if (gx * gx + gz * gz > min_push * min_push) {
-				ax = gx;
-				az = gz;
-			}
 		}
 		fx[i] = ax;
 		fz[i] = az;
@@ -22008,7 +21978,7 @@ bool Simulation::can_gather(size_t i, size_t r) const {
 // The rally command a unit of this type gets when the rally point is the trainer itself
 // (Commands.js "garrison" rather than "repair"): garrison, unless a builder would repair it.
 bool Simulation::self_garrison_rally(const Building &b, uint8_t unit_type, uint16_t tmpl) const {
-	if (!b.has_rally_point || b.rally_target_bld_id != b.id || turret_points_of(b)) return false;
+	if (!b.rally_emergency || !b.has_rally_point || b.rally_target_bld_id != b.id || turret_points_of(b)) return false;
 	if (b.build_progress < 1.0f || !structure_has_enough_health(b)) return false;
 	(void)unit_type;
 	(void)tmpl;
@@ -24567,7 +24537,10 @@ bool Simulation::petra_train_emergency_units(const std::vector<std::pair<float, 
 		}
 	}
 	if (!petra_train_template(PETRA_Q_EMERGENCY, cc.id, found, 1, false, PETRA_ORDER_EMERGENCY)) return false;
-	if (autogarrison && !emergency) cmd_set_rally_point(petra_pid_, cc.id, cc.x, cc.z, 0, cc.id);
+	if (autogarrison && !emergency) {
+		cmd_set_rally_point(petra_pid_, cc.id, cc.x, cc.z, 0, cc.id);
+		if (auto it = building_id_to_idx_.find(cc.id); it != building_id_to_idx_.end()) buildings_[it->second].rally_emergency = true;
+	}
 	return true;
 }
 
@@ -28101,7 +28074,8 @@ size_t Simulation::petra_go_home(const std::vector<uint32_t> &squad, float x, fl
 				const int32_t s = tp->ship_id ? lookup_unit(tp->ship_id) : -1;
 				if (k >= 0 && (!tp->ship_id || (s >= 0 && can_board((size_t)s, (size_t)k)))) {
 					tp->passenger_ids.push_back(uid);
-					order_walk(&units_.id[k], 1, tp->pickup_x, tp->pickup_z, false);
+					// transportPlan.js addUnit only tags the unit (:200-206); onBoarding orders it to the boarding point once a ship is assigned (:310-333), and assignShip walks every passenger then.
+					if (tp->ship_id) order_walk(&units_.id[k], 1, tp->pickup_x, tp->pickup_z, false);
 					joined = true;
 				}
 			}
@@ -28138,7 +28112,8 @@ bool Simulation::petra_require_worker_transport(size_t i, uint16_t from_land, ui
 		const int32_t sidx = tp->ship_id ? lookup_unit(tp->ship_id) : -1;
 		if (!tp->ship_id || (sidx >= 0 && can_board((size_t)sidx, i))) {
 			tp->passenger_ids.push_back(uid);
-			order_walk(&units_.id[i], 1, tp->pickup_x, tp->pickup_z, false);
+			// transportPlan.js addUnit only tags the unit (:200-206); onBoarding orders it to the boarding point once a ship is assigned (:310-333), and assignShip walks every passenger then.
+			if (tp->ship_id) order_walk(&units_.id[i], 1, tp->pickup_x, tp->pickup_z, false);
 			return true;
 		}
 	}
@@ -29585,6 +29560,11 @@ uint32_t Simulation::petra_place_dropsite(uint8_t res, float min_quality, bool *
 			drops.push_back({b.x, b.z});
 	const BuildingTypeInfo &info = building_type_info(BLD_STOREHOUSE);
 	const int foot = info.footprint;
+	// createObstructionMap(gameState, this.accessIndex, template): only tiles on the base's access
+	// land (its anchor's), so builders can walk to the site.
+	uint16_t base_access = 0;
+	if (bmap && base > 0 && (size_t)base <= bmap->anchors.size()) base_access = bmap->anchors[(size_t)base - 1].land;
+	else if (const PetraBase *pb = get_primary_petra_base()) base_access = petra_access_at(pb->x, pb->z);
 	float best = 0.0f;
 	int best_cx = 0, best_cz = 0;
 	for (int iz = bz0; iz <= bz1; ++iz)
@@ -29611,6 +29591,7 @@ uint32_t Simulation::petra_place_dropsite(uint8_t res, float min_quality, bool *
 						if (std::abs(dx) != r && std::abs(dz) != r) continue;
 						const float px = ((float)(cx0 + dx) + 0.5f * (float)foot) * GRID, pz = ((float)(cz0 + dz) + 0.5f * (float)foot) * GRID;
 						if (!petra_cc_tile_ok(BLD_STOREHOUSE, px, pz)) continue;
+						if (base_access && petra_access_at(px, pz) != base_access) continue;
 						fits = true;
 						best_cx = cx0 + dx;
 						best_cz = cz0 + dz;
@@ -29836,6 +29817,7 @@ bool Simulation::petra_find_strategic_cc_location(uint8_t btype, float &out_x, f
 	const PetraNavalTopo &topo = petra_classified_topo(home_land);
 	const PetraBase *pb = get_primary_petra_base();
 	const uint16_t own_land = topo.naval_map ? home_land : (pb ? petra_land_at(pb->x, pb->z) : 0);
+	const uint16_t own_access = pb ? petra_access_at(pb->x, pb->z) : 0;
 	const float favoured = ((btype == BLD_MILITARY_COLONY ? 220.0f : 280.0f) - 40.0f * petra_config_.defensive) / 4.0f;
 	const int w = std::max(1, (int)std::floor(2.0f * map_half_ / kCcTile));
 	const float border = 80.0f / 4.0f;
@@ -29867,6 +29849,9 @@ bool Simulation::petra_find_strategic_cc_location(uint8_t btype, float &out_x, f
 			const uint16_t l = petra_land_at(x, z);
 			if (topo.naval_map ? !topo.land_region(l) : l != own_land) continue;
 			if (topo.naval_map && !petra_access_sea_linked(x, z)) continue; // landRegions are access lands with a sea link
+			// On a land map landRegions is our base's access land alone (startingStrategy.js): a pocket
+			// the nav regions join to ours but a cliff or steep slope cuts off is not one.
+			if (!topo.naval_map && own_access && petra_access_at(x, z) != own_access) continue;
 			if (!petra_cc_tile_ok(btype, x, z)) continue;
 			found = true;
 			best = val;
@@ -29941,6 +29926,7 @@ bool Simulation::petra_find_economic_cc_location(uint8_t btype, uint8_t res, boo
 	const PetraNavalTopo &topo = petra_classified_topo(home_land);
 	const PetraBase *pb = get_primary_petra_base();
 	const uint16_t own_land = topo.naval_map ? home_land : (pb ? petra_land_at(pb->x, pb->z) : 0);
+	const uint16_t own_access = pb ? petra_access_at(pb->x, pb->z) : 0;
 	const float reduce = (btype == BLD_MILITARY_COLONY ? 30.0f : 0.0f) + 30.0f * petra_config_.defensive;
 	const float near_rej = 120.0f * 120.0f / 16.0f, ally_rej = 200.0f * 200.0f / 16.0f, ally_dis = 250.0f * 250.0f / 16.0f;
 	const float max_acc_rej = 410.0f * 410.0f / 16.0f, max_acc_dis = (360.0f - reduce) * (360.0f - reduce) / 16.0f;
@@ -30007,6 +29993,9 @@ bool Simulation::petra_find_economic_cc_location(uint8_t btype, uint8_t res, boo
 			const uint16_t l = petra_land_at(x, z);
 			if (topo.naval_map ? !topo.land_region(l) : l != own_land) continue;
 			if (topo.naval_map && !petra_access_sea_linked(x, z)) continue; // landRegions are access lands with a sea link
+			// On a land map landRegions is our base's access land alone (startingStrategy.js): a pocket
+			// the nav regions join to ours but a cliff or steep slope cuts off is not one.
+			if (!topo.naval_map && own_access && petra_access_at(x, z) != own_access) continue;
 			float norm = 0.5f, min_d = 1e30f;
 			bool accessible = false;
 			for (const Cc &c : ccs) {
@@ -34264,9 +34253,13 @@ void Simulation::petra_fight_back(size_t i, int32_t a, const std::vector<PetraDe
 		};
 		int32_t best = -1;
 		float best_d2 = 0.0f;
+		// capturableTargets (entityExtend.js allowCapture): only units that can capture the
+		// structure, and each must canAttackTarget the attacker (DM:725).
+		const Building &cap = buildings_[building_id_to_idx_.at(tb)];
 		for (size_t k = 0; k < units_.count; ++k) {
 			if (k == i || !units_.alive[k] || units_.team[k] != petra_pid_ || units_.action_state[k] != ACTION_ATTACK) continue;
 			if (units_.target_building_id[k] != tb || units_.target_unit_id[k] != 0 || !can_hit(k)) continue;
+			if (unit_capture_attack_at(k) <= 0.0f || !can_capture_building(petra_pid_, cap) || !unit_can_target(k, a)) continue;
 			if (hit(units_.id[k]) || std::find(helped.begin(), helped.end(), units_.id[k]) != helped.end()) continue;
 			const float dx = units_.pos_x[k] - units_.pos_x[a], dz = units_.pos_z[k] - units_.pos_z[a];
 			if (best < 0 || dx * dx + dz * dz < best_d2) { best = (int32_t)k; best_d2 = dx * dx + dz * dz; }
@@ -34316,7 +34309,8 @@ void Simulation::petra_require_defense_transport(uint32_t uid, uint16_t from_lan
 		const int32_t si = tp->ship_id ? lookup_unit(tp->ship_id) : -1;
 		if (!tp->ship_id || (si >= 0 && can_board((size_t)si, (size_t)i))) {
 			tp->passenger_ids.push_back(uid);
-			order_walk(&uid, 1, tp->pickup_x, tp->pickup_z, false);
+			// transportPlan.js addUnit only tags the unit (:200-206); onBoarding orders it to the boarding point once a ship is assigned (:310-333), and assignShip walks every passenger then.
+			if (tp->ship_id) order_walk(&uid, 1, tp->pickup_x, tp->pickup_z, false);
 			return;
 		}
 	}
@@ -38321,6 +38315,7 @@ bool Simulation::save_state(const char *filepath) const {
 		out.write((const char *)&b.capture_timer, sizeof(b.capture_timer));
 		out.write((const char *)&b.template_off, sizeof(b.template_off));
 		out.write((const char *)&b.trickle_tick, sizeof(b.trickle_tick));
+		out.write((const char *)&b.rally_emergency, sizeof(b.rally_emergency));
 
 		uint32_t q_sz = (uint32_t)b.queue.size();
 		out.write((const char *)&q_sz, sizeof(q_sz));
@@ -38810,6 +38805,8 @@ bool Simulation::load_state(const char *filepath) {
 		if (version >= SAVE_VERSION_STRUCTURE_OFF) in.read((char *)&bld.template_off, sizeof(bld.template_off));
 		bld.trickle_tick = 0; // older saves: the match clock's phase, as they paid
 		if (version >= SAVE_VERSION_TRICKLE_TIMER) in.read((char *)&bld.trickle_tick, sizeof(bld.trickle_tick));
+		bld.rally_emergency = false; // older saves: a player's rally
+		if (version >= SAVE_VERSION_RALLY_EMERGENCY) in.read((char *)&bld.rally_emergency, sizeof(bld.rally_emergency));
 		bld.set_extents(bld.half_size, building_half_depth(bld.type, bld.half_size, bld.civ)); // its civ's wall depth
 		const auto &bi = building_type_info(bld.type);
 		bld.capture_regen_rate = bi.capture_regen_rate;

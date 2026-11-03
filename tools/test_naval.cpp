@@ -2620,6 +2620,37 @@ static void test_petra_mesa_not_sea_linked() {
 	CHECK(!s.petra_access_sea_linked(32.0f, 32.0f));
 }
 
+// Flat land, and inside it a plateau ringed by cliffs that no one can walk up.
+static float plateau_height(float x, float z) {
+	return x > 12.0f && x < 28.0f && z > 12.0f && z < 28.0f ? 25.0f : 3.0f;
+}
+
+// baseManager.js findBestDropsiteLocation lays a storehouse on createObstructionMap(gameState,
+// this.accessIndex, ...): tiles of the base's access land only. RTS0 took any tile of our
+// territory, so a storehouse went up on a cliff-bound plateau by its wood, and builders stood
+// at the cliff foot for good (Stats' Lion's Den seed 3: Storehouse 2294 at 0%, 3 builders).
+static void test_petra_dropsite_on_base_access() {
+	static Simulation s;
+	fresh(s, plateau_height);
+	s.set_player_active(1, true, true);
+	s.set_player_resources(1, 2000, 2000, 2000, 2000);
+	s.spawn_building_world(0.0f, 0.0f, BLD_TOWN_CENTER, 1);
+	for (int k = 0; k < 4; ++k) s.spawn_unit(-4.0f + 2.0f * (float)k, -8.0f, 1, UNIT_VILLAGER);
+	for (int k = 0; k < 9; ++k) s.spawn_resource_world(16.0f + 2.0f * (float)(k % 3), 16.0f + 2.0f * (float)(k / 3), RES_WOOD, 200);
+	run(s, 0.5f);
+	const uint16_t home = s.petra_access_at(0.0f, -8.0f), plateau = s.petra_access_at(20.0f, 20.0f);
+	for (auto &b : s.buildings_) if (b.team == 1 && b.type == BLD_STOREHOUSE) s.destroy_building(b);
+	s.petra_pid_ = 1;
+	bool no_site = false;
+	const uint32_t id = s.petra_place_dropsite(RES_WOOD, 0.0f, &no_site, 0.0f); // funds its queue
+	const Simulation::Building *b = id ? bld(s, id) : nullptr;
+	const uint16_t at = b ? s.petra_access_at(b->x, b->z) : 0;
+	std::printf("Petra storehouse by wood on a cliff-bound plateau: home land %u, plateau %u, storehouse %s at land %u\n", home,
+	            plateau, b ? "laid" : no_site ? "no site" : "not laid", at);
+	CHECK(home && plateau && home != plateau);
+	CHECK(b && at == home);
+}
+
 // CCmpObstruction::CheckShorePlacement: a dock's front edge stands in more than 1 m of water and
 // its back in less than 2 m. RTS0 took any dock with land under it and a sea within a cell of its
 // box, which dock_angle had already turned toward water up to four half-widths away: Petra's
@@ -2898,6 +2929,30 @@ static void test_petra_crossing_waits_for_ship() {
 		for (uint32_t uid : crew) { const int32_t i = idx(s, uid); n += i >= 0 && s.units_.order_kind[i] == ORDER_WALK; }
 		return n;
 	};
+	// The other ways in (navalManager.js requireTransport -> addUnit) only tag the unit too: a worker
+	// sent across, a unit going home (headquarters.js assignEntity), and two defenders, the second
+	// joining the first's ship-less plan. Cycladic Archipelago seed 3 had 26 joiners idle at a
+	// beach no ship came to.
+	const uint32_t worker = s.spawn_unit(-26.0f, 44.0f, 1, UNIT_VILLAGER), homer = s.spawn_unit(-24.0f, 44.0f, 1, UNIT_VILLAGER);
+	const bool worker_joined = s.petra_require_worker_transport((size_t)idx(s, worker), north, south, -30.0f, -40.0f, PETRA_TRANSPORT_BUILDERS);
+	const size_t away = s.petra_go_home({homer}, -30.0f, -40.0f, PETRA_TRANSPORT_BUILDERS, true, false);
+	crew.push_back(worker);
+	crew.push_back(homer);
+	std::vector<uint32_t> guards;
+	for (int k = 0; k < 2; ++k) {
+		guards.push_back(s.spawn_unit(-20.0f + 2.0f * k, 44.0f, 1, UNIT_SPEARMAN));
+		s.petra_require_defense_transport(guards.back(), north, south, -30.0f, -40.0f);
+	}
+	size_t plans_without_ship = 0, defense_passengers = 0;
+	for (const auto &tp : s.petra_transport_plans()) {
+		plans_without_ship += tp.ship_id == 0;
+		if (tp.owner == PETRA_TRANSPORT_DEFENSE) defense_passengers += tp.passenger_ids.size();
+	}
+	int guards_walking = 0;
+	for (uint32_t uid : guards) { const int32_t i = idx(s, uid); guards_walking += i >= 0 && s.units_.order_kind[i] == ORDER_WALK; }
+	std::printf("joining a ship-less crossing: worker %s, %zu going home by sea, %zu defenders in %zu plans with no ship, %d defenders walking\n",
+	            worker_joined ? "joined" : "not joined", away, defense_passengers, plans_without_ship, guards_walking);
+	CHECK(worker_joined && away == 1 && defense_passengers == 2 && plans_without_ship == 2 && guards_walking == 0);
 	const int walking_before = walking();
 	const uint32_t ship = s.spawn_unit(-30.0f, 4.0f, 1, UNIT_TRIREME);
 	s.petra_manage_transport(Simulation::FIXED_STEP);
@@ -2906,7 +2961,7 @@ static void test_petra_crossing_waits_for_ship() {
 	std::printf("crossing with no ship: sea %u, planned %s, ship %u, then %u (trireme %u); walking to the beach %d, then %d\n", sea,
 	            planned ? "yes" : "no", first, later, ship, walking_before, walking_after);
 	CHECK(sea && planned && first == 0 && later == ship);
-	CHECK(walking_before == 0 && walking_after == 3);
+	CHECK(walking_before == 0 && walking_after == 5);
 	s.petra_transports_.clear();
 }
 
@@ -3492,6 +3547,7 @@ int main() {
 	test_petra_small_land_fields();
 	test_dock_faces_water();
 	test_petra_mesa_not_sea_linked();
+	test_petra_dropsite_on_base_access();
 	test_petra_need_fish();
 	test_petra_dock_position();
 	test_petra_workers_across_water();

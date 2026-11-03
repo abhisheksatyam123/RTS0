@@ -15,15 +15,10 @@ namespace rtso {
 
 class GpuSeparation {
 public:
-	using AvailFn = bool (*)();
-	using DispatchFn = bool (*)(size_t count, const float *pos_xz, const float *radii, float *out_forces,
-	                            float cell_size, float min_dist, float strength);
-
+	// The simulation never takes these forces: every lockstep peer, replay and save must reach the
+	// same state, and a GPU's rounding differs from another's and from the CPU's. Simulation::separation()
+	// pushes on the CPU, as 0.28's UnitMotionManager does (CCmpUnitMotion_System.cpp).
 	static GpuSeparation &instance();
-	static void register_live_hooks(AvailFn avail, DispatchFn dispatch);
-	static bool live_available();
-	static bool live_dispatch(size_t count, const float *pos_xz, const float *radii, float *out_forces,
-	                          float cell_size, float min_dist, float strength);
 
 #ifdef RTSO_HAS_GODOT_RD
 	bool is_available() const;
