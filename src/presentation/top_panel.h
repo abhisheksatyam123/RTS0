@@ -380,8 +380,11 @@ public:
 			slot->add_child(l);
 			return l;
 		};
-		count = text(Rect2(33, 4, 147, 18), 14, Color(1, 1, 1), VERTICAL_ALIGNMENT_CENTER);
-		stats = text(Rect2(33, 20, 167, 18), 13, Color(200 / 255.0f, 200 / 255.0f, 200 / 255.0f), VERTICAL_ALIGNMENT_BOTTOM);
+		// Phones read the counters at a bigger size: their screens are short, so the UI scales
+		// up less than a desktop's text needs (mobile_defaults: a phone, or -mobiledefaults).
+		const bool phone = rtso::user_config::mobile_defaults();
+		count = text(Rect2(33, 3, 147, 20), phone ? 17 : 14, Color(1, 1, 1), VERTICAL_ALIGNMENT_CENTER);
+		stats = text(Rect2(33, 20, 167, 18), phone ? 15 : 13, Color(200 / 255.0f, 200 / 255.0f, 200 / 255.0f), VERTICAL_ALIGNMENT_BOTTOM);
 		row->add_child(slot);
 		return slot;
 	}
