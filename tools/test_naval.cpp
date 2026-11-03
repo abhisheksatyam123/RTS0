@@ -2620,6 +2620,37 @@ static void test_petra_mesa_not_sea_linked() {
 	CHECK(!s.petra_access_sea_linked(32.0f, 32.0f));
 }
 
+// Flat land, and inside it a plateau ringed by cliffs that no one can walk up.
+static float plateau_height(float x, float z) {
+	return x > 12.0f && x < 28.0f && z > 12.0f && z < 28.0f ? 25.0f : 3.0f;
+}
+
+// baseManager.js findBestDropsiteLocation lays a storehouse on createObstructionMap(gameState,
+// this.accessIndex, ...): tiles of the base's access land only. RTS0 took any tile of our
+// territory, so a storehouse went up on a cliff-bound plateau by its wood, and builders stood
+// at the cliff foot for good (Stats' Lion's Den seed 3: Storehouse 2294 at 0%, 3 builders).
+static void test_petra_dropsite_on_base_access() {
+	static Simulation s;
+	fresh(s, plateau_height);
+	s.set_player_active(1, true, true);
+	s.set_player_resources(1, 2000, 2000, 2000, 2000);
+	s.spawn_building_world(0.0f, 0.0f, BLD_TOWN_CENTER, 1);
+	for (int k = 0; k < 4; ++k) s.spawn_unit(-4.0f + 2.0f * (float)k, -8.0f, 1, UNIT_VILLAGER);
+	for (int k = 0; k < 9; ++k) s.spawn_resource_world(16.0f + 2.0f * (float)(k % 3), 16.0f + 2.0f * (float)(k / 3), RES_WOOD, 200);
+	run(s, 0.5f);
+	const uint16_t home = s.petra_access_at(0.0f, -8.0f), plateau = s.petra_access_at(20.0f, 20.0f);
+	for (auto &b : s.buildings_) if (b.team == 1 && b.type == BLD_STOREHOUSE) s.destroy_building(b);
+	s.petra_pid_ = 1;
+	bool no_site = false;
+	const uint32_t id = s.petra_place_dropsite(RES_WOOD, 0.0f, &no_site, 0.0f); // funds its queue
+	const Simulation::Building *b = id ? bld(s, id) : nullptr;
+	const uint16_t at = b ? s.petra_access_at(b->x, b->z) : 0;
+	std::printf("Petra storehouse by wood on a cliff-bound plateau: home land %u, plateau %u, storehouse %s at land %u\n", home,
+	            plateau, b ? "laid" : no_site ? "no site" : "not laid", at);
+	CHECK(home && plateau && home != plateau);
+	CHECK(b && at == home);
+}
+
 // CCmpObstruction::CheckShorePlacement: a dock's front edge stands in more than 1 m of water and
 // its back in less than 2 m. RTS0 took any dock with land under it and a sea within a cell of its
 // box, which dock_angle had already turned toward water up to four half-widths away: Petra's
@@ -3492,6 +3523,7 @@ int main() {
 	test_petra_small_land_fields();
 	test_dock_faces_water();
 	test_petra_mesa_not_sea_linked();
+	test_petra_dropsite_on_base_access();
 	test_petra_need_fish();
 	test_petra_dock_position();
 	test_petra_workers_across_water();
