@@ -39366,6 +39366,11 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		std::fill(std::begin(s.fauna_pressure_), std::end(s.fauna_pressure_), uint8_t{0}); // older saves: animals didn't push
 		std::fill(std::begin(s.fauna_failed_), std::end(s.fauna_failed_), uint8_t{0});
 	}
+	if (ar.version >= S::SAVE_VERSION_FAUNA_QUEUED_TARGET) {
+		for (size_t f = 0; f < s.fauna_.count && f < S::FaunaStorage::MAX_FAUNA; ++f) ar.pod(s.fauna_queued_target_[f]);
+	} else if constexpr (Ar::loading) {
+		std::fill(std::begin(s.fauna_queued_target_), std::end(s.fauna_queued_target_), 0u); // older saves: none set aside
+	}
 	if constexpr (Ar::loading) {
 		if (s.fauna_.count > S::FaunaStorage::MAX_FAUNA) { ar.ok = false; return; }
 		s.fauna_id_to_idx_.clear();
@@ -40865,6 +40870,7 @@ uint32_t Simulation::spawn_fauna(float x, float z, uint8_t ftype, uint8_t owner)
 	fauna_owner_[idx] = owner < MAX_PLAYERS ? owner : GAIA_PLAYER;
 	fauna_roam_angle_[idx] = fauna_start_angle_[idx] = 0.0f;
 	fauna_pressure_[idx] = 0;
+	fauna_queued_target_[idx] = 0;
 	fauna_failed_[idx] = 0;
 	fauna_id_to_idx_[fid] = idx;
 	return fid;
@@ -41205,6 +41211,9 @@ void Simulation::fauna_attacked(size_t f, uint32_t attacker_id, bool melee) {
 					if (det::hypot(tx - fauna_.pos_x[f], tz - fauna_.pos_z[f]) <= r) return;
 				}
 			}
+			// PushOrderFront: the first Attack order waits behind the new one. One slot keeps the
+			// first target; a third attacker's fight then goes back straight to it.
+			if (fauna_queued_target_[f] == 0) fauna_queued_target_[f] = fauna_.target_unit_id[f];
 			fauna_.target_unit_id[f] = attacker_id;
 			fauna_.flee_distance[f] = 0.0f; // approaches the new target
 		}
@@ -41231,6 +41240,7 @@ void Simulation::fauna_attacked(size_t f, uint32_t attacker_id, bool melee) {
 void Simulation::fauna_start_attack(size_t f, uint32_t target) {
 	fauna_.behavior[f] = FAUNA_ATTACK;
 	fauna_.target_unit_id[f] = target;
+	fauna_queued_target_[f] = 0;
 	fauna_.home_x[f] = fauna_.pos_x[f];
 	fauna_.home_z[f] = fauna_.pos_z[f];
 	fauna_.flee_distance[f] = 0.0f; // COMBAT APPROACHING
@@ -41778,6 +41788,23 @@ void Simulation::tick_fauna(float dt) {
 
 		// 3. Combat: an animal fights back or hunts per its stance (UnitAI g_Stances).
 		if (fauna_.behavior[i] == FAUNA_ATTACK) {
+			// FinishOrder goes on to the Attack order a melee attacker's fight set aside, while its
+			// target is still one the animal may bite; it approaches it afresh (APPROACHING).
+			auto resume_queued = [&](size_t a) {
+				const uint32_t q = fauna_queued_target_[a];
+				fauna_queued_target_[a] = 0;
+				if (q == 0) return false;
+				const int32_t qu = lookup_unit(q);
+				bool ok = qu >= 0 && can_bite(qu);
+				if (qu < 0) {
+					auto it = fauna_id_to_idx_.find(q);
+					ok = it != fauna_id_to_idx_.end() && prey(it->second);
+				}
+				if (!ok) return false;
+				fauna_.target_unit_id[a] = q;
+				fauna_.flee_distance[a] = 0.0f;
+				return true;
+			};
 			const int32_t t = lookup_unit(fauna_.target_unit_id[i]);
 			int32_t tf = -1; // a player's livestock
 			if (t < 0) {
@@ -41797,7 +41824,9 @@ void Simulation::tick_fauna(float dt) {
 			if (keep && chase_timer_due && info.stance != FAUNA_STANCE_VIOLENT)
 				keep = td2 < info.vision * info.vision;
 			if (!keep) {
-				// FinishOrder: back to IDLE where it stands, which lingers first (no walk home).
+				// FinishOrder: the Attack order set aside for a melee attacker comes next, else
+				// back to IDLE where it stands, which lingers first (no walk home).
+				if (resume_queued(i)) continue;
 				fauna_.behavior[i] = FAUNA_IDLE_GRAZE;
 				fauna_.target_unit_id[i] = 0;
 				fauna_.vel_x[i] = fauna_.vel_z[i] = 0.0f;
@@ -41814,6 +41843,7 @@ void Simulation::tick_fauna(float dt) {
 				// a new target within min(range + vision / 2, vision) on its next idle scan.
 				fauna_.vel_x[i] = fauna_.vel_z[i] = 0.0f;
 				if (fauna_.attack_timer[i] > 0.0f) continue;
+				if (resume_queued(i)) continue;
 				fauna_.behavior[i] = FAUNA_IDLE_GRAZE;
 				fauna_.target_unit_id[i] = 0;
 				fauna_.state_timer[i] = timer(info.feed_time_min, info.feed_time_max);
@@ -41973,6 +42003,7 @@ void Simulation::tick_fauna(float dt) {
 				fauna_start_angle_[w] = fauna_start_angle_[r];
 				fauna_pressure_[w] = fauna_pressure_[r];
 				fauna_failed_[w] = fauna_failed_[r];
+				fauna_queued_target_[w] = fauna_queued_target_[r];
 			}
 			++w;
 		}
