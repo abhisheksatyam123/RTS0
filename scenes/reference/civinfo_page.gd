@@ -20,6 +20,7 @@ var _civinfo := {} # code -> 0 A.D. civ JSON extract
 var _select
 var _emblem: TextureRect
 var _gameplay: RichTextLabel
+var _name: RichTextLabel
 var _history: RichTextLabel
 
 func _init() -> void:
@@ -32,29 +33,39 @@ func _ready() -> void:
 	if typeof(data) == TYPE_ARRAY:
 		for c in data:
 			_civinfo[c["code"]] = c
+	# civinfo.xml: the 96 px emblem at the top left, the civ's name (sans-bold-20) and the
+	# History box (80 px tall, scrolling) beside it, and the GameplaySection across the full width below.
 	var top := HBoxContainer.new()
+	top.add_theme_constant_override("separation", 16)
 	add_child(top)
+	_emblem = TextureRect.new()
+	_emblem.custom_minimum_size = Vector2(96, 96)
+	_emblem.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_emblem.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	top.add_child(_emblem)
+	var side := VBoxContainer.new()
+	side.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top.add_child(side)
+	var picker := HBoxContainer.new()
+	side.add_child(picker)
 	_select = Common.civ_select(_on_civ_selected)
 	_select.visible = not lock_civ
 	var heading := Common.civ_heading()
 	heading.visible = _select.visible
-	top.add_child(heading)
-	top.add_child(_select)
-	_emblem = TextureRect.new()
-	_emblem.custom_minimum_size = Vector2(56, 56)
-	_emblem.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	_emblem.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	top.add_child(_emblem)
-	var cols := HBoxContainer.new()
-	cols.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	cols.add_theme_constant_override("separation", 16)
-	add_child(cols)
-	_gameplay = Common.rich_text()
-	_gameplay.size_flags_stretch_ratio = 1.6
-	_gameplay.meta_clicked.connect(_on_meta)
-	cols.add_child(_gameplay)
+	picker.add_child(heading)
+	picker.add_child(_select)
+	_name = Common.rich_text()
+	_name.fit_content = true
+	_name.scroll_active = false
+	_name.size_flags_vertical = Control.SIZE_FILL
+	side.add_child(_name)
 	_history = Common.rich_text()
-	cols.add_child(_history)
+	_history.custom_minimum_size = Vector2(0, 80)
+	_history.size_flags_vertical = Control.SIZE_FILL
+	side.add_child(_history)
+	_gameplay = Common.rich_text()
+	_gameplay.meta_clicked.connect(_on_meta)
+	add_child(_gameplay)
 	set_civ(civ)
 
 func _on_civ_selected(index: int) -> void:
@@ -77,7 +88,8 @@ func set_civ(index: int) -> void:
 	_gameplay.text = gameplay_text(d)
 	var hist := Common.civ_history(civ)
 	# CivInfoPage.selectCiv: the civ's name (sans-bold-20) beside its emblem, then its History.
-	_history.text = Common.heading(d["name"], 20) + ("\n" + hist if hist != "" else "")
+	_name.text = Common.heading(d["name"], 20)
+	_history.text = hist
 
 ## 0.28 CivInfoPage.formatEntry: "• Name (i)" with the info text on hover, and the
 ## description on the next line, indented.
