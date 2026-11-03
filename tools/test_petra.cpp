@@ -8857,13 +8857,13 @@ static void test_building_plan_028() {
 	      "most structures keep 4 m");
 	CHECK(Simulation::petra_clearance(BLD_FORTRESS) == 2 && Simulation::petra_clearance(BLD_ARSENAL) == 2 &&
 	      Simulation::petra_clearance(BLD_ELEPHANT_STABLE) == 2, "fortresses, arsenals and elephant stables keep 8 m");
-	// Right beside the barracks a house fits where a temple doesn't.
+	// Right beside the gate a house fits where a temple doesn't.
 	bool beside = false;
 	const int bcx = (int)std::floor(hx / Simulation::GRID), bcz = (int)std::floor(hz / Simulation::GRID);
 	for (int dz = -4; dz <= 4 && !beside; ++dz)
 		for (int dx = -4; dx <= 4 && !beside; ++dx)
 			beside = s->petra_ring_clear(bcx + dx, bcz + dz, 1, 0) && !s->petra_ring_clear(bcx + dx, bcz + dz, 1, 1);
-	CHECK(beside, "a house may stand right beside a barracks, a temple may not");
+	CHECK(beside, "a house may stand right beside a gate, a temple may not");
 
 	// checkResourceLevels counts GATHER.GATHERING units only: one walking out to its trees counts
 	// as neither used nor lost.
