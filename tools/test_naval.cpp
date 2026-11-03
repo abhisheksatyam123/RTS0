@@ -31,15 +31,15 @@ static float height_at(float x, float z) {
 	return std::clamp(shore, -3.0f, 3.0f);
 }
 
-static void fresh(Simulation &s, float (*height)(float, float) = height_at) {
+static void fresh(Simulation &s, float (*height)(float, float) = height_at, int res = RES) {
 	s.set_sim_seed(7);
 	s.reset();
 	s.set_map_half(HALF);
-	std::vector<float> h((size_t)RES * RES);
-	for (int j = 0; j < RES; ++j)
-		for (int i = 0; i < RES; ++i)
-			h[(size_t)j * RES + i] = height(-HALF + 2.0f * HALF * i / (RES - 1), -HALF + 2.0f * HALF * j / (RES - 1));
-	s.set_terrain_data(h, RES, 0.0f);
+	std::vector<float> h((size_t)res * res);
+	for (int j = 0; j < res; ++j)
+		for (int i = 0; i < res; ++i)
+			h[(size_t)j * res + i] = height(-HALF + 2.0f * HALF * i / (res - 1), -HALF + 2.0f * HALF * j / (res - 1));
+	s.set_terrain_data(h, res, 0.0f);
 	s.begin_bulk_spawn();
 	s.end_bulk_spawn(); // marks the water on the nav grid
 	for (uint8_t p = 0; p < 4; ++p) {
@@ -2077,6 +2077,216 @@ static void test_ship_round_wreck() {
 	CHECK(s.player(0).wood() > wood0);
 }
 
+// Cycladic Archipelago seed 1 (4 players, 256), Petra's Romans (player 3) at 256 s, moved by (+14, +96)
+// so their dock 668 at (-14, -96) stands at the origin. The shore west of the dock is one height row a
+// world unit from z = -120 to -74 (-24 to 22 here), each the map x where the row meets the water. The
+// land stands 0.75 above the water and the sea 1.25 below it, 0.4 a unit between, as on the map (a height
+// sample a world unit, as there).
+static const float kCycShoreX[47] = {-34.29f, -30.50f, -28.50f, -26.29f, -22.50f, -21.30f, -20.30f, -19.30f, -18.30f, -17.30f,
+		-16.30f, -15.70f, -16.12f, -15.70f, -15.30f, -14.70f, -14.30f, -14.12f, -14.12f, -14.12f, -13.70f, -14.12f, -14.12f, -14.12f,
+		-13.70f, -13.30f, -12.70f, -12.30f, -12.12f, -11.70f, -11.30f, -11.12f, -10.70f, -10.30f, -9.70f, -9.70f, -10.12f, -9.70f,
+		-9.30f, -9.12f, -9.12f, -9.30f, -9.70f, -10.12f, -9.70f, -10.30f, -10.70f};
+static float cyc_shore_at(float x, float z) {
+	const int row = std::clamp((int)std::lround(z + 24.0f), 0, 46);
+	return std::clamp(0.4f * (kCycShoreX[row] + 14.0f - x), -1.25f, 0.75f);
+}
+// The map's navcells (2 units) there with the dock built: ~ deep water, , shallows, # the dock, . land.
+// Rows z = 22 down to -20, columns x = -8 to 24, each cell from its corner.
+static const char *const kCycNav[] = {
+		".....,~~~~~~~~~~~", ".....,~~~~~~~~~~~", "......~~~~~~~~~~~", "......,~~~~~~~~~~", "......,~~~~~~~~~~",
+		"......~~~~~~~~~~~", "......~~~~~~~~~~~", ".....,~~~~~~~~~~~", ".....,~~~~~~~~~~~", ".....~~~~~~~~~~~~",
+		"....,~~~~~~~~~~~~", "...##~~~~~~~~~~~~", "...##~~~~~~~~~~~~", "....~~~~~~~~~~~~~", "....~~~~~~~~~~~~~",
+		"....~~~~~~~~~~~~~", "...,~~~~~~~~~~~~~", "...~~~~~~~~~~~~~~", "...~~~~~~~~~~~~~~", "..,~~~~~~~~~~~~~~",
+		".,~~~~~~~~~~~~~~~", ",~~~~~~~~~~~~~~~~"};
+
+static float beach_height(float x, float); // with test_dock_faces_water
+
+struct CycScene { uint32_t dock, wreck, debris, fish; };
+// The dock, shipwreck 379 (20 x 10 m, turned 379 % 12 * 0.52 = 3.64 rad by treasure_angle), the debris
+// 386 beside it (7 x 7 m, 1.04 rad) and fish 401, with their ids from the game.
+static CycScene cyc_scene(Simulation &s, bool wreck = true) {
+	fresh(s, cyc_shore_at, 2 * (int)HALF + 1);
+	s.set_explore_map(true);
+	s.set_team_civ(3, CIV_ROMANS);
+	CycScene c{};
+	s.next_id_ = 668;
+	c.dock = s.spawn_building_world(0.0f, 0.0f, BLD_DOCK, 3);
+	if (wreck) {
+		s.next_id_ = 379;
+		c.wreck = s.spawn_treasure(6.2991f, -2.1816f, TREASURE_SHIPWRECK);
+		s.next_id_ = 386;
+		c.debris = s.spawn_treasure(12.7962f, -4.9097f, TREASURE_SHIPWRECK_DEBRIS);
+	}
+	s.next_id_ = 401;
+	c.fish = s.spawn_resource_world(14.4914f, -1.5570f, RES_FOOD, 960, RES_SUB_FISH);
+	s.next_id_ = 1000;
+	return c;
+}
+
+static uint32_t cyc_ship(Simulation &s, uint32_t id, const char *tmpl, float x, float z, float hx, float hz, float vx = 0.0f, float vz = 0.0f) {
+	s.next_id_ = id;
+	const uint16_t t = tmpl_of(tmpl);
+	const uint32_t u = s.spawn_unit(x, z, 3, (UnitType)civ_unit_template(t).unit_type, 0.0f, t);
+	const int32_t i = idx(s, u);
+	s.units_.heading_x[i] = hx;
+	s.units_.heading_z[i] = hz;
+	s.units_.vel_x[i] = vx;
+	s.units_.vel_z[i] = vz;
+	s.next_id_ = 2000;
+	return u;
+}
+
+// The seconds at which a laden fishing boat lands its catch at the dock within `secs`.
+static std::vector<float> cyc_drops(Simulation &s, uint32_t boat, float secs) {
+	std::vector<float> at;
+	int carry = s.units().carry[idx(s, boat)];
+	for (int t = 1; t <= (int)(secs / Simulation::FIXED_STEP); ++t) {
+		s.tick(Simulation::FIXED_STEP);
+		const int c = s.units().carry[idx(s, boat)];
+		if (c < carry) at.push_back(t * Simulation::FIXED_STEP);
+		carry = c;
+	}
+	return at;
+}
+
+// A ship sails round a floating shipwreck by the shortest way, as VertexPathfinder's search over the
+// wreck's corners grown by the clearance finds it (VertexPathfinder.cpp:623-624, 827-831): by a corner
+// it sees and from which it sees its goal, or by two corners along one side. And it sails over shipwreck
+// debris, which blocks neither movement nor pathfinding in 0.28 (shipwreck_debris.xml:10-14).
+// Cycladic Archipelago seed 1: from 256 s Petra's laden fishing boat 700 swung beside the east end of
+// wreck 379 on its way back to dock 668 from its fish, about 600 s until another ship took the wreck:
+// the corner it steered for, the nearer one, hid the dock, and it overshot that corner, drifted back to
+// it and was stopped at the wreck's square, three seconds a swing. And ram 828, sailing north past the wreck, was wedged between it and debris 386.
+static void test_ship_round_wreck_corner() {
+	static Simulation s;
+	CycScene c = cyc_scene(s);
+	{
+		int wrong = 0;
+		for (int r = 0; r < 22; ++r)
+			for (int k = 0; k < 17; ++k) {
+				const auto [cx, cy] = s.nav_grid_.world_to_cell(-8.0f + 2.0f * k + 1.0f, 22.0f - 2.0f * r + 1.0f);
+				const uint8_t v = s.nav_grid_.cells.at(cx, cy);
+				const char ch = v == NAV_WATER ? '~' : v == NAV_SHALLOW ? ',' : v == NAV_OBSTRUCTED ? '#' : '.';
+				wrong += ch != kCycNav[r][k];
+			}
+		const Simulation::Building *d = bld(s, c.dock);
+		std::printf("Cycladic 1 layout: %d of 374 navcells unlike the map's, dock turned %.4f (the map's -4.3197)\n", wrong, d->rot);
+		CHECK(wrong == 0);
+		CHECK(std::fabs(d->rot + 4.3197f) < 1e-3f);
+	}
+	// Boat 700 as it fills: at rest by its fish, facing it, 40 food aboard.
+	const uint32_t boat = cyc_ship(s, 700, "rome/ship_fishing", 12.4083f, -1.5270f, 0.9999f, -0.0144f);
+	s.debug_set_carry(boat, RES_FOOD, 40);
+	s.order_gather(&boat, 1, c.fish);
+	const std::vector<float> drops = cyc_drops(s, boat, 70.0f);
+	std::printf("Cycladic 1 boat 700 home past wreck 379: %zu catches landed in 70 s, the first after %.2f s\n", drops.size(),
+			drops.empty() ? -1.0f : drops[0]);
+	CHECK(drops.size() >= 2 && drops[0] < 10.0f);
+	// Ram 828 16 s into its trace: under way for the waypoint south of the wreck, then north past it.
+	cyc_scene(s);
+	const uint32_t ram = cyc_ship(s, 828, "rome/ship_ram", 6.079f, -11.826f, 0.745f, 0.668f, 4.241f, 3.803f);
+	s.order_walk(&ram, 1, 7.0f, -11.0f);
+	s.order_walk(&ram, 1, 7.0f, 23.0f, true);
+	float at = -1.0f;
+	for (int t = 1; t <= 600 && at < 0.0f; ++t) {
+		s.tick(Simulation::FIXED_STEP);
+		const int32_t i = idx(s, ram);
+		if (std::hypot(s.units().pos_x[i] - 7.0f, s.units().pos_z[i] - 23.0f) < 1.5f) at = t * Simulation::FIXED_STEP;
+	}
+	const int32_t ri = idx(s, ram);
+	std::printf("Cycladic 1 ram 828 north between wreck 379 and debris 386: %s %.2f s, at (%.2f, %.2f)\n",
+			at >= 0.0f ? "arrived after" : "not there after", at >= 0.0f ? at : 30.0f, s.units().pos_x[ri], s.units().pos_z[ri]);
+	CHECK(at >= 0.0f);
+
+	// Guard: what the wreck did not stop before it does not stop now. Laden boats at four other fish
+	// round it land their catch as they do with no wreck there (within 2 s), and a transport carrying
+	// spearmen from the dock's beach sails out east and back to the shore south of the wreck as with none.
+	struct Fish { float x, z; } fish[] = {{28.0073f, 4.4528f}, {27.5448f, -4.5126f}, {11.1757f, -10.1415f}, {12.0f, 12.0f}};
+	for (const Fish &f : fish) {
+		std::vector<float> runs[2];
+		for (int w = 0; w < 2; ++w) {
+			cyc_scene(s, w == 1);
+			s.next_id_ = 450;
+			const uint32_t food = s.spawn_resource_world(f.x, f.z, RES_FOOD, 1000, RES_SUB_FISH);
+			const float bx = f.x - 1.8f * (f.x / std::hypot(f.x, f.z)), bz = f.z - 1.8f * (f.z / std::hypot(f.x, f.z));
+			const uint32_t b = cyc_ship(s, 701, "rome/ship_fishing", bx, bz, f.x - bx, f.z - bz);
+			s.debug_set_carry(b, RES_FOOD, 40);
+			s.order_gather(&b, 1, food);
+			runs[w] = cyc_drops(s, b, 90.0f);
+		}
+		float worst = 0.0f;
+		for (size_t k = 0; k < std::min(runs[0].size(), runs[1].size()); ++k) worst = std::max(worst, std::fabs(runs[1][k] - runs[0][k]));
+		std::printf("  boat at the fish at (%.1f, %.1f): %zu catches landed in 90 s by the wreck, %zu with none, %.2f s apart at most\n", f.x, f.z,
+				runs[1].size(), runs[0].size(), worst);
+		CHECK(runs[1].size() == runs[0].size() && runs[1].size() >= 3 && worst <= 2.0f);
+	}
+	float ferry[2];
+	for (int w = 0; w < 2; ++w) {
+		cyc_scene(s, w == 1);
+		const uint32_t ship = cyc_ship(s, 702, "rome/ship_arrow", 3.5f, 6.0f, 1.0f, 0.0f);
+		std::vector<uint32_t> men;
+		for (int k = 0; k < 5; ++k) men.push_back(s.spawn_unit(-2.0f, 5.0f + 0.6f * k, 3, UNIT_SPEARMAN));
+		s.order_board_transport(men.data(), men.size(), ship);
+		int leg = 0;
+		ferry[w] = -1.0f;
+		for (int t = 1; t <= 20 * 60 && ferry[w] < 0.0f; ++t) {
+			s.tick(Simulation::FIXED_STEP);
+			const int32_t i = idx(s, ship);
+			const float x = s.units().pos_x[i], z = s.units().pos_z[i];
+			if (leg == 0 && s.get_transport_passenger_count(ship) == 5) { s.cmd_move(&ship, 1, 22.0f, -2.0f); leg = 1; }
+			else if (leg == 1 && std::hypot(x - 22.0f, z + 2.0f) < 1.5f) { s.cmd_move(&ship, 1, 1.0f, -12.0f); leg = 2; }
+			else if (leg == 2 && std::hypot(x - 1.0f, z + 12.0f) < 1.0f) ferry[w] = t * Simulation::FIXED_STEP;
+		}
+	}
+	std::printf("  transport out east and back to the shore south of the wreck: %.2f s, %.2f s with no wreck\n", ferry[1], ferry[0]);
+	CHECK(ferry[1] > 0.0f && ferry[0] > 0.0f && std::fabs(ferry[1] - ferry[0]) <= 1.0f);
+	// Debris still blocks foundations (template_gaia.xml:14 BlockFoundation; shipwreck_debris.xml leaves it).
+	fresh(s, beach_height);
+	s.set_player_active(1, true, true);
+	const Simulation::PlacementResult clear = s.check_placement(1, -1, -1, BLD_DOCK);
+	s.spawn_treasure(0.0f, 0.0f, TREASURE_SHIPWRECK_DEBRIS);
+	const Simulation::PlacementResult over = s.check_placement(1, -1, -1, BLD_DOCK);
+	std::printf("  dock at the shore: %d, over shipwreck debris: %d (OK = %d)\n", (int)clear, (int)over, (int)Simulation::PLACE_OK);
+	CHECK(clear == Simulation::PLACE_OK && over != Simulation::PLACE_OK);
+
+	// A ship standing exactly on a corner the aim is hidden from heads for the next corner, not for the
+	// corner under it: the way on through that corner ties with the way straight to the next, and a
+	// zero-length steer has no heading (1/sqrt(0) left the heading and speed NaN).
+	fresh(s);
+	s.set_player_active(1, true, true);
+	s.spawn_treasure(0.0f, 0.0f, TREASURE_SHIPWRECK);
+	const uint32_t tri = s.spawn_unit(12.0f, 6.0f, 1, UNIT_TRIREME);
+	s.ensure_gaia_obstacles();
+	size_t w = 0;
+	while (w < s.gaia_obstacles_.size() && !s.gaia_blocks_ships_[w]) ++w;
+	CHECK(w < s.gaia_obstacles_.size());
+	if (w < s.gaia_obstacles_.size()) {
+		const int32_t ti = idx(s, tri);
+		const Simulation::SteerObstacle &o = s.gaia_obstacles_[w];
+		const float r = s.unit_clearance_at((size_t)ti);
+		const nav::Vec2 c(o.x, o.z), u = nav::footprint_u(o), v = nav::footprint_v(o);
+		const nav::Vec2 half(o.hu + r, o.hv + r), wide(half.x + 0.25f, half.y + 0.25f);
+		const nav::Vec2 k0 = c + u * (1.0f * wide.x) + v * (1.0f * wide.y), k1 = c + u * (-1.0f * wide.x) + v * (1.0f * wide.y);
+		const nav::Vec2 aim = c - u * (wide.x + 5.0f) - v * (0.5f * wide.y);
+		nav::Vec2 out(k0.x, k0.y);
+		const bool steers = s.ship_wreck_steer((size_t)ti, k0.x, k0.y, aim.x, aim.y, out);
+		const float off = std::hypot(out.x - k0.x, out.y - k0.y), to_k1 = std::hypot(out.x - k1.x, out.y - k1.y);
+		s.units_.pos_x[ti] = k0.x;
+		s.units_.pos_z[ti] = k0.y;
+		s.units_.vel_x[ti] = s.units_.vel_z[ti] = 0.0f;
+		s.order_walk(&tri, 1, aim.x, aim.y);
+		run(s, 3.0f);
+		const auto &us = s.units();
+		const float x = us.pos_x[ti], z = us.pos_z[ti];
+		const bool finite = std::isfinite(x) && std::isfinite(z) && std::isfinite(us.vel_x[ti]) && std::isfinite(us.vel_z[ti]) &&
+				std::isfinite(us.heading_x[ti]) && std::isfinite(us.heading_z[ti]);
+		std::printf("  ship on a wreck corner the aim is hidden from: steers %.2f m off it (%.2f m from the next corner), "
+					"after 3 s %.2f m from it, %s\n", steers ? off : -1.0f, to_k1, std::hypot(x - k0.x, z - k0.y), finite ? "finite" : "NaN");
+		CHECK(steers && off > 1.0f && to_k1 < 1e-3f);
+		CHECK(finite && std::hypot(x - k0.x, z - k0.y) > 1.0f);
+	}
+}
+
 // navalManager.js moveApart / entityExtend.js gatherTreasure(water): Petra's idle ship goes
 // for the nearest treasure on its own sea, not a nearer one on land.
 static void test_petra_ship_treasure() {
@@ -3269,6 +3479,7 @@ int main() {
 	test_petra_crossing_reason_gone();
 	test_ship_treasure();
 	test_ship_round_wreck();
+	test_ship_round_wreck_corner();
 	test_petra_ship_treasure();
 	test_petra_idle_ship_once();
 	test_crannog_takes_fish();
