@@ -35036,9 +35036,9 @@ bool Simulation::petra_find_position(uint8_t btype, const float *base_at, const 
 		const bool wall = b.type == BLD_WALL_SEGMENT || b.type == BLD_WALL_TOWER || b.type == BLD_SIEGE_WALL;
 		if (petra_food_dropsite(b.type)) influence(b.x, b.z, 80.0f, field ? 50.0f : -20.0f);
 		else if (house) {
-			// Close to other houses, further away from other stuff (["Gate", "!Wall"]: gates count).
+			// Close to other houses, and further away from gates (QueuePlanBuilding: ["Gate", "!Wall"]).
 			if (b.type == BLD_HOUSE || b.type == BLD_APARTMENT) { influence(b.x, b.z, 60.0f, 40.0f); has_houses = true; }
-			else if (!wall) influence(b.x, b.z, 60.0f, -40.0f);
+			else if (is_gate_type(b.type)) influence(b.x, b.z, 60.0f, -40.0f);
 		} else if (btype == BLD_FARMSTEAD) {
 			// Away from everything else but fields, corrals and walls (gates count), for room.
 			if (b.type != BLD_FIELD && b.type != BLD_CORRAL && !wall) influence(b.x, b.z, 100.0f, -25.0f);
