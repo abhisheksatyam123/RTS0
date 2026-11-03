@@ -288,6 +288,13 @@
 //     not deliver in 20 s (398 of 400 ticks inside) for any of three places of the spearman; now she delivers
 //     after 4.30, 4.65 and 4.30 s. The woman standing inside both squares from the start, (-107.04, -17.58), is
 //     printed for information only: neither main nor this frees her in 20 s (400 of 400 ticks inside).
+// 43. Archer 2860 on Stats' Cycladic Archipelago soak (seed 3, 1015 to 1084 s), walked by Petra's join to a
+//     boarding pickup with no ship yet, stands inside idle woman 738's body beside farmstead 1650, with 22 idle
+//     units round the pickup 4.4 m off. separation slides him off 738 each tick and motion_feedback counts each
+//     slide as a move, so his failed count stays at 2 and MoveFailed never comes. 0.28 never pushes a walker and
+//     a standing unit apart, so its count reaches 35 and the walk ends where he stands
+//     (CCmpUnitMotion_System.cpp:677, 686-687; CCmpUnitMotion.h:118, 1378). Before, the walk held 60 s; now it ends
+//     after its count runs 2 to 35.
 #define private public
 #include "simulation/simulation.h"
 #undef private
@@ -3241,6 +3248,104 @@ int main() {
 		            in.drop < 0 ? -1.0f : in.drop * DT, in.inside, in.x, in.z);
 		CHECK(dropped == 3 && slowest <= 20.0f,
 		      "a returner pushed into the overlap of two rocks' grown squares keeps her way round them and delivers");
+	}
+	{
+		// 43. Stats' Cycladic Archipelago soak (seed 3, 1015 to 1084 s): archer 2860, walked by Petra's join to a
+		// boarding pickup whose plan had no ship yet (transportPlan.js:200-206, 310-333), stood inside idle woman
+		// 738's body 0.36 from farmstead 1650's corner, among 22 idle units round the pickup at (-77.67,-13.84),
+		// 4.4 off. separation slid him sideways off 738 every tick, and motion_feedback counted each slide as a move
+		// on an obstructed turn, so HandleObstructedMove held his failed count at 2 (CCmpUnitMotion.h:1378) and
+		// MoveFailed never came: the walk neither arrived nor failed, and the soak reported him at 60 s. 0.28 never
+		// pushes a walker and a standing unit apart (CCmpUnitMotion_System.cpp:677, 686-687), so the same turn is no
+		// move there: the count climbs by one per turn to 35 (CCmpUnitMotion.h:118), and UnitAI WALKING finishes the
+		// order where he stands (UnitAI.js:1792-1798). The layout is the game's: the 2-unit navcells round the
+		// farmstead (x -91 to -61, z -1 to -31; height classes 2 at 0.5, 3 at 1.05, . at 1.75, as the dump gave them).
+		constexpr UnitType W = UNIT_FEMALE_CITIZEN, A = UNIT_ARCHER;
+		struct Idle {
+			uint32_t id;
+			float x, z;
+			UnitType type;
+		};
+		static const Idle IDLE[] = {
+				{738, -77.6227f, -18.2274f, W}, {739, -77.8665f, -15.7889f, W}, {2859, -76.1360f, -18.4491f, A},
+				{2862, -77.4091f, -16.6882f, A}, {2861, -76.2373f, -16.9094f, A}, {2460, -80.3050f, -17.1879f, W},
+				{645, -76.2755f, -15.4127f, W}, {2462, -79.9752f, -15.6046f, W}, {1662, -78.9630f, -14.8724f, W},
+				{749, -77.6207f, -14.2420f, W}, {1663, -81.4062f, -16.2294f, W}, {728, -76.2086f, -13.9977f, W},
+				{2461, -79.0080f, -13.8130f, W}, {750, -80.8062f, -14.4286f, W}, {714, -78.0737f, -12.7333f, W},
+				{1814, -77.0919f, -12.6938f, A}, {1664, -80.1034f, -12.9304f, W}, {598, -76.2376f, -12.5077f, W},
+				{2459, -81.6995f, -13.1265f, W}, {729, -79.0783f, -11.7021f, W}, {722, -77.6105f, -11.1966f, W},
+				{2158, -76.2013f, -11.1811f, A}};
+		static const char *SHORE[] = {
+				".....3222222222.", "......3222222223", ".......222222223", ".......322222222", ".......322222222",
+				".......322222222", "........22222222", "........22222222", "........22222222", "........32222222",
+				"........32222222", ".........3222222", "..........322222", "............3222", ".............322",
+				"..............32"};
+		constexpr int X0 = -91, Z0 = -1, SW = 16, SH = 16, RES = 257;
+		auto centre = [&](int x, int z) {
+			if (x < X0 || x > X0 + 2 * (SW - 1) || z > Z0 || z < Z0 - 2 * (SH - 1)) return 1.75f;
+			const char c = SHORE[(Z0 - z) / 2][(x - X0) / 2];
+			return c == '2' ? 0.5f : c == '3' ? 1.05f : 1.75f;
+		};
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(5);
+		s->reset();
+		s->set_map_half(128.0f);
+		std::vector<float> h((size_t)RES * RES);
+		for (int j = 0; j < RES; ++j)
+			for (int i = 0; i < RES; ++i) {
+				const int x = i - 128, z = j - 128;
+				const bool ox = (x & 1) != 0, oz = (z & 1) != 0;
+				h[(size_t)j * RES + i] = ox && oz ? centre(x, z)
+				                       : ox      ? 0.5f * (centre(x, z - 1) + centre(x, z + 1))
+				                       : oz      ? 0.5f * (centre(x - 1, z) + centre(x + 1, z))
+				                                 : 0.25f * (centre(x - 1, z - 1) + centre(x + 1, z - 1) + centre(x - 1, z + 1) +
+				                                            centre(x + 1, z + 1));
+			}
+		s->set_terrain_data(h, RES, 1.0f);
+		s->begin_bulk_spawn();
+		s->end_bulk_spawn();
+		s->set_team_civ(0, CIV_KUSHITES);
+		s->set_team_civ(1, CIV_SPARTANS);
+		s->next_id_ = 5000;
+		s->spawn_building_world(70.0f, 70.0f, BLD_TOWN_CENTER, 1, 1.0f);
+		s->next_id_ = 1650;
+		s->spawn_building_world(-79.0f, -17.0f, BLD_FARMSTEAD, 0, 1.0f);
+		s->rebuild_nav_grid();
+		for (const Idle &u : IDLE) {
+			s->next_id_ = u.id;
+			s->spawn_unit(u.x, u.z, 0, u.type);
+		}
+		s->next_id_ = 2860;
+		const uint32_t walker = s->spawn_unit(-77.7988f, -18.3015f, 0, A);
+		const float GX = -77.6666f, GZ = -13.8439f;
+		s->order_walk(&walker, 1, GX, GZ);
+		// The walk for up to 60 s. first2: the tick his failed count first reached 2; ended: the tick his order
+		// finished (MoveFailed, or a walk that arrived); incs: the counts he took (one per obstructed turn).
+		// MoveFailed resets the count on the turn it reaches 35, so that turn's count is seen as a drop to 0.
+		int first2 = -1, ended = -1, counts = 0, counts_at2 = 0, last_f = 0;
+		for (int t = 1; t <= 60 * 20 && ended < 0; ++t) {
+			s->tick(DT);
+			const int i = idx(*s, walker);
+			const int f = s->units_.motion[i].failed;
+			const bool done = !s->units_.has_order[i];
+			if (f > last_f || (done && last_f == 34 && f == 0)) ++counts;
+			if (first2 < 0 && f >= 2) {
+				first2 = t;
+				counts_at2 = counts;
+			}
+			last_f = f;
+			if (done) ended = t;
+		}
+		const int wi = idx(*s, walker);
+		const float dgoal = std::hypot(s->units_.pos_x[wi] - GX, s->units_.pos_z[wi] - GZ);
+		const int from2 = counts - counts_at2;
+		std::printf("  archer 2860: failed count at 2 from %.2f s; order ended at %s, after %d counts from 2 to 35; %.2f m from the point, %s\n",
+		            first2 * DT, ended < 0 ? "never (60 s)" : (std::to_string(ended * DT) + " s").c_str(), from2, dgoal,
+		            s->units_.action_state[wi] == ACTION_IDLE ? "idle" : "not idle");
+		CHECK(ended > 0 && from2 == 33 && s->units_.action_state[wi] == ACTION_IDLE && dgoal > 3.0f,
+		      "the walk ends by MoveFailed (33 counts from 2 to 35), the order finishes and he stands idle short of the point");
+		CHECK(ended > 0 && first2 > 0 && (ended - first2) * DT <= 15.0f,
+		      "and it ends within 15 s of his failed count reaching 2 (base holds it at 2 past 60 s)");
 	}
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
