@@ -15,23 +15,15 @@ namespace rtso {
 
 class GpuSeparation {
 public:
-	// The simulation never takes these forces: every lockstep peer, replay and save must reach the
-	// same state, and a GPU's rounding differs from another's and from the CPU's. Simulation::separation()
-	// pushes on the CPU, as 0.28's UnitMotionManager does (CCmpUnitMotion_System.cpp).
+	// GPU offload for the fog-of-war LOS bitmap (LosShading). The simulation never uses the GPU: every
+	// lockstep peer, replay and save must reach the same state, and a GPU's rounding differs from another's
+	// and from the CPU's.
 	static GpuSeparation &instance();
 
 #ifdef RTSO_HAS_GODOT_RD
 	bool is_available() const;
 	bool is_enabled() const { return enabled_ && is_available(); }
 	void set_enabled(bool e) { enabled_ = e; }
-
-	// Dispatches the compute shader if available (O(N) 64x64 spatial hash grid).
-	// pos_xz: interleaved float array [x0, z0, x1, z1, ...] of length count * 2.
-	// out_forces: float array [fx0, fz0, fx1, fz1, ...] of length count * 2.
-	bool compute_forces(size_t count, const float *pos_xz, float *out_forces,
-	                    float cell_size, float min_dist, float strength);
-	bool compute_forces_with_radii(size_t count, const float *pos_xz, const float *radii, float *out_forces,
-	                               float cell_size, float min_dist, float strength);
 
 	// Dispatches shaders/compute/los_fow.glsl (2x bilinear upsample + 7-tap binomial blur).
 	bool compute_los_bitmap(const uint8_t *fow, int res, std::vector<uint8_t> &out);
@@ -41,21 +33,10 @@ public:
 
 private:
 	GpuSeparation() = default;
-	bool ensure_pipeline();
 	bool ensure_los_pipeline();
 
 	bool enabled_ = false; // Opt-in only: lockstep simulation must stay bit-identical across CPU/GPU/headless peers
-	bool attempted_init_ = false;
 	bool attempted_los_init_ = false;
-	godot::RID shader_;
-	godot::RID pipeline_;
-	godot::RID pos_buffer_;
-	godot::RID force_buffer_;
-	godot::RID radius_buffer_;
-	godot::RID cell_head_buffer_;
-	godot::RID cell_next_buffer_;
-	size_t buffer_capacity_ = 0;
-
 	godot::RID los_shader_;
 	godot::RID los_pipeline_;
 	godot::RID los_in_buffer_;
