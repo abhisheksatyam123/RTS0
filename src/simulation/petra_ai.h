@@ -49,7 +49,7 @@ inline constexpr float PETRA_GARRISON_HP_MEDIUM = 0.55f;
 // config.js + difficultyLevel.js
 struct PetraConfig {
 	uint8_t difficulty = PETRA_MEDIUM;
-	uint8_t behavior   = PETRA_BEHAVIOR_BALANCED;
+	uint8_t behavior   = PETRA_BEHAVIOR_RANDOM; // config.js:9 behavior || "random"
 
 	float aggressive   = 0.5f;
 	float defensive    = 0.5f;

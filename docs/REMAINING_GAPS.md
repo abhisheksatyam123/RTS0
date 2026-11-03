@@ -350,6 +350,24 @@ Petra's config.js (difficulty, behaviour, personality, population scaling, prior
 | PG3 | ~~Petra's population-scaled settings (popScaling, worker target, phase, barracks, forge and trader thresholds) re-read World or Team Population's split after each defeat; config.js setConfig reads getPopulationMax once~~ | low | Fixed: `petra_config_max_pop` takes the split among every seated player |
 | PG4 | ~~Garrison holders are checked on a global every-second-turn beat; garrisonManager.js:134 keeps a per-holder holderTimeUpdate set at registration and after each check, so a new holder's first check can come about 1.5 s sooner than in 0.28~~ | low | Fixed: `petra_holders_` keeps each holder's registration or last-check time (save 135) |
 
+### Aura templates: Compare's fifteenth 0.28 pass (2026-11-03)
+
+Every 0.28 aura file (151 under data/auras/) against the port's aura tables: affects for all 119 hero auras match 0.28's class matches over the 548 roster templates, and 273 of 294 unit-level modifiers match. The remaining differences are below.
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| AU1 | The relic rows for rome_catafalque_2 (armour +1) use the class set Unit minus Siege and Ship, so the 16 catafalque units get the armour bonus; 0.28's affects is Human and Siege, and catafalque units are not Human (aura_modifier_data.h, tools/extract_0ad_aura_modifiers.py "Human" alias) | low | Open: Compare |
+| AU2 | The relic rows for mace_catafalque_1 (loot food and wood) reach catafalque units through the same Unit-minus-Siege-and-Ship set; 0.28 affects Human, Siege, Ship and Structure | low | Open: Compare; matters only if a catafalque can kill |
+| AU3 | ~~The required-XP range table kept a "centurion" row (0.75) that no template references; 0.28's centurion.json is referenced by no template either~~ | low | Fixed: the inert row is removed and the table has three rows |
+
+### Petra difficulty and cadence: Compare's fifteenth 0.28 pass (2026-11-03)
+
+Petra's config.js and difficultyLevel.js against the port (petra_ai.h, simulation.cpp), with the seven uncertain items of the audit checked against the 0.28 source. Matched, no change: the phase cap at 3 (0.28's phase technologies are only village, town and city; no fourth phase tech exists in simulation/data/technologies, so the workPhase4 branch in researchManager.js has no next phase to research; getPhaseName's own definition is not in the shared folder), tech time (TechnologyManager uses TechCostMultiplier, not Cost/BuildTime), the first-turn queue defaults (playedTurn is already 1 when the HQ runs), the no-base first-base path (runs each AI turn), the 200 ms sim turn, and the dropsite re-check (RTS0 picks drops on the worker's own land when it orders them).
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| PG5 | ~~The AI behaviour default is Balanced; config.js:9 defaults to "random", which draws each AI's personality from the seed~~ | low | Fixed: `PetraConfig::behavior` defaults to `PETRA_BEHAVIOR_RANDOM`, the seeded draw of petra_ai.h |
+
 ### Selection details layout and auras: Compare's twelfth 0.28 pass (2026-10-21)
 
 | # | Gap | Severity | Status |
