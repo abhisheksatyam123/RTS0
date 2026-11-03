@@ -34864,6 +34864,11 @@ bool Simulation::petra_find_position(uint8_t btype, const float *base_at, const 
 	auto on_border = [&](float x, float z) { return near_map_border(x, z, border); };
 	std::vector<std::array<float, 2>> armies;
 	petra_invading_army_centres(armies);
+	// queueplanBuilding.js places the structure at the tile's centre, the point isNearInvadingArmy
+	// tests here and again when builders are sent (assignToFoundations). The footprint here stands
+	// on whole cells, so an even one's centre is half a cell short of the tile's: test that point.
+	const int foot = building_type_info(btype).footprint;
+	const float centre_shift = foot % 2 ? 0.0f : -0.5f * GRID;
 	for (int iz = 0; iz < bh; ++iz)
 		for (int ix = 0; ix < bw; ++ix) {
 			const size_t j = (size_t)iz * bw + ix;
@@ -34872,11 +34877,10 @@ bool Simulation::petra_find_position(uint8_t btype, const float *base_at, const 
 			const float x = ((float)(ix + m.x0) + 0.5f) * GRID - map_half_, z = ((float)(iz + m.z0) + 0.5f) * GRID - map_half_;
 			if (favor_border && on_border(x, z)) v[j] = (uint8_t)std::min(255, v[j] + 50);
 			else if (disfavor_border && !on_border(x, z)) v[j] = (uint8_t)std::min(255, v[j] + 10);
-			if (petra_near_invading_army(x, z, armies)) v[j] = 0;
+			if (petra_near_invading_army(x + centre_shift, z + centre_shift, armies)) v[j] = 0;
 			else if (base <= 0 && favored > 0 && m.base[j] == favored) v[j] = (uint8_t)std::min(255, v[j] + 100);
 		}
 	// Map.findBestTile: the first tile of the highest value the structure fits on.
-	const int foot = building_type_info(btype).footprint;
 	auto best_tile = [&](int ring) -> bool {
 		int best = 0;
 		for (int iz = 0; iz < bh; ++iz)
