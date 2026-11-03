@@ -4226,7 +4226,11 @@ void RtsoWorldView::apply_biome_environment(const std::string &biome, const std:
 			if (DirectionalLight3D *sun = Object::cast_to<DirectionalLight3D>(scene->get_child(i))) {
 				const float peak = std::max(e->sun.r, std::max(e->sun.g, e->sun.b));
 				sun->set_color(col(e->sun, 1.0f / peak));
-				sun->set_param(Light3D::PARAM_ENERGY, 1.25f * peak);
+				// model_common.fs and terrain_common.fs light in gamma space, texture * (SunColor *
+				// N.L * shadow + AmbientColor), with no tonemapping; Godot lights linear colours.
+				// 1.6 x SunColor with the AmbientColor as is matches 0.28's lit and shadowed
+				// ground best across the aegean and sahara biomes (mean error 0.02-0.05).
+				sun->set_param(Light3D::PARAM_ENERGY, 1.6f * peak);
 				sun->set_rotation(Vector3(-sun_elev, sun_yaw, 0.0f));
 			} else if (WorldEnvironment *we = Object::cast_to<WorldEnvironment>(scene->get_child(i))) {
 				Ref<Environment> env = we->get_environment();
@@ -4234,8 +4238,11 @@ void RtsoWorldView::apply_biome_environment(const std::string &biome, const std:
 				if (!env_base_.is_valid()) env_base_ = env->duplicate(true);
 				env = env_base_->duplicate(true);
 				we->set_environment(env);
-				// AmbientColor 0.4 grey is 0 A.D.'s neutral; scale to the scene's level.
-				env->set_ambient_light_color(col(e->ambient, 0.85f / 0.4f));
+				// 0.28's ambient is the one AmbientColor everywhere, with no light from the sky.
+				env->set_ambient_source(Environment::AMBIENT_SOURCE_COLOR);
+				env->set_ambient_light_color(col(e->ambient));
+				env->set_ambient_light_energy(1.0f);
+				env->set_ambient_light_sky_contribution(0.0f);
 				env->set_fog_light_color(col(e->fog));
 				Ref<Sky> sky = env->get_sky();
 				if (sky.is_valid() && apply_sky_box(sky, e->sky, map_id, sun_yaw, col(e->fog))) {
