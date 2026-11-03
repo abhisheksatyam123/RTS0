@@ -4,7 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <vector>
-#if __has_include(<godot_cpp/classes/rendering_device.hpp>)
+#if __has_include(<godot_cpp/classes/rendering_device.hpp>) && __has_include(<gdextension_interface.h>)
 #define RTSO_HAS_GODOT_RD 1
 #include <godot_cpp/classes/rendering_device.hpp>
 #include <godot_cpp/classes/rendering_server.hpp>

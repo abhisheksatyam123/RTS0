@@ -19943,7 +19943,9 @@ void Simulation::convert_to_gaia(uint8_t players) {
 		b.has_rally_point = false;
 		b.rally_more.clear();
 		b.focus_targets.clear();
+		const uint8_t from = b.team;
 		b.team = GAIA_PLAYER;
+		rescale_structure_hp(b, from); // Health.OnValueModification: Gaia has none of its modifiers
 		b.capture_points = 0.0f;
 		roots |= has_territory_influence(b.type);
 	}
