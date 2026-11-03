@@ -416,7 +416,9 @@ int main() {
 	// 11. With no room outside: a rally point on the trainer itself puts the batch straight
 	//     inside (Trainer.js autoGarrison); an unload order leaves the garrison inside
 	//     (GetSpawnPosition, not forced); a structure too damaged to hold them kills those
-	//     that cannot get out (GarrisonHolder.EjectOrKill).
+	//     that cannot get out (GarrisonHolder.EjectOrKill). A player's rally on the trainer
+	//     spawns outside now (test_unit_orders 118), so this is Petra's autogarrison rally
+	//     (rally_emergency), set here as Petra sets it.
 	{
 		auto ringed = [](Simulation &f, uint32_t fb) {
 			const Simulation::Building fbb = bld(f, fb);
@@ -429,6 +431,8 @@ int main() {
 		Simulation f;
 		const uint32_t fb = fresh(f);
 		f.cmd_set_rally_point(0, fb, bld(f, fb).x, bld(f, fb).z, 0, fb);
+		for (auto &b : const_cast<std::vector<Simulation::Building> &>(f.buildings()))
+			if (b.id == fb) b.rally_emergency = true; // Petra's autogarrison rally
 		CHECK(f.cmd_train(0, fb, UNIT_SPEARMAN, 2));
 		run(f, std::ceil(bld(f, fb).queue.front().duration) - 0.5f); // done on a whole second
 		ringed(f, fb);
