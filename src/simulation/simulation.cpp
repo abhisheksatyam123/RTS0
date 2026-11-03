@@ -3396,6 +3396,7 @@ void Simulation::ensure_gaia_obstacles() {
 	forest_stale_ = true; // the woods follow the list as it is now (update_forest_cells)
 	gaia_obstacles_.clear();
 	gaia_res_idx_.clear();
+	gaia_blocks_ships_.clear();
 	mine_candidates_.clear();
 	for (size_t r = 0; r < resources_.count; ++r) {
 		const uint8_t t = resources_.type[r], sub = resources_.subtype[r];
@@ -3406,6 +3407,7 @@ void Simulation::ensure_gaia_obstacles() {
 			gaia_obstacles_.push_back(
 					steer_obstacle(resources_.id[r], resources_.x[r], resources_.z[r], 1.0f, 0.0f, half, half, GAIA_OBSTACLE));
 			gaia_res_idx_.push_back((uint32_t)r);
+			gaia_blocks_ships_.push_back(0);
 		}
 	}
 	for (const Treasure &t : treasures_) {
@@ -3416,6 +3418,7 @@ void Simulation::ensure_gaia_obstacles() {
 		nav::footprint_axis(treasure_angle(t.id), ux, uz, swapped);
 		gaia_obstacles_.push_back(steer_obstacle(t.id, t.x, t.z, ux, uz, swapped ? hd : hw, swapped ? hw : hd, GAIA_OBSTACLE));
 		gaia_res_idx_.push_back(UINT32_MAX);
+		gaia_blocks_ships_.push_back(ti.blocks_movement ? 1 : 0);
 	}
 	gaia_grid_.build(gaia_obstacles_, map_half_);
 }
@@ -3440,7 +3443,7 @@ bool Simulation::ship_wreck_steer(size_t i, float x, float z, float ax, float az
 	const float pad = r * 1.4143f; // a square grown by r reaches r * sqrt(2) further at its corners
 	gaia_grid_.for_each_in_box(std::min(x, end.x) - pad, std::min(z, end.y) - pad, std::max(x, end.x) + pad, std::max(z, end.y) + pad,
 			[&](uint32_t k) {
-		if (gaia_res_idx_[k] != UINT32_MAX) return; // trees and bushes stand on land
+		if (!gaia_blocks_ships_[k]) return; // trees and bushes stand on land; ships sail over debris
 		const SteerObstacle &o = gaia_obstacles_[k];
 		const nav::Vec2 c(o.x, o.z), u = nav::footprint_u(o), v = nav::footprint_v(o), half(o.hu + r, o.hv + r);
 		// The treasure the ship sails to collect, and one it already overlaps, are not steered round.
@@ -3450,17 +3453,36 @@ bool Simulation::ship_wreck_steer(size_t i, float x, float z, float ax, float az
 		if (!hit || d2 < hit_d2) { hit = &o; hit_d2 = d2; }
 	});
 	if (!hit) return false;
-	// The corner of the wreck's square (grown by the hull) the ship can see that makes the shorter way.
+	// The shortest way round the wreck's square (grown by the hull), as VertexPathfinder's search over
+	// the square's corners finds it (VertexPathfinder.cpp:623-624, 827-831): by one corner the ship
+	// sees and the aim is seen from, or by two corners along one side, the first seen from the ship
+	// and the aim seen from the second. `out` is the first corner. A corner the aim is hidden from is
+	// never taken as the whole way, and a ship standing on one heads straight for the next (the
+	// search starts from the ship, so the corner under it is no waypoint).
 	const nav::Vec2 c(hit->x, hit->z), u = nav::footprint_u(*hit), v = nav::footprint_v(*hit);
 	const nav::Vec2 half(hit->hu + r, hit->hv + r), wide(half.x + 0.25f, half.y + 0.25f);
+	static constexpr float SU[4] = {1.0f, -1.0f, -1.0f, 1.0f}, SV[4] = {1.0f, 1.0f, -1.0f, -1.0f}; // in turn round the square
+	nav::Vec2 k[4];
+	for (int q = 0; q < 4; ++q) k[q] = c + u * (SU[q] * wide.x) + v * (SV[q] * wide.y);
+	auto sees = [&](const nav::Vec2 &a, const nav::Vec2 &b) { return !nav::TestRaySquare(a - c, b - c, u, v, half); };
+	bool aim_seen[4];
+	for (int q = 0; q < 4; ++q) aim_seen[q] = sees(k[q], aim);
 	float best = -1.0f;
-	for (int sx = -1; sx <= 1; sx += 2)
-		for (int sz = -1; sz <= 1; sz += 2) {
-			const nav::Vec2 corner = c + u * ((float)sx * wide.x) + v * ((float)sz * wide.y);
-			if (nav::TestRaySquare(pos - c, corner - c, u, v, half)) continue;
-			const float cost = (corner - pos).length() + (aim - corner).length();
-			if (best < 0.0f || cost < best) { best = cost; out = corner; }
+	for (int q = 0; q < 4; ++q) {
+		if (!sees(pos, k[q])) continue;
+		const float first = (k[q] - pos).length();
+		if (aim_seen[q]) {
+			const float cost = first + (aim - k[q]).length();
+			if (best < 0.0f || cost < best) { best = cost; out = k[q]; }
+			continue;
 		}
+		// Two neighbouring corners see each other: the side between them runs 0.25 outside the square.
+		for (const int n : {(q + 1) & 3, (q + 3) & 3}) {
+			if (!aim_seen[n]) continue;
+			const float cost = first + (k[n] - k[q]).length() + (aim - k[n]).length();
+			if (best < 0.0f || cost < best) { best = cost; out = first < 1e-3f ? k[n] : k[q]; }
+		}
+	}
 	return best >= 0.0f;
 }
 
@@ -3469,7 +3491,7 @@ bool Simulation::ship_step_into_wreck(size_t i, float x, float z, float nx, floa
 	const float r = unit_clearance_at(i);
 	const float pad = r * 1.4143f; // a square grown by r reaches r * sqrt(2) further at its corners
 	return gaia_grid_.any_in_box(std::min(x, nx) - pad, std::min(z, nz) - pad, std::max(x, nx) + pad, std::max(z, nz) + pad, [&](uint32_t k) {
-		if (gaia_res_idx_[k] != UINT32_MAX) return false;
+		if (!gaia_blocks_ships_[k]) return false;
 		const SteerObstacle &o = gaia_obstacles_[k];
 		const nav::Vec2 c(o.x, o.z), u = nav::footprint_u(o), v = nav::footprint_v(o), half(o.hu + r, o.hv + r);
 		return nav::PointIsInSquare(nav::Vec2(nx, nz) - c, u, v, half) && !nav::PointIsInSquare(nav::Vec2(x, z) - c, u, v, half) &&
@@ -7071,51 +7093,28 @@ std::vector<std::pair<float, float>> Simulation::distribute_around(const uint32_
 		if (idx < 0 || !units_.alive[idx]) return points;
 		at[i] = {units_.pos_x[idx], units_.pos_z[idx]};
 	}
-	constexpr float inv = 1.0f / PUSH_SCALE;
-	std::vector<float> px(count), pz(count), ax(count), az(count);
-	for (size_t i = 0; i < count; ++i) {
-		px[i] = points[i].first * inv;
-		pz[i] = points[i].second * inv;
-		ax[i] = at[i].first * inv;
-		az[i] = at[i].second * inv;
-	}
-
+	// Squared travel in whole crowd metres, each axis's difference rounded up (fixed
+	// ToInt_RoundToInfinity); each unit's own term is kept between swaps.
+	auto dist2 = [](const std::pair<float, float> &a, const std::pair<float, float> &b) {
+		const int64_t dx = (int64_t)std::ceil((a.first - b.first) / PUSH_SCALE);
+		const int64_t dz = (int64_t)std::ceil((a.second - b.second) / PUSH_SCALE);
+		return dx * dx + dz * dz;
+	};
 	std::vector<int64_t> d(count);
-	for (size_t i = 0; i < count; ++i) {
-		const int64_t dx = (int64_t)std::ceil(px[i] - ax[i]);
-		const int64_t dz = (int64_t)std::ceil(pz[i] - az[i]);
-		d[i] = dx * dx + dz * dz;
-	}
-
+	for (size_t i = 0; i < count; ++i) d[i] = dist2(points[i], at[i]);
 	bool improved;
 	do {
 		improved = false;
-		for (size_t i = 0; i < count; ++i) {
-			float pxi = px[i], pzi = pz[i];
-			const float axi = ax[i], azi = az[i];
-			int64_t dii = d[i];
+		for (size_t i = 0; i < count; ++i)
 			for (size_t j = i + 1; j < count; ++j) {
-				const float pxj = px[j], pzj = pz[j];
-				const int64_t dx_ji = (int64_t)std::ceil(pxj - axi);
-				const int64_t dz_ji = (int64_t)std::ceil(pzj - azi);
-				const int64_t dji = dx_ji * dx_ji + dz_ji * dz_ji;
-
-				const int64_t dx_ij = (int64_t)std::ceil(pxi - ax[j]);
-				const int64_t dz_ij = (int64_t)std::ceil(pzi - az[j]);
-				const int64_t dij = dx_ij * dx_ij + dz_ij * dz_ij;
-
-				const int64_t djj = d[j];
-				if (dji + dij < dii + djj) {
+				const int64_t dji = dist2(points[j], at[i]), dij = dist2(points[i], at[j]);
+				if (dji + dij < d[i] + d[j]) {
 					std::swap(points[i], points[j]);
-					px[i] = pxj; px[j] = pxi;
-					pz[i] = pzj; pz[j] = pzi;
-					pxi = pxj; pzi = pzj;
-					d[i] = dii = dji;
+					d[i] = dji;
 					d[j] = dij;
 					improved = true;
 				}
 			}
-		}
 	} while (improved);
 	return points;
 }
@@ -13168,10 +13167,13 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		} else if (!backing_off) {
 			rtso::nav::Vec2 steer;
 			if (ship_wreck_steer((size_t)i, px[i], pz[i], aim_x, aim_z, steer)) {
-				dx = steer.x - px[i];
-				dz = steer.y - pz[i];
-				d2 = dx * dx + dz * dz;
-				steered = true;
+				const float sdx = steer.x - px[i], sdz = steer.y - pz[i];
+				if (sdx * sdx + sdz * sdz > 1e-6f) { // as for land units: a zero-length steer has no heading
+					dx = sdx;
+					dz = sdz;
+					d2 = sdx * sdx + sdz * sdz;
+					steered = true;
+				}
 			}
 		}
 
@@ -14445,12 +14447,9 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 		// is passed over before its data is read. The hundredth covers float rounding.
 		float skip = std::max(reach + step_max, ri + r_max) + 0.01f;
 		float body = 0.0f; // set below: the furthest on an axis a body could overlap this one's
-		int push_neighbors = 0;
-		constexpr int kMaxPushNeighbors = 16; // TODO-GRID-03: Clamped neighbor search culling in dense clusters
 		// `walker` (see the queries below): pass over the pairs with a unit that stands further than
 		// `body` on either axis.
 		auto push = [&](const UnitGrid::Packed &e, auto walker) SEP_INLINE {
-			if (push_neighbors >= kMaxPushNeighbors) return;
 			float lim = skip;
 			if constexpr (decltype(walker)::value) {
 				if (!(e.j & UnitGrid::PACKED_FLAG)) lim = body;
@@ -14514,7 +14513,6 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 			const float max_dist = same_group ? combined
 					: combined * PUSH_RADIUS + (moving_push ? PUSH_MOVING_EXT : PUSH_STATIC_EXT);
 			if (h2 > max_dist * max_dist) return;
-			++push_neighbors;
 			combined = max_dist * (moving_push ? PUSH_MOVING_SPREAD : PUSH_STATIC_SPREAD);
 			// a is the unit with the lower id; sign turns i's view into a's.
 			const bool i_is_a = idi < b.id;
