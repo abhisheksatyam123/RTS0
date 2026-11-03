@@ -5467,6 +5467,7 @@ void Simulation::cmd_set_rally_point(uint8_t player_id, uint32_t building_id, fl
 		return;
 	}
 	b.has_rally_point = true;
+	b.rally_emergency = false; // a player's rally: its units spawn outside and walk in
 	b.rally_x = rx;
 	b.rally_z = rz;
 	b.rally_target_res_id = res_id;
@@ -22005,7 +22006,7 @@ bool Simulation::can_gather(size_t i, size_t r) const {
 // The rally command a unit of this type gets when the rally point is the trainer itself
 // (Commands.js "garrison" rather than "repair"): garrison, unless a builder would repair it.
 bool Simulation::self_garrison_rally(const Building &b, uint8_t unit_type, uint16_t tmpl) const {
-	if (!b.has_rally_point || b.rally_target_bld_id != b.id || turret_points_of(b)) return false;
+	if (!b.rally_emergency || !b.has_rally_point || b.rally_target_bld_id != b.id || turret_points_of(b)) return false;
 	if (b.build_progress < 1.0f || !structure_has_enough_health(b)) return false;
 	(void)unit_type;
 	(void)tmpl;
@@ -24564,7 +24565,10 @@ bool Simulation::petra_train_emergency_units(const std::vector<std::pair<float, 
 		}
 	}
 	if (!petra_train_template(PETRA_Q_EMERGENCY, cc.id, found, 1, false, PETRA_ORDER_EMERGENCY)) return false;
-	if (autogarrison && !emergency) cmd_set_rally_point(petra_pid_, cc.id, cc.x, cc.z, 0, cc.id);
+	if (autogarrison && !emergency) {
+		cmd_set_rally_point(petra_pid_, cc.id, cc.x, cc.z, 0, cc.id);
+		if (auto it = building_id_to_idx_.find(cc.id); it != building_id_to_idx_.end()) buildings_[it->second].rally_emergency = true;
+	}
 	return true;
 }
 
@@ -38318,6 +38322,7 @@ bool Simulation::save_state(const char *filepath) const {
 		out.write((const char *)&b.capture_timer, sizeof(b.capture_timer));
 		out.write((const char *)&b.template_off, sizeof(b.template_off));
 		out.write((const char *)&b.trickle_tick, sizeof(b.trickle_tick));
+		out.write((const char *)&b.rally_emergency, sizeof(b.rally_emergency));
 
 		uint32_t q_sz = (uint32_t)b.queue.size();
 		out.write((const char *)&q_sz, sizeof(q_sz));
@@ -38807,6 +38812,8 @@ bool Simulation::load_state(const char *filepath) {
 		if (version >= SAVE_VERSION_STRUCTURE_OFF) in.read((char *)&bld.template_off, sizeof(bld.template_off));
 		bld.trickle_tick = 0; // older saves: the match clock's phase, as they paid
 		if (version >= SAVE_VERSION_TRICKLE_TIMER) in.read((char *)&bld.trickle_tick, sizeof(bld.trickle_tick));
+		bld.rally_emergency = false; // older saves: a player's rally
+		if (version >= SAVE_VERSION_RALLY_EMERGENCY) in.read((char *)&bld.rally_emergency, sizeof(bld.rally_emergency));
 		bld.set_extents(bld.half_size, building_half_depth(bld.type, bld.half_size, bld.civ)); // its civ's wall depth
 		const auto &bi = building_type_info(bld.type);
 		bld.capture_regen_rate = bi.capture_regen_rate;

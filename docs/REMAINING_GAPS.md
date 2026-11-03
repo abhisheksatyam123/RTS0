@@ -151,6 +151,10 @@ Fixed: control groups snap to and keep every member, structures sort as 0.28's s
 
 Status bars, minimap, territory borders, silhouettes and fog against the 0.28 templates and engine (CMiniMap, CMiniMapTexture, CTerritoryTexture, CCmpTerritoryManager, effects/model.xml). Fixed: health bars use health_bg/health_fg at each template's StatusBars BarWidth, BarHeight and HeightOffset (units, animals by template, structures by type) with icons BarWidth/2; the minimap draws terrain base colours shaded by height and 0.28's two water colours, territory as a fringe inside each border with a gap on the line (no influence circles), the LOS layer smooth with explored land at half brightness, the camera's view trapezoid in red, 6 s flares with 0.28's fades, the templates' resource colours, and turns with the camera (square maps at 1/1.414); borders use territorymanager.xml's 0.75/0.85, centred on their path and floating on water; silhouettes blend at alpha 191. Left: G35.
 
+### Unit orders: trained units spawn outside (deliberate, 2026-11-03)
+
+Deliberate deviation from 0.28, requested by stan (2026-11-03): a unit trained at a structure whose rally point is that structure is no longer put straight inside it at spawn. It spawns outside on its spot and then gets the rally's garrison order, so it walks in, as a unit a player rallies there does. Petra's autogarrison rally keeps the 0.28 spawn inside (`rally_emergency`, saved from save v138; an older save loads it as a player's rally). Capture and other structure work keep units outside the footprint. test_unit_orders 118.
+
 ### Unit orders, fifth 0.28 pass (2026-10-15)
 
 Combat, loot, territory, garrison, capture, rally points, trade and camps against 0.28's components. Owner: Unit orders, unless noted.
