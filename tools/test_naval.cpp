@@ -2390,6 +2390,26 @@ static float islet_height(float x, float z) { return x * x + z * z < 16.0f * 16.
 // A beach: land rising west of x = 0 and the sea deepening east of it, 4 m a unit, to 12 m.
 static float beach_height(float x, float) { return std::clamp(-x, -3.0f, 3.0f); }
 
+// A beach to the south, land north of it, and on that land a mesa ringed by cliffs.
+static float mesa_height(float x, float z) {
+	if (x > 20.0f && x < 44.0f && z > 20.0f && z < 44.0f) return 25.0f;
+	return std::clamp(z, -3.0f, 3.0f);
+}
+
+// startingStrategy.js landRegions are accessibility lands with a sea link (a cell beside a ship
+// region): a cliff-bound mesa is not one, so Petra lays no civic centre there and lands no crew
+// for it (headquarters.js:735-738, navalManager.js landingZones).
+static void test_petra_mesa_not_sea_linked() {
+	static Simulation s;
+	fresh(s, mesa_height);
+	const uint16_t mesa = s.petra_access_at(32.0f, 32.0f), main = s.petra_access_at(-30.0f, 30.0f);
+	std::printf("Petra sea-linked lands: main land %u linked %d, mesa %u linked %d\n", main, (int)s.petra_access_sea_linked(-30.0f, 30.0f),
+	            mesa, (int)s.petra_access_sea_linked(32.0f, 32.0f));
+	CHECK(mesa && main && mesa != main);
+	CHECK(s.petra_access_sea_linked(-30.0f, 30.0f));
+	CHECK(!s.petra_access_sea_linked(32.0f, 32.0f));
+}
+
 // CCmpObstruction::CheckShorePlacement: a dock's front edge stands in more than 1 m of water and
 // its back in less than 2 m. RTS0 took any dock with land under it and a sea within a cell of its
 // box, which dock_angle had already turned toward water up to four half-widths away: Petra's
@@ -3260,6 +3280,7 @@ int main() {
 	test_petra_fishing_boat_backs_off_tower();
 	test_petra_small_land_fields();
 	test_dock_faces_water();
+	test_petra_mesa_not_sea_linked();
 	test_petra_need_fish();
 	test_petra_dock_position();
 	test_petra_workers_across_water();
