@@ -4729,6 +4729,10 @@ private:
 	static constexpr float GAIA_STEER_REACH = 2.5f; // world units round a walker whose trees it steers by
 	std::vector<SteerObstacle> gaia_obstacles_;
 	std::vector<uint32_t> gaia_res_idx_; // each one's supply index in resources_, UINT32_MAX for a treasure
+	// Whether ships keep off each one: a treasure whose template blocks movement (every one but
+	// shipwreck_debris.xml, which sets Obstruction/BlockMovement false; TreasureTypeInfo::blocks_movement).
+	// Trees and bushes stand on land, so not them.
+	std::vector<uint8_t> gaia_blocks_ships_;
 	std::vector<uint32_t> mine_candidates_; // the supplies that are mines, for append_mine_obstacles
 	// A tree or bush stays listed once cut down (ensure_gaia_obstacles); a treasure leaves at once.
 	bool gaia_obstacle_live(uint32_t k) const {
@@ -4757,12 +4761,15 @@ private:
 	// it need gaia_obstacles_near; cheaper, as it looks along the line only.
 	bool gaia_in_the_way(float x, float z, float ax, float az, float reach, float radius, uint32_t ignore) const;
 	// Ships keep off floating treasures (template_gaia_treasure shipwrecks: Obstruction/Static,
-	// BlockMovement): when the first SHIP_WRECK_STEER_REACH of ship i's line from (x, z) to (ax, az)
-	// crosses one, grown by its hull, `out` is the nearer way round, a corner of that square.
+	// BlockMovement; not shipwreck debris, which sets it false): when the first SHIP_WRECK_STEER_REACH
+	// of ship i's line from (x, z) to (ax, az) crosses one, grown by its hull, `out` is the first
+	// corner of the shortest way round that square, by one corner or by two along a side, as
+	// VertexPathfinder's search over its corners finds it.
 	static constexpr float SHIP_WRECK_STEER_REACH = 12.0f;
 	bool ship_wreck_steer(size_t i, float x, float z, float ax, float az, nav::Vec2 &out) const;
 	// Whether ship i's step from (x, z) to (nx, nz) enters a floating treasure's square grown by its
-	// hull (not the one it sails to at (ax, az)): move_units refuses it, and the ship slides along.
+	// hull (not the one it sails to at (ax, az), nor debris): move_units refuses it, and the ship
+	// slides along.
 	bool ship_step_into_wreck(size_t i, float x, float z, float nx, float nz, float ax, float az) const;
 	// Navcells a wood closes to long paths: FOREST_CLOSED where trees and bushes leave no way
 	// across the cell (forest_cell_closed), FOREST_CLOSED_LARGE where only the large class's
