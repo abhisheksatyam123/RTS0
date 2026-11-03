@@ -191,7 +191,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 135; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 136; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_PETRA_IDLE_CHECKS = 136; // each Petra base's next gatherer balance check (timeNextIdleCheck)
 	static constexpr uint32_t SAVE_VERSION_PETRA_HOLDER_TIME = 135; // each Petra garrison holder's holderTimeUpdate
 	static constexpr uint32_t SAVE_VERSION_GATHER_CLAIMS = 134; // each unit's place at its supply and when it took it
 	static constexpr uint32_t SAVE_VERSION_PETRA_SHIP_IDLE = 133; // each Petra idle ship's last idle position and stationary turn (moveApart)
@@ -4490,6 +4491,8 @@ private:
 	// noBase (anchor 0) runs every turn.
 	bool petra_base_turn(uint32_t anchor_id) const { return !petra_turn_anchor_ || !anchor_id || anchor_id == petra_turn_anchor_; }
 	void petra_update_tile_bases();
+	std::vector<uint32_t> petra_switch_anchor_scratch_; // setWorkersIdleByPriority: our live base anchors
+	std::vector<uint8_t> petra_switch_mine_scratch_; // setWorkersIdleByPriority: the checking base's gatherers of a type
 	mutable std::vector<int> petra_bases_tile_scratch_; // petra_bases_map's territory tile per column, then per row
 	// `bmap` and `base` (from 1) limit the search to that base's territory.
 	uint32_t petra_place_dropsite(uint8_t res, float min_quality = 50.0f, bool *no_site = nullptr, float fund_above = -1.0f,
