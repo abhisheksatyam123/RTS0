@@ -2852,6 +2852,12 @@ private:
 	// The key of a search round idle units that found no way from where the unit stands (the memo
 	// holds that spot): it searches again there only every fourth turn.
 	uint32_t idle_stuck_key() const { const uint32_t k = short_path_key_ ^ 0x6C8E9CF5u; return k ? k : 3u; }
+	// The same note where the unit is held: the search that found no way was one from a spot its last
+	// search had found no way from (avoid_idle_units' `no_way`), or came just after a step on the way a
+	// search had found was refused (`path_refused`). It counts as idle_stuck_key everywhere, and also
+	// lets a unit inside its own idle units' crowd walk out through them (avoid_idle_units' `sealed`).
+	uint32_t idle_held_key() const { const uint32_t k = short_path_key_ ^ 0x85EBCA6Bu; return k ? k : 12u; }
+	bool idle_stuck_note(uint32_t k) const { return k == idle_stuck_key() || k == idle_held_key(); }
 	// The keys of a short path round idle units that avoid_idle_units' second search, among smaller
 	// squares shaped as 0.28's, found where RTS0's wider ones found no way, and of its waypoint reached
 	// last tick: the unit's steps on it are tested against those squares too.
