@@ -69,6 +69,7 @@
 #include "minimap_view.h"
 #include "chat_window.h"
 #include "diplomacy_dialog.h"
+#include "lobby_dialog.h"
 #include "hotkeys_godot.h"
 #include "attack_detection.h"
 #include "command_queue_view.h"
@@ -230,6 +231,8 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	// widgets (chat_window.h / diplomacy_dialog.h) own their panel trees;
 	// the bound handler methods below delegate into them.
 	RtsoChatWindow chat_window_;
+	// Multiplayer lobby panel leaf (lobby_dialog.h); RtsoMain keeps its logic.
+	RtsoLobbyDialog lobby_dialog_;
 	RtsoDiplomacyDialog diplo_dialog_;
 	rtso::RtsoObjectivesDialog objectives_dialog_;
 	rtso::RtsoTutorialPanel tutorial_panel_;
