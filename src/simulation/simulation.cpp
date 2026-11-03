@@ -13869,31 +13869,7 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		const bool dropped = memo.key == 0; // no path (one dropped below keeps its waypoint), not a corner
 		if (corner) memo.key = 0;
 		const uint8_t failed = units_.motion[i].failed;
-		// A large walker's step into a tree's, bush's or treasure's clearance is refused as a step into a structure's
-		// is (large_step_barred), and so obstructed: separation pushes a walker back out of a gaia square along its
-		// step every tick (gaia_obstacles_ push_out), so a step on into the clearance stands still while the path
-		// leads on through the same clearance (the rams at Schwarzwald seed 3 stood against a wall of trees at
-		// (34.5, 33.5) and (33.5, 33.5) from 1218 s on). 0.28's CheckMovement refuses such a step too, and
-		// HandleObstructedMove plans again from where the unit stands (CCmpUnitMotion.h:1369). A walker already
-		// inside a square is not refused by it (a ray that starts inside a square never hits it, as for ships).
-		auto gaia_step_blocked = [&](float ex, float ez) {
-			if (gaia_grid_.empty() || !unit_is_large(units_.tmpl[i], units_.unit_type[i])) return false;
-			const float r = unit_clearance_at(i), pad = r * 1.4143f; // a square grown by r reaches r * sqrt(2) at its corners
-			const uint32_t own_res = units_.target_resource_id[i], own_unit = units_.target_unit_id[i];
-			const nav::Vec2 pos(x0, z0), end(ex, ez);
-			bool hit = false;
-			gaia_grid_.for_each_in_box(std::min(x0, ex) - pad, std::min(z0, ez) - pad, std::max(x0, ex) + pad, std::max(z0, ez) + pad,
-					[&](uint32_t k) {
-				if (hit) return;
-				const SteerObstacle &o = gaia_obstacles_[k];
-				if (o.id == own_res || o.id == own_unit || !gaia_obstacle_live(k)) return;
-				const nav::Vec2 c(o.x, o.z), u = nav::footprint_u(o), v = nav::footprint_v(o), half(o.hu + r, o.hv + r);
-				if (nav::PointIsInSquare(pos - c, u, v, half)) return;
-				hit = nav::TestRaySquare(pos - c, end - c, u, v, half);
-			});
-			return hit;
-		};
-		const bool obstructed = full_step_blocked(npx[i], npz[i], aim_x[i], aim_z[i], relaxed) || gaia_step_blocked(npx[i], npz[i]);
+		const bool obstructed = full_step_blocked(npx[i], npz[i], aim_x[i], aim_z[i], relaxed);
 		const float step_x = npx[i], step_z = npz[i]; // the step move_units gave it
 		bool no_way = false, path_refused = false;
 		if (obstructed) {
