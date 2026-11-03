@@ -19943,7 +19943,9 @@ void Simulation::convert_to_gaia(uint8_t players) {
 		b.has_rally_point = false;
 		b.rally_more.clear();
 		b.focus_targets.clear();
+		const uint8_t from = b.team;
 		b.team = GAIA_PLAYER;
+		rescale_structure_hp(b, from); // Health.OnValueModification: Gaia has none of its modifiers
 		b.capture_points = 0.0f;
 		roots |= has_territory_influence(b.type);
 	}
@@ -25447,10 +25449,49 @@ void Simulation::petra_manage_economy(float dt) {
 	// worker found nothing of in the last 20 s (lastFailedGather). switchGatherer takes a citizen
 	// soldier off food and a woman onto it when there is one.
 	std::vector<uint8_t> gather_type(reassignable_workers.size(), (uint8_t)RES_COUNT); // RES_COUNT: none yet
-	// baseManager.js:604 timeNextIdleCheck = elapsedTime + 8; baseManager.js:1155 only from the
-	// town phase, or while phasing up to it (HQ.phasing == 2).
-	if ((int)(petra_timer_ / 8.0f) != (int)((petra_timer_ - petra_turn_dt_) / 8.0f) &&
-	    (petra_ps().phase > 1 || petra_phasing())) {
+	PetraBasesMap bmap;
+	bool bmap_built = false;
+	// The worker's base: the one whose tile it stands on, else the nearest on its land.
+	auto worker_base = [&](float wx, float wz, uint16_t wland) {
+		int my_base = bmap.at(wx, wz, map_half_);
+		if (my_base > 0 && bmap.anchors[my_base - 1].land != wland) my_base = 0;
+		if (my_base == 0) {
+			float best = 1e30f;
+			for (size_t a = 0; a < bmap.anchors.size(); ++a) {
+				if (bmap.anchors[a].land != wland) continue;
+				const float d = (bmap.anchors[a].x - wx) * (bmap.anchors[a].x - wx) + (bmap.anchors[a].z - wz) * (bmap.anchors[a].z - wz);
+				if (d < best) { best = d; my_base = (int)a + 1; }
+			}
+		}
+		return my_base;
+	};
+	// baseManager.js update: the base whose turn it is (basesManager.js:767-771, one a turn)
+	// checks its own gatherers once elapsedTime passes its timeNextIdleCheck, then sets it 8 s on
+	// (baseManager.js:604); an anchored base only from the town phase, or while phasing up to it
+	// (baseManager.js:1155, HQ.phasing == 2). With no anchored base, the baseless base checks every
+	// worker with no phase condition (baseManager.js:1066).
+	uint32_t check_anchor = UINT32_MAX;
+	std::vector<uint32_t> &live_anchors = petra_switch_anchor_scratch_;
+	live_anchors.clear();
+	for (const Building &b : buildings_)
+		if (b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked && (is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY)) live_anchors.push_back(b.id);
+	if (live_anchors.empty()) check_anchor = 0;
+	else if (petra_ps().phase > 1 || petra_phasing()) check_anchor = petra_turn_anchor_ ? petra_turn_anchor_ : live_anchors[0];
+	auto &idle_checks = petra_kept_.idle_checks;
+	auto check_it = std::lower_bound(idle_checks.begin(), idle_checks.end(), std::make_pair(check_anchor, -1.0e30f));
+	const bool has_entry = check_it != idle_checks.end() && check_it->first == check_anchor;
+	if (check_anchor != UINT32_MAX && petra_timer_ > (has_entry ? check_it->second : 0.0f)) {
+		if (has_entry) check_it->second = petra_timer_ + 8.0f;
+		else idle_checks.insert(check_it, {check_anchor, petra_timer_ + 8.0f});
+		// Forget the bases that are gone.
+		idle_checks.erase(std::remove_if(idle_checks.begin(), idle_checks.end(), [&](const std::pair<uint32_t, float> &c) {
+			return c.first && std::find(live_anchors.begin(), live_anchors.end(), c.first) == live_anchors.end();
+		}), idle_checks.end());
+		petra_bases_map(bmap);
+		bmap_built = true;
+		int check_base = 0; // base number from 1 in bmap, 0 for the baseless base
+		for (size_t a = 0; a < bmap.anchors.size(); ++a)
+			if (bmap.anchors[a].id == check_anchor) check_base = (int)a + 1;
 		uint8_t order[RES_COUNT];
 		most_needed(order);
 		float sum_want = 0.0f, sum_cur = 0.0f;
@@ -25459,16 +25500,20 @@ void Simulation::petra_manage_economy(float dt) {
 		auto switch_gatherer = [&](uint8_t from, uint8_t to) -> bool {
 			size_t pick = SIZE_MAX;
 			bool only_soldier = false, only_woman = false;
+			std::vector<uint8_t> &mine = petra_switch_mine_scratch_;
+			mine.assign(units_.count, 0);
 			for (size_t i = 0; i < units_.count; ++i) {
 				if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.action_state[i] != ACTION_GATHER) continue;
 				auto rit = res_id_to_idx_.find(units_.target_resource_id[i]);
 				if (rit == res_id_to_idx_.end() || resources_.type[rit->second] != from) continue;
+				if (worker_base(units_.pos_x[i], units_.pos_z[i], petra_access_at(units_.pos_x[i], units_.pos_z[i])) != check_base) continue;
+				mine[i] = 1;
 				const uint8_t g = unit_gather_class(units_.unit_type[i], units_.tmpl[i]);
 				if (from == RES_FOOD && g == GATHER_INFANTRY) only_soldier = true;
 				else if (to == RES_FOOD && g == GATHER_SUPPORT) only_woman = true;
 			}
 			for (size_t i = 0; i < units_.count && pick == SIZE_MAX; ++i) {
-				if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.action_state[i] != ACTION_GATHER) continue;
+				if (!mine[i]) continue;
 				const uint8_t g = unit_gather_class(units_.unit_type[i], units_.tmpl[i]);
 				if (g != GATHER_INFANTRY && g != GATHER_SUPPORT) continue;
 				auto rit = res_id_to_idx_.find(units_.target_resource_id[i]);
@@ -25557,9 +25602,8 @@ void Simulation::petra_manage_economy(float dt) {
 	struct Listed { float d2; uint32_t c; };
 	struct BaseSupplies { std::vector<Listed> nearby[RES_COUNT], medium[RES_COUNT], faraway[RES_COUNT]; };
 	std::vector<BaseSupplies> supplies;
-	PetraBasesMap bmap;
 	if (!reassignable_workers.empty() || !recheck.empty() || !sparse_returning.empty() || !gather_returning.empty()) {
-		petra_bases_map(bmap);
+		if (!bmap_built) petra_bases_map(bmap);
 		supplies.resize(bmap.anchors.size() + 1);
 		std::unordered_map<uint32_t, int> field_users, supply_users;
 		for (size_t i = 0; i < units_.count; ++i) {
@@ -25632,20 +25676,6 @@ void Simulation::petra_manage_economy(float dt) {
 					std::stable_sort(v->begin(), v->end(), [](const Listed &a, const Listed &b) { return a.d2 < b.d2; });
 	}
 
-	// The worker's base: the one whose tile it stands on, else the nearest on its land.
-	auto worker_base = [&](float wx, float wz, uint16_t wland) {
-		int my_base = bmap.at(wx, wz, map_half_);
-		if (my_base > 0 && bmap.anchors[my_base - 1].land != wland) my_base = 0;
-		if (my_base == 0) {
-			float best = 1e30f;
-			for (size_t a = 0; a < bmap.anchors.size(); ++a) {
-				if (bmap.anchors[a].land != wland) continue;
-				const float d = (bmap.anchors[a].x - wx) * (bmap.anchors[a].x - wx) + (bmap.anchors[a].z - wz) * (bmap.anchors[a].z - wz);
-				if (d < best) { best = d; my_base = (int)a + 1; }
-			}
-		}
-		return my_base;
-	};
 	// worker.js:242-271: back through startGathering if the supply is crowded (over one gatherer
 	// and under 30 each), or not in its base's nearby list while that list has supplies, or in
 	// neither nearby nor medium while medium has some; else the supply becomes its own.
@@ -27576,6 +27606,7 @@ uint16_t Simulation::petra_access_at(float x, float z) const {
 			a.pass = std::move(pass);
 			a.land.assign((size_t)res * res, 0);
 			a.near.assign((size_t)res * res, 0xFFFF);
+			a.shore.clear();
 			uint16_t next = 0;
 			std::vector<uint32_t> stack;
 			for (size_t k0 = 0; k0 < a.pass.size(); ++k0) {
@@ -27616,6 +27647,35 @@ uint16_t Simulation::petra_access_at(float x, float z) const {
 				if (const uint16_t l = a.land[(size_t)nz * res + nx]) { near = l; break; }
 			}
 	return near;
+}
+
+bool Simulation::petra_access_sea_linked(float x, float z) const {
+	const uint16_t acc = petra_access_at(x, z);
+	if (!acc) return false;
+	if (const PetraBase *pb = get_primary_petra_base())
+		if (acc == petra_access_at(pb->x, pb->z)) return true;
+	PetraAccess &a = petra_access_;
+	if (a.shore.empty()) {
+		const int res = a.res, nres = nav_grid_.res;
+		uint16_t top = 0;
+		for (uint16_t l : a.land) top = std::max(top, l);
+		a.shore.assign((size_t)top + 1, 0);
+		const float per = (float)nres / (float)res;
+		for (int y = 0; y < res; ++y)
+			for (int x0 = 0; x0 < res; ++x0) {
+				const uint16_t l = a.land[(size_t)y * res + x0];
+				if (!l || a.shore[l]) continue;
+				const int nb[5][2] = {{0, 0}, {1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+				for (const auto &d : nb) {
+					const int xx = x0 + d[0], yy = y + d[1];
+					if (xx < 0 || yy < 0 || xx >= res || yy >= res) continue;
+					const int nx = std::min(nres - 1, (int)(((float)xx + 0.5f) * per));
+					const int ny = std::min(nres - 1, (int)(((float)yy + 0.5f) * per));
+					if (nav_grid_.global_region_at(nx, ny, PASS_SHIP)) { a.shore[l] = 1; break; }
+				}
+			}
+	}
+	return acc < a.shore.size() && a.shore[acc];
 }
 
 // A structure's land: the land just outside its footprint (a dock's shore side).
@@ -29594,6 +29654,7 @@ bool Simulation::petra_find_strategic_cc_location(uint8_t btype, float &out_x, f
 			// The land last of the tests a tile can fail: its search costs the most.
 			const uint16_t l = petra_land_at(x, z);
 			if (topo.naval_map ? !topo.land_region(l) : l != own_land) continue;
+			if (topo.naval_map && !petra_access_sea_linked(x, z)) continue; // landRegions are access lands with a sea link
 			if (!petra_cc_tile_ok(btype, x, z)) continue;
 			found = true;
 			best = val;
@@ -29733,6 +29794,7 @@ bool Simulation::petra_find_economic_cc_location(uint8_t btype, uint8_t res, boo
 			}
 			const uint16_t l = petra_land_at(x, z);
 			if (topo.naval_map ? !topo.land_region(l) : l != own_land) continue;
+			if (topo.naval_map && !petra_access_sea_linked(x, z)) continue; // landRegions are access lands with a sea link
 			float norm = 0.5f, min_d = 1e30f;
 			bool accessible = false;
 			for (const Cc &c : ccs) {
@@ -33826,6 +33888,10 @@ bool Simulation::petra_boarding_pos(uint16_t land, uint16_t sea, float ship_x, f
 		if (b.type == BLD_DOCK && b.hp > 0.0f && b.team < MAX_PLAYERS && is_ally(petra_pid_, b.team)) docks.push_back(&b);
 	double best = 0.0;
 	bool found = false;
+	// navalManager.js landingZones are shore cells of the destination's access land: a nav
+	// region can join a cliff-bound mesa to a beach pocket below it. A cell off that access is
+	// taken only when none is on it.
+	const uint16_t want_acc = petra_access_at(dest_x, dest_z);
 	for (int y = 0; y < h; ++y)
 		for (int x = 0; x < w; ++x) {
 			if (nav_grid_.global_region_at(x, y, PASS_INFANTRY) != land) continue;
@@ -33839,6 +33905,7 @@ bool Simulation::petra_boarding_pos(uint16_t land, uint16_t sea, float ship_x, f
 			// A landing point the ship could not unload at: try another.
 			if (skip_near && (px - skip_near[0]) * (px - skip_near[0]) + (pz - skip_near[1]) * (pz - skip_near[1]) < 64.0f) continue;
 			double dist = 4.0 * (det::hypot(px - ship_x, pz - ship_z) + det::hypot(dest_x - px, dest_z - pz)); // metres
+			if (want_acc && petra_access_at(px, pz) != want_acc) dist += 1.0e9;
 			if (avoid_enemy) {
 				const int owner = territory_owner_at(px, pz);
 				if (owner >= 0 && owner < MAX_PLAYERS && !is_ally(petra_pid_, (uint8_t)owner)) dist += 1.0e8;
@@ -34256,12 +34323,14 @@ void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt, std::vec
 		if (const auto *p = get_transport_passengers(tp.ship_id)) before = *p;
 		order_disembark(tp.ship_id, units_.pos_x[sidx], units_.pos_z[sidx]);
 		const uint16_t end_land = petra_land_at(tp.drop_x, tp.drop_z);
+		const uint16_t end_acc = petra_access_at(tp.drop_x, tp.drop_z); // transportPlan.js:600-617 compares access
 		std::vector<uint32_t> wrong;
 		for (uint32_t uid : before) {
 			const int32_t i = lookup_unit(uid);
 			if (i < 0 || !units_.alive[i]) continue; // still aboard
 			const uint16_t land = petra_land_at(units_.pos_x[i], units_.pos_z[i]);
-			if (end_land && land && land != end_land) {
+			const uint16_t acc = petra_access_at(units_.pos_x[i], units_.pos_z[i]);
+			if ((end_land && land && land != end_land) || (end_acc && acc && acc != end_acc)) {
 				wrong.push_back(uid);
 				continue;
 			}
@@ -35034,6 +35103,7 @@ void Simulation::petra_garrison_units_inside(size_t holder_idx, bool allow_melee
 		petra_remove_defender(uid);
 		petra_attack_remove_unit(uid);
 		order_garrison(&uid, 1, holder.id);
+		petra_register_holder(holder.id);
 		++slots;
 		++incoming[holder_idx];
 	}
@@ -35194,6 +35264,7 @@ bool Simulation::petra_garrison_attacked_unit(size_t i, bool emergency, std::vec
 	++incoming[best];
 	const uint32_t uid = units_.id[i];
 	order_garrison(&uid, 1, b.id);
+	petra_register_holder(b.id);
 	return true;
 }
 
@@ -35303,11 +35374,23 @@ void Simulation::petra_scuttle_undefendable() {
 	if (!scuttle.empty()) cmd_delete(petra_pid_, scuttle.data(), scuttle.size());
 }
 
+size_t Simulation::petra_register_holder(uint32_t holder_id) {
+	auto &hold = petra_holders_.holders;
+	auto it = std::lower_bound(hold.begin(), hold.end(), holder_id, [](const PetraHolderEntry &e, uint32_t id) { return e.id < id; });
+	if (it == hold.end() || it->id != holder_id) it = hold.insert(it, {holder_id, petra_timer_});
+	return (size_t)(it - hold.begin());
+}
+
 void Simulation::petra_manage_garrisons() {
 	std::vector<int> incoming = petra_garrison_incoming();
-	// garrisonManager.js:134: a holder's garrison is looked at more than 3 s after the last
-	// time (holderTimeUpdate), so every second 1.6 s turn.
-	const bool holder_check = petra_turn_mod(2);
+	// garrisonManager.js:134: a holder's garrison is looked at more than 3 s after its own
+	// holderTimeUpdate (set when it is registered and after each look); a holder that no longer
+	// holds or expects anyone is forgotten (:194). Holders gone from the map are dropped too.
+	auto &holders = petra_holders_.holders;
+	holders.erase(std::remove_if(holders.begin(), holders.end(), [&](const PetraHolderEntry &e) {
+		auto it = building_id_to_idx_.find(e.id);
+		return it == building_id_to_idx_.end() || buildings_[it->second].wrecked;
+	}), holders.end());
 	// garrisonManager.js update: unload whoever no longer needs the shelter, then
 	// defenseManager.js checkEvents: arrows from a structure with an enemy in range;
 	// last, a decaying structure gets the garrison that stops its decay (TYPE_DECAY).
@@ -35319,7 +35402,19 @@ void Simulation::petra_manage_garrisons() {
 		if (!own && (b.garrisoned_units.empty() || !is_ally(petra_pid_, b.team) || turret_points_of(b))) continue;
 		const bool shoots = own && building_ai_info(b.type).shoots();
 		const int decay_min = own ? petra_decay_garrison_min(b) : 0;
-		if (b.garrisoned_units.empty() && !shoots && decay_min == 0) continue;
+		// A holder holding or expecting units is registered when first seen (one garrisoned
+		// by hand, or by an older save); registerHolder sets its time then.
+		size_t hslot = SIZE_MAX;
+		{
+			auto it = std::lower_bound(holders.begin(), holders.end(), b.id, [](const PetraHolderEntry &e, uint32_t id) { return e.id < id; });
+			if (it != holders.end() && it->id == b.id) hslot = (size_t)(it - holders.begin());
+			else if (!b.garrisoned_units.empty() || incoming[bi] > 0) hslot = petra_register_holder(b.id);
+		}
+		const bool holder_check = hslot != SIZE_MAX && petra_timer_ - holders[hslot].time > 3.0f;
+		if (b.garrisoned_units.empty() && !shoots && decay_min == 0) {
+			if (holder_check && incoming[bi] <= 0) holders.erase(holders.begin() + (std::ptrdiff_t)hslot);
+			continue;
+		}
 		const PetraAround around = petra_around(b);
 		std::vector<uint32_t> leave;
 		// garrisonManager.js keepGarrisoned TYPE_DECAY holds only the gmin units garrisonUnitsInside
@@ -35350,6 +35445,10 @@ void Simulation::petra_manage_garrisons() {
 		if (!recall.empty()) {
 			cmd_stop(recall.data(), recall.size());
 			incoming[bi] -= (int)recall.size();
+		}
+		if (holder_check) {
+			if (b.garrisoned_units.size() == leave.size() && incoming[bi] <= 0) holders.erase(holders.begin() + (std::ptrdiff_t)hslot);
+			else holders[hslot].time = petra_timer_;
 		}
 		// defenseManager.js:569-579 and 692-693: an Attacked event between this holder and an
 		// enemy tower or fortress in its range garrisons it too, with no unit near.
@@ -35396,6 +35495,7 @@ void Simulation::petra_manage_garrisons() {
 		if (holder) {
 			const uint32_t uid = units_.id[t];
 			order_garrison(&uid, 1, holder);
+			petra_register_holder(holder);
 		}
 	}
 }
@@ -37475,6 +37575,7 @@ void Simulation::petra_reset_ai_state() {
 	petra_queue_heads_ = PetraQueueHeads{};
 	petra_ferried_guards_ = PetraFerriedGuards{};
 	petra_ship_idle_ = PetraShipIdle{};
+	petra_holders_ = PetraHolders{};
 	petra_approach_.clear();
 	petra_inaccessible_.clear();
 	petra_base_dropsite_checks_.clear();
@@ -39483,6 +39584,11 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 					if constexpr (Ar::loading)
 						if (v.dock_at_16 > 2) ar.ok = false;
 				} else v.dock_at_16 = 0;
+				if (ar.version >= Simulation::SAVE_VERSION_PETRA_IDLE_CHECKS) {
+					io_vec(ar, v.idle_checks, 1u << 16, [&](std::pair<uint32_t, float> &p) { ar.pod(p.first); ar.pod(p.second); });
+					if constexpr (Ar::loading)
+						if (!std::is_sorted(v.idle_checks.begin(), v.idle_checks.end())) ar.ok = false;
+				} else v.idle_checks.clear(); // older saves: every base checks at its next turn
 			} else v = PetraKept{}; // decided again at the next AI turn, from the game as loaded
 		} else if constexpr (std::is_same_v<T, S::PetraQueueHeads>) {
 			if (ar.version >= Simulation::SAVE_VERSION_PETRA_QUEUE_HEADS) {
@@ -39508,6 +39614,13 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 					if (std::adjacent_find(v.ships.begin(), v.ships.end(), [](const auto &a, const auto &b) { return a.id >= b.id; }) != v.ships.end())
 						ar.ok = false;
 			} else v.ships.clear(); // older saves: each idle ship waits a turn where it stands again
+		} else if constexpr (std::is_same_v<T, S::PetraHolders>) {
+			if (ar.version >= Simulation::SAVE_VERSION_PETRA_HOLDER_TIME) {
+				io_vec(ar, v.holders, 1u << 16, [&](S::PetraHolderEntry &e) { ar.pod(e.id); ar.pod(e.time); });
+				if constexpr (Ar::loading)
+					if (std::adjacent_find(v.holders.begin(), v.holders.end(), [](const auto &a, const auto &b) { return a.id >= b.id; }) != v.holders.end())
+						ar.ok = false;
+			} else v.holders.clear(); // older saves: each holder is registered again when next seen
 		} else if constexpr (std::is_same_v<T, S::PetraDefenseTargets>) {
 			if (ar.version >= Simulation::SAVE_VERSION_PETRA_TARGET_LIST) {
 				io_vec(ar, v.ids, 1u << 16, [&](uint32_t &id) { ar.pod(id); });

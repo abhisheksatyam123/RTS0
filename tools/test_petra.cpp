@@ -9889,6 +9889,50 @@ static void test_far_sparse_gatherer_returning() {
 	CHECK(returning && cleared, "a stone gatherer on a far mine gives it up on the way back");
 }
 
+// baseManager.js setWorkersIdleByPriority: each base checks its own gatherers' balance on its
+// own turn (basesManager.js:767-771, one base a turn), 8 s after its last check
+// (timeNextIdleCheck, baseManager.js:604), not one check for the whole AI every 8 s.
+static void test_per_base_idle_check() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) cc = &b;
+	CHECK(cc != nullptr, "AI 1 has a civic centre");
+	if (!cc) return;
+	const float cx = cc->x, cz = cc->z;
+	std::vector<uint32_t> anchors{cc->id};
+	anchors.push_back(s->spawn_building_world(cx > 0.0f ? cx - 40.0f : cx + 40.0f, cz, BLD_TOWN_CENTER, 1));
+	anchors.push_back(s->spawn_building_world(cx, cz > 0.0f ? cz - 40.0f : cz + 40.0f, BLD_TOWN_CENTER, 1));
+	std::sort(anchors.begin(), anchors.end());
+	s->players_[1].phase = 2;
+	std::vector<std::pair<float, uint32_t>> checks; // when each base's next check moved on, and the base
+	std::vector<std::pair<uint32_t, float>> last;
+	for (int k = 0; k < (int)(20.0f / Simulation::FIXED_STEP); ++k) {
+		s->tick(Simulation::FIXED_STEP);
+		const auto now = s->petra_kept_.idle_checks; // player 1 is PETRA_PLAYER: its state is the live one
+		for (const auto &c : now) {
+			auto it = std::find_if(last.begin(), last.end(), [&](const auto &l) { return l.first == c.first; });
+			if (it == last.end() || it->second != c.second) checks.push_back({c.second - 8.0f, c.first});
+		}
+		last = now;
+	}
+	int bases_checked = 0, twice = 0;
+	for (uint32_t a : anchors) {
+		std::vector<float> at;
+		for (const auto &c : checks) if (c.second == a) at.push_back(c.first);
+		bases_checked += !at.empty();
+		for (size_t j = 1; j < at.size(); ++j) twice += at[j] - at[j - 1] >= 8.0f;
+	}
+	std::printf("  three bases over 20 s: %d bases checked their gatherers, %d checks in all, %d repeats 8 s or more apart\n",
+	            bases_checked, (int)checks.size(), twice);
+	CHECK(bases_checked == 3 && twice >= 3, "each base checks its gatherers on its own turn, every 8 s");
+}
+
 // worker.js:220-232 (PC14): a gatherer reassigned to another resource (switchGatherer,
 // reassignIdleWorkers after a failed search) takes its load to a dropsite before gathering
 // the new type, rather than throwing it away at the first gather.
@@ -10397,6 +10441,7 @@ int main(int argc, char **argv) {
 	RUN(test_first_base);
 	RUN(test_barter);
 	RUN(test_switched_gatherer_keeps_load);
+	RUN(test_per_base_idle_check);
 	RUN(test_returning_gatherer_resent);
 	RUN(test_diplomacy_most_needed);
 	RUN(test_first_market_border);
