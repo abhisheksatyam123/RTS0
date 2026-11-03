@@ -25447,10 +25447,49 @@ void Simulation::petra_manage_economy(float dt) {
 	// worker found nothing of in the last 20 s (lastFailedGather). switchGatherer takes a citizen
 	// soldier off food and a woman onto it when there is one.
 	std::vector<uint8_t> gather_type(reassignable_workers.size(), (uint8_t)RES_COUNT); // RES_COUNT: none yet
-	// baseManager.js:604 timeNextIdleCheck = elapsedTime + 8; baseManager.js:1155 only from the
-	// town phase, or while phasing up to it (HQ.phasing == 2).
-	if ((int)(petra_timer_ / 8.0f) != (int)((petra_timer_ - petra_turn_dt_) / 8.0f) &&
-	    (petra_ps().phase > 1 || petra_phasing())) {
+	PetraBasesMap bmap;
+	bool bmap_built = false;
+	// The worker's base: the one whose tile it stands on, else the nearest on its land.
+	auto worker_base = [&](float wx, float wz, uint16_t wland) {
+		int my_base = bmap.at(wx, wz, map_half_);
+		if (my_base > 0 && bmap.anchors[my_base - 1].land != wland) my_base = 0;
+		if (my_base == 0) {
+			float best = 1e30f;
+			for (size_t a = 0; a < bmap.anchors.size(); ++a) {
+				if (bmap.anchors[a].land != wland) continue;
+				const float d = (bmap.anchors[a].x - wx) * (bmap.anchors[a].x - wx) + (bmap.anchors[a].z - wz) * (bmap.anchors[a].z - wz);
+				if (d < best) { best = d; my_base = (int)a + 1; }
+			}
+		}
+		return my_base;
+	};
+	// baseManager.js update: the base whose turn it is (basesManager.js:767-771, one a turn)
+	// checks its own gatherers once elapsedTime passes its timeNextIdleCheck, then sets it 8 s on
+	// (baseManager.js:604); an anchored base only from the town phase, or while phasing up to it
+	// (baseManager.js:1155, HQ.phasing == 2). With no anchored base, the baseless base checks every
+	// worker with no phase condition (baseManager.js:1066).
+	uint32_t check_anchor = UINT32_MAX;
+	std::vector<uint32_t> &live_anchors = petra_switch_anchor_scratch_;
+	live_anchors.clear();
+	for (const Building &b : buildings_)
+		if (b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked && (is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY)) live_anchors.push_back(b.id);
+	if (live_anchors.empty()) check_anchor = 0;
+	else if (petra_ps().phase > 1 || petra_phasing()) check_anchor = petra_turn_anchor_ ? petra_turn_anchor_ : live_anchors[0];
+	auto &idle_checks = petra_kept_.idle_checks;
+	auto check_it = std::lower_bound(idle_checks.begin(), idle_checks.end(), std::make_pair(check_anchor, -1.0e30f));
+	const bool has_entry = check_it != idle_checks.end() && check_it->first == check_anchor;
+	if (check_anchor != UINT32_MAX && petra_timer_ > (has_entry ? check_it->second : 0.0f)) {
+		if (has_entry) check_it->second = petra_timer_ + 8.0f;
+		else idle_checks.insert(check_it, {check_anchor, petra_timer_ + 8.0f});
+		// Forget the bases that are gone.
+		idle_checks.erase(std::remove_if(idle_checks.begin(), idle_checks.end(), [&](const std::pair<uint32_t, float> &c) {
+			return c.first && std::find(live_anchors.begin(), live_anchors.end(), c.first) == live_anchors.end();
+		}), idle_checks.end());
+		petra_bases_map(bmap);
+		bmap_built = true;
+		int check_base = 0; // base number from 1 in bmap, 0 for the baseless base
+		for (size_t a = 0; a < bmap.anchors.size(); ++a)
+			if (bmap.anchors[a].id == check_anchor) check_base = (int)a + 1;
 		uint8_t order[RES_COUNT];
 		most_needed(order);
 		float sum_want = 0.0f, sum_cur = 0.0f;
@@ -25459,16 +25498,20 @@ void Simulation::petra_manage_economy(float dt) {
 		auto switch_gatherer = [&](uint8_t from, uint8_t to) -> bool {
 			size_t pick = SIZE_MAX;
 			bool only_soldier = false, only_woman = false;
+			std::vector<uint8_t> &mine = petra_switch_mine_scratch_;
+			mine.assign(units_.count, 0);
 			for (size_t i = 0; i < units_.count; ++i) {
 				if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.action_state[i] != ACTION_GATHER) continue;
 				auto rit = res_id_to_idx_.find(units_.target_resource_id[i]);
 				if (rit == res_id_to_idx_.end() || resources_.type[rit->second] != from) continue;
+				if (worker_base(units_.pos_x[i], units_.pos_z[i], petra_access_at(units_.pos_x[i], units_.pos_z[i])) != check_base) continue;
+				mine[i] = 1;
 				const uint8_t g = unit_gather_class(units_.unit_type[i], units_.tmpl[i]);
 				if (from == RES_FOOD && g == GATHER_INFANTRY) only_soldier = true;
 				else if (to == RES_FOOD && g == GATHER_SUPPORT) only_woman = true;
 			}
 			for (size_t i = 0; i < units_.count && pick == SIZE_MAX; ++i) {
-				if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.action_state[i] != ACTION_GATHER) continue;
+				if (!mine[i]) continue;
 				const uint8_t g = unit_gather_class(units_.unit_type[i], units_.tmpl[i]);
 				if (g != GATHER_INFANTRY && g != GATHER_SUPPORT) continue;
 				auto rit = res_id_to_idx_.find(units_.target_resource_id[i]);
@@ -25557,9 +25600,8 @@ void Simulation::petra_manage_economy(float dt) {
 	struct Listed { float d2; uint32_t c; };
 	struct BaseSupplies { std::vector<Listed> nearby[RES_COUNT], medium[RES_COUNT], faraway[RES_COUNT]; };
 	std::vector<BaseSupplies> supplies;
-	PetraBasesMap bmap;
 	if (!reassignable_workers.empty() || !recheck.empty() || !sparse_returning.empty() || !gather_returning.empty()) {
-		petra_bases_map(bmap);
+		if (!bmap_built) petra_bases_map(bmap);
 		supplies.resize(bmap.anchors.size() + 1);
 		std::unordered_map<uint32_t, int> field_users, supply_users;
 		for (size_t i = 0; i < units_.count; ++i) {
@@ -25632,20 +25674,6 @@ void Simulation::petra_manage_economy(float dt) {
 					std::stable_sort(v->begin(), v->end(), [](const Listed &a, const Listed &b) { return a.d2 < b.d2; });
 	}
 
-	// The worker's base: the one whose tile it stands on, else the nearest on its land.
-	auto worker_base = [&](float wx, float wz, uint16_t wland) {
-		int my_base = bmap.at(wx, wz, map_half_);
-		if (my_base > 0 && bmap.anchors[my_base - 1].land != wland) my_base = 0;
-		if (my_base == 0) {
-			float best = 1e30f;
-			for (size_t a = 0; a < bmap.anchors.size(); ++a) {
-				if (bmap.anchors[a].land != wland) continue;
-				const float d = (bmap.anchors[a].x - wx) * (bmap.anchors[a].x - wx) + (bmap.anchors[a].z - wz) * (bmap.anchors[a].z - wz);
-				if (d < best) { best = d; my_base = (int)a + 1; }
-			}
-		}
-		return my_base;
-	};
 	// worker.js:242-271: back through startGathering if the supply is crowded (over one gatherer
 	// and under 30 each), or not in its base's nearby list while that list has supplies, or in
 	// neither nearby nor medium while medium has some; else the supply becomes its own.
@@ -39490,6 +39518,11 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 					if constexpr (Ar::loading)
 						if (v.dock_at_16 > 2) ar.ok = false;
 				} else v.dock_at_16 = 0;
+				if (ar.version >= Simulation::SAVE_VERSION_PETRA_IDLE_CHECKS) {
+					io_vec(ar, v.idle_checks, 1u << 16, [&](std::pair<uint32_t, float> &p) { ar.pod(p.first); ar.pod(p.second); });
+					if constexpr (Ar::loading)
+						if (!std::is_sorted(v.idle_checks.begin(), v.idle_checks.end())) ar.ok = false;
+				} else v.idle_checks.clear(); // older saves: every base checks at its next turn
 			} else v = PetraKept{}; // decided again at the next AI turn, from the game as loaded
 		} else if constexpr (std::is_same_v<T, S::PetraQueueHeads>) {
 			if (ar.version >= Simulation::SAVE_VERSION_PETRA_QUEUE_HEADS) {
