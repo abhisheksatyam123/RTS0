@@ -810,6 +810,7 @@ void RtsoWorldView::_ready() {
 
 	init_damage_fx();
 	init_animation_controllers();
+	init_blob_shadows();
 }
 
 // The terrain and water write their own FOG (fogged, then darkened by the LOS, as
@@ -865,6 +866,79 @@ void RtsoWorldView::set_fog_overlay(Node *n, float brightness) {
 // DamageVariants of template_structure.xml: mediumdamage (65% hit points)
 // smokes, heavydamage (35%) burns. Smoke lives 6 s instead of 14-16 s so a
 // burning town does not fill the smaller RTS0 maps.
+// Blob shadows: a soft dark disc under each unit, structure and tree, sized by its footprint.
+// One MultiMesh of ground quads (flat, unshaded, alpha-blended) so it costs one draw on every
+// renderer, Compatibility included. Each disc is drawn where its object is seen (the same LOS
+// test the units use), so a hidden unit leaves no shadow behind.
+void RtsoWorldView::init_blob_shadows() {
+	Ref<Shader> sh;
+	sh.instantiate();
+	sh->set_code(
+			"shader_type spatial;\n"
+			"render_mode blend_mix, unshaded, cull_disabled, depth_draw_never, shadows_disabled, fog_disabled;\n"
+			"uniform float strength : hint_range(0.0, 1.0) = 0.6;\n"
+			"void fragment() {\n"
+			"\tfloat d = length(UV - vec2(0.5)) * 2.0;\n"
+			"\tALBEDO = vec3(0.0);\n"
+			"\tALPHA = (1.0 - smoothstep(0.0, 1.0, d)) * strength;\n"
+			"}\n");
+	Ref<ShaderMaterial> mat;
+	mat.instantiate();
+	mat->set_shader(sh);
+	Ref<PlaneMesh> plane;
+	plane.instantiate();
+	plane->set_size(Vector2(1.0f, 1.0f));
+	plane->set_material(mat);
+	blob_mm_.instantiate();
+	blob_mm_->set_transform_format(MultiMesh::TRANSFORM_3D);
+	blob_mm_->set_mesh(plane);
+	blob_mmi_ = memnew(MultiMeshInstance3D);
+	blob_mmi_->set_multimesh(blob_mm_);
+	blob_mmi_->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_OFF);
+	add_child(blob_mmi_);
+}
+
+void RtsoWorldView::update_blob_shadows(const rtso::Simulation *sim) {
+	if (!blob_mmi_ || !sim) return;
+	// The discs' ground height: the terrain, or the water's surface where the water is higher.
+	const float water_h = sim->water_height() > -0.5f ? sim->water_height() : -1.0e9f;
+	auto ground = [&](float x, float z) { return std::max(sim->get_terrain_height(x, z), water_h) + 0.12f; };
+	std::vector<Transform3D> discs;
+	discs.reserve(sim->unit_count() + sim->buildings().size() + 64);
+
+	// Units: a disc 2.6 collision radii across. Ships float on the water, so they get none.
+	const auto uview = sim->units();
+	for (size_t i = 0; i < uview.count; ++i) {
+		if (!uview.alive[i] || rtso::unit_is_ship(uview.unit_type[i])) continue;
+		const float x = uview.pos_x[i], z = uview.pos_z[i];
+		if (!rtso::los_sees_unit(*sim, local_player_, x, z, uview.team[i])) continue;
+		const float d = 2.6f * rtso::unit_collision_radius(uview.unit_type[i]);
+		discs.emplace_back(Basis().scaled(Vector3(d, 1.0f, d)), Vector3(x, ground(x, z), z));
+	}
+
+	// Structures: their footprint, turned with the building. Ours always; others' where the
+	// fog shows them (their last-seen mirage is drawn there too).
+	for (const auto &b : sim->buildings()) {
+		if (b.wrecked) continue;
+		if (b.team != 0 && mirages_.los_at(b.x, b.z) == rtso::Simulation::FOW_UNEXPLORED) continue;
+		const float hw = 1.1f * b.half_size, hd = 1.1f * (b.half_d > 0.0f ? b.half_d : b.half_size);
+		discs.emplace_back(Basis(Vector3(0.0f, 1.0f, 0.0f), b.rot).scaled(Vector3(2.0f * hw, 1.0f, 2.0f * hd)),
+				Vector3(b.x, ground(b.x, b.z), b.z));
+	}
+
+	// Wood: a disc 1.3 units (about 5 m) across, in explored land only.
+	const auto rview = sim->resources();
+	for (size_t r = 0; r < rview.count; ++r) {
+		if (rview.type[r] != rtso::RES_WOOD || (rview.alive && !rview.alive[r])) continue;
+		const float x = rview.x[r], z = rview.z[r];
+		if (mirages_.los_at(x, z) == rtso::Simulation::FOW_UNEXPLORED) continue;
+		discs.emplace_back(Basis().scaled(Vector3(1.3f, 1.0f, 1.3f)), Vector3(x, ground(x, z), z));
+	}
+
+	blob_mm_->set_instance_count((int)discs.size());
+	for (size_t i = 0; i < discs.size(); ++i) blob_mm_->set_instance_transform((int)i, discs[i]);
+}
+
 void RtsoWorldView::init_damage_fx() {
 	auto particle_mat = [](const char *tex_path, bool additive) {
 		Ref<StandardMaterial3D> m;
@@ -4613,6 +4687,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	refresh_silhouettes();
 
 	update_fog(sim, delta);
+	update_blob_shadows(sim);
 	if (paint_dirty_ && sim->resources().count > 0) build_ground_paint(sim);
 	update_territory_borders(sim);
 	if (border_mi_ && border_mi_->is_visible() == cinema_playing_) border_mi_->set_visible(!cinema_playing_);

@@ -98,6 +98,30 @@ func on_screen(u: Dictionary, vp: Vector2) -> bool:
 	var p: Vector2 = u["screen"]
 	return not u["behind"] and p.x > 8 and p.y > 8 and p.x < vp.x - 8 and p.y < vp.y - 200
 
+# The unit at `u`'s position now, as drawn: units and the camera move between the
+# steps, so a dict taken earlier has a stale screen point.
+func fresh(u: Dictionary) -> Dictionary:
+	for v in state()["units"]:
+		if v["id"] == u["id"]:
+			return v
+	return u
+
+# A unit on screen that the mouse at its current screen point picks itself (not `skip`).
+# A unit standing in front of another hides its feet, so a unit chosen earlier may no longer be
+# the one a click there picks (its pick box, not its ground point, is what a click tests).
+func hovered_unit(skip: int) -> Dictionary:
+	var st := state()
+	var vp: Vector2 = st["viewport"]
+	for c in st["units"]:
+		if int(c["id"]) == skip or not on_screen(c, vp):
+			continue
+		move(window_pos(c))
+		await frames(3)
+		var hl: PackedInt32Array = main.debug_highlight()
+		if hl.size() == 1 and hl[0] == int(c["id"]):
+			return c
+	return {}
+
 func run() -> void:
 	await frames(60)
 	# The mouse rests mid-screen: at the corner it would scroll the camera away.
@@ -182,6 +206,9 @@ func run() -> void:
 	check(not same.any(func(i): return s.has(i)), "Ctrl+double/triple-click removes them: %s" % str(s))
 
 	print("2. Shift+click adds")
+	var bh := await hovered_unit(int(a["id"]))
+	if not bh.is_empty():
+		b = bh
 	main.clear_selection()
 	await frames(20)  # past the triple-click window
 	await click(window_pos(a))
@@ -212,6 +239,9 @@ func run() -> void:
 	check(selected().is_empty(), "the box selected nothing: %s" % str(selected()))
 
 	print("4. Shift+N adds the group")
+	var bh4 := await hovered_unit(int(a["id"]))
+	if not bh4.is_empty():
+		b = bh4
 	await click(window_pos(a))
 	key(KEY_1, true, true)
 	await frames(1)
