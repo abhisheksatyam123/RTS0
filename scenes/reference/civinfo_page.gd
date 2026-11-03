@@ -90,7 +90,19 @@ static func entry(label: String, info: String, description: String) -> String:
 	return t + "\n"
 
 static func _heading(one: String, many: String, n: int) -> String:
-	return Common.heading(one if n == 1 else many, 14)
+	return _heading_caps(one if n == 1 else many, 12)
+
+## CivInfoPage.js formatHeading: each word in mixed caps, a word that starts with a letter
+## upper-cased with a first letter 6 points larger (bigFirstLetter), all bold.
+static func _heading_caps(text: String, size: int) -> String:
+	var words := PackedStringArray()
+	for word in text.split(" "):
+		if word != "" and word.substr(0, 1).to_lower() != word.substr(0, 1):
+			var caps := word.to_upper()
+			words.append("[font_size=%d][b]%s[/b][/font_size][font_size=%d][b]%s[/b][/font_size]" % [size + 6, caps.substr(0, 1), size, caps.substr(1)])
+		else:
+			words.append("[font_size=%d][b]%s[/b][/font_size]" % [size, word])
+	return " ".join(words) + "\n"
 
 ## 0.28 GameplaySection: civ and team bonuses (BonusesSubsection), specific
 ## technologies, specific structures and heroes, each as formatEntry lines.
