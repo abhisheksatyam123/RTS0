@@ -4,6 +4,8 @@
 **Date:** 2026-10-31  
 **Hardware Profile:** 11th Gen Intel(R) Core(TM) i5-1155G7 @ 2.50GHz (4 physical cores, 8 threads, Iris Xe Integrated Graphics)
 
+> **Status (2026-11-03):** the GPU separation shader, `GpuSeparation` and the GPU line-of-sight path were removed in #1813 and #1822. The measurements and file paths below are the 2026-10-31 record and no longer exist in the tree. The simulation runs on the CPU, as it did when these were measured.
+
 ---
 
 ## 1. Executive Summary
