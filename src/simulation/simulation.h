@@ -3917,6 +3917,19 @@ private:
 	void petra_fight_back(size_t i, int32_t attacker, const std::vector<PetraDefenseArmy> &armies, std::vector<uint32_t> &helped);
 	bool petra_ship_in_plan(uint32_t ship_id) const;
 	size_t petra_go_home(const std::vector<uint32_t> &squad, float x, float z, uint8_t owner, bool order_here, bool attack = false);
+	// attackPlan.js update's rolling window: 10 units a turn, here every `stride`-th from an
+	// offset that moves each turn.
+	static bool petra_attack_window(uint32_t turn, size_t k, size_t stride) { return stride <= 1 || (k + turn) % stride == 0; }
+	// lastAttackPlanUpdateTime: a "maybe" re-pick waits 5 s (10 s approaching), here every 3rd
+	// (6th) AI turn by unit id; with the window, every 3rd (6th) turn it comes up in, so the
+	// two cadences never miss each other for good.
+	static bool petra_attack_maybe_due(uint32_t turn, size_t stride, uint32_t id, bool approaching) {
+		const uint32_t every = approaching ? 6u : 3u, s = (uint32_t)std::max<size_t>(1, stride), visits = (every + s - 1) / s;
+		return (turn / s + id) % visits == 0;
+	}
+	uint32_t petra_plan_live_target(const AttackPlan &plan, float &tx, float &tz) const;
+	uint16_t petra_attack_access(const std::vector<uint32_t> &squad) const;
+	uint32_t petra_attack_retarget(AttackPlan &plan, float &tx, float &tz);
 	void petra_abort_plan(AttackPlan &plan, uint8_t transport_owner); // attackPlan.js Abort
 	std::vector<PetraChatLine> petra_chat_;
 	std::unordered_map<uint8_t, PetraDiplomacyRequest> petra_diplomacy_requests_;

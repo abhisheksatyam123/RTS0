@@ -30979,10 +30979,15 @@ uint32_t Simulation::petra_nearest_target(uint8_t kind, bool forced, uint8_t ene
 	uint16_t from[8];
 	petra_attack_from_lands(same_land, from);
 	const PetraNavalTopo *topo = nullptr;
+	// terrain-analysis.js accessibility ignores structures: a target walled in on the land we
+	// search from is on it (checkTargetObstruction then takes the piece in the way). RTS0's
+	// lands are nav regions, which walls split.
+	// (Only from a search point on the land asked for: same_land is the army's.)
+	const uint16_t from_access = same_land == 0 || petra_land_at(px, pz) == same_land ? petra_access_at(px, pz) : 0;
 	auto reachable = [&](float x, float z, float half) {
 		uint16_t to[8];
 		petra_lands_around(x, z, half, to);
-		return petra_lands_reach(from, to, same_land == 0, topo);
+		return petra_lands_reach(from, to, same_land == 0, topo) || (from_access && petra_access_at(x, z) == from_access);
 	};
 	auto valid = [&](const Building &b) {
 		if (b.team != enemy || b.hp <= 0.0f || b.wrecked) return false;
@@ -31324,11 +31329,17 @@ uint32_t Simulation::find_petra_rush_target(float &out_tx, float &out_tz, uint8_
 		enemy = petra_enemy_player(PETRA_ATTACK_RUSH);
 		if (note) petra_note_enemy(enemy);
 	}
-	if (const uint32_t id = petra_nearest_target(PETRA_ATTACK_RUSH, false, enemy, bx, bz, land, out_tx, out_tz)) return id;
+	// getNearestTarget: checkTargetObstruction for a rush too; a blocker (a palisade, a gate)
+	// becomes the target and its owner the enemy.
+	if (const uint32_t id = petra_nearest_target(PETRA_ATTACK_RUSH, false, enemy, bx, bz, land, out_tx, out_tz))
+		return petra_target_obstruction(id, bx, bz, out_tx, out_tz);
 	for (int p = 0; p < MAX_PLAYERS; ++p) // rushTargetFinder(gameState): any enemy
 		if (p != enemy && petra_foe(p) && !is_defeated((uint8_t)p))
-			if (const uint32_t id = petra_nearest_target(PETRA_ATTACK_RUSH, false, (uint8_t)p, bx, bz, land, out_tx, out_tz)) return id;
-	if (forced) return petra_nearest_target(PETRA_ATTACK_RUSH, true, enemy, bx, bz, land, out_tx, out_tz);
+			if (const uint32_t id = petra_nearest_target(PETRA_ATTACK_RUSH, false, (uint8_t)p, bx, bz, land, out_tx, out_tz))
+				return petra_target_obstruction(id, bx, bz, out_tx, out_tz);
+	if (forced)
+		if (const uint32_t id = petra_nearest_target(PETRA_ATTACK_RUSH, true, enemy, bx, bz, land, out_tx, out_tz))
+			return petra_target_obstruction(id, bx, bz, out_tx, out_tz);
 	return 0;
 }
 
@@ -31591,7 +31602,7 @@ void Simulation::petra_attack_units(AttackPlan &plan) {
 	const bool starting = plan.state_timer <= petra_turn_dt_ + 1e-3f; // the attack's first turn
 	const size_t stride = starting || members.size() < 15 ? 1 : (members.size() + 9) / 10;
 	for (size_t k = 0; k < members.size(); ++k) {
-		if (stride > 1 && (k + (size_t)petra_played_turn()) % stride != 0) continue;
+		if (!petra_attack_window(petra_played_turn(), k, stride)) continue;
 		const int32_t i = members[k];
 		if (reacted.count(i)) continue;
 		const TechClasses c = cls(i);
@@ -31625,8 +31636,7 @@ void Simulation::petra_attack_units(AttackPlan &plan) {
 				tx = b.x; tz = b.z; pad = std::max(b.half_size, b.half_d);
 			}
 			approaching = det::hypot(tx - units_.pos_x[i], tz - units_.pos_z[i]) > units_.attack_range[i] + pad + 1.0f;
-			const uint32_t every = approaching ? 6u : 3u;
-			if ((petra_played_turn() + units_.id[i]) % every != 0) continue;
+			if (!petra_attack_maybe_due(petra_played_turn(), stride, units_.id[i], approaching)) continue;
 		}
 		float range = 60.0f * M;
 		if (blocked) range = units_.attack_range[i] > 0.0f ? units_.attack_range[i] : 10.0f * M; // its own attack range
@@ -31933,17 +31943,22 @@ bool Simulation::petra_plan_forced_rush(const AttackPlan &plan) const {
 	return false;
 }
 
+// The plan's target while it stands (a foe's structure, or a unit target), else 0.
+uint32_t Simulation::petra_plan_live_target(const AttackPlan &plan, float &tx, float &tz) const {
+	if (auto it = building_id_to_idx_.find(plan.target_building_id); it != building_id_to_idx_.end()) {
+		const Building &b = buildings_[it->second];
+		if (petra_foe(b.team) && b.hp > 0.0f && !b.wrecked) { tx = b.x; tz = b.z; return b.id; }
+	} else if (const int32_t u = lookup_unit(plan.target_building_id); petra_unit_target_ok(u)) {
+		tx = units_.pos_x[u]; tz = units_.pos_z[u]; return plan.target_building_id;
+	}
+	return 0;
+}
+
 uint32_t Simulation::petra_plan_next_target(AttackPlan &plan, float &tx, float &tz, uint16_t same_land, bool must_start) {
 	// attackPlan.js UpdateWalking keeps its target; it picks another only once that one is
 	// destroyed or captured.
-	if (plan.state == AttackPlan::WALKING) {
-		if (auto it = building_id_to_idx_.find(plan.target_building_id); it != building_id_to_idx_.end()) {
-			const Building &b = buildings_[it->second];
-			if (petra_foe(b.team) && b.hp > 0.0f && !b.wrecked) { tx = b.x; tz = b.z; return b.id; }
-		} else if (const int32_t u = lookup_unit(plan.target_building_id); petra_unit_target_ok(u)) {
-			tx = units_.pos_x[u]; tz = units_.pos_z[u]; return plan.target_building_id;
-		}
-	}
+	if (plan.state == AttackPlan::WALKING)
+		if (const uint32_t id = petra_plan_live_target(plan, tx, tz)) return id;
 	// uniqueTargetId: no other target once that one is destroyed or captured.
 	if (plan.kind == PETRA_ATTACK_UNIQUE) return 0;
 	if (plan.kind == PETRA_ATTACK_RUSH && plan.state != AttackPlan::ATTACKED) {
@@ -31952,6 +31967,34 @@ uint32_t Simulation::petra_plan_next_target(AttackPlan &plan, float &tx, float &
 		return find_petra_rush_target(tx, tz, plan.target_player, centred ? c : nullptr, 0, petra_plan_forced_rush(plan));
 	}
 	return find_petra_attack_target(tx, tz, same_land, &plan, must_start);
+}
+
+// attackPlan.js getAttackAccess: the land of the unit nearest the army's centre (the centre
+// itself may be on water or a cliff).
+uint16_t Simulation::petra_attack_access(const std::vector<uint32_t> &squad) const {
+	uint16_t land = 0;
+	if (float cx, cz; petra_squad_centre(squad, cx, cz)) {
+		float best = 1e18f;
+		for (uint32_t uid : squad) {
+			const int32_t k = lookup_unit(uid);
+			if (k < 0 || !units_.alive[k] || unit_is_ship(units_.unit_type[k])) continue;
+			const float dx = units_.pos_x[k] - cx, dz = units_.pos_z[k] - cz;
+			if (dx * dx + dz * dz < best) { best = dx * dx + dz * dz; land = petra_land_at(units_.pos_x[k], units_.pos_z[k]); }
+		}
+	}
+	return land;
+}
+
+// attackPlan.js UpdateTarget once the target is gone: the nearest on the army's land; with
+// nothing left of this enemy there, help another started attack whose target is on it
+// before turning to another enemy. 0 when there is none (the plan aborts).
+uint32_t Simulation::petra_attack_retarget(AttackPlan &plan, float &tx, float &tz) {
+	const uint16_t army_land = petra_attack_access(plan.squad);
+	const uint8_t was_enemy = plan.target_player;
+	uint32_t next_id = petra_plan_next_target(plan, tx, tz, army_land);
+	if (plan.kind != PETRA_ATTACK_UNIQUE && (next_id == 0 || petra_target_owner(next_id) != was_enemy))
+		if (const uint32_t help = petra_help_attack_target(plan, army_land, tx, tz)) next_id = help;
+	return next_id;
 }
 
 void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float base_z) {
@@ -32539,15 +32582,22 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 
 			if (arrived) {
 				float tx = 0.0f, tz = 0.0f;
-				uint32_t target_id = petra_plan_next_target(plan, tx, tz);
+				// The target it walked to, while it stands.
+				uint32_t target_id = petra_plan_live_target(plan, tx, tz);
 				// attackPlan.js arrival: a Rush takes the nearest undefended target from where its
-				// army stands, on its land, when there is one.
+				// army stands, on its land, when there is one (getNearestTarget: its owner is
+				// the enemy now).
 				if (float c[2]; plan.kind == PETRA_ATTACK_RUSH && petra_squad_centre(squad, c[0], c[1])) {
 					float rx = 0.0f, rz = 0.0f;
 					if (const uint32_t r = find_petra_rush_target(rx, rz, plan.target_player, c, petra_land_at(c[0], c[1]), petra_plan_forced_rush(plan))) {
 						target_id = r; tx = rx; tz = rz;
+						if (const uint8_t owner = petra_target_owner(r); owner != 0xFF) plan.target_player = owner;
 					}
 				}
+				// Then state "" runs UpdateTarget at once: a target lost on the way is replaced
+				// from the land of the unit nearest the army's centre, helping another attack first.
+				plan.state = AttackPlan::ATTACKED;
+				if (target_id == 0) target_id = petra_attack_retarget(plan, tx, tz);
 				if (target_id == 0) {
 					// UpdateTarget fails and attackManager aborts the plan: Abort withdraws to the
 					// rally point or a nearer base on the army's land.
@@ -32634,25 +32684,8 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 			}
 
 			if (!target_alive) {
-				// attackPlan.js getAttackAccess: the next target is on the land of the unit nearest
-				// the army's centre.
-				uint16_t army_land = 0;
-				if (float cx, cz; petra_squad_centre(squad, cx, cz)) {
-					float best = 1e18f;
-					for (uint32_t uid : squad) {
-						const int32_t k = lookup_unit(uid);
-						if (k < 0 || !units_.alive[k] || unit_is_ship(units_.unit_type[k])) continue;
-						const float dx = units_.pos_x[k] - cx, dz = units_.pos_z[k] - cz;
-						if (dx * dx + dz * dz < best) { best = dx * dx + dz * dz; army_land = petra_land_at(units_.pos_x[k], units_.pos_z[k]); }
-					}
-				}
 				float tx = 0.0f, tz = 0.0f;
-				const uint8_t was_enemy = plan.target_player;
-				uint32_t next_id = petra_plan_next_target(plan, tx, tz, army_land);
-				// UpdateTarget: with nothing left of this enemy on our land, help another started
-				// attack whose target is on it before turning to another enemy.
-				if (plan.kind != PETRA_ATTACK_UNIQUE && (next_id == 0 || petra_target_owner(next_id) != was_enemy))
-					if (const uint32_t help = petra_help_attack_target(plan, army_land, tx, tz)) next_id = help;
+				const uint32_t next_id = petra_attack_retarget(plan, tx, tz);
 				if (next_id != 0) {
 					plan.target_building_id = next_id;
 					plan.target_x = tx;
@@ -33209,7 +33242,7 @@ void Simulation::petra_abort_plan(AttackPlan &plan, uint8_t transport_owner) {
 	float home_x = 0.0f, home_z = 0.0f;
 	if (n > 0) {
 		ax /= (float)n; az /= (float)n;
-		const uint16_t land = petra_land_at(ax, az);
+		const uint16_t land = petra_attack_access(plan.squad); // getAttackAccess
 		float best = 1e30f;
 		if ((plan.staging_x != 0.0f || plan.staging_z != 0.0f) && petra_land_at(plan.staging_x, plan.staging_z) == land) {
 			best = (plan.staging_x - ax) * (plan.staging_x - ax) + (plan.staging_z - az) * (plan.staging_z - az);
@@ -34944,6 +34977,11 @@ bool Simulation::petra_find_position(uint8_t btype, const float *base_at, const 
 	auto on_border = [&](float x, float z) { return near_map_border(x, z, border); };
 	std::vector<std::array<float, 2>> armies;
 	petra_invading_army_centres(armies);
+	// queueplanBuilding.js places the structure at the tile's centre, the point isNearInvadingArmy
+	// tests here and again when builders are sent (assignToFoundations). The footprint here stands
+	// on whole cells, so an even one's centre is half a cell short of the tile's: test that point.
+	const int foot = building_type_info(btype).footprint;
+	const float centre_shift = foot % 2 ? 0.0f : -0.5f * GRID;
 	for (int iz = 0; iz < bh; ++iz)
 		for (int ix = 0; ix < bw; ++ix) {
 			const size_t j = (size_t)iz * bw + ix;
@@ -34952,11 +34990,10 @@ bool Simulation::petra_find_position(uint8_t btype, const float *base_at, const 
 			const float x = ((float)(ix + m.x0) + 0.5f) * GRID - map_half_, z = ((float)(iz + m.z0) + 0.5f) * GRID - map_half_;
 			if (favor_border && on_border(x, z)) v[j] = (uint8_t)std::min(255, v[j] + 50);
 			else if (disfavor_border && !on_border(x, z)) v[j] = (uint8_t)std::min(255, v[j] + 10);
-			if (petra_near_invading_army(x, z, armies)) v[j] = 0;
+			if (petra_near_invading_army(x + centre_shift, z + centre_shift, armies)) v[j] = 0;
 			else if (base <= 0 && favored > 0 && m.base[j] == favored) v[j] = (uint8_t)std::min(255, v[j] + 100);
 		}
 	// Map.findBestTile: the first tile of the highest value the structure fits on.
-	const int foot = building_type_info(btype).footprint;
 	auto best_tile = [&](int ring) -> bool {
 		int best = 0;
 		for (int iz = 0; iz < bh; ++iz)
