@@ -79,6 +79,11 @@ func run() -> void:
 	var tips: Control = page.get_node_or_null("VBox/HBox/Right/SPTips")
 	check(tips != null and tips.visible and tips.find_child("AITips", true, false).text.begins_with("Although reasonably easy"),
 		"the newcomer tip shows in single player")
+	# TipsPanel.xml aiTips: ModernLeftLabelText, bold 14, white, top-left.
+	var tip_text: Label = tips.find_child("AITips", true, false) if tips else null
+	check(tip_text != null and tip_text.get_theme_font("font") is FontVariation and tip_text.get_theme_font_size("font_size") == 14
+		and tip_text.horizontal_alignment == HORIZONTAL_ALIGNMENT_LEFT and tip_text.vertical_alignment == VERTICAL_ALIGNMENT_TOP,
+		"the tip is ModernLeftLabelText (bold 14, left, top)")
 	if tips:
 		var tick: CheckBox = tips.find_child("DisplaySPTips", true, false)
 		tick.button_pressed = false

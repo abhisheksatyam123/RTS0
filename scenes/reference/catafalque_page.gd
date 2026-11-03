@@ -22,10 +22,11 @@ static func open(parent: Node) -> Control:
 	parent.add_child(page)
 	return page
 
-## getEntityPrimaryNameFormatted: the specific name unless the player shows
-## generic names only (gui.session.howtoshownames 3).
+## getEntityPrimaryNameFormatted: the specific name for howtoshownames 0 and 2, the generic
+## one for 1 and 3 (g_SpecificNamesPrimary in tooltips.js).
 static func primary_name(generic: String, specific: String) -> String:
-	return generic if specific == "" or Ref.name_mode == 3 else specific
+	var specific_first := Ref.name_mode == 0 or Ref.name_mode == 2
+	return specific if specific != "" and specific_first else generic
 
 ## getAurasTooltip: "<name>:" in the header font, the description in the body font,
 ## then "Range: N meter(s)" when it has one (the unit in the orange unit font).
@@ -136,15 +137,15 @@ func _build_emblems() -> void:
 		img.size = Vector2(128, 128)
 		img.tooltip_text = e["tooltip"]
 		box.add_child(img)
-		var cap := Label.new() # "EmblemText" over "EmblemMask"
-		cap.text = e["name"]
-		cap.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		cap.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		cap.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		var cap := Ref.rich_text() # "EmblemText" over "EmblemMask": the primary name, caps formatted
+		cap.bbcode_enabled = true
+		cap.scroll_active = false
+		cap.size_flags_vertical = Control.SIZE_FILL
+		cap.size_flags_horizontal = Control.SIZE_FILL
+		cap.text = "[center]%s[/center]" % Ref.name_caps(e["name"])
 		cap.position = Vector2(0, EMBLEM.y / 2 - 18)
 		cap.size = Vector2(EMBLEM.x, 36)
 		cap.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		cap.add_theme_font_size_override("font_size", 13)
 		var mask := StyleBoxFlat.new()
 		mask.bg_color = Color(0, 0, 0, 0.55)
 		cap.add_theme_stylebox_override("normal", mask)

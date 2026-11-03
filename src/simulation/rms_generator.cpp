@@ -13905,6 +13905,15 @@ void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed, uint8_t type) {
 			if (m >= -2.0f && m <= 1.0f) t.tiles[j] = index_of(b.tier[0]);
 			else if (m > 1.0f && m < 2.0f) t.tiles[j] = pick(b.main, 4, (int)(j % (size_t)res), (int)(j / (size_t)res), 11);
 		}
+	// canyon.js: paintTerrainBasedOnHeight(3.1, 29, 0, tCliff) after its features and the player bases, before
+	// createBumps and createHills (RTS0 adds none of those, so the heights here are the script's at that point).
+	// Its land is 3 m above 0 (synth_canyon writes it absolute, with no water), so the heights count from 0 m.
+	if (!own && type == MAP_CANYON)
+		for (size_t j = 0; j < t.tiles.size(); ++j) {
+			if (!free_tile(j)) continue;
+			const float m = metres_up[j] + water / metre;
+			if (m >= 3.1f && m < 29.0f) t.tiles[j] = pick(b.cliff, 2, (int)(j % (size_t)res), (int)(j / (size_t)res), 13);
+		}
 	// Biome maps whose script paints its areas with g_Terrains' names: neareastern_badlands.js's oasis
 	// (LayeredPainter [[tSand, pForest], [tGrassSand25, pForestOasis], tGrassSand25, tShore, tWaterDeep],
 	// [2, 3, 1, 1], its palms' floor the forest floors) and hills ([tCliff, tSand], [1]).
