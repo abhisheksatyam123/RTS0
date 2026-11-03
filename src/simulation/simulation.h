@@ -1666,6 +1666,10 @@ public:
 	// 0 A.D. Player.js "defeated": a player out of the match. The match goes on until
 	// one side (or, under Last Man Standing, one player) is left; the defeated watch.
 	bool is_defeated(uint8_t pid) const { return pid < MAX_PLAYERS && ((defeated_mask_ >> pid) & 1); }
+	// The GPU pushing forces (GpuSeparation) round differently on each GPU, and a
+	// machine without one computes them on the CPU: allowed only where no other
+	// machine has to reach the same state (not in a networked game or a replay).
+	void set_gpu_push(bool on) { gpu_push_ = on; }
 	uint8_t defeated_mask() const { return defeated_mask_; }
 	uint8_t winner_mask() const { return winner_mask_; }
 	// Players that have held units or structures this match (only they can be defeated).
@@ -3801,6 +3805,7 @@ private:
 	// that had some was already defeated.
 	uint8_t had_unit_mask_ = 0;
 	uint8_t defeated_mask_ = 0;
+	bool gpu_push_ = false; // not saved: set by the session each frame
 	uint8_t winner_mask_ = 0;
 	float wonder_hold_[MAX_PLAYERS] = {}; // the longest countdown of each player's wonders (Building::wonder_hold)
 	// GetPlayersByDiplomacy("IsExclusiveMutualAlly") under allied victory, else nobody.
