@@ -161,7 +161,9 @@ int main() {
 			if (n > flying) shots += (int)(n - flying);
 			flying = n;
 		}
-		CHECK(shots >= 4);
+		// The foe can't attack a plane, so it doesn't retaliate or chase: the plane fires the shots it
+		// gets off in range and then goes idle (defenseManager.js canAttackTarget, DM:753).
+		CHECK(shots >= 2);
 		if (const int32_t fi = index_of(c, foe); fi >= 0 && c.units().alive[fi]) c.cmd_delete(1, &foe, 1);
 		run(c, 30.0f);
 		const int32_t fi = index_of(c, foe);
