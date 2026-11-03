@@ -89,7 +89,7 @@ static func entity_name(generic: String, specific: String) -> String:
 ## tooltips.js getEntityNamesFormatted: "Primary (Secondary)" on one line under name_mode,
 ## the primary name in small caps (its first letter sans-bold-16, the rest upper case in
 ## sans-bold-12), the secondary in sans-bold-16.
-static func entity_names_formatted(generic: String, specific: String) -> String:
+static func entity_names_formatted(generic: String, specific: String, rest_size := 12) -> String:
 	if specific == "":
 		return _name_big(L10n.t(generic))
 	var specific_first := name_mode == 0 or name_mode == 2
@@ -97,10 +97,14 @@ static func entity_names_formatted(generic: String, specific: String) -> String:
 	var secondary := ""
 	if name_mode == 0 or name_mode == 1:
 		secondary = L10n.t(generic) if specific_first else specific
-	var caps := _name_big(primary.substr(0, 1)) + "[font_size=12][b]%s[/b][/font_size]" % primary.substr(1).to_upper()
+	var caps := name_caps(primary, rest_size)
 	if secondary == "" or primary == secondary:
 		return L10n.sprintf(L10n.t("%(primaryName)s"), {"primaryName": caps})
 	return L10n.sprintf(L10n.t("%(primaryName)s (%(secondaryName)s)"), {"primaryName": caps, "secondaryName": _name_big(secondary)})
+
+## getEntityPrimaryNameFormatted's caption: the first letter at 16 px, the rest upper-cased at 12 px.
+static func name_caps(text: String, rest_size := 12) -> String:
+	return _name_big(text.substr(0, 1)) + "[font_size=%d][b]%s[/b][/font_size]" % [rest_size, text.substr(1).to_upper()]
 
 static func _name_big(text: String) -> String:
 	return "[font_size=16][b]%s[/b][/font_size]" % text
