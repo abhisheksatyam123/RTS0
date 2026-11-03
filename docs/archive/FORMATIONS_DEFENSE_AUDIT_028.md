@@ -127,7 +127,7 @@ Sources: 0.28 `defenseManager.js` checkEvents (DM) and `emergencyManager.js`.
 - **E3 (fixed).** DM:608-622 checks the scuttle (destroy an undefendable structure at 50-70% of its capture points) on each Attacked event since the last turn. RTS0 asked for a unit attacking the structure at that moment, so arrows from a tower, or a capturer that had just stopped, never triggered it. Now the turn's events. Low.
 - Open, low: `attackedAllies` counts allied units hit per player (RTS0 counts differently, and keeping 0.28's would need a save change); the emergency unload and the order of the per-turn steps differ slightly.
 
-## Pass 5 (2026-11-03): retaliation and the capture helper, tracked as G106
+## Pass 5 (2026-11-03): retaliation and the capture helper, tracked as G107
 
 Sources: 0.28 `defenseManager.js` checkEvents tail (DM:698-754) and `entityExtend.js` allowCapture (EE:160-208).
 
