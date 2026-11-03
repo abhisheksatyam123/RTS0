@@ -4574,19 +4574,16 @@ Simulation::PlacementResult Simulation::check_wall_piece(uint8_t player, const W
 		const std::vector<std::pair<int, int>> c = building_cells(g);
 		ignored.insert(ignored.end(), c.begin(), c.end());
 		if (g.type != BLD_WALL_TOWER && !is_wallset_tower_piece(g.type, g.half_size)) continue;
-		// The segments joined to a tower share its group too (SetControlGroup2), where they reach
-		// into it: their cells around the tower.
-		const float near = g.half_size + GRID;
+		// The segments joined to a tower (reaching into it) share its group too (SetControlGroup2),
+		// so a piece in that group may overlap the whole of them.
 		for (const Building &o : buildings_) {
 			if (o.id == g.id || o.team != g.team || !is_wallset_piece(o.type, o.half_size) ||
 					is_wallset_tower_piece(o.type, o.half_size))
 				continue;
 			const nav::Vec2 gap = nav::footprint_gap(o, g.x, g.z);
 			if (gap.x > g.half_size || gap.y > g.half_size) continue;
-			for (const auto &cell : building_cells(o)) {
-				const float ccx = (cell.first + 0.5f) * GRID, ccz = (cell.second + 0.5f) * GRID;
-				if (std::fabs(ccx - g.x) <= near && std::fabs(ccz - g.z) <= near) ignored.push_back(cell);
-			}
+			const std::vector<std::pair<int, int>> oc = building_cells(o);
+			ignored.insert(ignored.end(), oc.begin(), oc.end());
 		}
 	}
 	std::vector<uint32_t> ids(ignore, ignore + ignore_n);

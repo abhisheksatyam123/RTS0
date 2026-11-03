@@ -1267,6 +1267,27 @@ int main() {
 		CHECK(to_own == own && to_foreign == 0);
 	}
 
+
+	// Commands.js TryConstructWall control groups: a segment joined to a tower carries the tower's
+	// group as its second one, so a new wall from that tower (its pieces in the tower's group) may
+	// overlap the whole of that segment, not only where it reaches into the tower.
+	{
+		setup(s, 1000.0f);
+		s.set_player_active(0, true, true); // no unexplored land for an AI
+		const auto plan = s.wall_placement(0, -10.0f, 10.0f, 10.0f, 10.0f);
+		CHECK(plan.size() >= 3);
+		const size_t laid = s.cmd_build_wall(0, -10.0f, 10.0f, 10.0f, 10.0f);
+		CHECK(laid == plan.size());
+		uint32_t end_tower = 0;
+		for (const auto &bld : s.buildings())
+			if (bld.type == BLD_WALL_TOWER && std::fabs(bld.x - plan.back().x) < 0.01f && std::fabs(bld.z - plan.back().z) < 0.01f) end_tower = bld.id;
+		const Simulation::WallPiece &seg = plan[plan.size() - 2];
+		const auto r_group = s.check_wall_piece(0, seg, &end_tower, 1);
+		const auto r_alone = s.check_wall_piece(0, seg);
+		std::printf("  a piece over the whole segment joined to its tower: %d in the tower's group, %d without\n", (int)r_group, (int)r_alone);
+		CHECK(end_tower != 0 && seg.type == BLD_WALL_SEGMENT && r_group == Simulation::PLACE_OK && r_alone != Simulation::PLACE_OK);
+	}
+
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }
