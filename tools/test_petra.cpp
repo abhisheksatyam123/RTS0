@@ -7413,6 +7413,34 @@ static void test_capturing_armies() {
 	const bool shrine_avoided = sh && s->petra_dangerous_location(sh->x + 10.0f, sh->z, 0.0f);
 	std::printf("  capturing: building spots beside the shrine avoided: %s\n", shrine_avoided ? "yes" : "no");
 	CHECK(shrine_avoided, "placement keeps away from a capturing army's structure");
+	// queueplanBuilding.js zeroes each tile whose centre is near an army and puts the structure
+	// at the centre of the tile it picks, so nothing Petra lays stands near the army's foes, where
+	// assignToFoundations would never send it builders. With a shrine's army at each of a grid of
+	// points round the civic centre, the temple Petra would lay (an even footprint, whose centre
+	// is half a cell off its tile's here) stands clear of it.
+	int temples = 0, near_shrine = 0;
+	for (int gz = -6; gz <= 6; ++gz)
+		for (int gx = -6; gx <= 6; ++gx) {
+			const float px = cx + 4.5f * (float)gx, pz = cz + 4.5f * (float)gz;
+			const uint32_t probe = s->spawn_building_world(px, pz, BLD_SHRINE, MAX_PLAYERS, 1.0f);
+			const Simulation::Building *pb = probe ? bld(probe) : nullptr;
+			if (!pb) continue;
+			const float sx = pb->x, sz = pb->z;
+			s->petra_defense_armies_.clear();
+			s->petra_defense_armies_.emplace_back();
+			s->petra_defense_armies_.back().foe_ids.push_back(probe);
+			int tx = 0, tz = 0;
+			if (s->petra_find_position(BLD_TEMPLE, nullptr, nullptr, false, tx, tz)) {
+				++temples;
+				const float half = 0.5f * (float)building_type_info(BLD_TEMPLE).footprint;
+				const float wx = ((float)tx + half) * Simulation::GRID, wz = ((float)tz + half) * Simulation::GRID;
+				near_shrine += (wx - sx) * (wx - sx) + (wz - sz) * (wz - sz) < 12000.0f / 16.0f;
+			}
+			s->petra_defense_armies_.clear();
+			if (Simulation::Building *gone = bld(probe)) gone->hp = 0.0f, gone->wrecked = true;
+		}
+	std::printf("  capturing: %d temple spots chosen beside a shrine's army, %d of them near it\n", temples, near_shrine);
+	CHECK(temples > 0 && near_shrine == 0, "no structure is laid where builders are kept off by the shrine's army");
 }
 
 // 0.28 Petra has no scout: an idle citizen cavalryman stays a hunter (worker.js looks for game
