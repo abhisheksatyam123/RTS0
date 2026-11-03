@@ -7074,51 +7074,28 @@ std::vector<std::pair<float, float>> Simulation::distribute_around(const uint32_
 		if (idx < 0 || !units_.alive[idx]) return points;
 		at[i] = {units_.pos_x[idx], units_.pos_z[idx]};
 	}
-	constexpr float inv = 1.0f / PUSH_SCALE;
-	std::vector<float> px(count), pz(count), ax(count), az(count);
-	for (size_t i = 0; i < count; ++i) {
-		px[i] = points[i].first * inv;
-		pz[i] = points[i].second * inv;
-		ax[i] = at[i].first * inv;
-		az[i] = at[i].second * inv;
-	}
-
+	// Squared travel in whole crowd metres, each axis's difference rounded up (fixed
+	// ToInt_RoundToInfinity); each unit's own term is kept between swaps.
+	auto dist2 = [](const std::pair<float, float> &a, const std::pair<float, float> &b) {
+		const int64_t dx = (int64_t)std::ceil((a.first - b.first) / PUSH_SCALE);
+		const int64_t dz = (int64_t)std::ceil((a.second - b.second) / PUSH_SCALE);
+		return dx * dx + dz * dz;
+	};
 	std::vector<int64_t> d(count);
-	for (size_t i = 0; i < count; ++i) {
-		const int64_t dx = (int64_t)std::ceil(px[i] - ax[i]);
-		const int64_t dz = (int64_t)std::ceil(pz[i] - az[i]);
-		d[i] = dx * dx + dz * dz;
-	}
-
+	for (size_t i = 0; i < count; ++i) d[i] = dist2(points[i], at[i]);
 	bool improved;
 	do {
 		improved = false;
-		for (size_t i = 0; i < count; ++i) {
-			float pxi = px[i], pzi = pz[i];
-			const float axi = ax[i], azi = az[i];
-			int64_t dii = d[i];
+		for (size_t i = 0; i < count; ++i)
 			for (size_t j = i + 1; j < count; ++j) {
-				const float pxj = px[j], pzj = pz[j];
-				const int64_t dx_ji = (int64_t)std::ceil(pxj - axi);
-				const int64_t dz_ji = (int64_t)std::ceil(pzj - azi);
-				const int64_t dji = dx_ji * dx_ji + dz_ji * dz_ji;
-
-				const int64_t dx_ij = (int64_t)std::ceil(pxi - ax[j]);
-				const int64_t dz_ij = (int64_t)std::ceil(pzi - az[j]);
-				const int64_t dij = dx_ij * dx_ij + dz_ij * dz_ij;
-
-				const int64_t djj = d[j];
-				if (dji + dij < dii + djj) {
+				const int64_t dji = dist2(points[j], at[i]), dij = dist2(points[i], at[j]);
+				if (dji + dij < d[i] + d[j]) {
 					std::swap(points[i], points[j]);
-					px[i] = pxj; px[j] = pxi;
-					pz[i] = pzj; pz[j] = pzi;
-					pxi = pxj; pzi = pzj;
-					d[i] = dii = dji;
+					d[i] = dji;
 					d[j] = dij;
 					improved = true;
 				}
 			}
-		}
 	} while (improved);
 	return points;
 }
@@ -14448,12 +14425,9 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 		// is passed over before its data is read. The hundredth covers float rounding.
 		float skip = std::max(reach + step_max, ri + r_max) + 0.01f;
 		float body = 0.0f; // set below: the furthest on an axis a body could overlap this one's
-		int push_neighbors = 0;
-		constexpr int kMaxPushNeighbors = 16; // TODO-GRID-03: Clamped neighbor search culling in dense clusters
 		// `walker` (see the queries below): pass over the pairs with a unit that stands further than
 		// `body` on either axis.
 		auto push = [&](const UnitGrid::Packed &e, auto walker) SEP_INLINE {
-			if (push_neighbors >= kMaxPushNeighbors) return;
 			float lim = skip;
 			if constexpr (decltype(walker)::value) {
 				if (!(e.j & UnitGrid::PACKED_FLAG)) lim = body;
@@ -14517,7 +14491,6 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 			const float max_dist = same_group ? combined
 					: combined * PUSH_RADIUS + (moving_push ? PUSH_MOVING_EXT : PUSH_STATIC_EXT);
 			if (h2 > max_dist * max_dist) return;
-			++push_neighbors;
 			combined = max_dist * (moving_push ? PUSH_MOVING_SPREAD : PUSH_STATIC_SPREAD);
 			// a is the unit with the lower id; sign turns i's view into a's.
 			const bool i_is_a = idi < b.id;
