@@ -191,7 +191,9 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 134; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 136; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_PETRA_IDLE_CHECKS = 136; // each Petra base's next gatherer balance check (timeNextIdleCheck)
+	static constexpr uint32_t SAVE_VERSION_PETRA_HOLDER_TIME = 135; // each Petra garrison holder's holderTimeUpdate
 	static constexpr uint32_t SAVE_VERSION_GATHER_CLAIMS = 134; // each unit's place at its supply and when it took it
 	static constexpr uint32_t SAVE_VERSION_PETRA_SHIP_IDLE = 133; // each Petra idle ship's last idle position and stationary turn (moveApart)
 	static constexpr uint32_t SAVE_VERSION_PETRA_TARGET_ORDER = 132; // the targetList in discovery order (no longer sorted)
@@ -4072,6 +4074,12 @@ private:
 	struct PetraShipIdleEntry { uint32_t id; float x, z; uint8_t stationary; };
 	struct PetraShipIdle { std::vector<PetraShipIdleEntry> ships; };
 	PetraShipIdle petra_ship_idle_;
+	// garrisonManager.js holders: each holder Petra sent units into and its holderTimeUpdate (the
+	// AI time it was registered or last checked), by id; looked at again more than 3 s later.
+	struct PetraHolderEntry { uint32_t id; float time; };
+	struct PetraHolders { std::vector<PetraHolderEntry> holders; };
+	PetraHolders petra_holders_;
+	size_t petra_register_holder(uint32_t holder_id); // registerHolder; the entry's index
 	// basesManager.js basesMap kept between turns: the anchor (civic centre or colony id) that
 	// claimed each of petra_bases_map's tiles (w x w), 0 none. A tile stays with the base that
 	// first claimed it (addTerritoryIndexToBase) until the territory or that anchor is lost.
@@ -4158,10 +4166,14 @@ private:
 	// terrain alone, deep water, steep slopes and a circular map's edge splitting it and structures
 	// not, unlike petra_land_at's regions. 0 off land. Derived from the nav grid, not saved.
 	uint16_t petra_access_at(float x, float z) const;
+	// startingStrategy.js landRegions: an access land with a sea link (a cell beside a ship
+	// region), or the primary base's own. A cliff-bound mesa is not one.
+	bool petra_access_sea_linked(float x, float z) const;
 	struct PetraAccess {
 		std::vector<uint8_t> pass;  // cell (terrain tile, else nav cell) is land by terrain
 		std::vector<uint16_t> land; // its land id from 1, 0 none
 		std::vector<uint16_t> near; // an off-land cell's nearest land within 8 m, once looked up (0xFFFF before)
+		std::vector<uint8_t> shore; // by land id: a cell of it borders a ship region (built on first use, emptied with land)
 		int res = 0;
 		uint32_t stamp = 0;
 	};
@@ -4479,6 +4491,8 @@ private:
 	// noBase (anchor 0) runs every turn.
 	bool petra_base_turn(uint32_t anchor_id) const { return !petra_turn_anchor_ || !anchor_id || anchor_id == petra_turn_anchor_; }
 	void petra_update_tile_bases();
+	std::vector<uint32_t> petra_switch_anchor_scratch_; // setWorkersIdleByPriority: our live base anchors
+	std::vector<uint8_t> petra_switch_mine_scratch_; // setWorkersIdleByPriority: the checking base's gatherers of a type
 	mutable std::vector<int> petra_bases_tile_scratch_; // petra_bases_map's territory tile per column, then per row
 	// `bmap` and `base` (from 1) limit the search to that base's territory.
 	uint32_t petra_place_dropsite(uint8_t res, float min_quality = 50.0f, bool *no_site = nullptr, float fund_above = -1.0f,
@@ -4524,7 +4538,7 @@ private:
 	X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_) \
 	X(petra_sent_diplo_) X(petra_started_attacks_) X(petra_defense_build_) X(petra_dropsite_check_) \
 	X(petra_failed_gather_) X(petra_hunt_search_) X(petra_base_dropsite_checks_) X(petra_approach_) X(petra_inaccessible_) \
-	X(petra_kept_) X(petra_move_to_gatherer_) X(petra_supply_) X(petra_room_) X(petra_prospect_) X(petra_targeted_relics_) X(petra_tile_bases_) X(petra_defense_targets_) X(petra_queue_heads_) X(petra_ferried_guards_) X(petra_next_plan_) X(petra_ship_idle_)
+	X(petra_kept_) X(petra_move_to_gatherer_) X(petra_supply_) X(petra_room_) X(petra_prospect_) X(petra_targeted_relics_) X(petra_tile_bases_) X(petra_defense_targets_) X(petra_queue_heads_) X(petra_ferried_guards_) X(petra_next_plan_) X(petra_ship_idle_) X(petra_holders_)
 	struct PetraSlot {
 		bool initialized = false;
 #define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};
