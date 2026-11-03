@@ -6,6 +6,7 @@
 #include "simulation/simulation.h"
 #include "network/turn_manager.h"
 #include "network/net_types.h"
+#include <cmath>
 #include <cstdio>
 
 using namespace rtso;
@@ -73,6 +74,11 @@ int main() {
 		CHECK(owned_units(*sim, 0) == 0 && owned_buildings(*sim, 0) == 0);
 		CHECK(owned_units(*sim, GAIA_PLAYER) == gaia_units + units0);
 		CHECK(owned_buildings(*sim, GAIA_PLAYER) == gaia_blds + blds0);
+		// Health.OnValueModification: the structures lose their owner's modifiers (Hellenic
+		// Architecture's +10%), so a Gaia civic centre has its template's health.
+		for (const auto &b : sim->buildings())
+			if (b.type == BLD_TOWN_CENTER && b.team == GAIA_PLAYER)
+				CHECK(std::fabs(b.max_hp - civ_building_type_info(b.civ, b.type).max_hp) < 0.01f);
 		// The centre cell: a circular map keeps its off-world corners unseen even when revealed.
 		CHECK(sim->fow_grid(0)[(size_t)(sim->fow_res() / 2) * (size_t)sim->fow_res() + (size_t)(sim->fow_res() / 2)] == Simulation::FOW_VISIBLE);
 		// A second resign from the resigned player changes nothing.
