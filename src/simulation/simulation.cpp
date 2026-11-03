@@ -4815,6 +4815,10 @@ uint8_t Simulation::train_unlock_tech(uint8_t player_id, uint8_t unit_type, uint
 		// A civ without the unlock trains the unit outright, as in 0 A.D.
 		return tech_available_to_civ(tech, civ) ? tech : (uint8_t)TECH_NONE;
 	};
+	// Female citizen houses (units/<civ>/support_female_citizen_house.xml) are gated on
+	// unlock_females_house (Fertility Festival, 200 food, 40 s), not the civilians' tech.
+	if (tmpl < CIV_UNIT_TEMPLATE_COUNT && civ_unit_template(tmpl).unlock_tech == TECH_UNLOCK_FEMALES_HOUSE)
+		return gate(TECH_UNLOCK_FEMALES_HOUSE);
 	if (house_trains_citizens(bld_type)) {
 		uint8_t tech = tech_available_to_civ(TECH_UNLOCK_CIVILIANS_HOUSE_KUSH, civ)
 				? (uint8_t)TECH_UNLOCK_CIVILIANS_HOUSE_KUSH : (uint8_t)TECH_UNLOCK_CIVILIANS_HOUSE_GENERIC;
