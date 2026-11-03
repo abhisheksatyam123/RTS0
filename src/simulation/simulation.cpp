@@ -14928,10 +14928,11 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 			if (edge_step_barred(px[i], pz[i], nx, nz, unit_clearance_at(i))) return; // nor past a circular map's edge
 		}
 		// A plain walker that only a slide off a standing body moved this tick made no move of its own: 0.28
-		// never pushes a walker and a standing unit apart (CCmpUnitMotion_System.cpp:677, 686-687), so its
-		// HandleObstructedMove sees a unit that has not moved (motion_feedback, MOTION_SLID). Only a walk is
-		// judged so: a builder or gatherer whose slides carry it round an idle crowd keeps the count those
-		// slides hold (test_unit_pushing 35's ally crowd, 40's dock), which its replans would otherwise break.
+		// never pushes a moving walker off a standing unit of another control group (CCmpUnitMotion_System.cpp:
+		// 677, 682-687; a formation's members are exempt), so its HandleObstructedMove sees a unit that has not
+		// moved (motion_feedback, MOTION_SLID). Only ORDER_WALK walks are judged so: a gatherer's walk to its
+		// dropsite and a builder's walk off a foundation are judged too, while gather and build orders keep
+		// main's count (judging those as well broke test_unit_pushing 35 and slowed 40, MIGRATION.md).
 		// A push off a building does not clear the mark: the rule covers standing units and animals only.
 		if (slid[i] && units_.order_kind[i] == ORDER_WALK && (ux != 0.0f || uz != 0.0f) && (nx != px[i] || nz != pz[i]))
 			units_.motion[i].blocked |= MOTION_SLID;
@@ -15261,8 +15262,8 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 		// A step a closed gate stopped failed CheckMovement: 0 A.D. doesn't move the unit at all
 		// then, where RTS0 lets it slide along the gate.
 		const bool blocked = m.blocked & MOTION_BLOCKED;
-		// separation() slid it off a standing unit's body on a tick of this turn, and nothing else
-		// pushed it: an RTS0 nudge, which 0.28 never makes (CCmpUnitMotion_System.cpp:677, 686-687).
+		// separation() slid it off a standing unit's body on a tick of this turn: an RTS0 nudge, which 0.28
+		// never makes to a moving walker of another control group (CCmpUnitMotion_System.cpp:677, 682-687).
 		const bool slid = m.blocked & MOTION_SLID;
 		m.want_x = m.want_z = 0.0f;
 		m.stepped = m.blocked = 0;
@@ -15273,10 +15274,11 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 		}
 		if (!blocked && progress >= OBSTRUCTED_PROGRESS * ww) continue; // slowed, not stopped
 		// HandleObstructedMove(moved), CCmpUnitMotion.h:1099, 1378: moved is pos != initialPos, which in 0.28
-		// only the unit's own steps and pushes among walkers make. A turn whose displacement is a slide
-		// off a standing body is no move: counted as one, it held the failed count at 2 for good on a
+		// only the unit's own steps and pushes among walkers make. A turn that a slide off a standing body
+		// moved (progress under 15%) is no move: counted as one, it held the failed count at 2 for good on a
 		// walker pressed between a structure and an idle unit it stood inside (Cycladic Archipelago
-		// seed 3, archer 2860 at a Petra boarding point), which never reached MoveFailed.
+		// seed 3, archer 2860 at a Petra boarding point), which never reached MoveFailed. The bit covers the
+		// whole turn, so a walker's own push in that turn is discarded with the slide (residual, MIGRATION.md).
 		const bool moved = !blocked && !slid && ax * ax + az * az >= OBSTRUCTED_PROGRESS * OBSTRUCTED_PROGRESS * ww;
 		// CCmpUnitMotion.h:1378 HandleObstructedMove: a turn on which the unit moved but was obstructed
 		// again once m.failed >= OBSTRUCTED_AT skips the failed-count increment, yet still requests its
