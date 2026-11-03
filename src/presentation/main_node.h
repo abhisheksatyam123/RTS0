@@ -438,6 +438,7 @@ public:
 	// input.js performGroup: select, add or snap (select and move the camera) group `grp`.
 	enum GroupAction { GROUP_SELECT, GROUP_ADD, GROUP_SNAP };
 	void perform_group(int grp, GroupAction action);
+	void save_control_group(int grp);
 	void select_group(int key, bool drop);
 	void _on_garrison_group_clicked(int key);
 	void _on_barter_sell_selected(int resource);
