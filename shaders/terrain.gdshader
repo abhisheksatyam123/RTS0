@@ -66,6 +66,9 @@ void vertex() {
 }
 
 void fragment() {
+	// The triangles face down (see render_mode), so Godot turned NORMAL away from
+	// the sun for these back faces; the ground is lit from above.
+	if (!FRONT_FACING) NORMAL = -NORMAL;
 	vec2 uv = v_uv;
 	vec3 norm = normalize(v_world_normal);
 
