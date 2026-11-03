@@ -64,6 +64,6 @@ We simulated two realistic 0 A.D. match scenarios in-engine under Vulkan Forward
   - *Observation:* In `FogMirages::blur_fow_image`, accessing `thread_local std::vector<uint8_t> a` inside `JobSystem::for_each_index` caused a worker thread segfault (fixed by converting `a` to `static`).
   - *Fix Plan:* Audit all other files (`src/simulation/simulation.cpp`, `src/presentation/*.cpp`) to ensure no `thread_local` memory is accessed inside worker lambdas.
 
-- [ ] **ISSUE-GPU-01: Hook Live GPU Separation into Simulation Loop (T45)**
+- [x] **ISSUE-GPU-01: Hook Live GPU Separation into Simulation Loop (T45)**: closed, not done (#PRNUM)
   - *Observation:* Vulkan compute separation shader is operational in isolation (`shaders/compute/separation.glsl`, 9.41ms @ 7.6k units), but live simulation still executes CPU separation.
-  - *Fix Plan:* Dispatch `GpuSeparation::compute_forces` directly during `Simulation::tick` when Vulkan Forward+ is active.
+  - *Outcome:* The simulation keeps the CPU push. Every lockstep peer, replay and save must reach the same state, and a GPU's float rounding differs from another GPU's and from the CPU's, so GPU forces would desync networked games and break replays on another machine (#1791 found this). The hooked version also added cost, since it filled in only units whose CPU push came out zero, after the CPU push had run for every unit. #PRNUM took it out; `GpuSeparation::compute_forces` stays for `debug_test_gpu_separation`.

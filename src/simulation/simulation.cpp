@@ -8,7 +8,6 @@
 #include "nav/building_steering.h"
 #include "nav/rasterize.h"
 #include "../core/job_system.h"
-#include "../graphics/gpu_separation.h"
 #include <cstdio>
 #if defined(_MSC_VER) && !defined(__clang__)
 #include <intrin.h>
@@ -14249,25 +14248,6 @@ const float FAUNA_PUSH_RADIUS_LARGE = unit_collision_radius(UNIT_ELEPHANT);
 #endif
 
 
-namespace {
-GpuSeparation::AvailFn g_gpu_sep_avail_fn = nullptr;
-GpuSeparation::DispatchFn g_gpu_sep_dispatch_fn = nullptr;
-} // namespace
-
-void GpuSeparation::register_live_hooks(AvailFn avail, DispatchFn dispatch) {
-	g_gpu_sep_avail_fn = avail;
-	g_gpu_sep_dispatch_fn = dispatch;
-}
-
-bool GpuSeparation::live_available() {
-	return g_gpu_sep_avail_fn && g_gpu_sep_avail_fn();
-}
-
-bool GpuSeparation::live_dispatch(size_t count, const float *pos_xz, const float *radii, float *out_forces,
-                                  float cell_size, float min_dist, float strength) {
-	return g_gpu_sep_dispatch_fn && g_gpu_sep_dispatch_fn(count, pos_xz, radii, out_forces, cell_size, min_dist, strength);
-}
-
 void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 	const size_t n = units_.count;
 	// Pressure changes on the last tick of each turn, as MoveSubset decays it after the turn's moves
@@ -14508,24 +14488,6 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 		mov[i] = u.moving;
 	}
 	const float min_push = PUSH_MIN_FORCE * dt / PUSH_TURN;
-	// Track E (T45): Live GPU Compute Separation Dispatch when unit_count > 1000 and GpuSeparation::is_available() is true
-	const size_t unit_count = n;
-	float *gpu_forces = nullptr;
-	if (gpu_push_ && unit_count > 1000 && GpuSeparation::live_available()) {
-		float *pos_xz = arena.alloc_array<float>(N * 2);
-		float *radii = arena.alloc_array<float>(N);
-		float *out_f = arena.alloc_array<float>(N * 2);
-		if (pos_xz && radii && out_f) {
-			for (size_t k = 0; k < N; ++k) {
-				pos_xz[k * 2 + 0] = epx[k];
-				pos_xz[k * 2 + 1] = epz[k];
-				radii[k] = pu[k].r;
-			}
-			if (GpuSeparation::live_dispatch(N, pos_xz, radii, out_f, 4.0f, 2.5f, dt / PUSH_REDUCTION)) {
-				gpu_forces = out_f;
-			}
-		}
-	}
 	if (n_big) {
 		if (!grid.pack(arena, N, epx, epz, mov) || !grid.alloc_split_flagged(arena)) return;
 		if (!big.pack(arena, N, epx, epz, mov) || !big.alloc_split_flagged(arena)) return;
@@ -14755,14 +14717,6 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 			const float damp = (float)(PUSH_MAX_PRESSURE - std::min<int>(PUSH_MAX_DAMPING_PRESSURE, pressure)) / PUSH_MAX_PRESSURE;
 			ax *= damp;
 			az *= damp;
-		}
-		if (gpu_forces && ax == 0.0f && az == 0.0f && !body_overlap) {
-			const float gx = gpu_forces[i * 2 + 0] * PUSH_SCALE;
-			const float gz = gpu_forces[i * 2 + 1] * PUSH_SCALE;
-			if (gx * gx + gz * gz > min_push * min_push) {
-				ax = gx;
-				az = gz;
-			}
 		}
 		fx[i] = ax;
 		fz[i] = az;
