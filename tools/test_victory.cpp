@@ -259,9 +259,19 @@ int main() {
 		sim->set_player_active(2, true, false);
 		run(*sim, 0.05f);
 		(void)sim->take_session_notices();
+		// Player 1's structures carry a +10% health modifier; Gaia, which takes them, has none.
+		size_t bi = sim->buildings_.size();
+		for (size_t k = 0; k < sim->buildings_.size(); ++k)
+			if (sim->buildings_[k].team == 1 && sim->buildings_[k].build_progress >= 1.0f) { bi = k; break; }
+		CHECK(bi < sim->buildings_.size());
+		const uint8_t bt = sim->structure_tech_type(sim->buildings_[bi]);
+		const float base_hp = sim->buildings_[bi].max_hp / sim->structure_hp_mult(bt, 1);
+		sim->tech_mods_[1].bld_health[bt] *= 1.1f;
+		sim->buildings_[bi].max_hp = base_hp * sim->structure_hp_mult(bt, 1);
 		CHECK(sim->cmd_resign(1));
 		ns = sim->take_session_notices();
 		CHECK(ns.size() == 1 && ns[0].kind == N::DEFEATED && ns[0].player == 1 && ns[0].tech == N::END_RESIGNED);
+		CHECK(sim->buildings_[bi].team == GAIA_PLAYER && std::fabs(sim->buildings_[bi].max_hp - base_hp) < 0.01f);
 		delete sim;
 	}
 	// 7b. ConquestStructures.js: a player who starts with no structures (an army-only start
