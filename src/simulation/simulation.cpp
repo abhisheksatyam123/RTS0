@@ -35892,8 +35892,16 @@ bool Simulation::petra_is_defender(uint32_t uid) const {
 }
 
 void Simulation::petra_remove_defender(uint32_t uid) {
-	for (PetraDefenseArmy &a : petra_defense_armies_)
+	for (PetraDefenseArmy &a : petra_defense_armies_) {
 		a.defender_ids.erase(std::remove(a.defender_ids.begin(), a.defender_ids.end(), uid), a.defender_ids.end());
+		// defenseArmy.js removeOwn: the defender's foe loses its first entry, and its assignedTo goes.
+		auto to = std::find_if(a.assigned_to.begin(), a.assigned_to.end(), [&](const auto &e) { return e.first == uid; });
+		if (to == a.assigned_to.end()) continue;
+		const uint32_t foe = to->second;
+		auto ag = std::find(a.assigned_against.begin(), a.assigned_against.end(), std::make_pair(foe, uid));
+		if (ag != a.assigned_against.end()) a.assigned_against.erase(ag);
+		a.assigned_to.erase(to);
+	}
 }
 
 // defenseArmy.js "capturing": an army whose one foe is a structure, to capture it (Gaia's)
@@ -36392,6 +36400,8 @@ void Simulation::petra_manage_defense(float dt) {
 			PetraDefenseArmy &a = armies[i], &b = armies[j];
 			a.foe_ids.insert(a.foe_ids.end(), b.foe_ids.begin(), b.foe_ids.end());
 			a.defender_ids.insert(a.defender_ids.end(), b.defender_ids.begin(), b.defender_ids.end());
+			a.assigned_to.insert(a.assigned_to.end(), b.assigned_to.begin(), b.assigned_to.end());
+			a.assigned_against.insert(a.assigned_against.end(), b.assigned_against.begin(), b.assigned_against.end());
 			armies.erase(armies.begin() + (ptrdiff_t)j--);
 			a.position_last_update = now; // merge: recalculatePosition(force)
 			petra_army_position(armies[i], ix, iz);
@@ -36634,12 +36644,13 @@ void Simulation::petra_manage_defense(float dt) {
 		auto is_foe = [&](uint32_t uid) {
 			return std::find(army.foe_ids.begin(), army.foe_ids.end(), uid) != army.foe_ids.end();
 		};
+		// defenseArmy.js assignedAgainst, kept across turns: an entry goes when its defender leaves the
+		// army (removeOwn) or its foe is gone (removeFoe).
+		auto defender_in = [&](uint32_t uid) { return std::find(army.defender_ids.begin(), army.defender_ids.end(), uid) != army.defender_ids.end(); };
+		std::erase_if(army.assigned_to, [&](const auto &e) { return !defender_in(e.first); });
+		std::erase_if(army.assigned_against, [&](const auto &e) { return !defender_in(e.second) || !is_foe(e.first); });
 		std::unordered_map<uint32_t, int> against;
-		for (uint32_t uid : army.defender_ids) {
-			const int32_t idx = lookup_unit(uid);
-			if (idx >= 0 && units_.action_state[idx] == ACTION_ATTACK && is_foe(units_.target_unit_id[idx]))
-				++against[units_.target_unit_id[idx]];
-		}
+		for (const auto &e : army.assigned_against) ++against[e.first];
 		for (uint32_t uid : army.defender_ids) {
 			int32_t idx = lookup_unit(uid);
 			if (idx < 0) continue;
@@ -36686,6 +36697,11 @@ void Simulation::petra_manage_defense(float dt) {
 			// With no foe left to take (all past the 2/5/8 caps) assignUnit returns false and the
 			// defender is left as it is.
 			if (best_foe != 0) {
+				// assignUnit (DA:366): assignedTo is overridden; the foe's list gets the defender, the old entry stays.
+				auto to = std::find_if(army.assigned_to.begin(), army.assigned_to.end(), [&](const auto &e) { return e.first == uid; });
+				if (to != army.assigned_to.end()) to->second = best_foe;
+				else army.assigned_to.push_back({uid, best_foe});
+				army.assigned_against.push_back({best_foe, uid});
 				++against[best_foe];
 				if (lookup_unit(best_foe) >= 0) {
 					// returnResources: one carrying a load drops it at the nearest own dropsite on
@@ -39643,13 +39659,17 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 			// The armies go in the one-army layout: each army's defenders and foes in turn, a 0 id
 			// after each army's list (a save holding one army reads back as that army). Positions
 			// are computed from the foes, so the old position fields stay 0.
-			std::vector<uint32_t> def, foe;
+			std::vector<uint32_t> def, foe, asg_to, asg_ag; // asg_*: pairs in army order, 0 after each army
 			float cx = 0.0f, cz = 0.0f;
 			uint8_t active = 0;
 			if constexpr (!Ar::loading) {
 				for (const PetraDefenseArmy &a : v) {
 					def.insert(def.end(), a.defender_ids.begin(), a.defender_ids.end()); def.push_back(0);
 					foe.insert(foe.end(), a.foe_ids.begin(), a.foe_ids.end()); foe.push_back(0);
+					for (const auto &e : a.assigned_to) { asg_to.push_back(e.first); asg_to.push_back(e.second); }
+					asg_to.push_back(0);
+					for (const auto &e : a.assigned_against) { asg_ag.push_back(e.first); asg_ag.push_back(e.second); }
+					asg_ag.push_back(0);
 				}
 				active = !v.empty();
 			}
@@ -39657,6 +39677,10 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 			std::vector<float> updated; // positionLastUpdate per army
 			if constexpr (!Ar::loading) for (const PetraDefenseArmy &a : v) updated.push_back(a.position_last_update);
 			if (ar.version >= Simulation::SAVE_VERSION_PETRA_ARMY_POSITION_TIME) io_vec(ar, updated, 64, [&](float &f) { ar.pod(f); });
+			if (ar.version >= Simulation::SAVE_VERSION_PETRA_ASSIGNED_AGAINST) {
+				io_vec(ar, asg_to, S::UNIT_LOAD_LIMIT, [&](uint32_t &x) { ar.pod(x); });
+				io_vec(ar, asg_ag, S::UNIT_LOAD_LIMIT, [&](uint32_t &x) { ar.pod(x); });
+			}
 			if constexpr (Ar::loading) {
 				v.clear();
 				if (active) {
@@ -39670,6 +39694,17 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 					};
 					split(def, &PetraDefenseArmy::defender_ids);
 					split(foe, &PetraDefenseArmy::foe_ids);
+					auto split_pairs = [&](const std::vector<uint32_t> &list, auto member) {
+						size_t a = 0;
+						for (size_t k = 0; k < list.size();) {
+							if (list[k] == 0) { ++a; ++k; continue; }
+							if (k + 1 >= list.size() || a >= v.size()) { ar.ok = false; return; }
+							(v[a].*member).push_back({list[k], list[k + 1]});
+							k += 2;
+						}
+					};
+					split_pairs(asg_to, &PetraDefenseArmy::assigned_to);
+					split_pairs(asg_ag, &PetraDefenseArmy::assigned_against);
 					for (size_t a = 0; a < v.size() && a < updated.size(); ++a) v[a].position_last_update = updated[a];
 					if (v.size() > 64) ar.ok = false;
 				}
