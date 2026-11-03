@@ -34310,6 +34310,8 @@ void Simulation::petra_fight_back(size_t i, int32_t a, const std::vector<PetraDe
 			order_attack(&hid, 1, units_.id[a]);
 		}
 	}
+	// canAttackTarget (DM:753): a unit that can't attack the attacker leaves its order alone.
+	if (!unit_can_target(i, a)) return;
 	order_attack(&uid, 1, units_.id[a]);
 }
 
