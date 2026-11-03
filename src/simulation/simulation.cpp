@@ -31072,6 +31072,7 @@ bool Simulation::petra_relic_targeted(uint32_t relic_id) const {
 // (isValidTarget sameLand: same_land, else our base's land or across a sea) and
 // structures decaying with no arrows and no garrison.
 uint32_t Simulation::petra_nearest_target(uint8_t kind, bool forced, uint8_t enemy, float px, float pz, uint16_t same_land, float &out_tx, float &out_tz) const {
+	petra_pick_blocked_ = false;
 	if (enemy >= MAX_PLAYERS && !(enemy == GAIA_PLAYER && has_victory(VK_RELIC))) return 0;
 	uint16_t from[8];
 	petra_attack_from_lands(same_land, from);
@@ -31234,6 +31235,7 @@ uint32_t Simulation::find_petra_attack_target(float &out_tx, float &out_tz, uint
 }
 
 uint32_t Simulation::petra_target_obstruction(uint32_t id, float px, float pz, float &tx, float &tz) const {
+	petra_pick_blocked_ = false;
 	auto it = building_id_to_idx_.find(id);
 	if (it == building_id_to_idx_.end()) return id;
 	const Building &target = buildings_[it->second];
@@ -31282,16 +31284,16 @@ uint32_t Simulation::petra_target_obstruction(uint32_t id, float px, float pz, f
 		if (dist > 1e-3f) {
 			const float step = 1.8f / 4.0f + 2.0f * nav_grid_.map_half / (float)std::max(1, nav_grid_.res);
 			const nav::Vec2 l = nav::footprint_local(b, ex + step * (target.x - ex) / dist, ez + step * (target.z - ez) / dist);
-			if (std::fabs(l.x) < b.hu && std::fabs(l.y) < b.hv) { tx = b.x; tz = b.z; return b.id; }
+			if (std::fabs(l.x) < b.hu && std::fabs(l.y) < b.hv) { tx = b.x; tz = b.z; petra_pick_blocked_ = true; return b.id; }
 		}
-		if (gate && crosses(b)) { tx = b.x; tz = b.z; return b.id; }
+		if (gate && crosses(b)) { tx = b.x; tz = b.z; petra_pick_blocked_ = true; return b.id; }
 	}
 	return id;
 }
 
 bool Simulation::petra_plan_blocked(const AttackPlan &plan) const {
 	auto it = building_id_to_idx_.find(plan.target_building_id);
-	return it != building_id_to_idx_.end() && is_wall_piece(buildings_[it->second].type);
+	return it != building_id_to_idx_.end() && plan.blocked;
 }
 
 // headquarters.js gameStart + attackManager.js setRushes: Petra plans village
@@ -31602,7 +31604,7 @@ void Simulation::petra_attack_units(AttackPlan &plan) {
 		const int32_t t = lookup_unit(units_.target_unit_id[j]);
 		return t < 0 || !units_.alive[t] || petra_is_support_unit(units_.unit_type[t]);
 	};
-	// isBlocked: the target is the wall piece that blocks the way.
+	// isBlocked: the target is a blocker on the way (a wall, a house, a gate...).
 	const bool blocked = petra_plan_blocked(plan);
 	std::unordered_set<int32_t> reacted;
 	auto hit = [&](int32_t j, int32_t a) {
@@ -32180,6 +32182,7 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 
 			plan.kind = kind;
 			plan.target_building_id = target_id;
+			plan.blocked = petra_pick_blocked_;
 			plan.target_x = tx;
 			plan.target_z = tz;
 			petra_release_squad(plan.squad);
@@ -32394,6 +32397,7 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 				}
 
 				plan.target_building_id = target_id;
+				plan.blocked = petra_pick_blocked_;
 				plan.target_x = tx;
 				plan.target_z = tz;
 				// chooseTarget: a rush's targetPlayer is the enemy whose structure it picked.
@@ -32703,6 +32707,7 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 					return;
 				}
 				plan.target_building_id = target_id;
+				plan.blocked = petra_pick_blocked_;
 				plan.target_x = tx;
 				plan.target_z = tz;
 				petra_strike_force_.target_building_id = target_id;
@@ -32785,6 +32790,7 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 				const uint32_t next_id = petra_attack_retarget(plan, tx, tz);
 				if (next_id != 0) {
 					plan.target_building_id = next_id;
+					plan.blocked = petra_pick_blocked_;
 					plan.target_x = tx;
 					plan.target_z = tz;
 					petra_strike_force_.target_building_id = next_id;
@@ -32902,6 +32908,7 @@ void Simulation::petra_retake_civic_centres() {
 		plan.type = AttackPlan::PLAN_ASSAULT;
 		plan.target_player = ev.to; // attackPlan.targetPlayer = target.owner(): the captor
 		plan.target_building_id = cc.id;
+		plan.blocked = false;
 		plan.target_x = plan.staging_x = cc.x;
 		plan.target_z = plan.staging_z = cc.z;
 		plan.initial_squad_size = plan.squad.size();
@@ -33099,6 +33106,7 @@ void Simulation::petra_manage_raid(float dt) {
 		petra_release_squad(plan.squad);
 		plan.forced = plan.requested = false;
 		plan.target_building_id = tid;
+		plan.blocked = petra_pick_blocked_;
 		plan.target_x = tx;
 		plan.target_z = tz;
 		plan.state = AttackPlan::MUSTER;
@@ -33417,6 +33425,7 @@ void Simulation::petra_update_started_raid(AttackPlan &plan, float base_x, float
 			uint32_t tid = find_petra_raid_target(tx, tz);
 			if (tid) {
 				plan.target_building_id = tid;
+				plan.blocked = petra_pick_blocked_;
 				plan.target_x = tx;
 				plan.target_z = tz;
 				order_attack_move(plan.squad.data(), plan.squad.size(), tx, tz, false, false, true, petra_attack_avoid(plan, false));
@@ -33982,6 +33991,7 @@ void Simulation::petra_answer_attack_request(uint8_t source, uint8_t target) {
 				plan.target_building_id = 0;
 				if (const uint32_t id = find_petra_attack_target(tx, tz, 0, &plan)) {
 					plan.target_building_id = id;
+					plan.blocked = petra_pick_blocked_;
 					plan.target_x = tx;
 					plan.target_z = tz;
 				}
@@ -36099,6 +36109,7 @@ void Simulation::petra_manage_defense(float dt) {
 			++petra_attack_mgr_.plans_made;
 			plan.type = AttackPlan::PLAN_ASSAULT;
 			plan.target_building_id = b.id;
+			plan.blocked = false;
 			plan.target_player = b.team;
 			plan.target_x = plan.staging_x = b.x;
 			plan.target_z = plan.staging_z = b.z;
@@ -39600,10 +39611,11 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 			ar.pod(v.completing); ar.pod(v.completing_time);
 			io_vec_pod(ar, v.path_x, 4096); io_vec_pod(ar, v.path_z, 4096);
 			ar.pod(v.last_x); ar.pod(v.last_z);
-			if (ar.version >= S::SAVE_VERSION_PETRA_STUCK) { ar.pod(v.pos5_x); ar.pod(v.pos5_z); }
+				if (ar.version >= S::SAVE_VERSION_PETRA_STUCK) { ar.pod(v.pos5_x); ar.pod(v.pos5_z); }
 			if constexpr (Ar::loading)
 				if (v.path_x.size() != v.path_z.size()) ar.ok = false;
 		}
+		if (ar.version >= S::SAVE_VERSION_PETRA_BLOCKED) ar.pod(v.blocked);
 		if constexpr (Ar::loading)
 			if (v.state > S::AttackPlan::ABORT || (v.kind > PETRA_ATTACK_RAID && v.kind != PETRA_ATTACK_UNIQUE)) ar.ok = false;
 	};

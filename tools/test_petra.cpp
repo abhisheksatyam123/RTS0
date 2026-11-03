@@ -3841,6 +3841,16 @@ static void test_attack_blocked_by_walls() {
 	// The house in the open is reached as it is.
 	const uint32_t open = s->spawn_building_world(ox + 6.0f, oz, BLD_HOUSE, 0, 1.0f);
 	CHECK(s->petra_target_obstruction(open, ox, oz, bx, bz) == open, "an open target stays the target");
+	// isBlocked (attackPlan.js checkTargetObstruction): set by a blocker, any structure, not only a wall piece.
+	CHECK(!s->petra_pick_blocked(), "an open target leaves isBlocked off");
+	s->petra_target_obstruction(house, ox, oz, bx, bz);
+	CHECK(s->petra_pick_blocked(), "a walled-in target sets isBlocked");
+	Simulation::AttackPlan blocked_plan;
+	blocked_plan.target_building_id = house;
+	blocked_plan.blocked = true;
+	CHECK(s->petra_plan_blocked(blocked_plan), "a plan blocked on its pick is blocked, whatever its target (a house is not a wall piece)");
+	blocked_plan.blocked = false;
+	CHECK(!s->petra_plan_blocked(blocked_plan), "a plan not blocked on its pick is not blocked");
 	// Spearmen with the wall as target attack it.
 	std::vector<uint32_t> squad;
 	for (int k = 0; k < 4; ++k) {
@@ -3853,6 +3863,7 @@ static void test_attack_blocked_by_walls() {
 	plan.initial_squad_size = squad.size();
 	plan.target_player = 0;
 	plan.target_building_id = to;
+	plan.blocked = s->petra_pick_blocked(); // the pick that chose `to` set isBlocked
 	plan.target_x = bx; plan.target_z = bz;
 	plan.state = Simulation::AttackPlan::ATTACKED;
 	plan.state_timer = 0.0f;
