@@ -11,6 +11,14 @@
 #include <godot_cpp/classes/input_event_screen_drag.hpp>
 #include <godot_cpp/classes/input_event_screen_touch.hpp>
 #include <godot_cpp/classes/viewport.hpp>
+#include <godot_cpp/classes/mesh_instance3d.hpp>
+#include <godot_cpp/classes/quad_mesh.hpp>
+#include <godot_cpp/classes/shader.hpp>
+#include <godot_cpp/classes/shader_material.hpp>
+#include <godot_cpp/classes/resource_loader.hpp>
+#include <godot_cpp/classes/rendering_server.hpp>
+#include <godot_cpp/classes/geometry_instance3d.hpp>
+#include <godot_cpp/classes/viewport.hpp>
 #include <godot_cpp/classes/display_server.hpp>
 #include <godot_cpp/core/math.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
@@ -268,6 +276,7 @@ void RtsoCameraRig::_unhandled_input(const Ref<InputEvent> &event) {
 }
 
 void RtsoCameraRig::_process(double delta) {
+	sync_pixel_art();
 	if (cinema_view_) return; // back at the rig's own view when the path ends
 
 	if (mmb_dragging && !rtso::hotkeys::held("camera.pan")) {

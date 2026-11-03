@@ -4,7 +4,7 @@
 // texture needs hint_normal_roughness_texture (GL Compatibility uses
 // pixel_art_post_depth.gdshader instead).
 shader_type spatial;
-render_mode unshaded, depth_draw_never, depth_test_disabled, cull_disabled;
+render_mode unshaded, blend_mix, depth_draw_never, depth_test_disabled, cull_disabled;
 
 uniform sampler2D screen_texture : hint_screen_texture, filter_nearest;
 uniform sampler2D depth_texture : hint_depth_texture, filter_nearest;

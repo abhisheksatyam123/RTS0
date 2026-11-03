@@ -1,7 +1,7 @@
 // 3D pixel-art fallback for the GL Compatibility renderer, where the normal-roughness
 // texture is not available: depth-only outer outlines, no inner normal highlights.
 shader_type spatial;
-render_mode unshaded, depth_draw_never, depth_test_disabled, cull_disabled;
+render_mode unshaded, blend_mix, depth_draw_never, depth_test_disabled, cull_disabled;
 
 uniform sampler2D screen_texture : hint_screen_texture, filter_nearest;
 uniform sampler2D depth_texture : hint_depth_texture, filter_nearest;

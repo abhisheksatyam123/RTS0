@@ -3,6 +3,7 @@
 
 #include <godot_cpp/classes/node3d.hpp>
 #include <godot_cpp/classes/camera3d.hpp>
+#include <godot_cpp/classes/mesh_instance3d.hpp>
 #include <godot_cpp/classes/input_event.hpp>
 #include <godot_cpp/variant/vector3.hpp>
 #include <godot_cpp/variant/dictionary.hpp>
@@ -18,6 +19,11 @@ class RtsoCameraRig : public Node3D {
 	GDCLASS(RtsoCameraRig, Node3D);
 
 	Camera3D *cam = nullptr;
+	// 3D pixel-art look (Options: pixelart): an outline quad under cam, drawn in the
+	// transparent pass at the low 3D scale (user_settings.gd). Picking and culling use cam.
+	MeshInstance3D *pixel_quad_ = nullptr;
+	bool pixel_on_ = false;
+	void sync_pixel_art();
 	Vector3 target_pos;
 	float speed = 28.0f;
 	float zoom_height = 30.0f; // the camera's distance from its look-at point (0.28 m_Zoom)
