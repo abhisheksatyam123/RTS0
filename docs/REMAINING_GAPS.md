@@ -313,6 +313,22 @@ Pack, flee, stances, turrets and ship ejection against UnitAI.js, Pack.js, Garri
 | O5 | Turret occupants of a structure whose owner ends an alliance step down at once; 0.28's TurretHolder only reacts to an ownership change, so foreign turret units stay on a former ally's wall (a 0.28 bug) | low | Kept |
 | O6 | ~~A sunk or destroyed ship ejects every passenger, and a non-mutual-ally holder disembarks all of them~~ Fixed: only EjectClassesOnDestroy get off (ships: Civilian Infantry Healer Dog; warships: Civilian Infantry Dog; planes none), the rest die aboard; test_naval "alliance ends" | medium | Fixed |
 
+### Reference pages: Compare's fourteenth 0.28 pass (2026-11-03)
+
+The catafalque, civilization overview and template viewer pages against gui/reference/ and gui/common/tooltips.js. Matching: catafalque ring and emblem geometry, aura tooltip wording, civinfo entry format and section order, stat labels, the Built by / Trained by family, visible classes, name modes 0, 2 and 3. Owner: Compare
+
+| # | Difference from 0.28 | Impact | Status |
+|---|---|---|---|
+| RP1 | The catafalque emblem's primary name ignores "generic first" (howtoshownames 1): catafalque_page.gd primary_name returns the specific name unless the mode is 3; 0.28's Emblem.js uses getEntityPrimaryNameFormatted | low | Open: Compare |
+| RP2 | The catafalque emblem caption is plain text at 13 px; 0.28's tooltips.js:1155-1163 sets a 16 px first letter and the rest upper-cased at 12 px | low | Open: Compare |
+| RP3 | The civilization overview is laid out differently: civinfo_page.gd uses a 56 px emblem, a left and right column and the name inside the history box; 0.28's civinfo.xml is a 1000x738 dialog with a 96 px emblem beside the sans-bold-20 name, the history below, and the gameplay list across the full width | medium | Open: Compare |
+| RP4 | Civilization overview section headings are mixed case at 14 px; 0.28's CivInfoPage.js:70-99 uses a sans-bold-18 first letter and sans-bold-12 capitals | low | Open: Compare |
+| RP5 | The template viewer's name rest is 12 px (reference_common.gd); 0.28's viewer.js:5-7 sets sans-bold-16 on the viewer page | low | Open: Compare |
+| RP6 | The template viewer's history and tech description are italic (template_viewer.gd); 0.28's tooltips.js:149-155 uses plain body text | low | Open: Compare |
+| RP7 | The template viewer adds an "Auras:" heading and writes "Range: N meters" in plain text; 0.28's tooltips.js:1078-1103 has no heading and the unit is orange | low | Open: Compare |
+| RP8 | The template viewer shows Requires lines (template_viewer.gd 559-560, 580, 613) that 0.28's ViewerPage.js does not show; getRequirementsTooltip is for the live selection UI only | low | Open: Compare |
+| RP9 | The catafalque emblem order follows RTS0's civ table, not 0.28's civ loop order (reference_data.cpp get_catafalques); 0.28's order could not be checked from the shared folder | low | Open: Compare (unverified) |
+
 ### Petra difficulty and cadence: Compare's thirteenth 0.28 pass (2026-10-28)
 
 Petra's config.js (difficulty, behaviour, personality, population scaling, priorities) and each manager's turn cadence against _petrabot.js and headquarters.js. Everything else checked matches (see the seventh and ninth passes). Owner: Compare
