@@ -4621,11 +4621,12 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	for (int t = 0; t < rtso::UNIT_TYPE_COUNT; ++t) {
 		anim_controllers[t].update(delta * 1000.0f);
 	}
-	// Mounts (cavalry, camels, chariots): the walk and run cycles play at the pace of the ground covered, as 0 A.D.
+	// Mounts, elephants and dogs (their walk and run cycles play at the pace of the ground covered, as 0 A.D.
 	// syncs a mount's stride to its speed; a mount at its base walk plays the clip as made.
 	// The controller is shared by the type, so the pace follows the cavalry moving this frame.
-	static const uint8_t kMounts[] = { rtso::UNIT_CAVALRY, rtso::UNIT_CAMEL, rtso::UNIT_CHARIOT, rtso::UNIT_SCYTHED_CHARIOT };
-	for (uint8_t m : kMounts) anim_controllers[m].set_speed(1.0f);
+	static const uint8_t kPaced[] = { rtso::UNIT_CAVALRY, rtso::UNIT_CAMEL, rtso::UNIT_CHARIOT, rtso::UNIT_SCYTHED_CHARIOT,
+			rtso::UNIT_ELEPHANT, rtso::UNIT_WORKER_ELEPHANT, rtso::UNIT_WAR_DOG };
+	for (uint8_t m : kPaced) anim_controllers[m].set_speed(1.0f);
 
 	std::unordered_set<int32_t> sel_set;
 	if (selected_ids.size() > 0) sel_set.reserve((size_t)selected_ids.size());
@@ -4966,9 +4967,9 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		float vx = uview.vel_x[i];
 		float vz = uview.vel_z[i];
 		float speed2 = vx * vx + vz * vz;
-		const bool mount = utype == rtso::UNIT_CAVALRY || utype == rtso::UNIT_CAMEL ||
-				utype == rtso::UNIT_CHARIOT || utype == rtso::UNIT_SCYTHED_CHARIOT;
-		if (mount && speed2 > 0.05f) {
+		bool paced = false;
+		for (uint8_t m : kPaced) paced = paced || utype == m;
+		if (paced && speed2 > 0.05f) {
 			const float base = sim->unit_base_walk_speed(i);
 			if (base > 0.001f)
 				anim_controllers[utype].set_speed(Math::clamp(std::sqrt(speed2) / base, 0.3f, 2.5f));
