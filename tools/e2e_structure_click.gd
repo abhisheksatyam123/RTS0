@@ -83,6 +83,10 @@ func run() -> void:
 			break
 	var house: int = main.debug_spawn_building(2, -4.0, 11.0, 1) # an enemy barracks beside our Civic Center
 	var men: PackedInt32Array = main.debug_spawn_units("athen/infantry_spearman_b", 3)
+	# The camera looks at the barracks, so it is on screen whatever the framing of the
+	# Civic Center (the camera's look-at point follows the ground under it).
+	var rig = main.find_children("*", "RtsoCameraRig", true, false)[0]
+	rig.set_target_pos(Vector3(float(main.debug_civic_centre_roof()["centre"].x) - 4.0, 0, float(main.debug_civic_centre_roof()["centre"].y) + 11.0))
 	await frames(40) # seen by the men's vision first (the picking needs a sighted structure)
 	main.debug_select_units(men)
 	await frames(2)
