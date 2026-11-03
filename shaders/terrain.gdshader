@@ -53,6 +53,13 @@ uniform float tile_half = 0.0;
 // World units a terrain texture spans (0 A.D. terrains repeat every 8 tiles).
 uniform float tile_repeat = 8.0;
 
+// Ground detail (AAA look plan, item 3): a large tint that breaks up the flat
+// 0 A.D. colour at distance, and a finer one that fades in near the camera.
+// detail_strength 0 = the 0 A.D.-fit colour, unchanged (parity views).
+uniform float detail_strength : hint_range(0.0, 1.0) = 0.0;
+uniform float detail_scale = 0.02;
+uniform float detail_near = 60.0;
+
 varying vec2 v_uv;
 varying vec3 v_world_pos;
 varying vec3 v_world_normal;
@@ -171,6 +178,15 @@ void fragment() {
 	if (los_map_half > 0.0) {
 		vec2 los_uv = (v_world_pos.xz + vec2(los_map_half)) / (2.0 * los_map_half);
 		los = texture(los_tex, los_uv).r;
+	}
+	if (detail_strength > 0.0) {
+		// VERTEX is view space in the fragment: its length is the camera distance.
+		float dist = length(VERTEX);
+		float macro = texture(noise_tex, v_world_pos.xz * detail_scale).r;
+		float fine = texture(noise_tex, v_world_pos.xz * detail_scale * 6.0).r;
+		float near = 1.0 - smoothstep(detail_near * 0.5, detail_near, dist);
+		float tint = 1.0 + ((macro - 0.5) * 0.16 + (fine - 0.5) * 0.10 * near);
+		final_color *= mix(1.0, tint, detail_strength);
 	}
 	final_color *= los;
 
