@@ -39,6 +39,15 @@ func finger(index: int, p: Vector2, pressed: bool) -> void:
 	Input.parse_input_event(t)
 	await frames(2)
 
+# Several touch events queued together, in order, with no frame between them.
+func fingers(events: Array) -> void:
+	for e in events:
+		var t := InputEventScreenTouch.new()
+		t.index = e[0]
+		t.position = win(e[1])
+		t.pressed = e[2]
+		Input.parse_input_event(t)
+
 func slide(index: int, p: Vector2) -> void:
 	var d := InputEventScreenDrag.new()
 	d.index = index
@@ -147,10 +156,10 @@ func run() -> void:
 	await walks_to(a, goal, "a hold on open ground walks the men there")
 	spot = a_at + Vector2(170, -40)
 	goal = main.debug_ground_at(spot)
-	await finger(0, spot, true)
-	await finger(1, spot + Vector2(60, 0), true)
-	await finger(1, spot + Vector2(60, 0), false)
-	await finger(0, spot, false)
+	# The four touch events land in one frame: a real tap is far inside the 0.40 s window, but
+	# a test frame can take longer than that.
+	fingers([[0, spot, true], [1, spot + Vector2(60, 0), true], [1, spot + Vector2(60, 0), false], [0, spot, false]])
+	await frames(2)
 	await walks_to(a, goal, "a two-finger tap walks them to the first finger")
 	check(selected().size() == men.size(), "orders keep the selection")
 
@@ -277,6 +286,27 @@ func run() -> void:
 	check(FileAccess.file_exists(bg) and FileAccess.file_exists(bg.get_basename() + ".json"), "a single-player match is saved when the app is paused")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(bg))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(bg.get_basename() + ".json"))
+
+	print("9. Control groups: a group is set with Ctrl and a number, then recalled by tapping its icon")
+	main.debug_select_units(men)
+	await frames(2)
+	for pressed in [true, false]:
+		var k := InputEventKey.new()
+		k.keycode = KEY_1
+		k.physical_keycode = KEY_1
+		k.ctrl_pressed = true
+		k.pressed = pressed
+		Input.parse_input_event(k)
+		await frames(2)
+	main.debug_select_units(PackedInt32Array())
+	await frames(2)
+	var icons: Array = main.find_children("UnitGroupButton0", "Button", true, false)
+	check(icons.size() == 1 and (icons[0] as Button).visible, "the group icon shows once the group is set")
+	if icons.size() == 1:
+		await tap(((icons[0] as Button).get_global_rect()).get_center())
+		await frames(2)
+		var g1 := selected()
+		check(Array(men).all(func(m): return m in g1) and g1.size() == men.size(), "tapping the group icon selects its %d men: %s" % [men.size(), str(g1)])
 
 	print("FAILURES: %d" % failures)
 	quit(1 if failures else 0)
