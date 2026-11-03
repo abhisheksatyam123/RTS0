@@ -2929,6 +2929,30 @@ static void test_petra_crossing_waits_for_ship() {
 		for (uint32_t uid : crew) { const int32_t i = idx(s, uid); n += i >= 0 && s.units_.order_kind[i] == ORDER_WALK; }
 		return n;
 	};
+	// The other ways in (navalManager.js requireTransport -> addUnit) only tag the unit too: a worker
+	// sent across, a unit going home (headquarters.js assignEntity), and two defenders, the second
+	// joining the first's ship-less plan. Cycladic Archipelago seed 3 had 26 joiners idle at a
+	// beach no ship came to.
+	const uint32_t worker = s.spawn_unit(-26.0f, 44.0f, 1, UNIT_VILLAGER), homer = s.spawn_unit(-24.0f, 44.0f, 1, UNIT_VILLAGER);
+	const bool worker_joined = s.petra_require_worker_transport((size_t)idx(s, worker), north, south, -30.0f, -40.0f, PETRA_TRANSPORT_BUILDERS);
+	const size_t away = s.petra_go_home({homer}, -30.0f, -40.0f, PETRA_TRANSPORT_BUILDERS, true, false);
+	crew.push_back(worker);
+	crew.push_back(homer);
+	std::vector<uint32_t> guards;
+	for (int k = 0; k < 2; ++k) {
+		guards.push_back(s.spawn_unit(-20.0f + 2.0f * k, 44.0f, 1, UNIT_SPEARMAN));
+		s.petra_require_defense_transport(guards.back(), north, south, -30.0f, -40.0f);
+	}
+	size_t plans_without_ship = 0, defense_passengers = 0;
+	for (const auto &tp : s.petra_transport_plans()) {
+		plans_without_ship += tp.ship_id == 0;
+		if (tp.owner == PETRA_TRANSPORT_DEFENSE) defense_passengers += tp.passenger_ids.size();
+	}
+	int guards_walking = 0;
+	for (uint32_t uid : guards) { const int32_t i = idx(s, uid); guards_walking += i >= 0 && s.units_.order_kind[i] == ORDER_WALK; }
+	std::printf("joining a ship-less crossing: worker %s, %zu going home by sea, %zu defenders in %zu plans with no ship, %d defenders walking\n",
+	            worker_joined ? "joined" : "not joined", away, defense_passengers, plans_without_ship, guards_walking);
+	CHECK(worker_joined && away == 1 && defense_passengers == 2 && plans_without_ship == 2 && guards_walking == 0);
 	const int walking_before = walking();
 	const uint32_t ship = s.spawn_unit(-30.0f, 4.0f, 1, UNIT_TRIREME);
 	s.petra_manage_transport(Simulation::FIXED_STEP);
@@ -2937,7 +2961,7 @@ static void test_petra_crossing_waits_for_ship() {
 	std::printf("crossing with no ship: sea %u, planned %s, ship %u, then %u (trireme %u); walking to the beach %d, then %d\n", sea,
 	            planned ? "yes" : "no", first, later, ship, walking_before, walking_after);
 	CHECK(sea && planned && first == 0 && later == ship);
-	CHECK(walking_before == 0 && walking_after == 3);
+	CHECK(walking_before == 0 && walking_after == 5);
 	s.petra_transports_.clear();
 }
 

@@ -28072,7 +28072,8 @@ size_t Simulation::petra_go_home(const std::vector<uint32_t> &squad, float x, fl
 				const int32_t s = tp->ship_id ? lookup_unit(tp->ship_id) : -1;
 				if (k >= 0 && (!tp->ship_id || (s >= 0 && can_board((size_t)s, (size_t)k)))) {
 					tp->passenger_ids.push_back(uid);
-					order_walk(&units_.id[k], 1, tp->pickup_x, tp->pickup_z, false);
+					// transportPlan.js addUnit only tags the unit (:200-206); onBoarding orders it to the boarding point once a ship is assigned (:310-333), and assignShip walks every passenger then.
+					if (tp->ship_id) order_walk(&units_.id[k], 1, tp->pickup_x, tp->pickup_z, false);
 					joined = true;
 				}
 			}
@@ -28109,7 +28110,8 @@ bool Simulation::petra_require_worker_transport(size_t i, uint16_t from_land, ui
 		const int32_t sidx = tp->ship_id ? lookup_unit(tp->ship_id) : -1;
 		if (!tp->ship_id || (sidx >= 0 && can_board((size_t)sidx, i))) {
 			tp->passenger_ids.push_back(uid);
-			order_walk(&units_.id[i], 1, tp->pickup_x, tp->pickup_z, false);
+			// transportPlan.js addUnit only tags the unit (:200-206); onBoarding orders it to the boarding point once a ship is assigned (:310-333), and assignShip walks every passenger then.
+			if (tp->ship_id) order_walk(&units_.id[i], 1, tp->pickup_x, tp->pickup_z, false);
 			return true;
 		}
 	}
@@ -34301,7 +34303,8 @@ void Simulation::petra_require_defense_transport(uint32_t uid, uint16_t from_lan
 		const int32_t si = tp->ship_id ? lookup_unit(tp->ship_id) : -1;
 		if (!tp->ship_id || (si >= 0 && can_board((size_t)si, (size_t)i))) {
 			tp->passenger_ids.push_back(uid);
-			order_walk(&uid, 1, tp->pickup_x, tp->pickup_z, false);
+			// transportPlan.js addUnit only tags the unit (:200-206); onBoarding orders it to the boarding point once a ship is assigned (:310-333), and assignShip walks every passenger then.
+			if (tp->ship_id) order_walk(&uid, 1, tp->pickup_x, tp->pickup_z, false);
 			return;
 		}
 	}
