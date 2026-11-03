@@ -1,6 +1,6 @@
 # B audit pass 12: diplomacy, victory, options and formation control, against 0 A.D. 0.28
 
-Checkout: `ce0c9db2d` (origin/main, 2026-11-02; landed on dcc896f78). A fresh static pass over the four B areas after 57 new commits on main, including the owner's perf, camera, touch and battle-preset patches. Items in passes 3-11 and in REMAINING_GAPS were skipped.
+Checkout: `ce0c9db2d` (origin/main, 2026-11-02; landed on 36a87e841). A fresh static pass over the four B areas after 57 new commits on main, including the owner's perf, camera, touch and battle-preset patches. Items in passes 3-11 and in REMAINING_GAPS were skipped.
 
 Sources: simulation /mnt/project-files/d-civ-rosters/0ad-028-src/simulation/ (Diplomacy.js, Player.js, EndGameManager.js, Formation.js, UnitAI.js, helpers/Commands.js, helpers/Cheat.js, data/cheats/), gui /mnt/project-files/session-ui/0ad-028-gui/session/ and gamesetup/, and the cached 0.28 public tree under /tmp/claude-0/oad028/pub (gui/options/options.js, gamesettings/attributes/*.js, maps/scripts/).
 
