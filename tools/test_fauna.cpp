@@ -1216,6 +1216,33 @@ int main() {
 		std::printf("animal combat: mid-swing keeps its target, defensive bear ignores an archer %.1f out\n", vis + 2.0f);
 	}
 
+	// 20. A unit's run is decided when its chase begins (CHASING enter: "if target IsFleeing
+	//     this.Run()"), so it runs for the whole chase even after the animal stops fleeing; a chase
+	//     that began on a calm animal walks, even if the animal flees later.
+	{
+		fresh(s);
+		const uint32_t deer = s.spawn_fauna(0.0f, 0.0f, FAUNA_DEER);
+		const uint32_t h = s.spawn_unit(-4.0f, 0.0f, 0, UNIT_SPEARMAN);
+		const int32_t hi = s.lookup_unit(h);
+		const int32_t d = fidx(s, deer);
+		s.fauna_.behavior[d] = FAUNA_FLEE;
+		CHECK(s.unit_chase_fleeing(deer));
+		// The chase starts on the fleeing deer, so the latch is set (tick_unit_ai's CHASING entry).
+		s.units_.action_state[hi] = ACTION_ATTACK;
+		s.units_.target_unit_id[hi] = deer;
+		s.units_.chase_target[hi] = deer;
+		s.units_.chase_run[hi] = s.unit_chase_fleeing(deer) ? 1 : 0;
+		s.fauna_.behavior[d] = FAUNA_IDLE_GRAZE; // the deer stops fleeing mid-chase
+		CHECK(!s.unit_chase_fleeing(deer));
+		CHECK(s.unit_running((size_t)hi));
+		// A chase that began on the calm deer walks, and stays walking if the deer flees later.
+		s.units_.chase_run[hi] = 0;
+		CHECK(!s.unit_running((size_t)hi));
+		s.fauna_.behavior[d] = FAUNA_FLEE;
+		CHECK(!s.unit_running((size_t)hi));
+		std::printf("chase run: a chase on a fleeing animal keeps running after it stops; a walking chase stays walking\n");
+	}
+
 	if (failures) {
 		std::printf("test_fauna: %d failure(s)\n", failures);
 		return 1;

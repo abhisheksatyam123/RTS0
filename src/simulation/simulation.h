@@ -232,6 +232,8 @@ public:
 	static constexpr uint32_t SAVE_VERSION_PETRA_PROSPECT = 100; // Petra's routeProspection and the Trade structures it last saw
 	static constexpr uint32_t SAVE_VERSION_TRADE_ROUTE = 99; // each trader's route waypoints and leg progress (SetupTradeRoute route, reversed on the way back)
 	static constexpr uint32_t SAVE_VERSION_PROJECTILE_DAMAGE = 98; // each projectile's fire-time strengths and shooter (GetTotalAttackEffects at impact); each unit's and animal's previous-turn position (aim velocity); each player's control-all-units flag
+	static constexpr uint32_t SAVE_VERSION_CHASE_RUN = 139; // each unit's chase run and range bits (chase_run)
+	static constexpr uint8_t CHASE_RUN_BIT = 1, CHASE_RANGE_BIT = 2; // chase_run: running; in range last tick
 	static constexpr uint32_t SAVE_VERSION_RALLY_EMERGENCY = 138; // Petra's autogarrison rally flag (rally_emergency)
 	static constexpr uint32_t SAVE_VERSION_RALLY_COMMANDS = 97; // each rally position's command and unit or treasure
 	static constexpr uint32_t SAVE_VERSION_PETRA_RAID_SIEGE = 95; // the Petra raid's name and siege class
@@ -545,6 +547,7 @@ public:
 	void face_away_from(size_t i, float x, float z);
 	float unit_run_multiplier(size_t i) const;
 	bool unit_running(size_t i) const;
+	bool unit_chase_fleeing(uint32_t target_id) const; // a unit or animal that is fleeing now (CHASING enter)
 	// 0 A.D. Identity classes, RestrictedClasses, Bonuses and Spread of the unit at SoA index i.
 	const CombatProfile &unit_combat_at(size_t i) const { return unit_combat(units_.tmpl[i], units_.unit_type[i]); }
 	// The passability class Clearance of the unit at SoA index i from buildings (unit_building_clearance).
@@ -4938,6 +4941,7 @@ private:
 		float sigma = 0.0f;
 		float new_timer = 0.0f;
 		uint32_t new_chase = 0;
+		uint8_t new_run = 0;
 		uint8_t new_order_flags = 0;
 		uint8_t new_action_state = 0;
 		uint8_t effect = 0;
