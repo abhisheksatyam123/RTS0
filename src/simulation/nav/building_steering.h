@@ -261,7 +261,10 @@ bool line_blocked_by_buildings(Vec2 pos, Vec2 aim, float max_len, float radius,
 
 // True when the segment from `pos` to `end` crosses a building expanded by `radius`. As in
 // line_blocked_by_buildings, buildings whose expanded footprint contains `aim` (the destination) and
-// `ignore_building_id` don't count, and standing inside one is not blocked.
+// `ignore_building_id` don't count, and standing inside one is not blocked. This is the memo and
+// kept-path re-check, and it still clears a segment that starts inside one square and crosses another
+// (G84, docs/REMAINING_GAPS.md): steer_line_blocked, which tests the squares not holding the unit,
+// does block such a line.
 template <class Buildings>
 bool segment_blocked_by_buildings(Vec2 pos, Vec2 end, Vec2 aim, float radius,
 		const Buildings& buildings, uint32_t ignore_building_id)
