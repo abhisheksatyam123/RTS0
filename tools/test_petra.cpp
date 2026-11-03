@@ -3947,6 +3947,27 @@ static void test_attack_maybe_update() {
 // attackPlan.js getNearestTarget runs checkTargetObstruction for a rush too: a house of the
 // enemy it prefers, walled in by another enemy's palisade, gives way to the piece in its path,
 // and the palisade's owner becomes the enemy ("Obstruction also can change the enemy target").
+// defenseArmy.js assignedAgainst: the entries persist across turns, a reassignment leaves the old
+// one (assignUnit), and removeOwn takes the defender's entry out of its foe's list.
+static void test_defense_assigned_against() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(9);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 9, 2, 64.0f);
+	for (uint8_t p = 0; p < 2; ++p) s->set_player_active(p, true, p == 1);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	PetraDefenseArmy army;
+	army.defender_ids = {11, 12};
+	army.foe_ids = {21, 22};
+	army.assigned_to = {{11, 21}, {12, 22}};
+	army.assigned_against = {{21, 11}, {22, 12}};
+	s->petra_defense_armies_.push_back(army);
+	s->petra_remove_defender(11);
+	const auto &a = s->petra_defense_armies_[0];
+	CHECK(a.assigned_to.size() == 1 && a.assigned_to[0] == std::make_pair(12u, 22u), "removeOwn drops the defender's assignedTo");
+	CHECK(a.assigned_against.size() == 1 && a.assigned_against[0] == std::make_pair(22u, 12u), "removeOwn takes its entry out of the foe's list");
+}
+
 static void test_rush_target_obstruction() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(5);
@@ -10572,6 +10593,7 @@ int main(int argc, char **argv) {
 	RUN(test_attack_maybe_update);
 	RUN(test_attack_helps_other_attack);
 	RUN(test_attack_maybe_cadence);
+	RUN(test_defense_assigned_against);
 	RUN(test_rush_target_obstruction);
 	RUN(test_capture_helper_is_a_capturer);
 	RUN(test_scuttle_undefendable);
