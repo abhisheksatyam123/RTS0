@@ -4614,6 +4614,10 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	for (int t = 0; t < rtso::UNIT_TYPE_COUNT; ++t) {
 		anim_controllers[t].update(delta * 1000.0f);
 	}
+	// Mounted cavalry: the walk and run cycles play at the pace of the ground covered, as 0 A.D.
+	// syncs a mount's stride to its speed; a mount at its base walk plays the clip as made.
+	// The controller is shared by the type, so the pace follows the cavalry moving this frame.
+	anim_controllers[rtso::UNIT_CAVALRY].set_speed(1.0f);
 
 	std::unordered_set<int32_t> sel_set;
 	if (selected_ids.size() > 0) sel_set.reserve((size_t)selected_ids.size());
@@ -4954,6 +4958,11 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		float vx = uview.vel_x[i];
 		float vz = uview.vel_z[i];
 		float speed2 = vx * vx + vz * vz;
+		if (utype == rtso::UNIT_CAVALRY && speed2 > 0.05f) {
+			const float base = sim->unit_base_walk_speed(i);
+			if (base > 0.001f)
+				anim_controllers[utype].set_speed(Math::clamp(std::sqrt(speed2) / base, 0.3f, 2.5f));
+		}
 
 		// Smooth visual position interpolation to prevent snapping
 		float x = tx;
@@ -5991,7 +6000,10 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		float fz = fview.pos_z[f];
 		float fy = sim->get_terrain_height(fx, fz);
 		if (rtso::fauna_type_info(ft).is_naval()) fy = std::max(fy, drawn_water_height(sim)); // whales and sharks swim
-		float frot = fview.rot_y[f];
+		// The sim's animal heading is (sin rot, cos rot) (simulation.cpp roam and flee steps),
+		// while Basis(Y, a) faces local -Z, along (-sin a, -cos a): a unit's yaw is
+		// atan2(-hx, -hz). Without the half turn an animal walked backwards.
+		float frot = fview.rot_y[f] + (float)Math_PI;
 		static_assert(rtso::FAUNA_COUNT <= 64, "fauna_fx_id_ holds 64 types");
 		if (fauna_fx_id_[ft].is_empty()) fauna_fx_id_[ft] = String(rtso::fauna_type_info(ft).model_id);
 		const String &fid = fauna_fx_id_[ft];
