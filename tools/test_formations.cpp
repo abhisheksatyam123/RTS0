@@ -869,6 +869,29 @@ static void test_stat_modifiers() {
 	check_stats_unchanged(CIV_ATHENIANS, UNIT_CAVALRY, 6, FORMATION_WEDGE, "wedge keeps armour, damage, speed and rate");
 }
 
+// 0.28 FORMATIONMEMBER.WALKING has no Attacked handler: a member walking with its formation
+// (marching, or forming up at its slot) ignores an attacker whatever its stance.
+static void test_walking_members_ignore_attackers() {
+	std::printf("19b. walking members ignore attackers\n");
+	for (uint8_t stance : {STANCE_VIOLENT, STANCE_AGGRESSIVE, STANCE_DEFENSIVE}) {
+		Simulation s;
+		setup(s, CIV_ATHENIANS);
+		auto inf = spawn_block(s, 8, -30, 0, 0, UNIT_SPEARMAN);
+		s.order_set_stance(inf.data(), inf.size(), stance);
+		s.order_set_formation(inf.data(), inf.size(), FORMATION_BOX);
+		run(s, 1.0f);
+		s.order_walk(inf.data(), inf.size(), 40.0f, 0.0f);
+		run(s, 1.0f);
+		const uint32_t foe = s.spawn_unit(-20.0f, 8.0f, 1, UNIT_SPEARMAN, 0.0f);
+		const int mi = idx_of(s, inf[0]);
+		s.respond_to_attacker((size_t)mi, foe, -20.0f, 8.0f, false);
+		check(s.units_.action_state[mi] == ACTION_MOVE && s.units_.target_unit_id[mi] == 0 && !s.formations().empty(),
+				stance == STANCE_VIOLENT ? "a marching member ignores the attacker (violent)" :
+				stance == STANCE_AGGRESSIVE ? "a marching member ignores the attacker (aggressive)" :
+				"a marching member ignores the attacker (defensive)");
+	}
+}
+
 static void test_audit_028() {
 	std::printf("18. facing, rearranging and split selections (Formation.js)\n");
 	{ // MoveToMembersCenter: a new formation faces the way its members do.
@@ -1035,6 +1058,7 @@ int main(int argc, char **argv) {
 	test_stop_and_back_to_work();
 	test_queued_leave_and_facing();
 	test_audit_028();
+	test_walking_members_ignore_attackers();
 	if (g_failures) {
 		std::printf("test_formations: FAIL (%d)\n", g_failures);
 		return 1;
