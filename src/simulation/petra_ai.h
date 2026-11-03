@@ -452,6 +452,10 @@ struct PetraKept {
 	// (popForDock), decided once: 0 not yet (saves before v133: decided at the next naval turn),
 	// 1 no, 2 yes.
 	uint8_t dock_at_16 = 0;
+	// baseManager.js timeNextIdleCheck: each base checks its gatherers' balance on its own turn,
+	// 8 s after its last check (setWorkersIdleByPriority). By anchor id, sorted; anchor 0 is the
+	// baseless workers' base (saved v136).
+	std::vector<std::pair<uint32_t, float>> idle_checks;
 	static uint8_t at(const std::vector<uint8_t> &v, size_t s) { return s < v.size() ? v[s] : 0; }
 	static void raise(std::vector<uint8_t> &v, size_t s, int n) {
 		if (s >= v.size()) v.resize(s + 1, 0);
