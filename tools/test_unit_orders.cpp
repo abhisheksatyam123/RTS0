@@ -4255,6 +4255,75 @@ static void test_queued_repair_on_finished() {
 	check(dist(s, w, 30, 0) < 8.0f, "she walks to the house");
 }
 
+static void test_return_dropsite_lost() {
+	std::printf("117. a returner whose dropsite is lost on the way takes its load to the nearest one (DROPPINGRESOURCES)\n");
+	Simulation s;
+	setup(s);
+	const uint32_t near_store = s.spawn_building_world(-12, 0, BLD_STOREHOUSE, 0, 1.0f);
+	const uint32_t far_store = s.spawn_building_world(40, 0, BLD_STOREHOUSE, 0, 1.0f);
+	const uint32_t tree = s.spawn_resource_world(0, 0, RES_WOOD, 500);
+	uint32_t w = s.spawn_unit(1.5f, 0, 0, UNIT_FEMALE_CITIZEN);
+	s.order_gather(&w, 1, tree);
+	check(run_until(s, 30.0f, [&] { return s.units().carry[idx_of(s, w)] >= 5; }), "the worker carries some wood");
+	s.order_return_resource(&w, 1, far_store);
+	run(s, 3.0f);
+	check(dist(s, w, 40, 0) < 38.0f && act_of(s, w) == ACTION_MOVE, "she walks to the far storehouse");
+	auto lose = [&](uint32_t id) {
+		for (auto &b : const_cast<std::vector<Simulation::Building> &>(s.buildings()))
+			if (b.id == id) s.destroy_building(b);
+	};
+	lose(far_store);
+	const float wood0 = s.player(0).res[RES_WOOD];
+	const bool dropped = run_until(s, 40.0f, [&] { return s.units().carry[idx_of(s, w)] == 0; });
+	std::printf("  she ends %.1f from the near storehouse\n", dist(s, w, -12, 0));
+	check(dropped && s.player(0).res[RES_WOOD] > wood0, "she drops the wood at the near storehouse");
+	check(dist(s, w, -12, 0) < 6.0f, "beside it");
+	(void)near_store;
+
+	// Both storehouses lost: the nearest dropsite left is the civic centre.
+	uint32_t v = s.spawn_unit(1.5f, 1.5f, 0, UNIT_FEMALE_CITIZEN);
+	s.order_gather(&v, 1, tree);
+	check(run_until(s, 30.0f, [&] { return s.units().carry[idx_of(s, v)] >= 5; }), "a second worker carries some wood");
+	const uint32_t far2 = s.spawn_building_world(40, 10, BLD_STOREHOUSE, 0, 1.0f);
+	s.order_return_resource(&v, 1, far2);
+	run(s, 3.0f);
+	lose(far2);
+	lose(near_store);
+	run(s, 1.0f);
+	check(!(act_of(s, v) == ACTION_MOVE && s.unit_order(v).kind == ORDER_NONE), "she does not walk on with no order");
+	const float wood1 = s.player(0).res[RES_WOOD];
+	const bool dropped2 = run_until(s, 90.0f, [&] { return s.units().carry[idx_of(s, v)] == 0; });
+	std::printf("  she ends %.1f from the civic centre\n", dist(s, v, -56, -56));
+	check(dropped2 && s.player(0).res[RES_WOOD] > wood1 && dist(s, v, -56, -56) < 15.0f, "she drops it at the civic centre");
+}
+
+static void test_trained_rally_on_civic_centre() {
+	std::printf("118. a unit trained with its rally on the civic centre spawns outside, then walks in (no spawn inside a footprint)\n");
+	Simulation s;
+	setup(s);
+	const uint32_t cc = s.spawn_building_world(-30, 30, BLD_TOWN_CENTER, 0, 1.0f);
+	s.cmd_set_rally_point(0, cc, -30, 30, 0, cc);
+	check(s.cmd_train(0, cc, UNIT_FEMALE_CITIZEN), "woman queued");
+	int32_t seen = -1;
+	bool outside_at_spawn = false;
+	const bool spawned = run_until(s, 40.0f, [&] {
+		for (size_t i = 0; i < s.units().count; ++i) {
+			if (!s.units().alive[i] || s.units().team[i] != 0 || s.units().unit_type[i] != UNIT_FEMALE_CITIZEN) continue;
+			if (s.units().id[i] == 0) continue;
+			if (seen < 0) {
+				seen = (int32_t)s.units().id[i];
+				outside_at_spawn = s.units().action_state[i] != ACTION_GARRISONED;
+			}
+			return false;
+		}
+		return false;
+	});
+	(void)spawned;
+	check(seen >= 0 && outside_at_spawn, "it appears outside the civic centre (not garrisoned at spawn)");
+	const bool inside = run_until(s, 60.0f, [&] { return act_of(s, (uint32_t)seen) == ACTION_GARRISONED; });
+	check(inside, "and then walks in under the rally order");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -4378,6 +4447,8 @@ int main(int argc, char **argv) {
 	test_promotion_restarts_attack();
 	test_capture_regen_timer();
 	test_queued_repair_on_finished();
+	test_return_dropsite_lost();
+	test_trained_rally_on_civic_centre();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;

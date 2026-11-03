@@ -191,7 +191,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 137; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 138; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_FAUNA_QUEUED_TARGET = 137; // each animal's set-aside attack target (fauna_queued_target_)
 	static constexpr uint32_t SAVE_VERSION_PETRA_IDLE_CHECKS = 136; // each Petra base's next gatherer balance check (timeNextIdleCheck)
 	static constexpr uint32_t SAVE_VERSION_PETRA_HOLDER_TIME = 135; // each Petra garrison holder's holderTimeUpdate
@@ -232,6 +232,7 @@ public:
 	static constexpr uint32_t SAVE_VERSION_PETRA_PROSPECT = 100; // Petra's routeProspection and the Trade structures it last saw
 	static constexpr uint32_t SAVE_VERSION_TRADE_ROUTE = 99; // each trader's route waypoints and leg progress (SetupTradeRoute route, reversed on the way back)
 	static constexpr uint32_t SAVE_VERSION_PROJECTILE_DAMAGE = 98; // each projectile's fire-time strengths and shooter (GetTotalAttackEffects at impact); each unit's and animal's previous-turn position (aim velocity); each player's control-all-units flag
+	static constexpr uint32_t SAVE_VERSION_RALLY_EMERGENCY = 138; // Petra's autogarrison rally flag (rally_emergency)
 	static constexpr uint32_t SAVE_VERSION_RALLY_COMMANDS = 97; // each rally position's command and unit or treasure
 	static constexpr uint32_t SAVE_VERSION_PETRA_RAID_SIEGE = 95; // the Petra raid's name and siege class
 	static constexpr uint32_t SAVE_VERSION_PETRA_SUPPLY_ROOM = 94; // each Petra gatherer's supply; structures with no room, for 90 s; the AIs' own random stream
@@ -398,6 +399,9 @@ public:
 		// unit or treasure it names (attack, collect-treasure).
 		uint8_t rally_cmd = 0;
 		uint32_t rally_target_ent_id = 0;
+		// Petra's autogarrison rally (its trainer's own structure): a trained unit is put straight
+		// inside. A rally the player sets on the structure spawns the unit outside, and then walks it in.
+		bool rally_emergency = false;
 		// Shift-added positions after the first (RallyPoint.AddPosition), in order.
 		struct RallyStep {
 			float x, z;

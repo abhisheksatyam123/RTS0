@@ -4226,7 +4226,11 @@ void RtsoWorldView::apply_biome_environment(const std::string &biome, const std:
 			if (DirectionalLight3D *sun = Object::cast_to<DirectionalLight3D>(scene->get_child(i))) {
 				const float peak = std::max(e->sun.r, std::max(e->sun.g, e->sun.b));
 				sun->set_color(col(e->sun, 1.0f / peak));
-				sun->set_param(Light3D::PARAM_ENERGY, 1.25f * peak);
+				// model_common.fs and terrain_common.fs light in gamma space, texture * (SunColor *
+				// N.L * shadow + AmbientColor), with no tonemapping; Godot lights linear colours.
+				// 1.6 x SunColor with the AmbientColor as is matches 0.28's lit and shadowed
+				// ground best across the aegean and sahara biomes (mean error 0.02-0.05).
+				sun->set_param(Light3D::PARAM_ENERGY, 1.6f * peak);
 				sun->set_rotation(Vector3(-sun_elev, sun_yaw, 0.0f));
 			} else if (WorldEnvironment *we = Object::cast_to<WorldEnvironment>(scene->get_child(i))) {
 				Ref<Environment> env = we->get_environment();
@@ -4234,8 +4238,11 @@ void RtsoWorldView::apply_biome_environment(const std::string &biome, const std:
 				if (!env_base_.is_valid()) env_base_ = env->duplicate(true);
 				env = env_base_->duplicate(true);
 				we->set_environment(env);
-				// AmbientColor 0.4 grey is 0 A.D.'s neutral; scale to the scene's level.
-				env->set_ambient_light_color(col(e->ambient, 0.85f / 0.4f));
+				// 0.28's ambient is the one AmbientColor everywhere, with no light from the sky.
+				env->set_ambient_source(Environment::AMBIENT_SOURCE_COLOR);
+				env->set_ambient_light_color(col(e->ambient));
+				env->set_ambient_light_energy(1.0f);
+				env->set_ambient_light_sky_contribution(0.0f);
 				env->set_fog_light_color(col(e->fog));
 				Ref<Sky> sky = env->get_sky();
 				if (sky.is_valid() && apply_sky_box(sky, e->sky, map_id, sun_yaw, col(e->fog))) {
@@ -4614,6 +4621,10 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	for (int t = 0; t < rtso::UNIT_TYPE_COUNT; ++t) {
 		anim_controllers[t].update(delta * 1000.0f);
 	}
+	// Mounted cavalry: the walk and run cycles play at the pace of the ground covered, as 0 A.D.
+	// syncs a mount's stride to its speed; a mount at its base walk plays the clip as made.
+	// The controller is shared by the type, so the pace follows the cavalry moving this frame.
+	anim_controllers[rtso::UNIT_CAVALRY].set_speed(1.0f);
 
 	std::unordered_set<int32_t> sel_set;
 	if (selected_ids.size() > 0) sel_set.reserve((size_t)selected_ids.size());
@@ -4954,6 +4965,11 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		float vx = uview.vel_x[i];
 		float vz = uview.vel_z[i];
 		float speed2 = vx * vx + vz * vz;
+		if (utype == rtso::UNIT_CAVALRY && speed2 > 0.05f) {
+			const float base = sim->unit_base_walk_speed(i);
+			if (base > 0.001f)
+				anim_controllers[utype].set_speed(Math::clamp(std::sqrt(speed2) / base, 0.3f, 2.5f));
+		}
 
 		// Smooth visual position interpolation to prevent snapping
 		float x = tx;
@@ -5991,7 +6007,10 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		float fz = fview.pos_z[f];
 		float fy = sim->get_terrain_height(fx, fz);
 		if (rtso::fauna_type_info(ft).is_naval()) fy = std::max(fy, drawn_water_height(sim)); // whales and sharks swim
-		float frot = fview.rot_y[f];
+		// The sim's animal heading is (sin rot, cos rot) (simulation.cpp roam and flee steps),
+		// while Basis(Y, a) faces local -Z, along (-sin a, -cos a): a unit's yaw is
+		// atan2(-hx, -hz). Without the half turn an animal walked backwards.
+		float frot = fview.rot_y[f] + (float)Math_PI;
 		static_assert(rtso::FAUNA_COUNT <= 64, "fauna_fx_id_ holds 64 types");
 		if (fauna_fx_id_[ft].is_empty()) fauna_fx_id_[ft] = String(rtso::fauna_type_info(ft).model_id);
 		const String &fid = fauna_fx_id_[ft];
