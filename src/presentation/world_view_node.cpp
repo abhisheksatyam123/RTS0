@@ -333,6 +333,10 @@ void RtsoWorldView::cleanup() {
 	(void)free_mesh_and_mats;
 }
 
+// Trees beyond this distance (metres from the camera) are not drawn; they fade over the margin.
+static constexpr float kTreeVisibilityEnd = 320.0f;
+static constexpr float kTreeVisibilityMargin = 20.0f;
+
 Ref<MultiMesh> RtsoWorldView::create_multimesh(const Ref<Mesh> &mesh, bool use_colors) {
 	Ref<MultiMesh> mm;
 	mm.instantiate();
@@ -673,6 +677,11 @@ void RtsoWorldView::_ready() {
 			tree_mm[k][v] = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "tree").mesh), true);
 			tree_mmi[k][v] = memnew(MultiMeshInstance3D);
 			tree_mmi[k][v]->set_multimesh(tree_mm[k][v]);
+			// AAA look item 5: trees past the shadow cut-off are skipped by the renderer
+			// (one set of instances, no second buffer). The Self fade hides the pop.
+			tree_mmi[k][v]->set_visibility_range_end(kTreeVisibilityEnd);
+			tree_mmi[k][v]->set_visibility_range_end_margin(kTreeVisibilityMargin);
+			tree_mmi[k][v]->set_visibility_range_fade_mode(GeometryInstance3D::VISIBILITY_RANGE_FADE_SELF);
 			add_child(tree_mmi[k][v]);
 		}
 	}
