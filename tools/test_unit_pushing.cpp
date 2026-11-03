@@ -247,6 +247,22 @@
 //     now follows a path its sealed search found as a sealed one: he gets in within 2 s of main's time
 //     and never walks through the ally's bodies, and a builder there, which main's seal held the same
 //     way, starts.
+// 40. Player 0's dock site on Stats' Islands soak (main ae8f97dcd, seed 2) at 1300 s, as the game saved it: the
+//     shore's navcells, the civic centre beside it, the trees round it and 93 of the player's units under their
+//     ids, 70 of them sent to build it (Petra sends every worker with no supply left to a dropsite,
+//     worker.js:612-628), 20 gathering wood round it, 5 standing on it. RTS0's build range holds one row of
+//     about 14 builders round the site where 0.28's holds two (Builder.js:55-63), and the rest stand behind
+//     them. The units LeaveFoundation sent off it walked to the nearest point off it that no unit's
+//     crowd-scale square held, found the builders' squares shut every way there, and the pushes of the
+//     builders walking up put them back on: in the game the site never started (1123 s to the end of the
+//     game), and here not in 60 s. Now LeaveFoundation walks to g_LeaveFoundationRange off the site through
+//     its own player's standing units, ends once that far off, and is not given again while under way
+//     (UnitAI.js:183-184, 284-290, 1792-1799, 5531-5536), and no push carries a unit onto a site waiting to
+//     start. As saved, and twice with every unit moved up to 0.15 at random, the site starts within 20 s
+//     (8.9, 11.2 and 10.8 s). And ordinary sites with a few builders and a unit on them (a house, a barracks
+//     ringed by its builders, a house with a cavalryman on it) start as soon as on main, the unit ending
+//     g_LeaveFoundationRange plus its clearance off the site (1.31 to 1.47), where main's stopped 0.52 to 1.95
+//     off it.
 #define private public
 #include "simulation/simulation.h"
 #undef private
@@ -2724,6 +2740,202 @@ int main() {
 		      "a unit sealed past its idle units, refused by an ally's behind them, gets in within 2 s of main's time");
 		CHECK(m7.ally >= 0.99f && m12.ally >= 0.99f, "and never walks through the ally's bodies there");
 		CHECK(mb.in > 0, "a builder held so by main's seal gets to its site");
+	}
+	{
+		// 40. Player 0's dock site on Stats' Islands soak (main ae8f97dcd, seed 2) at 1300 s, as the game saved it:
+		// the 2-unit navcells round it, centres x 63 to 101 (columns) and z -57 down to -95 (rows), # deep water,
+		// ~ shallow, . land (structures' cells as land, the map's edge as water; heights as in 38); its civic centre
+		// beside it; the trees round it; and 93 of player 0's units under their ids, each with the order it held or
+		// would take up again, and the wood it carried.
+		enum DockOrder : uint8_t { DOCK_IDLE, DOCK_GATHER, DOCK_BUILD };
+		struct DockTree {
+			uint32_t id;
+			float x, z;
+			int amount;
+		};
+		struct DockUnit {
+			uint32_t id;
+			float x, z;
+			UnitType type;
+			DockOrder order;
+			uint32_t target;
+			int carry;
+		};
+		constexpr UnitType S = UNIT_SPEARMAN, C = UNIT_CAVALRY;
+		static const char *DOCK_NAV[] = {
+				"..........~#########", "..........##########", ".........~##########", "..........##########", "...........~~.######",
+				"...............#####", "................####", "................####", "...................#", "..................~#",
+				"..................##", "##.......~~......###", "##~.....~##~....~###", "##......~###...~####", "#~......~###########",
+				"~.......~###########", "~.......~####.######", "~....~~#####..######", "#~..~######...######", "##########....######",
+		};
+		const std::vector<DockTree> trees = {
+				{266, 87.5f, -81.5f, 60}, {267, 87.5f, -80.5f, 33}, {268, 86.5f, -76.5f, 38}, {269, 87.5f, -75.5f, 20}, {272, 88.5f, -77.5f, 20},
+				{273, 88.5f, -76.5f, 40}, {274, 87.5f, -82.5f, 50}, {275, 88.5f, -83.5f, 70}, {276, 88.5f, -82.5f, 60}, {277, 88.5f, -81.5f, 56},
+				{278, 87.5f, -76.5f, 60}, {280, 84.5f, -76.5f, 20}, {281, 85.5f, -77.5f, 40},
+		};
+		const std::vector<DockUnit> crowd = {
+				{2, 79.4205f, -74.8041f, W, DOCK_GATHER, 269, 0}, {4, 83.0260f, -72.9898f, W, DOCK_BUILD, 1863, 10}, {6, 80.2029f, -78.9028f, S, DOCK_BUILD, 1863, 10},
+				{8, 84.9625f, -77.3135f, A, DOCK_BUILD, 1863, 10}, {9, 82.2852f, -79.5465f, A, DOCK_GATHER, 269, 10}, {614, 75.5406f, -79.8867f, W, DOCK_GATHER, 281, 0},
+				{621, 82.9371f, -78.3798f, W, DOCK_GATHER, 278, 10}, {631, 84.3264f, -75.4682f, W, DOCK_GATHER, 267, 10}, {640, 83.4478f, -79.7201f, W, DOCK_BUILD, 1863, 10},
+				{651, 82.5598f, -78.2874f, W, DOCK_BUILD, 1863, 10}, {656, 76.4119f, -79.4362f, W, DOCK_BUILD, 1863, 0}, {685, 83.5755f, -78.9644f, S, DOCK_BUILD, 1863, 10},
+				{686, 84.5205f, -77.1669f, S, DOCK_BUILD, 1863, 10}, {687, 86.0363f, -80.1029f, S, DOCK_BUILD, 1863, 10}, {702, 78.6455f, -80.5001f, S, DOCK_BUILD, 1863, 10},
+				{703, 77.4884f, -79.4291f, S, DOCK_GATHER, 278, 0}, {720, 87.9071f, -72.5748f, W, DOCK_BUILD, 1863, 10}, {733, 80.7970f, -78.0476f, A, DOCK_BUILD, 1863, 10},
+				{734, 86.3982f, -77.0607f, A, DOCK_BUILD, 1863, 10}, {735, 86.1573f, -79.1737f, A, DOCK_BUILD, 1863, 10}, {750, 78.4732f, -76.3560f, W, DOCK_BUILD, 1863, 10},
+				{762, 81.6697f, -76.6151f, S, DOCK_BUILD, 1863, 10}, {763, 86.5235f, -72.5614f, S, DOCK_BUILD, 1863, 10}, {764, 85.2176f, -71.7143f, S, DOCK_BUILD, 1863, 10},
+				{772, 81.1384f, -73.6788f, W, DOCK_GATHER, 280, 0}, {773, 81.5448f, -73.0927f, W, DOCK_BUILD, 1863, 10}, {783, 82.4943f, -73.1022f, S, DOCK_BUILD, 1863, 10},
+				{784, 82.8137f, -75.8163f, S, DOCK_GATHER, 269, 10}, {785, 78.1611f, -73.7638f, S, DOCK_BUILD, 1863, 10}, {797, 77.1561f, -73.5428f, S, DOCK_BUILD, 1863, 0},
+				{798, 84.1370f, -73.0788f, S, DOCK_BUILD, 1863, 10}, {799, 84.9548f, -75.0694f, S, DOCK_BUILD, 1863, 10}, {800, 79.3278f, -77.2679f, S, DOCK_BUILD, 1863, 10},
+				{808, 84.9545f, -70.0912f, W, DOCK_BUILD, 1863, 10}, {810, 82.6256f, -74.1263f, W, DOCK_GATHER, 280, 0}, {824, 85.0212f, -74.1039f, S, DOCK_BUILD, 1863, 10},
+				{825, 79.0504f, -77.1410f, S, DOCK_BUILD, 1863, 10}, {826, 80.2022f, -78.9467f, S, DOCK_BUILD, 1863, 10}, {827, 86.5360f, -73.9249f, S, DOCK_BUILD, 1863, 10},
+				{852, 85.1047f, -80.3206f, S, DOCK_GATHER, 267, 7}, {853, 76.5424f, -78.1718f, S, DOCK_GATHER, 268, 0}, {854, 81.9293f, -74.0042f, S, DOCK_BUILD, 1863, 10},
+				{855, 86.7664f, -75.4539f, S, DOCK_BUILD, 1863, 10}, {871, 78.6365f, -79.3491f, S, DOCK_BUILD, 1863, 4}, {872, 88.5325f, -74.9625f, S, DOCK_GATHER, 266, 0},
+				{874, 85.4882f, -71.7293f, S, DOCK_BUILD, 1863, 10}, {890, 89.3872f, -80.9602f, S, DOCK_GATHER, 274, 0}, {893, 79.0993f, -73.6687f, S, DOCK_BUILD, 1863, 10},
+				{905, 79.2102f, -72.7835f, S, DOCK_BUILD, 1863, 10}, {906, 86.4402f, -78.2515f, S, DOCK_BUILD, 1863, 10}, {918, 79.5077f, -76.9563f, A, DOCK_GATHER, 275, 9},
+				{920, 82.2400f, -78.8311f, A, DOCK_BUILD, 1863, 10}, {924, 84.9118f, -73.7491f, W, DOCK_BUILD, 1863, 0}, {926, 83.9749f, -78.9672f, W, DOCK_BUILD, 1863, 10},
+				{941, 84.9940f, -77.5110f, A, DOCK_BUILD, 1863, 10}, {943, 84.9785f, -76.2154f, A, DOCK_BUILD, 1863, 10}, {945, 79.8690f, -73.0057f, A, DOCK_BUILD, 1863, 10},
+				{979, 86.4998f, -70.9319f, S, DOCK_BUILD, 1863, 0}, {981, 84.9777f, -75.7665f, S, DOCK_BUILD, 1863, 10}, {990, 82.2012f, -78.9456f, W, DOCK_BUILD, 1863, 10},
+				{992, 84.1655f, -70.6193f, W, DOCK_GATHER, 266, 0}, {1004, 84.7304f, -73.2612f, W, DOCK_BUILD, 1863, 10}, {1005, 77.4697f, -78.1865f, W, DOCK_GATHER, 273, 0},
+				{1006, 78.7052f, -77.8866f, W, DOCK_GATHER, 275, 0}, {1007, 79.9161f, -76.4371f, W, DOCK_GATHER, 272, 0}, {1013, 81.1060f, -71.4974f, W, DOCK_BUILD, 1863, 0},
+				{1059, 81.8328f, -71.0842f, W, DOCK_BUILD, 1863, 10}, {1061, 85.2537f, -78.5707f, W, DOCK_BUILD, 1863, 10}, {1265, 79.1162f, -74.3724f, W, DOCK_BUILD, 1863, 0},
+				{1267, 87.6744f, -76.1306f, W, DOCK_BUILD, 1863, 10}, {1269, 85.5732f, -80.9632f, W, DOCK_BUILD, 1863, 0}, {1334, 80.7999f, -78.3430f, W, DOCK_BUILD, 1863, 10},
+				{1335, 84.1196f, -76.0073f, W, DOCK_BUILD, 1863, 10}, {1336, 78.9458f, -71.2795f, W, DOCK_BUILD, 1863, 10}, {1337, 87.2583f, -79.2831f, W, DOCK_BUILD, 1863, 10},
+				{1364, 83.7947f, -72.9786f, A, DOCK_BUILD, 1863, 10}, {1379, 80.8893f, -73.0634f, S, DOCK_BUILD, 1863, 0}, {1402, 88.9720f, -79.1060f, W, DOCK_GATHER, 277, 4},
+				{1403, 87.6282f, -75.0798f, W, DOCK_BUILD, 1863, 10}, {1404, 82.3719f, -70.3442f, W, DOCK_BUILD, 1863, 0}, {1405, 80.7403f, -79.7352f, W, DOCK_BUILD, 1863, 10},
+				{1406, 80.2011f, -78.8903f, W, DOCK_BUILD, 1863, 10}, {1465, 79.0003f, -77.7720f, S, DOCK_BUILD, 1863, 6}, {1474, 80.9775f, -79.7347f, W, DOCK_BUILD, 1863, 10},
+				{1475, 82.9797f, -79.4470f, W, DOCK_BUILD, 1863, 10}, {1476, 79.7228f, -75.6215f, W, DOCK_BUILD, 1863, 10}, {1477, 79.5498f, -75.9851f, W, DOCK_GATHER, 277, 0},
+				{1764, 83.8808f, -74.6346f, S, DOCK_BUILD, 1863, 10}, {1766, 78.1193f, -72.7524f, S, DOCK_BUILD, 1863, 10}, {1830, 84.3787f, -78.8807f, S, DOCK_BUILD, 1863, 10},
+				{2034, 76.5888f, -71.9480f, C, DOCK_IDLE, 0, 0}, {2217, 78.2421f, -70.0699f, C, DOCK_IDLE, 0, 0}, {2218, 75.9483f, -69.5864f, C, DOCK_IDLE, 0, 0},
+		};
+		constexpr int NAV_X0 = 63, NAV_Z0 = -57, NAV_W = 20, NAV_H = 20;
+		auto centre = [&](int x, int z) {
+			if (x < NAV_X0 || x > NAV_X0 + 2 * (NAV_W - 1) || z > NAV_Z0 || z < NAV_Z0 - 2 * (NAV_H - 1)) return 1.75f;
+			const char c = DOCK_NAV[(NAV_Z0 - z) / 2][(x - NAV_X0) / 2];
+			return c == '#' ? 0.5f : c == '~' ? 1.05f : 1.75f;
+		};
+		// The scene, every unit moved by up to `jitter` along each axis at random (`seed`), the builders sent to
+		// the site one at a time and the gatherers to their trees, as the game's orders stood.
+		auto dock_scene = [&](float jitter, int seed) {
+			auto s = std::make_unique<Simulation>();
+			s->set_sim_seed(5);
+			s->reset();
+			s->set_map_half(128.0f);
+			constexpr int RES = 257;
+			std::vector<float> h((size_t)RES * RES);
+			for (int j = 0; j < RES; ++j)
+				for (int i = 0; i < RES; ++i) {
+					const int x = i - 128, z = j - 128;
+					const bool ox = (x & 1) != 0, oz = (z & 1) != 0;
+					h[(size_t)j * RES + i] = ox && oz ? centre(x, z)
+					                       : ox      ? 0.5f * (centre(x, z - 1) + centre(x, z + 1))
+					                       : oz      ? 0.5f * (centre(x - 1, z) + centre(x + 1, z))
+					                                 : 0.25f * (centre(x - 1, z - 1) + centre(x + 1, z - 1) + centre(x - 1, z + 1) +
+					                                            centre(x + 1, z + 1));
+				}
+			s->set_terrain_data(h, RES, 1.0f);
+			s->begin_bulk_spawn();
+			s->end_bulk_spawn();
+			s->set_team_civ(0, CIV_ATHENIANS);
+			s->set_team_civ(1, CIV_SPARTANS);
+			s->next_id_ = 5000;
+			s->spawn_building_world(-70.0f, -70.0f, BLD_TOWN_CENTER, 1, 1.0f);
+			s->next_id_ = 1119;
+			s->spawn_building_world(76.0f, -76.0f, BLD_TOWN_CENTER, 0, 1.0f);
+			s->next_id_ = 1863;
+			s->spawn_building_world(82.0f, -76.0f, BLD_DOCK, 0, 0.0f);
+			s->rebuild_nav_grid();
+			for (const DockTree &t : trees) {
+				s->next_id_ = t.id;
+				s->spawn_resource_world(t.x, t.z, RES_WOOD, t.amount);
+			}
+			uint64_t r = (uint64_t)seed * 7919 + 17;
+			auto rnd = [&r, jitter]() {
+				r = r * 6364136223846793005ULL + 1442695040888963407ULL;
+				return ((float)((r >> 33) & 0xFFFFFF) / (float)0x1000000 - 0.5f) * 2.0f * jitter;
+			};
+			for (const DockUnit &u : crowd) {
+				s->next_id_ = u.id;
+				const float jx = rnd(), jz = rnd();
+				s->spawn_unit(u.x + jx, u.z + jz, 0, u.type);
+				const int i = idx(*s, u.id);
+				if (u.carry > 0) {
+					s->units_.carry[i] = u.carry;
+					s->units_.res_type_carried[i] = RES_WOOD;
+				}
+			}
+			s->next_id_ = 6000;
+			for (const DockUnit &u : crowd) {
+				if (u.order == DOCK_BUILD) s->order_build_or_repair(&u.id, 1, u.target);
+				else if (u.order == DOCK_GATHER) s->order_gather(&u.id, 1, u.target);
+			}
+			return s;
+		};
+		// As saved, and every unit moved by up to 0.15 at random (two draws): 60 s at most each. Main
+		// without the LeaveFoundation walk starts none of them in 60 s. With it they start after 11.7,
+		// 12.9 and 21.9 s since obstructed turns on which a unit still moves ask for its paths again
+		// (HandleObstructedMove, de2782a68); 8.9, 11.2 and 10.8 s before that.
+		int started = 0;
+		float slowest = 0.0f;
+		for (int run = 0; run < 3; ++run) {
+			auto s = dock_scene(run == 0 ? 0.0f : 0.15f, run);
+			const int t = build_started(*s, 1863, 1200);
+			std::printf("  the Islands dock, %s: started after %.2f s (-1: not in 60 s)\n", run == 0 ? "as saved" : "units moved up to 0.15",
+			            t < 0 ? -1.0f : t * DT);
+			started += t > 0;
+			if (t > 0) slowest = std::max(slowest, t * DT);
+		}
+		CHECK(started == 3 && slowest <= 30.0f, "a dock site its builders ring two rows deep starts: the units on it walk off through them");
+
+		// Ordinary sites on flat ground: a house with 3 builders and an idle woman on it, a barracks with 8 builders
+		// round it and 2 idle women on it, and a house with 2 builders and a cavalryman on it. Each starts as soon
+		// as on main, and the unit that stood on it (the first woman) ends in LeaveFoundation's range, idle.
+		int prompt = 0, in_range = 0;
+		for (int g = 0; g < 3; ++g) {
+			auto s = std::make_unique<Simulation>();
+			s->set_sim_seed(5);
+			s->reset();
+			s->set_map_half(96.0f);
+			s->set_team_civ(0, CIV_ATHENIANS);
+			s->set_team_civ(1, CIV_SPARTANS);
+			s->next_id_ = 5000;
+			s->spawn_building_world(-70.0f, -70.0f, BLD_TOWN_CENTER, 1, 1.0f);
+			s->next_id_ = 5100;
+			s->spawn_building_world(-40.0f, 30.0f, BLD_TOWN_CENTER, 0, 1.0f);
+			s->next_id_ = 100;
+			const uint32_t site = s->spawn_building_world(0.0f, 0.0f, g == 1 ? BLD_BARRACKS : BLD_HOUSE, 0, 0.0f);
+			s->rebuild_nav_grid();
+			const Simulation::Building &b = s->buildings_[s->building_id_to_idx_.at(site)];
+			s->next_id_ = 200;
+			std::vector<uint32_t> builders;
+			uint32_t on = 0;
+			if (g == 0) {
+				builders = {s->spawn_unit(-b.hu - 2.0f, 0.3f, 0, W), s->spawn_unit(0.2f, -b.hv - 2.0f, 0, W), s->spawn_unit(b.hu + 2.0f, -0.4f, 0, W)};
+				on = s->spawn_unit(0.3f, 0.2f, 0, W);
+			} else if (g == 1) {
+				for (int k = 0; k < 8; ++k) {
+					const float a = (float)k * 0.785398f;
+					builders.push_back(s->spawn_unit(std::cos(a) * (b.hu + 1.5f), std::sin(a) * (b.hv + 1.5f), 0, W));
+				}
+				on = s->spawn_unit(0.5f, 0.5f, 0, W);
+				s->spawn_unit(-0.6f, -0.5f, 0, W);
+			} else {
+				builders = {s->spawn_unit(-b.hu - 2.0f, 0.0f, 0, W), s->spawn_unit(b.hu + 2.0f, 0.0f, 0, W)};
+				on = s->spawn_unit(0.1f, 0.2f, 0, C);
+			}
+			for (int t = 0; t < 20; ++t) s->tick(DT);
+			s->order_build_or_repair(builders.data(), builders.size(), site);
+			const int t = build_started(*s, site, 600);
+			for (int k = 0; k < 100; ++k) s->tick(DT);
+			const int i = idx(*s, on);
+			const nav::Vec2 gp = nav::footprint_gap(b, s->units_.pos_x[i], s->units_.pos_z[i]);
+			const float gap = std::sqrt(gp.x * gp.x + gp.y * gp.y), range = s->unit_clearance_at(i) + 1.0f;
+			std::printf("  %s: started after %.2f s (main: %s s); the unit on it ends %.2f off it (range %.2f)\n",
+			            g == 0 ? "a house, 3 builders, a woman on it" : g == 1 ? "a barracks, 8 builders, 2 women on it" : "a house, 2 builders, a cavalryman on it",
+			            t < 0 ? -1.0f : t * DT, g == 0 ? "0.90" : "0.95", gap, range);
+			prompt += t > 0 && t * DT <= 1.2f;
+			in_range += gap >= range - 0.05f && !s->units_.has_order[i];
+		}
+		CHECK(prompt == 3, "an ordinary site with a unit on it starts as soon as on main");
+		CHECK(in_range == 3, "and the unit on it walks to LeaveFoundation's range off it, and stands there");
 	}
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;

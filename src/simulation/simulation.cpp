@@ -192,6 +192,8 @@ constexpr float kBuildStandOff = 0.80f;
 // as close as it can stand, so the walk always gets within the task's range (0 A.D. UnitMotion
 // moves to the range itself, which reaches past the unit's clearance), and the walk ends there.
 constexpr float kStandMargin = 0.05f;
+// g_LeaveFoundationRange (UnitAI.js:183-184): 4 m between a unit leaving a foundation and the site.
+constexpr float kLeaveFoundationRange = 4.0f / 4.0f;
 
 // The save version that added UnitAI orders (tick_state_io section 4).
 static constexpr uint32_t SAVE_VERSION_UNIT_ORDERS = 20;
@@ -3396,6 +3398,7 @@ void Simulation::ensure_gaia_obstacles() {
 	forest_stale_ = true; // the woods follow the list as it is now (update_forest_cells)
 	gaia_obstacles_.clear();
 	gaia_res_idx_.clear();
+	gaia_blocks_ships_.clear();
 	mine_candidates_.clear();
 	for (size_t r = 0; r < resources_.count; ++r) {
 		const uint8_t t = resources_.type[r], sub = resources_.subtype[r];
@@ -3406,6 +3409,7 @@ void Simulation::ensure_gaia_obstacles() {
 			gaia_obstacles_.push_back(
 					steer_obstacle(resources_.id[r], resources_.x[r], resources_.z[r], 1.0f, 0.0f, half, half, GAIA_OBSTACLE));
 			gaia_res_idx_.push_back((uint32_t)r);
+			gaia_blocks_ships_.push_back(0);
 		}
 	}
 	for (const Treasure &t : treasures_) {
@@ -3416,6 +3420,7 @@ void Simulation::ensure_gaia_obstacles() {
 		nav::footprint_axis(treasure_angle(t.id), ux, uz, swapped);
 		gaia_obstacles_.push_back(steer_obstacle(t.id, t.x, t.z, ux, uz, swapped ? hd : hw, swapped ? hw : hd, GAIA_OBSTACLE));
 		gaia_res_idx_.push_back(UINT32_MAX);
+		gaia_blocks_ships_.push_back(ti.blocks_movement ? 1 : 0);
 	}
 	gaia_grid_.build(gaia_obstacles_, map_half_);
 }
@@ -3440,7 +3445,7 @@ bool Simulation::ship_wreck_steer(size_t i, float x, float z, float ax, float az
 	const float pad = r * 1.4143f; // a square grown by r reaches r * sqrt(2) further at its corners
 	gaia_grid_.for_each_in_box(std::min(x, end.x) - pad, std::min(z, end.y) - pad, std::max(x, end.x) + pad, std::max(z, end.y) + pad,
 			[&](uint32_t k) {
-		if (gaia_res_idx_[k] != UINT32_MAX) return; // trees and bushes stand on land
+		if (!gaia_blocks_ships_[k]) return; // trees and bushes stand on land; ships sail over debris
 		const SteerObstacle &o = gaia_obstacles_[k];
 		const nav::Vec2 c(o.x, o.z), u = nav::footprint_u(o), v = nav::footprint_v(o), half(o.hu + r, o.hv + r);
 		// The treasure the ship sails to collect, and one it already overlaps, are not steered round.
@@ -3450,17 +3455,36 @@ bool Simulation::ship_wreck_steer(size_t i, float x, float z, float ax, float az
 		if (!hit || d2 < hit_d2) { hit = &o; hit_d2 = d2; }
 	});
 	if (!hit) return false;
-	// The corner of the wreck's square (grown by the hull) the ship can see that makes the shorter way.
+	// The shortest way round the wreck's square (grown by the hull), as VertexPathfinder's search over
+	// the square's corners finds it (VertexPathfinder.cpp:623-624, 827-831): by one corner the ship
+	// sees and the aim is seen from, or by two corners along one side, the first seen from the ship
+	// and the aim seen from the second. `out` is the first corner. A corner the aim is hidden from is
+	// never taken as the whole way, and a ship standing on one heads straight for the next (the
+	// search starts from the ship, so the corner under it is no waypoint).
 	const nav::Vec2 c(hit->x, hit->z), u = nav::footprint_u(*hit), v = nav::footprint_v(*hit);
 	const nav::Vec2 half(hit->hu + r, hit->hv + r), wide(half.x + 0.25f, half.y + 0.25f);
+	static constexpr float SU[4] = {1.0f, -1.0f, -1.0f, 1.0f}, SV[4] = {1.0f, 1.0f, -1.0f, -1.0f}; // in turn round the square
+	nav::Vec2 k[4];
+	for (int q = 0; q < 4; ++q) k[q] = c + u * (SU[q] * wide.x) + v * (SV[q] * wide.y);
+	auto sees = [&](const nav::Vec2 &a, const nav::Vec2 &b) { return !nav::TestRaySquare(a - c, b - c, u, v, half); };
+	bool aim_seen[4];
+	for (int q = 0; q < 4; ++q) aim_seen[q] = sees(k[q], aim);
 	float best = -1.0f;
-	for (int sx = -1; sx <= 1; sx += 2)
-		for (int sz = -1; sz <= 1; sz += 2) {
-			const nav::Vec2 corner = c + u * ((float)sx * wide.x) + v * ((float)sz * wide.y);
-			if (nav::TestRaySquare(pos - c, corner - c, u, v, half)) continue;
-			const float cost = (corner - pos).length() + (aim - corner).length();
-			if (best < 0.0f || cost < best) { best = cost; out = corner; }
+	for (int q = 0; q < 4; ++q) {
+		if (!sees(pos, k[q])) continue;
+		const float first = (k[q] - pos).length();
+		if (aim_seen[q]) {
+			const float cost = first + (aim - k[q]).length();
+			if (best < 0.0f || cost < best) { best = cost; out = k[q]; }
+			continue;
 		}
+		// Two neighbouring corners see each other: the side between them runs 0.25 outside the square.
+		for (const int n : {(q + 1) & 3, (q + 3) & 3}) {
+			if (!aim_seen[n]) continue;
+			const float cost = first + (k[n] - k[q]).length() + (aim - k[n]).length();
+			if (best < 0.0f || cost < best) { best = cost; out = first < 1e-3f ? k[n] : k[q]; }
+		}
+	}
 	return best >= 0.0f;
 }
 
@@ -3469,7 +3493,7 @@ bool Simulation::ship_step_into_wreck(size_t i, float x, float z, float nx, floa
 	const float r = unit_clearance_at(i);
 	const float pad = r * 1.4143f; // a square grown by r reaches r * sqrt(2) further at its corners
 	return gaia_grid_.any_in_box(std::min(x, nx) - pad, std::min(z, nz) - pad, std::max(x, nx) + pad, std::max(z, nz) + pad, [&](uint32_t k) {
-		if (gaia_res_idx_[k] != UINT32_MAX) return false;
+		if (!gaia_blocks_ships_[k]) return false;
 		const SteerObstacle &o = gaia_obstacles_[k];
 		const nav::Vec2 c(o.x, o.z), u = nav::footprint_u(o), v = nav::footprint_v(o), half(o.hu + r, o.hv + r);
 		return nav::PointIsInSquare(nav::Vec2(nx, nz) - c, u, v, half) && !nav::PointIsInSquare(nav::Vec2(x, z) - c, u, v, half) &&
@@ -7074,51 +7098,28 @@ std::vector<std::pair<float, float>> Simulation::distribute_around(const uint32_
 		if (idx < 0 || !units_.alive[idx]) return points;
 		at[i] = {units_.pos_x[idx], units_.pos_z[idx]};
 	}
-	constexpr float inv = 1.0f / PUSH_SCALE;
-	std::vector<float> px(count), pz(count), ax(count), az(count);
-	for (size_t i = 0; i < count; ++i) {
-		px[i] = points[i].first * inv;
-		pz[i] = points[i].second * inv;
-		ax[i] = at[i].first * inv;
-		az[i] = at[i].second * inv;
-	}
-
+	// Squared travel in whole crowd metres, each axis's difference rounded up (fixed
+	// ToInt_RoundToInfinity); each unit's own term is kept between swaps.
+	auto dist2 = [](const std::pair<float, float> &a, const std::pair<float, float> &b) {
+		const int64_t dx = (int64_t)std::ceil((a.first - b.first) / PUSH_SCALE);
+		const int64_t dz = (int64_t)std::ceil((a.second - b.second) / PUSH_SCALE);
+		return dx * dx + dz * dz;
+	};
 	std::vector<int64_t> d(count);
-	for (size_t i = 0; i < count; ++i) {
-		const int64_t dx = (int64_t)std::ceil(px[i] - ax[i]);
-		const int64_t dz = (int64_t)std::ceil(pz[i] - az[i]);
-		d[i] = dx * dx + dz * dz;
-	}
-
+	for (size_t i = 0; i < count; ++i) d[i] = dist2(points[i], at[i]);
 	bool improved;
 	do {
 		improved = false;
-		for (size_t i = 0; i < count; ++i) {
-			float pxi = px[i], pzi = pz[i];
-			const float axi = ax[i], azi = az[i];
-			int64_t dii = d[i];
+		for (size_t i = 0; i < count; ++i)
 			for (size_t j = i + 1; j < count; ++j) {
-				const float pxj = px[j], pzj = pz[j];
-				const int64_t dx_ji = (int64_t)std::ceil(pxj - axi);
-				const int64_t dz_ji = (int64_t)std::ceil(pzj - azi);
-				const int64_t dji = dx_ji * dx_ji + dz_ji * dz_ji;
-
-				const int64_t dx_ij = (int64_t)std::ceil(pxi - ax[j]);
-				const int64_t dz_ij = (int64_t)std::ceil(pzi - az[j]);
-				const int64_t dij = dx_ij * dx_ij + dz_ij * dz_ij;
-
-				const int64_t djj = d[j];
-				if (dji + dij < dii + djj) {
+				const int64_t dji = dist2(points[j], at[i]), dij = dist2(points[i], at[j]);
+				if (dji + dij < d[i] + d[j]) {
 					std::swap(points[i], points[j]);
-					px[i] = pxj; px[j] = pxi;
-					pz[i] = pzj; pz[j] = pzi;
-					pxi = pxj; pzi = pzj;
-					d[i] = dii = dji;
+					d[i] = dji;
 					d[j] = dij;
 					improved = true;
 				}
 			}
-		}
 	} while (improved);
 	return points;
 }
@@ -13171,10 +13172,13 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		} else if (!backing_off) {
 			rtso::nav::Vec2 steer;
 			if (ship_wreck_steer((size_t)i, px[i], pz[i], aim_x, aim_z, steer)) {
-				dx = steer.x - px[i];
-				dz = steer.y - pz[i];
-				d2 = dx * dx + dz * dz;
-				steered = true;
+				const float sdx = steer.x - px[i], sdz = steer.y - pz[i];
+				if (sdx * sdx + sdz * sdz > 1e-6f) { // as for land units: a zero-length steer has no heading
+					dx = sdx;
+					dz = sdz;
+					d2 = sdx * sdx + sdz * sdz;
+					steered = true;
+				}
 			}
 		}
 
@@ -13599,6 +13603,10 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		// if it were sealed.
 		const bool sealable = (units_.action_state[i] == ACTION_BUILD && units_.target_building_id[i] != 0) ||
 				(units_.action_state[i] == ACTION_MOVE && units_.has_order[i] && units_.order_kind[i] == ORDER_GARRISON);
+		// A unit walking off a foundation that waited to start (leave_foundation, ORDER_FLAG_LEAVE), for the
+		// rest of that walk.
+		const bool leaving = units_.order_kind[i] == ORDER_WALK && units_.has_order[i] &&
+				(units_.order_flags[i] & ORDER_FLAG_LEAVE);
 		const bool member = !formations_.empty() && (size_t)i < formation_group_.size() && formation_group_[i] != 0;
 		const ShortPathMemo &last = units_.short_path[i];
 		const float lsx = x0 - last.x, lsz = z0 - last.z, lax = aim_x[i] - last.aim_x, laz = aim_z[i] - last.aim_z;
@@ -13612,6 +13620,20 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 			// ICmpObstructionManager.h:406-429, CCmpUnitMotion.h:840-851): only its own control group lets a
 			// unit through. So a gatherer at work obstructs one walking to another supply, however near.
 			if ((size_t)j == i || !idle[j] || units_.id[j] == ignore || (group && crew[j] == group)) return false;
+			// RTS0 deviation at the crowd scale: a unit walking off a foundation that waits to start
+			// (LeaveFoundation, UnitAI.js:284-290) walks through its own player's standing units, the builders
+			// at work round the site among them, until that walk ends g_LeaveFoundationRange plus its clearance
+			// off the site. 0.28's walker paths round them as round any unit standing still, but 0.28's
+			// builders stand anywhere within 2 m plus their clearance of the site
+			// (Builder.js:55-63), a band 2.8 m deep that holds two rows of infantry at the static push spacing
+			// (1.68 m). RTS0's band reaches 0.96 off the footprint (outside_and_in_build_range), under one row
+			// at the crowd scale (1.4 units between two villagers), so about 14 builders stand in range round
+			// a 4-unit dock and the rest of Petra's builders (every worker with no supply of its resource left
+			// helps build a dropsite, worker.js:612-628) stand in rings behind them. On Islands (main
+			// ae8f97dcd, seed 2) 67 to 113 builders held a dock's site with 4 to 10 units on it from 1123 s to
+			// the end of the game: the walkers off it were boxed in by the rings (the stuck memo 40% of their
+			// time on it) and the site waited with them.
+			if (leaving && units_.team[j] == owner) return false;
 			// RTS0 deviation at the crowd scale, as control_group: a worker taking its load to a dropsite walks
 			// through its own player's units that stand idle with no order and, near the dropsite, those that
 			// gather. 0.28 sends a worker with nothing left to gather to the nearest dropsite, "a nice enough
@@ -14202,6 +14224,22 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 	float *px = units_.pos_x;
 	float *pz = units_.pos_z;
 	const bool have_steps = steps.count == n && steps.from_x && steps.from_z && steps.moving;
+	// The foundations that wait to start: one whose builder stands on it or in range tries the commit this
+	// tick (tick_construction), and the units on it walk off (try_commit_foundation). No push carries a
+	// unit onto one (below).
+	std::vector<const Building *> waiting;
+	for (size_t i = 0; i < n; ++i) {
+		if (!units_.alive[i] || units_.action_state[i] != ACTION_BUILD || units_.target_building_id[i] == 0) continue;
+		auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
+		if (bit == building_id_to_idx_.end()) continue;
+		const Building &b = buildings_[bit->second];
+		if (b.committed || b.wrecked || b.hp <= 0.0f || b.build_progress >= 1.0f || !structure_blocks(b) ||
+				!regards_as_ally(units_.team[i], b.team))
+			continue;
+		if (!nav::footprint_contains(b, px[i], pz[i], 0.0f) && !outside_and_in_build_range(b, px[i], pz[i], unit_clearance_at(i)))
+			continue;
+		if (std::find(waiting.begin(), waiting.end(), &b) == waiting.end()) waiting.push_back(&b);
+	}
 
 	float *fx = arena.alloc_array<float>(N);
 	float *fz = arena.alloc_array<float>(N);
@@ -14390,7 +14428,7 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 	// Track E (T45): Live GPU Compute Separation Dispatch when unit_count > 1000 and GpuSeparation::is_available() is true
 	const size_t unit_count = n;
 	float *gpu_forces = nullptr;
-	if (unit_count > 1000 && GpuSeparation::live_available()) {
+	if (gpu_push_ && unit_count > 1000 && GpuSeparation::live_available()) {
 		float *pos_xz = arena.alloc_array<float>(N * 2);
 		float *radii = arena.alloc_array<float>(N);
 		float *out_f = arena.alloc_array<float>(N * 2);
@@ -14448,12 +14486,9 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 		// is passed over before its data is read. The hundredth covers float rounding.
 		float skip = std::max(reach + step_max, ri + r_max) + 0.01f;
 		float body = 0.0f; // set below: the furthest on an axis a body could overlap this one's
-		int push_neighbors = 0;
-		constexpr int kMaxPushNeighbors = 16; // TODO-GRID-03: Clamped neighbor search culling in dense clusters
 		// `walker` (see the queries below): pass over the pairs with a unit that stands further than
 		// `body` on either axis.
 		auto push = [&](const UnitGrid::Packed &e, auto walker) SEP_INLINE {
-			if (push_neighbors >= kMaxPushNeighbors) return;
 			float lim = skip;
 			if constexpr (decltype(walker)::value) {
 				if (!(e.j & UnitGrid::PACKED_FLAG)) lim = body;
@@ -14517,7 +14552,6 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 			const float max_dist = same_group ? combined
 					: combined * PUSH_RADIUS + (moving_push ? PUSH_MOVING_EXT : PUSH_STATIC_EXT);
 			if (h2 > max_dist * max_dist) return;
-			++push_neighbors;
 			combined = max_dist * (moving_push ? PUSH_MOVING_SPREAD : PUSH_STATIC_SPREAD);
 			// a is the unit with the lower id; sign turns i's view into a's.
 			const bool i_is_a = idi < b.id;
@@ -14773,6 +14807,19 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 		};
 		float ux = fx[i], uz = fz[i];
 		if (push_barred(ux, uz)) ux = uz = 0.0f;
+		// RTS0 deviation at the crowd scale: no push carries a unit onto a foundation that waits to start.
+		// 0.28's would (a foundation's obstruction has no BlockMovement until Commit, special/filter/
+		// foundation.xml:23-26, so the push's CheckMovement passes it, CCmpUnitMotion_System.cpp:628-641),
+		// but its builders stand in range two rows deep and push one another along the band. RTS0's
+		// stand one row deep with the rest of the crowd standing behind them (avoid_idle_units, `leaving`),
+		// and their static pushes put a builder on the site 4.3 times a second, and the walkers' pushes a
+		// unit walking off it back on 6.2 times a second (Islands, main ae8f97dcd, seed 2, 1117-1477 s).
+		if ((ux != 0.0f || uz != 0.0f) && !waiting.empty())
+			for (const Building *w : waiting)
+				if (!nav::footprint_contains(*w, px[i], pz[i], 0.0f) && nav::footprint_contains(*w, px[i] + ux, pz[i] + uz, 0.0f)) {
+					ux = uz = 0.0f;
+					break;
+				}
 		const float bx = bfx[i] * dt * 10.0f, bz = bfz[i] * dt * 10.0f;
 		float push_x = std::clamp(ux + bx, -max_push, max_push);
 		float push_z = std::clamp(uz + bz, -max_push, max_push);
@@ -16585,6 +16632,44 @@ float Simulation::structure_build_time(const Building &b) const {
 }
 
 void Simulation::tick_construction(float dt) {
+	// Order.LeaveFoundation's WALKING ends once the unit is g_LeaveFoundationRange off the foundation
+	// (MovementUpdate CheckRange, UnitAI.js:1792-1799), measured from its obstruction. Its point lies
+	// ARRIVE_DIST beyond that range (leave_foundation), so the walk ends here, the unit stopping where it is.
+	// The order's target is the foundation, which keeps the walk going once the site has started (Commit
+	// leaves the entity as it is, Foundation.js:249-298), and then the finished structure, which the order's
+	// target is renamed to. The walk keeps no note of its site, so it ends once no unfinished site lies
+	// within that range (a unit whose site is finished first stops there, short of the range off the
+	// structure), and the unit goes back to the order it had. Only a unit still on that walk: one that
+	// broke off to answer an attack ends it once it resumes it (resume_order), and a formation's member
+	// takes its orders from the formation (finish_ended_walks skips both too).
+	std::vector<const Building *> sites;
+	bool sites_found = false;
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.order_kind[i] != ORDER_WALK || !units_.has_order[i] ||
+				!(units_.order_flags[i] & ORDER_FLAG_LEAVE) || units_.action_state[i] != ACTION_MOVE ||
+				(units_.order_flags[i] & ORDER_FLAG_INTERRUPTED) ||
+				(!formations_.empty() && i < formation_group_.size() && formation_group_[i] != 0))
+			continue;
+		if (!sites_found) {
+			for (const Building &b : buildings_)
+				if (b.build_progress < 1.0f && b.hp > 0.0f && !b.wrecked && structure_blocks(b)) sites.push_back(&b);
+			sites_found = true;
+		}
+		const float need = unit_clearance_at(i) + kLeaveFoundationRange;
+		bool near = false;
+		for (const Building *b : sites) {
+			const nav::Vec2 g = nav::footprint_gap(*b, units_.pos_x[i], units_.pos_z[i]);
+			if (g.x * g.x + g.y * g.y < need * need) { near = true; break; }
+		}
+		if (near) continue;
+		units_.has_order[i] = 0;
+		units_.action_state[i] = ACTION_IDLE;
+		units_.vel_x[i] = units_.vel_z[i] = 0.0f;
+		units_.waypoint_cur[i] = 0;
+		units_.waypoint_count[i] = 0;
+		if (i < unit_paths_.size()) unit_paths_[i].clear();
+		finish_order(i);
+	}
 	// Builders at work on each foundation (Foundation.js AddBuilder: those in range).
 	std::unordered_map<uint32_t, int> builders_per_bld;
 	const size_t n = units_.count;
@@ -16719,24 +16804,30 @@ void Simulation::foundation_exit_point(const Building &b, float x, float z, floa
 }
 
 void Simulation::leave_foundation(size_t i, const Building &b) {
+	// A LeaveFoundation while one is under way is ignored (UnitAI.js:5531-5536): the unit walks on.
+	if (units_.order_kind[i] == ORDER_WALK && units_.has_order[i] && (units_.order_flags[i] & ORDER_FLAG_LEAVE)) return;
 	const float r = unit_collision_radius(units_.unit_type[i]);
 	auto outside = [&](float x, float z) { return !nav::footprint_contains(b, x, z, r); };
-	// LeaveFoundation moves out of range of the foundation (MoveToTargetRangeExplicit): any
-	// point clear of it will do. Order.LeaveFoundation walks to at least g_LeaveFoundationRange
-	// from it (UnitAI.js:184, 284-290), a range goal that the path ends on wherever it can be
-	// reached. RTS0 walks to one point, so a point the unit could not get to is taken: one inside
-	// another structure (Stats' e2e_human_path, civ 9: the nearest point off a house site lay in
-	// the barracks beside it), and one within a unit's square at the crowd scale (unit_push_clearance,
-	// as avoid_idle_units squares a standing unit round a walker): a unit standing there, a builder at
-	// work beside the site among them (civ 13: the point lay 0.25 from the builder), or one
-	// already walking there, as two units leaving by the same side would otherwise queue for it.
-	// Each held the unit on the site for good, its short path finding no way, and the site with it.
+	// Order.LeaveFoundation walks to g_LeaveFoundationRange from the site (UnitAI.js:183-184, 284-290,
+	// MoveToTargetRangeExplicit), a range goal that the path ends on wherever it can be reached, and
+	// WALKING ends once the unit is that far off (CheckRange, 1792-1799; tick_construction). RTS0 walks to
+	// one point that far off, measured from the unit's obstruction (its clearance), so a point the unit
+	// could not get to is taken: one inside another structure (Stats' e2e_human_path, civ 9: the nearest
+	// point off a house site lay in the barracks beside it), and one within the crowd-scale square
+	// (unit_push_clearance, as avoid_idle_units squares a standing unit round a walker) of another
+	// player's unit standing there or walking there (a builder of an ally's at work beside the site), as
+	// 0.28's short path takes the walker to another part of the range round the site. Its own player's
+	// units take no point: the walk goes through those standing (avoid_idle_units, ORDER_FLAG_LEAVE), and
+	// two of them leaving by the same side both get there. A walk ends within ARRIVE_DIST of its point
+	// (move_units), so the point lies that much further out: the walk ends once the unit is in range
+	// (tick_construction), as CheckRange ends WALKING, and not ARRIVE_DIST short of it, among the builders.
+	const float rx = unit_clearance_at(i) + kLeaveFoundationRange + ARRIVE_DIST - 0.5f; // foundation_exit_point adds 0.5
 	const float ci = unit_push_clearance(units_.unit_type[i]);
 	auto taken = [&](float x, float z) {
 		for (const Building &o : buildings_)
 			if (&o != &b && o.committed && !o.wrecked && structure_blocks(o) && nav::footprint_contains(o, x, z, r)) return true;
 		for (size_t j = 0; j < units_.count; ++j) {
-			if (j == i || !units_.alive[j] || units_.action_state[j] == ACTION_GARRISONED) continue;
+			if (j == i || !units_.alive[j] || units_.team[j] == units_.team[i] || units_.action_state[j] == ACTION_GARRISONED) continue;
 			// No obstruction on the ground: a unit on a turret, a plane.
 			if ((!turret_height_.empty() && turret_height_.count(units_.id[j])) || (!flight_.empty() && unit_flies(j))) continue;
 			float px = units_.pos_x[j], pz = units_.pos_z[j];
@@ -16767,33 +16858,18 @@ void Simulation::leave_foundation(size_t i, const Building &b) {
 	const float step = std::max(2.0f * r, 0.25f);
 	// A warship keeps its 10 m from the shore: look further out for open water.
 	const float reach = ship ? std::max(2.0f * step, 4.0f) : 2.0f * step;
-	// An earlier call's point: one on the rings the search below steps along, r + 0.5 off the
-	// footprint and a step or two further out, in its own axes.
-	auto exit_ring = [&](float x, float z) {
-		const nav::Vec2 l = nav::footprint_local(b, x, z);
-		const float off = std::max(std::fabs(l.x) - b.hu, std::fabs(l.y) - b.hv) - (r + 0.5f);
-		for (float extra = 0.0f; extra <= reach; extra += step)
-			if (std::fabs(off - extra) < 1e-3f) return true;
-		return false;
-	};
-	// A walk the unit already has to a point off the footprint takes it off, so it walks on: 0.28 puts
+	// Any other walk the unit has to a point off the footprint takes it off, so it walks on: 0.28 puts
 	// LeaveFoundation in front of any order, and the walk resumes once the unit is off (UnitAI.js:5549
-	// PushOrderFront), but leaves a LeaveFoundation under way as it is (5536). Only a walk this
-	// function gave, to a point now taken or shut, would hold the unit on the site for good, so it
-	// walks from here to another. Any other walk (a group's or a formation's across the site) is kept
-	// whoever stands at or walks to its point: replaced by a walk to the site's edge, it ended there,
-	// and a formation's member left the formation.
-	if (units_.order_kind[i] == ORDER_WALK && units_.has_order[i] && outside(units_.order_x[i], units_.order_z[i])) {
-		const float ox = units_.order_x[i], oz = units_.order_z[i];
-		if (!exit_ring(ox, oz) || (!taken(ox, oz) && open(ox, oz))) return;
-	}
+	// PushOrderFront). Replaced by a walk to the site's edge, a group's or a formation's walk across the
+	// site ended there, and a formation's member left the formation.
+	if (units_.order_kind[i] == ORDER_WALK && units_.has_order[i] && outside(units_.order_x[i], units_.order_z[i])) return;
 	float tx, tz;
-	foundation_exit_point(b, units_.pos_x[i], units_.pos_z[i], r, tx, tz);
+	foundation_exit_point(b, units_.pos_x[i], units_.pos_z[i], rx, tx, tz);
 	if (taken(tx, tz) || !open(tx, tz)) {
 		// The nearest free point just off the footprint, stepping along its edge from the
 		// unit's own side (footprint axes), then a step further out.
 		const nav::Vec2 l = nav::footprint_local(b, units_.pos_x[i], units_.pos_z[i]);
-		const float out_u = b.hu + r + 0.5f, out_v = b.hv + r + 0.5f;
+		const float out_u = b.hu + rx + 0.5f, out_v = b.hv + rx + 0.5f;
 		float best = 1e30f, best_open = 1e30f, open_x = tx, open_z = tz;
 		bool found = false;
 		for (float extra = 0.0f; extra <= reach && !found; extra += step)
@@ -16820,20 +16896,15 @@ void Simulation::leave_foundation(size_t i, const Building &b) {
 				}
 			}
 		if (!found && ship) return; // no water off the site: it stays, and the site waits
-		// Every point is taken (a crowd round the site): a land unit makes for the nearest it can stand
-		// on and reach, among the crowd there, and not for the first point when that one is shut (out at
-		// sea off a dock's land edge, inside a structure); the range goal is planned on reachable
-		// navcells whoever stands there (MoveToTargetRange, UnitAI.js:284-290).
+		// Every open point is taken (another structure, or another player's crowd round the site): a land
+		// unit makes for the nearest it can stand on and reach, among that crowd, and not for the first
+		// point when that one is shut (out at sea off a dock's land edge, inside a structure); the range
+		// goal is planned on reachable navcells whoever stands there (MoveToTargetRange, UnitAI.js:284-290).
 		if (!found && best_open < 1e30f && !open(tx, tz)) {
 			tx = open_x;
 			tz = open_z;
 		}
 	}
-	// It already walks there: it walks on. 0.28 leaves a LeaveFoundation under way as it is
-	// (UnitAI.js:5533-5536); walking it again planned the same path anew each turn the site waited.
-	if (units_.order_kind[i] == ORDER_WALK && units_.has_order[i] && std::fabs(units_.order_x[i] - tx) < 1e-3f &&
-			std::fabs(units_.order_z[i] - tz) < 1e-3f)
-		return;
 	const uint32_t uid = units_.id[i];
 	const UnitOrder cur = current_order(i);
 	if (cur.kind != ORDER_NONE && cur.kind != ORDER_WALK) {
@@ -16844,7 +16915,9 @@ void Simulation::leave_foundation(size_t i, const Building &b) {
 	applying_queued_ = true; // keep the queue: the order resumes once the unit is off the site
 	cmd_move(&uid, 1, tx, tz);
 	applying_queued_ = was;
-	if (units_.order_kind[i] == ORDER_WALK) units_.order_flags[i] |= ORDER_FLAG_FORCE;
+	// Marked as LeaveFoundation's walk: its short paths go through its own player's standing units
+	// (avoid_idle_units).
+	if (units_.order_kind[i] == ORDER_WALK) units_.order_flags[i] |= ORDER_FLAG_FORCE | ORDER_FLAG_LEAVE;
 }
 
 // UnitMotion MoveToTargetRange: the long pathfinder's goal is the whole range round the structure's

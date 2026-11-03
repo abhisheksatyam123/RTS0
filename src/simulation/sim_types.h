@@ -884,7 +884,9 @@ enum UnitOrderFlag : uint8_t {
 	// or gathers near the new dropsite.
 	ORDER_FLAG_AUTOHARVEST = 32,
 	// ORDER_GARRISON only: occupy a turret point of the holder (Commands.js "occupy-turret").
-	ORDER_FLAG_TURRET = 32
+	ORDER_FLAG_TURRET = 32,
+	// ORDER_WALK only: the walk off a foundation that UnitAI LeaveFoundation gave (leave_foundation).
+	ORDER_FLAG_LEAVE = 32
 };
 // A gather order keeps its resource's subtype (ResourceSubtype) in flag bits 5-7, so the
 // unit can look for the same kind once the resource is gone (UnitAI GATHER FINDINGNEWTARGET).
