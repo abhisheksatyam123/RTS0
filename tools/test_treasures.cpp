@@ -193,6 +193,26 @@ int main() {
 		CHECK(!s.is_treasure_id(t));
 	}
 
+	// 3f. COLLECTTREASURE has no Attacked handler and its order is forced: a collector hit by an
+	//     enemy while its CollectTime timer runs goes on collecting (UnitAI.js:1541, :5756).
+	{
+		fresh(s);
+		uint32_t a = s.spawn_unit(0.0f, 0.0f, 0, UNIT_SPEARMAN);
+		uint32_t e = s.spawn_unit(2.0f, 0.0f, 1, UNIT_SPEARMAN);
+		uint32_t t = s.spawn_treasure(0.5f, 0.0f, TREASURE_STONE);
+		const float ct = treasure_type_info(TREASURE_STONE).collect_time;
+		s.order_collect_treasure(&a, 1, t);
+		run(s, 0.3f);
+		s.order_attack(&e, 1, a);
+		run(s, ct * 0.5f);
+		int32_t ai = s.lookup_unit(a);
+		std::printf("attacked collector: order %d, state %d\n", (int)s.units_.order_kind[ai], (int)s.units_.action_state[ai]);
+		CHECK(s.units_.order_kind[ai] == ORDER_COLLECT_TREASURE);
+		CHECK(s.units_.action_state[ai] == ACTION_IDLE);
+		run(s, ct);
+		CHECK(!s.is_treasure_id(t));
+	}
+
 	// 3c. A treasure's Obstruction/Static blocks foundations on it (a 20 x 10 m shipwreck too).
 	{
 		fresh(s);
