@@ -227,6 +227,15 @@ struct NavGrid {
     static constexpr int TILE_CLASSES = 2;
     static constexpr float TILE_PATH_CLEARANCE = 0.8f / 4.0f;
     static constexpr float TILE_PATH_CLEARANCE_LARGE = 3.0f / 4.0f;
+    // A face of a structure with another structure less than TILE_CROWD_GAP beyond it (TileObstruction::crowd)
+    // grows by TILE_CROWD_GROW for the large class: 1 m, 0.28's CLEARANCE_EXTENSION_RADIUS (Pathfinding.h:160),
+    // which RasterizeRectWithClearance adds to every static obstruction's grow (Rasterize.cpp:48). So two
+    // structures 6.5 to 7.5 m apart close the gap between them at every phase (G30), while a face with
+    // nothing near it stays at RTS0's clearance, and a gap of exactly TILE_CROWD_GAP stays open (scenario 8
+    // of test_building_steering). One world unit is 4 m.
+    static constexpr float TILE_CROWD_GROW = 0.25f;
+    static constexpr float TILE_CROWD_GAP = 2.0f;
+    static constexpr uint8_t TILE_CROWD_FACE_U = 1, TILE_CROWD_FACE_NEG_U = 2, TILE_CROWD_FACE_V = 4, TILE_CROWD_FACE_NEG_V = 8;
     static int tile_class(uint8_t pass) { return (pass & PASS_LARGE) ? 1 : 0; }
     static float tile_clearance(int cls) { return cls ? TILE_PATH_CLEARANCE_LARGE : TILE_PATH_CLEARANCE; }
     // How far, in world units, the nodes' tests reach past a clearance, so that a square or a
@@ -246,8 +255,11 @@ struct NavGrid {
     struct TileObstruction {
         uint64_t key = 0;
         float x = 0.0f, z = 0.0f, ux = 1.0f, uz = 0.0f, hu = 0.0f, hv = 0.0f;
+        // The faces (TILE_CROWD_FACE_*) of it that another structure of the same set lies within
+        // TILE_CROWD_GAP beyond (mark_tile_crowds); the large class grows those faces.
+        uint8_t crowd = 0;
         bool operator==(const TileObstruction &o) const {
-            return key == o.key && x == o.x && z == o.z && ux == o.ux && uz == o.uz && hu == o.hu && hv == o.hv;
+            return key == o.key && x == o.x && z == o.z && ux == o.ux && uz == o.uz && hu == o.hu && hv == o.hv && crowd == o.crowd;
         }
         bool operator!=(const TileObstruction &o) const { return !(*this == o); }
     };
@@ -686,6 +698,90 @@ struct NavGrid {
         }
     }
 
+    // The faces of a (TILE_CROWD_FACE_*) that b lies within TILE_CROWD_GAP beyond: each face's slab, as
+    // deep as the gap and as wide as the face, is tested against b (tile_obs_overlap, which a touch does
+    // not count in, so a gap of exactly the gap stays open).
+    static uint8_t tile_obs_faces_toward(const TileObstruction &a, const TileObstruction &b) {
+        const float depth = 0.5f * (TILE_CROWD_GAP - TILE_HAIR);
+        uint8_t bits = 0;
+        for (int f = 0; f < 4; ++f) {
+            const float sign = (f & 1) ? -1.0f : 1.0f;
+            TileObstruction slab;
+            slab.x = a.x;
+            slab.z = a.z;
+            slab.ux = a.ux;
+            slab.uz = a.uz;
+            slab.hu = a.hu;
+            slab.hv = a.hv;
+            if (f < 2) {
+                slab.x += sign * (a.hu + depth) * a.ux;
+                slab.z += sign * (a.hu + depth) * a.uz;
+                slab.hu = depth;
+            } else {
+                slab.x += sign * (a.hv + depth) * -a.uz;
+                slab.z += sign * (a.hv + depth) * a.ux;
+                slab.hv = depth;
+            }
+            if (tile_obs_overlap(slab, 0.0f, b)) bits |= static_cast<uint8_t>(1u << f);
+        }
+        return bits;
+    }
+    // The faces of o that another in `list` (sorted by key, as the sets are) lies within TILE_CROWD_GAP beyond,
+    // o itself (its key) left out: o's crowd flags as mark_tile_crowds would set them.
+    static uint8_t tile_obs_faces_of(const TileObstruction &o, const std::vector<TileObstruction> &list) {
+        uint8_t bits = 0;
+        for (const TileObstruction &n : list)
+            if (n.key != o.key) bits |= tile_obs_faces_toward(o, n);
+        return bits;
+    }
+    // o as the large class grows it: each face its crowd bits name moves out by TILE_CROWD_GROW, so the
+    // box takes the half of that on each side it moved (its centre by half the difference).
+    static TileObstruction tile_obs_crowd_grown(const TileObstruction &o) {
+        if (!o.crowd) return o;
+        const float gu_p = (o.crowd & TILE_CROWD_FACE_U) ? TILE_CROWD_GROW : 0.0f;
+        const float gu_n = (o.crowd & TILE_CROWD_FACE_NEG_U) ? TILE_CROWD_GROW : 0.0f;
+        const float gv_p = (o.crowd & TILE_CROWD_FACE_V) ? TILE_CROWD_GROW : 0.0f;
+        const float gv_n = (o.crowd & TILE_CROWD_FACE_NEG_V) ? TILE_CROWD_GROW : 0.0f;
+        const float su = 0.5f * (gu_p - gu_n), sv = 0.5f * (gv_p - gv_n);
+        TileObstruction r = o;
+        r.x = o.x + su * o.ux + sv * -o.uz;
+        r.z = o.z + su * o.uz + sv * o.ux;
+        r.hu = o.hu + 0.5f * (gu_p + gu_n);
+        r.hv = o.hv + 0.5f * (gv_p + gv_n);
+        return r;
+    }
+    // Sets each structure's crowd bits: the faces with another in `list` within TILE_CROWD_GAP beyond. A sweep
+    // along x finds the pairs: two boxes within the gap of each other have centres at most twice the largest
+    // half diagonal plus the gap apart in x. The bits depend on the boxes alone, not on the order of the list.
+    static void mark_tile_crowds(std::vector<TileObstruction> &list) {
+        float reach = 0.0f;
+        for (TileObstruction &o : list) {
+            o.crowd = 0;
+            reach = std::max(reach, std::sqrt(o.hu * o.hu + o.hv * o.hv));
+        }
+        std::vector<uint32_t> by_x(list.size());
+        for (size_t p = 0; p < by_x.size(); ++p) by_x[p] = static_cast<uint32_t>(p);
+        std::sort(by_x.begin(), by_x.end(), [&](uint32_t a, uint32_t b) { return list[a].x < list[b].x; });
+        const float window = 2.0f * reach + TILE_CROWD_GAP;
+        for (size_t p = 0; p < by_x.size(); ++p) {
+            TileObstruction &a = list[by_x[p]];
+            for (size_t q = p + 1; q < by_x.size() && list[by_x[q]].x - a.x <= window; ++q) {
+                TileObstruction &b = list[by_x[q]];
+                a.crowd |= tile_obs_faces_toward(a, b);
+                b.crowd |= tile_obs_faces_toward(b, a);
+            }
+        }
+    }
+    // Whether two lists hold the same boxes (their crowd flags aside), key by key.
+    static bool same_tile_shapes(const std::vector<TileObstruction> &a, const std::vector<TileObstruction> &b) {
+        if (a.size() != b.size()) return false;
+        for (size_t k = 0; k < a.size(); ++k)
+            if (a[k].key != b[k].key || a[k].x != b[k].x || a[k].z != b[k].z || a[k].ux != b[k].ux || a[k].uz != b[k].uz ||
+                    a[k].hu != b[k].hu || a[k].hv != b[k].hv)
+                return false;
+        return true;
+    }
+
     // Adds (delta 1) or takes off (delta -1) obstruction o's cover of the nodes of class cls, listing
     // in `crossed` each node whose count rose from 0 or fell to it. 0.28 blocks the navcells inside
     // the shape grown by the class Clearance (RasterizeRectWithClearance); a node is covered when the
@@ -703,14 +799,16 @@ struct NavGrid {
     // outside it as well, as JPS takes a diagonal step only past two open nodes). Then no step
     // between open nodes, and no square of four, crosses it, and a path along open nodes is one a
     // unit can walk, while the nodes beside its faces stay open as they do beside a shape square
-    // with the map. The counts are tile_obs_count_[cls], or `count` when given.
-    void tile_obs_raster(const TileObstruction &o, int cls, int delta, std::vector<uint32_t> *crossed) {
-        tile_obs_raster(o, cls, delta, crossed, tile_obs_count_[cls]);
+    // with the map. For the large class a face the crowd bits name grows by TILE_CROWD_GROW more
+    // (tile_obs_crowd_grown). The counts are tile_obs_count_[cls], or `count` when given.
+    void tile_obs_raster(const TileObstruction &o_in, int cls, int delta, std::vector<uint32_t> *crossed) {
+        tile_obs_raster(o_in, cls, delta, crossed, tile_obs_count_[cls]);
     }
-    void tile_obs_raster(const TileObstruction &o, int cls, int delta, std::vector<uint32_t> *crossed,
+    void tile_obs_raster(const TileObstruction &o_in, int cls, int delta, std::vector<uint32_t> *crossed,
             std::vector<uint16_t> &count) const {
         const int nw = node_res();
         if (nw <= 0) return;
+        const TileObstruction o = cls == 1 ? tile_obs_crowd_grown(o_in) : o_in;
         const float s = node_step(), hs = 0.5f * s, g = tile_clearance(cls) + TILE_HAIR;
         const bool turned = o.uz != 0.0f;
         const float hu = std::max(o.hu + g, hs + TILE_HAIR), hv = std::max(o.hv + g, hs + TILE_HAIR);
@@ -784,11 +882,15 @@ struct NavGrid {
     // gathered and picked up: a way only they narrow is still one o would shut once they are gone.
     // Simulation::place_starting_walls leaves out a tower of RTS0's own maps that would part either
     // class (Acropolis Heights: the only ramp up to the civic centre's plateau).
-    bool tile_obs_parts_ground(const TileObstruction &o, const std::vector<TileObstruction> &obs, int cls) const {
+    bool tile_obs_parts_ground(const TileObstruction &o_in, const std::vector<TileObstruction> &obs, int cls) const {
         const int nw = node_res();
         if (nw <= 0 || cells.blank()) return false;
         const uint32_t w = static_cast<uint32_t>(nw);
         const size_t n = static_cast<size_t>(nw) * static_cast<size_t>(nw);
+        // o as it would be listed: crowded by the obstructions it would stand among (the flags of obs are
+        // those they have now, not the ones o would give them).
+        TileObstruction o = o_in;
+        o.crowd = tile_obs_faces_of(o_in, obs);
         std::vector<uint16_t> cover(n, 0);
         for (const TileObstruction &q : obs) tile_obs_raster(q, cls, 1, nullptr, cover);
         std::vector<uint32_t> shut; // the nodes o covers and nothing in obs does
@@ -903,7 +1005,7 @@ struct NavGrid {
     void each_tile_obs_bucket(const TileObstruction &o, F &&f) const {
         const int bw = tile_obs_bw_;
         auto bucket = [&](float v) { return std::clamp(static_cast<int>(std::floor((v + map_half) / TILE_OBS_BUCKET)), 0, bw - 1); };
-        const float e = std::max(o.hu, o.hv) * 1.4143f + TILE_PATH_CLEARANCE_LARGE + TILE_HAIR;
+        const float e = std::max(o.hu, o.hv) * 1.4143f + TILE_PATH_CLEARANCE_LARGE + TILE_HAIR + (o.crowd ? TILE_CROWD_GROW : 0.0f);
         const int i0 = bucket(o.x - e), i1 = bucket(o.x + e), j0 = bucket(o.z - e), j1 = bucket(o.z + e);
         for (int j = j0; j <= j1; ++j)
             for (int i = i0; i <= i1; ++i) f(static_cast<size_t>(j) * static_cast<size_t>(bw) + static_cast<size_t>(i));
@@ -1009,9 +1111,12 @@ struct NavGrid {
     }
     // Whether the segment from (ax, az) to (bx, bz) passes inside an obstruction grown by c and a
     // hair, its ends included (Pathfinding::CheckLineMovement over navcells that carry them).
-    bool segment_hits_tile_obs(float ax, float az, float bx, float bz, float c) const {
+    // The large class (cls 1) tests the structures as tile_obs_crowd_grown has them.
+    bool segment_hits_tile_obs(float ax, float az, float bx, float bz, float c, int cls) const {
         const float g = c + TILE_HAIR;
-        return any_tile_obs_near_segment(ax, az, bx, bz, g, [&](const TileObstruction &o) { return tile_obs_segment_hit(o, ax, az, bx, bz, g); });
+        return any_tile_obs_near_segment(ax, az, bx, bz, g, [&](const TileObstruction &o) {
+            return tile_obs_segment_hit(cls == 1 ? tile_obs_crowd_grown(o) : o, ax, az, bx, bz, g);
+        });
     }
 
     bool tile_open_cached() const {
@@ -1131,6 +1236,13 @@ struct NavGrid {
     void set_tile_obstructions(int set, std::vector<TileObstruction> &list, uint64_t sig = 0) {
         std::vector<TileObstruction> &old = tile_obs_[set];
         tile_obs_sig_[set] = sig;
+        // The crowd flags follow from the boxes: where the boxes are unchanged the flags are too.
+        if (set == TILE_OBS_STRUCTURES) {
+            if (same_tile_shapes(list, old))
+                for (size_t k = 0; k < list.size(); ++k) list[k].crowd = old[k].crowd;
+            else
+                mark_tile_crowds(list);
+        }
         if (list == old) return;
         if (tile_open_cached()) {
             const int nw = node_res();
@@ -2372,7 +2484,7 @@ inline bool NavGrid::path_through_obstruction_near_steep(float sx, float sz, con
     for (int k = std::max(path.cur, 0); k < path.count; ++k) {
         const float ax = x, az = z, bx = path.xs[k], bz = path.zs[k];
         if (any_tile_obs_near_segment(ax, az, bx, bz, g, [&](const TileObstruction &o) {
-                if (!tile_obs_segment_hit(o, ax, az, bx, bz, g)) return false;
+                if (!tile_obs_segment_hit(cls == 1 ? tile_obs_crowd_grown(o) : o, ax, az, bx, bz, g)) return false;
                 // Its box, grown by twice the clearance (and half a steep sample, as the lines' tests).
                 const float au = std::fabs(o.ux), av = std::fabs(o.uz);
                 const float ex = o.hu * au + o.hv * av + reach, ez = o.hu * av + o.hv * au + reach;
@@ -2386,25 +2498,16 @@ inline bool NavGrid::path_through_obstruction_near_steep(float sx, float sz, con
 }
 
 inline bool NavGrid::path_through_narrow_gap(float sx, float sz, const WaypointPath &path) const {
-    const std::vector<TileObstruction> &list = tile_obs_[TILE_OBS_STRUCTURES];
-    if (list.size() < 2) return false;
+    if (tile_obs_[TILE_OBS_STRUCTURES].size() < 2) return false;
+    // A walk that comes within the large clearance of a crowded structure's grown box (tile_obs_crowd_grown)
+    // is one the node pass plans round: a walk through the gap between two such structures is one the
+    // navcells would take through it.
     const float g = TILE_PATH_CLEARANCE_LARGE + TILE_HAIR;
-    auto structure = [&](const TileObstruction &o) {
-        return std::binary_search(list.begin(), list.end(), o, [](const TileObstruction &a, const TileObstruction &b) { return a.key < b.key; });
-    };
-    // Another structure comes within twice the clearance of o: o's rectangle grown by that holds part
-    // of it. The buckets round o's box grown by as much hold every such one (each_tile_obs_bucket).
-    auto crowded = [&](const TileObstruction &o) {
-        const float e = std::max(o.hu, o.hv) * 1.4143f + 2.0f * g;
-        return any_tile_obs_near_segment(o.x, o.z, o.x, o.z, e, [&](const TileObstruction &n) {
-            return n.key != o.key && structure(n) && tile_obs_overlap(o, 2.0f * g, n);
-        });
-    };
     float x = sx, z = sz;
     for (int k = std::max(path.cur, 0); k < path.count; ++k) {
         const float ax = x, az = z, bx = path.xs[k], bz = path.zs[k];
         if (any_tile_obs_near_segment(ax, az, bx, bz, g, [&](const TileObstruction &o) {
-                return tile_obs_segment_hit(o, ax, az, bx, bz, g) && structure(o) && crowded(o);
+                return o.crowd && tile_obs_segment_hit(tile_obs_crowd_grown(o), ax, az, bx, bz, g);
             }))
             return true;
         x = bx;
@@ -2421,7 +2524,7 @@ inline bool NavGrid::tile_line_clear(float ax, float az, float bx, float bz, int
             return steep_tile_in(x0, z0, x1, z1) || water_cell_in(x0, z0, x1, z1, live);
         }))
         return false;
-    return !segment_hits_tile_obs(ax, az, bx, bz, c);
+    return !segment_hits_tile_obs(ax, az, bx, bz, c, cls);
 }
 
 inline bool NavGrid::find_path_tiles(float sx, float sz, float tx, float tz, WaypointPath &out, bool &reached, int cls) const {
@@ -2506,7 +2609,7 @@ inline bool NavGrid::find_path_tiles(float sx, float sz, float tx, float tz, Way
     // stand there; else on the node it moved to.
     const float c = tile_clearance(cls);
     const bool goal_moved = gi != gi0 || gj != gj0 || !open(gi, gj) || !point_terrain_open(tx, tz, cls, live) ||
-            segment_hits_tile_obs(tx, tz, tx, tz, c);
+            segment_hits_tile_obs(tx, tz, tx, tz, c, cls);
     thread_local nav::JpsBuffers jps;
     thread_local std::vector<std::pair<int, int>> path_cells;
     thread_local std::vector<std::pair<float, float>> pts, kept;
