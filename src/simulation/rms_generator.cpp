@@ -20,6 +20,7 @@
 namespace rtso {
 
 namespace {
+void record_area(const HeightmapGrid &hm, const std::vector<uint8_t> &mask, AreaKind kind); // defined below
 // The Team Placement of the map being generated (generate() sets it from
 // Config::team_placement and map_team_placements): the pattern_locs pattern,
 // or -1 for the map's own layout (Circle, or a map without the setting).
@@ -1445,7 +1446,6 @@ void RmsGenerator::synth_african_plains(HeightmapGrid &hm, RmsRng &rng, float &w
 	const float land = metres(water_h, 2.0f);
 	hm.init(hm.res, hm.map_half, land);
 	const float half = hm.map_half;
-	add_bumps(hm, rng, 2.0f * kMetre);
 	place_team_spawns(hm, rng, spawns, num_players, half * 0.70f, rng.range_float(0.0f, 6.2831853f), land);
 	const int hills = scale_by_map_size(6, 16, half);
 	for (int i = 0, tries = 0; i < hills && tries < hills * 40; ++tries) {
@@ -1459,6 +1459,13 @@ void RmsGenerator::synth_african_plains(HeightmapGrid &hm, RmsRng &rng, float &w
 		hm.raise_plateau(hx, hz, half * rng.range_float(0.04f, 0.07f), 0.0f, 0.0f, (18.0f - 2.0f) * kMetre, 2.0f);
 		++i;
 	}
+	// paintTerrainBasedOnHeight(heightCliff 3, Infinity, tCliff) runs before createBumps: the land from 3 m up, the hills.
+	{
+		std::vector<uint8_t> cliff(hm.data.size());
+		for (size_t i = 0; i < cliff.size(); ++i) cliff[i] = hm.data[i] >= metres(water_h, 3.0f);
+		record_area(hm, cliff, AREA_CLIFF_HEIGHT);
+	}
+	add_bumps(hm, rng, 2.0f * kMetre);
 	for (float &h : hm.data) h = std::min(h, metres(water_h, 18.0f)); // ELEVATION_SET: overlaps stay at 18
 	scatter_ponds(hm, rng, spawns, scale_by_map_size(4, 10, half), half * 0.05f + 2.5f, 22.0f, 8.0f, half * 0.90f,
 	              water_h - metres(water_h, -5.0f), water_h);
@@ -1472,7 +1479,10 @@ void RmsGenerator::synth_alpine_valley(HeightmapGrid &hm, RmsRng &rng, float &wa
 	// (f = 0.18) between each pair of neighbours, with a passage through it.
 	// Heights in metres: land 3 with bumps of 2, mountains 30 (a 2-tile blend).
 	water_h = -10.0f;
-	init_land(hm, rng, water_h, 3.0f, 2.0f, 3, 0.03f);
+	// The land is flat at 3 m until the bumps (init_land's noise, 1 m each way, centred on 4 m) go on after
+	// the cliff band, as in 0.28 (paintTerrainBasedOnHeight(3.1, 29, cliff) before createAreas' bumps).
+	const float bump_amp = 0.5f * 2.0f * HEIGHT_PER_METRE;
+	hm.init(hm.res, hm.map_half, coast_metres(water_h, 3.0f));
 	const float half = hm.map_half;
 	const float start = rng.range_float(0.0f, 6.2831853f);
 	const int n = std::max(2, num_players);
@@ -1488,6 +1498,14 @@ void RmsGenerator::synth_alpine_valley(HeightmapGrid &hm, RmsRng &rng, float &wa
 		const float len = half * 0.62f;
 		raise_ridge(hm, ridge, w, coast_metres(water_h, 30.0f), len * rng.range_float(0.35f, 0.65f), pass, 2.0f);
 	}
+	{
+		std::vector<uint8_t> cliff(hm.data.size());
+		const float lo = coast_metres(water_h, 3.1f), hi = coast_metres(water_h, 29.0f);
+		for (size_t i = 0; i < cliff.size(); ++i) cliff[i] = hm.data[i] >= lo && hm.data[i] < hi;
+		record_area(hm, cliff, AREA_CLIFF_HEIGHT);
+	}
+	for (float &h : hm.data) h += bump_amp;
+	hm.apply_fbm(rng, 3, 0.03f, 0.5f, 2.0f, bump_amp);
 	hm.thermal_erosion(3, 0.9f, 0.2f);
 	hm.blur(1, 0.35f);
 	place_ring_spawns(hm, spawns, num_players, half * 0.70f, start, 6.2831853f, coast_metres(water_h, 3.0f));
@@ -3326,6 +3344,13 @@ void RmsGenerator::synth_survival_of_the_fittest(HeightmapGrid &hm, RmsRng &rng,
 		const float len = det::hypot(ex, ez);
 		for (float t = 0.0f; t <= len; t += 2.0f)
 			hm.level_area(ex * t / len, ez * t / len, width * 0.5f, 4.0f, 3.0f * k);
+	}
+	// paintTerrainBasedOnHeight(heightLand + 0.12, heightHill - 1, cliff) before createBumps and createHills:
+	// the carved ramps from 3.12 m up to 29 m.
+	{
+		std::vector<uint8_t> cliff(hm.data.size());
+		for (size_t i = 0; i < cliff.size(); ++i) cliff[i] = hm.data[i] >= 3.12f * k && hm.data[i] < 29.0f * k;
+		record_area(hm, cliff, AREA_CLIFF_HEIGHT);
 	}
 	// The plateau's hills, clear of each base, its attacker point and the halfway point
 	// (clPlayer) and of the low land.
@@ -5626,6 +5651,13 @@ void RmsGenerator::synth_alpine_lakes(HeightmapGrid &hm, RmsRng &rng, float &wat
 		to_water = seas_dist_inside(hm, water);
 		return true;
 	});
+	// paintTerrainBasedOnHeight(3, floor(scaleByMapSize(20, 40)), 0, cliff) before the bumps: the land from 3 m to 20 m (40 on the largest maps).
+	{
+		const float hi = metres(water_h, (float)scale_by_map_size(20, 40, half));
+		std::vector<uint8_t> cliff(hm.data.size());
+		for (size_t i = 0; i < cliff.size(); ++i) cliff[i] = hm.data[i] >= land && hm.data[i] < hi;
+		record_area(hm, cliff, AREA_CLIFF_HEIGHT);
+	}
 	seas_bumps(hm, rng, seas_scale(100, 200, half), [&](int i) { return to_water[(size_t)i] > 2.0f && away(i); });
 }
 
@@ -13882,7 +13914,10 @@ void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed, uint8_t type) {
 		biome_areas[1] = {AREA_HILL, {{b.cliff[0], b.cliff[1]}, {b.tier[2]}}, {1}};
 	}
 	// unknown.js's cliff band: tCliff on its landscape's ground from 3.12 m to 40 m.
-	if (!own && type == MAP_UNKNOWN) biome_areas[0] = {AREA_CLIFF_HEIGHT, {{b.cliff[0], b.cliff[1]}}, {}};
+	// alpine_lakes, alpine_valley, african_plains and survivalofthefittest paint tCliff on the band their synth recorded.
+	if (!own && (type == MAP_UNKNOWN || type == MAP_ALPINE_LAKES || type == MAP_ALPINE_VALLEY || type == MAP_AFRICAN_PLAINS ||
+	             type == MAP_SURVIVAL_OF_THE_FITTEST))
+		biome_areas[0] = {AREA_CLIFF_HEIGHT, {{b.cliff[0], b.cliff[1]}}, {}};
 	const AreaLayers *area_rows = own ? own->areas : biome_areas;
 	const size_t n_area_rows = own ? std::size(own->areas) : (biome_areas[0].layer[0][0] ? std::size(biome_areas) : 0);
 	if (own || n_area_rows) {
