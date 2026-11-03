@@ -381,6 +381,10 @@ func _ready() -> void:
 		get_node("%" + b).theme_type_variation = "ModernTabButtonHorizontal"
 	_build_description()
 	_build_slot_headings()
+	# A preset pressed on an earlier visit, then left with Back, plays no later match.
+	var msp := get_node_or_null("/root/MatchSettings")
+	if msp:
+		msp.battle_preset = ""
 	_load_maps()
 	_build_map_type()
 	_build_map_filter()
@@ -643,8 +647,10 @@ func _selected_biome() -> int:
 func _on_biome_selected(_index: int) -> void:
 	_biome = _selected_biome()
 
-## 0.28 PlayerPlacement.render: Random, then the map's patterns; the pick stays
-## when the new map offers it, else Random.
+var _placement_map_id := "" # the map the Team Placement list was last built for
+
+## 0.28 PlayerPlacement.render: Random, then the map's patterns (the pick resets to
+## Random on a map change, _update_map_options).
 func _rebuild_team_placement(placements: Array) -> void:
 	var slot := get_node_or_null("%TeamPlacementSlot")
 	if slot == null or slot.get_child_count() == 0:
@@ -1253,6 +1259,10 @@ func _update_map_options() -> void:
 	%SeaRiseSlot.visible = id == "random_extinct_volcano"
 	var placements: Array = _selected_map().get("placements", [])
 	var tp := not placements.is_empty()
+	# PlayerPlacement.onMapChange: another map starts on Random.
+	if id != _placement_map_id and _placement_map_id != "":
+		_team_placement = 0
+	_placement_map_id = id
 	_rebuild_team_placement(placements)
 	_rebuild_biomes(_selected_map().get("biomes", []))
 	%TeamPlacementLabel.visible = tp
@@ -2526,7 +2536,9 @@ func _on_start_pressed() -> void:
 		return
 	var ms := get_node("/root/MatchSettings")
 	ms.map_id = str(m["id"])
-	ms.battle_preset = _battle_preset_id
+	# A battle preset belongs to the map it picked: another map plays without it.
+	var preset: Dictionary = ms.BATTLE_PRESETS.get(_battle_preset_id, {})
+	ms.battle_preset = _battle_preset_id if str(preset.get("map_id", "")) == ms.map_id else ""
 	ms.campaign_run = "" # a match from Game Setup is not a campaign level
 	ms.campaign_level = ""
 	ms.campaign_map_name = ""

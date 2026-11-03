@@ -328,13 +328,17 @@ void RtsoMain::find_idle_unit(IdleKind kind) {
 			inspector_.kind() != RtsoInspectorView::INSPECT_NONE && !sim->controls_all(local_player()) && !observer_all_view();
 	if (select_all) {
 		if (!blocked)
-			for (size_t i : idle) selected_ids.push_back((int32_t)uview.id[i]);
+			for (size_t i : idle)
+				for (int32_t uid : formation_mates((int32_t)uview.id[i])) // addList: addFormationMembers
+					if (!selected_ids.has(uid)) selected_ids.push_back(uid);
 		play_civ_voice("select");
 		return;
 	}
 	last_idle_unit_ = uview.id[best];
 	idle_class_index_ = (idle_class_index_ + best_index) % n;
-	if (!blocked) selected_ids.push_back((int32_t)uview.id[best]);
+	if (!blocked)
+		for (int32_t uid : formation_mates((int32_t)uview.id[best])) // addList: addFormationMembers
+			if (!selected_ids.has(uid)) selected_ids.push_back(uid);
 	if (cam_rig) cam_rig->set_target_pos(Vector3(uview.pos_x[best], 0, uview.pos_z[best]));
 	play_civ_voice("select");
 }

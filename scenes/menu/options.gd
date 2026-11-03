@@ -460,9 +460,10 @@ func _add_option(grid: GridContainer, opt: Array) -> void:
 				ob.set_item_tooltip(ob.get_item_count() - 1, tr(tip) if tip != "" else tr(opt[3]))
 			ob.item_selected.connect(func(i):
 				var old := cfg.get_value(key)
+				var had_changes: bool = cfg.has_changes()
 				_changed(key, extra[i][1])
 				if TIMEOUTS.has(key) and not _updating and old != extra[i][1]:
-					_ask_keep(key, old))
+					_ask_keep(key, old, had_changes))
 			c = ob
 		"string":
 			var le := LineEdit.new()
@@ -750,7 +751,7 @@ func _ask(text: String, yes: Callable) -> void:
 
 ## options.js dropdownNumber timeout: timedConfirmation(500, 200, ...), No or the
 ## countdown running out puts the old value back (revertChange).
-func _ask_keep(key: String, old: String) -> void:
+func _ask_keep(key: String, old: String, had_changes: bool) -> void:
 	_confirm = MSGBOX.open_timed(self, 500, 200,
 		tr("Changes will be reverted in %(time)s seconds. Do you want to keep changes?"), "time",
 		TIMEOUTS[key], tr("Warning"), [tr("No"), tr("Yes")])
@@ -758,6 +759,8 @@ func _ask_keep(key: String, old: String) -> void:
 		_confirm = null
 		if i == 0:
 			cfg.set_value(key, old)
+			if not had_changes:
+				cfg.set_changes(false)
 			_load_controls())
 
 func _close() -> void:

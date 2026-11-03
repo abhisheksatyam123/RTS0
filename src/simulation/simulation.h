@@ -191,7 +191,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 136; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 137; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_FAUNA_QUEUED_TARGET = 137; // each animal's set-aside attack target (fauna_queued_target_)
 	static constexpr uint32_t SAVE_VERSION_PETRA_IDLE_CHECKS = 136; // each Petra base's next gatherer balance check (timeNextIdleCheck)
 	static constexpr uint32_t SAVE_VERSION_PETRA_HOLDER_TIME = 135; // each Petra garrison holder's holderTimeUpdate
 	static constexpr uint32_t SAVE_VERSION_GATHER_CLAIMS = 134; // each unit's place at its supply and when it took it
@@ -1106,7 +1107,7 @@ public:
 		uint8_t returning = 0;          // order.data.returningState: where MEMBER goes back to
 		float member_timer = 0.0f;      // MEMBER / CHECKINGWAYPOINT one-second timer
 		float patrol_x = 0.0f, patrol_z = 0.0f; // patrolStartPosOrder: the other end of the patrol
-		uint8_t patrol_wait = 0;        // CHECKINGWAYPOINT stopSurveying
+		uint8_t patrol_wait = 0;        // CHECKINGWAYPOINT stopSurveying (FORMATION_PATROL_REANCHOR: see tick_formations)
 		std::vector<uint32_t> twins;    // Formation.js twinFormations (controller ids)
 		// v39: the controller's orderQueue after its current order (Shift-queued orders).
 		std::vector<UnitOrder> queue;
@@ -2851,6 +2852,12 @@ private:
 	// The key of a search round idle units that found no way from where the unit stands (the memo
 	// holds that spot): it searches again there only every fourth turn.
 	uint32_t idle_stuck_key() const { const uint32_t k = short_path_key_ ^ 0x6C8E9CF5u; return k ? k : 3u; }
+	// The same note where the unit is held: the search that found no way was one from a spot its last
+	// search had found no way from (avoid_idle_units' `no_way`), or came just after a step on the way a
+	// search had found was refused (`path_refused`). It counts as idle_stuck_key everywhere, and also
+	// lets a unit inside its own idle units' crowd walk out through them (avoid_idle_units' `sealed`).
+	uint32_t idle_held_key() const { const uint32_t k = short_path_key_ ^ 0x85EBCA6Bu; return k ? k : 12u; }
+	bool idle_stuck_note(uint32_t k) const { return k == idle_stuck_key() || k == idle_held_key(); }
 	// The keys of a short path round idle units that avoid_idle_units' second search, among smaller
 	// squares shaped as 0.28's, found where RTS0's wider ones found no way, and of its waypoint reached
 	// last tick: the unit's steps on it are tested against those squares too.
@@ -3429,6 +3436,9 @@ private:
 	// Each animal's obstructed turns on a walk its owner sent it on (0.28 CCmpUnitMotion
 	// m_FailedMovements, serialized for animals as for units); save v114 adds it.
 	uint8_t fauna_failed_[FaunaStorage::MAX_FAUNA] = {};
+	// The target of the Attack order an animal set aside when it turned on a melee attacker
+	// (UnitAI COMBAT.Attacked PushOrderFront): it goes back to it once that fight ends (0 = none).
+	uint32_t fauna_queued_target_[FaunaStorage::MAX_FAUNA] = {};
 	IdIndex fauna_id_to_idx_;
 	std::unordered_map<uint32_t, std::vector<uint32_t>> transport_passengers_;
 	// UnitMotionFlying.js state of each flying unit (units/plane), by unit id, so it saves and
@@ -3804,6 +3814,7 @@ private:
 	// Not saved: a loaded player with units sets it on the next check, and one without units
 	// that had some was already defeated.
 	uint8_t had_unit_mask_ = 0;
+	uint8_t had_structure_mask_ = 0; // the same for ConquestStructures.js's "Structure" list
 	uint8_t defeated_mask_ = 0;
 	bool gpu_push_ = false; // not saved: set by the session each frame
 	uint8_t winner_mask_ = 0;

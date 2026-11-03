@@ -82,10 +82,15 @@ inline constexpr float FORMATION_ROTATE_DISTANCE = 1.0f * FORMATION_METRE;
 inline constexpr float FORMATION_CLUSTER_DISTANCE = 60.0f * FORMATION_METRE;
 // template_formation.xml UnitAI/PatrolWaitTime: seconds a formation surveys each patrol end.
 inline constexpr uint8_t FORMATION_PATROL_WAIT_S = 2;
+// patrol_wait while a lone patrol leg fights: PATROL.leave dropped its start, so it re-anchors.
+inline constexpr uint8_t FORMATION_PATROL_REANCHOR = 0xFF;
 // Formation.js Init: ShapeUpdate runs every 1000 ms.
 inline constexpr float FORMATION_SHAPE_UPDATE_S = 1.0f;
 // UnitAI FORMATIONCONTROLLER.IDLE: its timer re-forms idle members every 2000 ms.
 inline constexpr float FORMATION_IDLE_REFORM_S = 2.0f;
+// IDLE.enter StartTimer(100, 2000): member_timer on entering IDLE, so the first check is
+// 0.1 s later (a hair less, so float steps never push it a tick later).
+inline constexpr float FORMATION_IDLE_FIRST_CHECK = FORMATION_IDLE_REFORM_S - 0.099f;
 // A member this far from its slot counts as wandered off (smaller ones finish at once in 0.28).
 inline constexpr float FORMATION_IDLE_DRIFT = 2.0f * FORMATION_METRE;
 

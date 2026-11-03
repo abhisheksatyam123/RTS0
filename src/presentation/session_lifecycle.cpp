@@ -1267,13 +1267,14 @@ void RtsoMain::_process(double delta) {
 			// allies are left, "Last remaining player wins." (a 12-hour time notification). Only
 			// without allied victory (LockTeams || !LastManStanding, Setup.js).
 			if (!sim->allied_victory() && sim->victory_conditions() && !sim->is_game_over()) {
-				int left = 0;
+				// Each player left is checked against the lowest-numbered one only.
+				int left = 0, first = -1;
 				bool allied = true;
 				for (uint8_t a = 0; a < rtso::MAX_PLAYERS; ++a) {
 					if (!((sim->participant_mask() >> a) & 1) || sim->is_defeated(a)) continue;
 					++left;
-					for (uint8_t b = a + 1; b < rtso::MAX_PLAYERS; ++b)
-						if (((sim->participant_mask() >> b) & 1) && !sim->is_defeated(b) && !(sim->is_ally(a, b) && sim->is_ally(b, a))) allied = false;
+					if (first < 0) first = a;
+					else if (!(sim->is_ally((uint8_t)first, a) && sim->is_ally(a, (uint8_t)first))) allied = false;
 				}
 				left_ms = 12 * 3600 * 1000;
 				if (left > 1 && allied) add(rtso::tr0("Last remaining player wins."));
