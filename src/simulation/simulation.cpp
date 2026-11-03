@@ -21884,8 +21884,12 @@ void Simulation::respond_to_attacker(size_t i, uint32_t attacker_id, float ax, f
 		}
 		if (at_target ? !capturing : !melee) return;
 		if (forced && stance != STANCE_VIOLENT) return;
-	} else if (forced && stance != STANCE_VIOLENT && st != ACTION_IDLE && st != ACTION_FLEE) {
-		return;
+	} else if (forced && stance != STANCE_VIOLENT && st != ACTION_FLEE) {
+		// An idle forced order ignores attackers too, except a collector: COLLECTTREASURE
+		// (COLLECTING, its CollectTime timer) has no Attacked handler of its own, so the forced
+		// order's INDIVIDUAL Attacked test holds (UnitAI.js:1541, :5756). Other idle orders are
+		// not forced, so they answer as before.
+		if (st != ACTION_IDLE || units_.order_kind[i] == ORDER_COLLECT_TREASURE) return;
 	}
 	const float dx = units_.pos_x[i] - ax, dz = units_.pos_z[i] - az;
 	const float d2 = dx * dx + dz * dz;
