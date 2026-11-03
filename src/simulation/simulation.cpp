@@ -35041,6 +35041,7 @@ void Simulation::petra_garrison_units_inside(size_t holder_idx, bool allow_melee
 		petra_remove_defender(uid);
 		petra_attack_remove_unit(uid);
 		order_garrison(&uid, 1, holder.id);
+		petra_register_holder(holder.id);
 		++slots;
 		++incoming[holder_idx];
 	}
@@ -35201,6 +35202,7 @@ bool Simulation::petra_garrison_attacked_unit(size_t i, bool emergency, std::vec
 	++incoming[best];
 	const uint32_t uid = units_.id[i];
 	order_garrison(&uid, 1, b.id);
+	petra_register_holder(b.id);
 	return true;
 }
 
@@ -35310,11 +35312,23 @@ void Simulation::petra_scuttle_undefendable() {
 	if (!scuttle.empty()) cmd_delete(petra_pid_, scuttle.data(), scuttle.size());
 }
 
+size_t Simulation::petra_register_holder(uint32_t holder_id) {
+	auto &hold = petra_holders_.holders;
+	auto it = std::lower_bound(hold.begin(), hold.end(), holder_id, [](const PetraHolderEntry &e, uint32_t id) { return e.id < id; });
+	if (it == hold.end() || it->id != holder_id) it = hold.insert(it, {holder_id, petra_timer_});
+	return (size_t)(it - hold.begin());
+}
+
 void Simulation::petra_manage_garrisons() {
 	std::vector<int> incoming = petra_garrison_incoming();
-	// garrisonManager.js:134: a holder's garrison is looked at more than 3 s after the last
-	// time (holderTimeUpdate), so every second 1.6 s turn.
-	const bool holder_check = petra_turn_mod(2);
+	// garrisonManager.js:134: a holder's garrison is looked at more than 3 s after its own
+	// holderTimeUpdate (set when it is registered and after each look); a holder that no longer
+	// holds or expects anyone is forgotten (:194). Holders gone from the map are dropped too.
+	auto &holders = petra_holders_.holders;
+	holders.erase(std::remove_if(holders.begin(), holders.end(), [&](const PetraHolderEntry &e) {
+		auto it = building_id_to_idx_.find(e.id);
+		return it == building_id_to_idx_.end() || buildings_[it->second].wrecked;
+	}), holders.end());
 	// garrisonManager.js update: unload whoever no longer needs the shelter, then
 	// defenseManager.js checkEvents: arrows from a structure with an enemy in range;
 	// last, a decaying structure gets the garrison that stops its decay (TYPE_DECAY).
@@ -35326,7 +35340,19 @@ void Simulation::petra_manage_garrisons() {
 		if (!own && (b.garrisoned_units.empty() || !is_ally(petra_pid_, b.team) || turret_points_of(b))) continue;
 		const bool shoots = own && building_ai_info(b.type).shoots();
 		const int decay_min = own ? petra_decay_garrison_min(b) : 0;
-		if (b.garrisoned_units.empty() && !shoots && decay_min == 0) continue;
+		// A holder holding or expecting units is registered when first seen (one garrisoned
+		// by hand, or by an older save); registerHolder sets its time then.
+		size_t hslot = SIZE_MAX;
+		{
+			auto it = std::lower_bound(holders.begin(), holders.end(), b.id, [](const PetraHolderEntry &e, uint32_t id) { return e.id < id; });
+			if (it != holders.end() && it->id == b.id) hslot = (size_t)(it - holders.begin());
+			else if (!b.garrisoned_units.empty() || incoming[bi] > 0) hslot = petra_register_holder(b.id);
+		}
+		const bool holder_check = hslot != SIZE_MAX && petra_timer_ - holders[hslot].time > 3.0f;
+		if (b.garrisoned_units.empty() && !shoots && decay_min == 0) {
+			if (holder_check && incoming[bi] <= 0) holders.erase(holders.begin() + (std::ptrdiff_t)hslot);
+			continue;
+		}
 		const PetraAround around = petra_around(b);
 		std::vector<uint32_t> leave;
 		// garrisonManager.js keepGarrisoned TYPE_DECAY holds only the gmin units garrisonUnitsInside
@@ -35357,6 +35383,10 @@ void Simulation::petra_manage_garrisons() {
 		if (!recall.empty()) {
 			cmd_stop(recall.data(), recall.size());
 			incoming[bi] -= (int)recall.size();
+		}
+		if (holder_check) {
+			if (b.garrisoned_units.size() == leave.size() && incoming[bi] <= 0) holders.erase(holders.begin() + (std::ptrdiff_t)hslot);
+			else holders[hslot].time = petra_timer_;
 		}
 		// defenseManager.js:569-579 and 692-693: an Attacked event between this holder and an
 		// enemy tower or fortress in its range garrisons it too, with no unit near.
@@ -35403,6 +35433,7 @@ void Simulation::petra_manage_garrisons() {
 		if (holder) {
 			const uint32_t uid = units_.id[t];
 			order_garrison(&uid, 1, holder);
+			petra_register_holder(holder);
 		}
 	}
 }
@@ -37482,6 +37513,7 @@ void Simulation::petra_reset_ai_state() {
 	petra_queue_heads_ = PetraQueueHeads{};
 	petra_ferried_guards_ = PetraFerriedGuards{};
 	petra_ship_idle_ = PetraShipIdle{};
+	petra_holders_ = PetraHolders{};
 	petra_approach_.clear();
 	petra_inaccessible_.clear();
 	petra_base_dropsite_checks_.clear();
@@ -39520,6 +39552,13 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 					if (std::adjacent_find(v.ships.begin(), v.ships.end(), [](const auto &a, const auto &b) { return a.id >= b.id; }) != v.ships.end())
 						ar.ok = false;
 			} else v.ships.clear(); // older saves: each idle ship waits a turn where it stands again
+		} else if constexpr (std::is_same_v<T, S::PetraHolders>) {
+			if (ar.version >= Simulation::SAVE_VERSION_PETRA_HOLDER_TIME) {
+				io_vec(ar, v.holders, 1u << 16, [&](S::PetraHolderEntry &e) { ar.pod(e.id); ar.pod(e.time); });
+				if constexpr (Ar::loading)
+					if (std::adjacent_find(v.holders.begin(), v.holders.end(), [](const auto &a, const auto &b) { return a.id >= b.id; }) != v.holders.end())
+						ar.ok = false;
+			} else v.holders.clear(); // older saves: each holder is registered again when next seen
 		} else if constexpr (std::is_same_v<T, S::PetraDefenseTargets>) {
 			if (ar.version >= Simulation::SAVE_VERSION_PETRA_TARGET_LIST) {
 				io_vec(ar, v.ids, 1u << 16, [&](uint32_t &id) { ar.pod(id); });

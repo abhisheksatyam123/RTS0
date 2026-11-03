@@ -122,7 +122,7 @@ Checked and matching: animal stances and target search (GetQueryRange, nearest f
 |---|-----|--------|--------|
 | FA1 | Killing an animal collected no Looter resources. 0.28 Health.js KilledBy calls the killer's Looter.Collect, so Britons' infantry (Woad Warriors) and Looter auras (Brennus, Lugius, Philip's catafalque) earn their bonus on every animal with Loot (not trainable livestock) | medium | Fixed (`test_fauna` 18) |
 | FA2 | An animal swinging at its target switched to any melee attacker. 0.28's ATTACKING.Attacked reacts only to Capture; COMBAT.Attacked answers melee only while approaching or chasing | medium | Fixed (`test_fauna` 19) |
-| FA3 | An animal that turned on a melee attacker forgets its first target; 0.28 pushes the new Attack in front and goes back to the old one afterwards | low | Fixed: `fauna_queued_target_` (save v135), `test_fauna` 19 |
+| FA3 | An animal that turned on a melee attacker forgets its first target; 0.28 pushes the new Attack in front and goes back to the old one afterwards | low | Fixed: `fauna_queued_target_` (save v136), `test_fauna` 19 |
 | FA4 | A defensive or passive-defensive animal answered an attacker outside its vision, then gave up and stopped roaming. 0.28's AttackEntityInZone ignores it | low | Fixed (`test_fauna` 19) |
 | FA5 | Animals give up a chase the tick the target leaves their vision; 0.28 checks ShouldAbandonChase on the 1 s APPROACHING/CHASING timer. Running is decided once on CHASING entry, and Roam/Feed times are drawn in milliseconds, not whole seconds | nit | Fixed (`tick_fauna`) |
 | FA6 | A collector that lost a treasure race stopped at once. 0.28's TreasureCollector timer runs its full CollectTime, then finds the treasure gone | low | Fixed (`test_treasures` 3d) |
@@ -319,7 +319,7 @@ Petra's config.js (difficulty, behaviour, personality, population scaling, prior
 | PG1 | ~~Petra's attacks ran only while it held a built civic centre; headquarters.js:2335 counts any base anchor, a military colony too (basesManager.js)~~ | low | Fixed: `petra_has_active_base` |
 | PG2 | ~~Bombers and raids ran without attackManager.update's gate (above Sandbox, an active base or no way to build units), so idle siege kept shelling and raids kept going with no base left~~ | low | Fixed: one gate in `tick_petra_ai_player` for attacks, bombers and raids |
 | PG3 | ~~Petra's population-scaled settings (popScaling, worker target, phase, barracks, forge and trader thresholds) re-read World or Team Population's split after each defeat; config.js setConfig reads getPopulationMax once~~ | low | Fixed: `petra_config_max_pop` takes the split among every seated player |
-| PG4 | Garrison holders are checked on a global every-second-turn beat; garrisonManager.js:134 keeps a per-holder holderTimeUpdate set at registration and after each check, so a new holder's first check can come about 1.5 s sooner than in 0.28 | low | Open: Compare (needs a saved per-holder time) |
+| PG4 | ~~Garrison holders are checked on a global every-second-turn beat; garrisonManager.js:134 keeps a per-holder holderTimeUpdate set at registration and after each check, so a new holder's first check can come about 1.5 s sooner than in 0.28~~ | low | Fixed: `petra_holders_` keeps each holder's registration or last-check time (save 135) |
 
 ### Selection details layout and auras: Compare's twelfth 0.28 pass (2026-10-21)
 
