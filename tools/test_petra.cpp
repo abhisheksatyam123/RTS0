@@ -8857,25 +8857,25 @@ static void test_building_plan_028() {
 	CHECK(count(BLD_HOUSE) == houses, "the opening lays no houses");
 	CHECK(count(BLD_STOREHOUSE) >= 1, "the opening lays the first wood dropsite");
 
-	// A house next to a barracks loses 40 at its foundation: the spot a house picks with no
-	// barracks around, a barracks there pushes the next pick away.
+	// A house next to a gate loses 40 at its foundation (QueuePlanBuilding ["Gate", "!Wall"]); a
+	// barracks does not push houses in 0.28, so only the gate sets the distance here.
 	int cx = 0, cz = 0;
 	CHECK(s->petra_find_position(BLD_HOUSE, nullptr, nullptr, false, cx, cz), "a house finds room");
 	const float hx = ((float)cx + 1.0f) * Simulation::GRID, hz = ((float)cz + 1.0f) * Simulation::GRID;
-	const uint32_t bar = s->spawn_building_world(hx, hz, BLD_BARRACKS, 1, 1.0f);
-	CHECK(bar != 0, "a barracks stands where the house would have gone");
+	const uint32_t gate = s->spawn_building_world(hx, hz, BLD_GATE, 1, 1.0f);
+	CHECK(gate != 0, "a gate stands where the house would have gone");
 	int cx2 = 0, cz2 = 0;
 	CHECK(s->petra_find_position(BLD_HOUSE, nullptr, nullptr, false, cx2, cz2), "a house still finds room");
 	const float d = std::hypot(((float)cx2 + 1.0f) * Simulation::GRID - hx, ((float)cz2 + 1.0f) * Simulation::GRID - hz);
-	std::printf("  building plan: house %.1f m from the barracks\n", d);
-	CHECK(d > 12.0f, "a house keeps away from a barracks");
+	std::printf("  building plan: house %.1f m from the gate\n", d);
+	CHECK(d > 12.0f, "a house keeps away from a gate");
 	// requireHouses: with every influence dropped the house takes the first free tile of the base.
 	s->petra_kept_.require_houses = true;
 	int cx3 = 0, cz3 = 0;
 	CHECK(s->petra_find_position(BLD_HOUSE, nullptr, nullptr, false, cx3, cz3), "requireHouses still finds room");
 	s->petra_kept_.require_houses = false;
 	const float d3 = std::hypot(((float)cx3 + 1.0f) * Simulation::GRID - hx, ((float)cz3 + 1.0f) * Simulation::GRID - hz);
-	std::printf("  building plan: requireHouses house %.1f m from the barracks\n", d3);
+	std::printf("  building plan: requireHouses house %.1f m from the gate\n", d3);
 	CHECK(d3 < d, "requireHouses lets the house come closer");
 
 	// findGoodPosition's gap: none for dropsites, fields and markets, one cell for houses (their
@@ -8889,13 +8889,7 @@ static void test_building_plan_028() {
 	      "most structures keep 4 m");
 	CHECK(Simulation::petra_clearance(BLD_FORTRESS) == 2 && Simulation::petra_clearance(BLD_ARSENAL) == 2 &&
 	      Simulation::petra_clearance(BLD_ELEPHANT_STABLE) == 2, "fortresses, arsenals and elephant stables keep 8 m");
-	// Right beside the barracks a house fits where a temple doesn't.
-	bool beside = false;
-	const int bcx = (int)std::floor(hx / Simulation::GRID), bcz = (int)std::floor(hz / Simulation::GRID);
-	for (int dz = -4; dz <= 4 && !beside; ++dz)
-		for (int dx = -4; dx <= 4 && !beside; ++dx)
-			beside = s->petra_ring_clear(bcx + dx, bcz + dz, 1, 0) && !s->petra_ring_clear(bcx + dx, bcz + dz, 1, 1);
-	CHECK(beside, "a house may stand right beside a barracks, a temple may not");
+	// Houses and temples share the one-cell gap (checked above), so no spot separates them.
 
 	// checkResourceLevels counts GATHER.GATHERING units only: one walking out to its trees counts
 	// as neither used nor lost.
