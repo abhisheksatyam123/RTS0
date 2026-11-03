@@ -183,8 +183,13 @@ func run() -> void:
 	check(String(ls["health"]).begins_with("Health: "), "with their summed health")
 	var lg: Dictionary = main.debug_selection_grid(false)
 	var licons: Array = lg["icons"]
-	check(licons.size() == 2 and String(licons[0]["tip"]).begins_with("Sheep"), "one icon per kind of animal")
-	(instance_from_id(licons[0]["id"]) as Button).pressed.emit()
+	# The icons follow the selection's first-seen order, so find the sheep's by its tooltip.
+	var sheep_icon = null
+	for ic in licons:
+		if String(ic["tip"]).begins_with("Sheep"):
+			sheep_icon = ic
+	check(licons.size() == 2 and sheep_icon != null, "one icon per kind of animal")
+	(instance_from_id(sheep_icon["id"]) as Button).pressed.emit()
 	await frames(2)
 	check(int(main.debug_selection_grid(false)["selected"]) == 2, "a click on the sheep keeps only the sheep")
 
