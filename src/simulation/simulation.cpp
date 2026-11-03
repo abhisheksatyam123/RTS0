@@ -22411,7 +22411,33 @@ void Simulation::tick_unit_ai(float dt) {
 		// tick_gather commits it at the nearest dropsite, which is now this one.
 		if (units_.order_kind[i] == ORDER_RETURN_RESOURCE && !interrupted && (now == ACTION_MOVE || now == ACTION_IDLE)) {
 			auto bit = building_id_to_idx_.find(units_.order_target[i]);
-			if (bit == building_id_to_idx_.end() || !order_still_valid(i, current_order(i))) { finish_order(i); continue; }
+			if (bit == building_id_to_idx_.end() || !order_still_valid(i, current_order(i))) {
+				// A dropsite lost on the way (destroyed, or one that no longer takes the load): 0.28's
+				// APPROACHING gets MovementUpdate's likelyFailure, or reaches it, and DROPPINGRESOURCES,
+				// which cannot return there, takes the load to the nearest dropsite (FindNearestDropsite,
+				// FinishOrder, PushOrderFront ReturnResource, UnitAI.js:2851-2878). That is tick_gather's
+				// return from where the unit stands, as after a failed walk (motion_feedback). finish_order
+				// alone left the walker going on with no order (ACTION_MOVE, ORDER_NONE).
+				if (now == ACTION_MOVE && units_.carry[i] > 0) {
+					units_.action_state[i] = ACTION_RETURN_DROPSITE;
+					units_.target_x[i] = units_.pos_x[i]; // no pick yet: tick_gather takes the nearest
+					units_.target_z[i] = units_.pos_z[i];
+					units_.target_resource_id[i] = 0;
+					units_.vel_x[i] = units_.vel_z[i] = 0.0f;
+					drop_walk_path(i);
+					continue;
+				}
+				// Nothing to drop: DROPPINGRESOURCES finds no dropsite for an empty load and FinishOrder
+				// stops the unit (APPROACHING's leave, StopMoving).
+				if (now == ACTION_MOVE) {
+					units_.action_state[i] = ACTION_IDLE;
+					units_.has_order[i] = 0;
+					units_.vel_x[i] = units_.vel_z[i] = 0.0f;
+					drop_walk_path(i);
+				}
+				finish_order(i);
+				continue;
+			}
 			const Building &b = buildings_[bit->second];
 			const float reach = units_.unit_type[i] == UNIT_FISHING_BOAT ? 4.0f : 1.5f;
 			if (now == ACTION_IDLE ||
