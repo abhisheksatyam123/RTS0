@@ -13078,6 +13078,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		// (nav/building_steering.h), or round idle units (avoid_idle_units), until the unit reaches
 		// it. The arrival check above still uses the real aim point.
 		bool steered = false, round_units = false;
+		bool noted = false; // avoid_idle_units' stuck or held note was put back over the steering memo
 		uint32_t round_corner = 0; // the memo key of the corner a path round idle units leads to
 		// The waypoint after the one steered for, on a short path the unit keeps (nav::SteerNext).
 		rtso::nav::SteerNext after;
@@ -13168,7 +13169,8 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			// avoid_idle_units' note that its last search from here found no way stays while the unit
 			// does, whatever way round buildings it is heading for.
 			const float lx = px[i] - last.x, lz = pz[i] - last.z;
-			if (last.key == idle_stuck_key() && lx * lx + lz * lz < 0.25f) memo = last;
+			noted = idle_stuck_note(last.key) && lx * lx + lz * lz < 0.25f;
+			if (noted) memo = last;
 		} else if (!backing_off) {
 			rtso::nav::Vec2 steer;
 			if (ship_wreck_steer((size_t)i, px[i], pz[i], aim_x, aim_z, steer)) {
@@ -13198,15 +13200,17 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		const bool corner_reached = steered && step > 0.0f && d2 <= step * step;
 		const bool kept_on = corner_reached && !round_units && after.more;
 		float rest_x = aim_x, rest_z = aim_z; // where the rest of a step that reaches the waypoint heads
+		// A note put back over the memo stays as it is: the waypoint reached is of a search made afresh
+		// this tick, and the next tick's search starts from it again.
 		if (kept_on) {
-			++units_.short_path[i].key;
+			if (!noted) ++units_.short_path[i].key;
 			rest_x = after.next.x;
 			rest_z = after.next.y;
 			const float rx = rest_x - (px[i] + dx), rz = rest_z - (pz[i] + dz), rl = std::sqrt(rx * rx + rz * rz);
 			const float rest = std::min(step - std::sqrt(d2), rl);
 			move_dx = dx + (rl > 1e-6f ? rx * (rest / rl) : 0.0f);
 			move_dz = dz + (rl > 1e-6f ? rz * (rest / rl) : 0.0f);
-		} else if (corner_reached) {
+		} else if (corner_reached && !noted) {
 			units_.short_path[i].key = round_units ? round_corner : 0;
 		}
 		want_x[i] = move_dx;
@@ -13558,7 +13562,7 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 	constexpr float RANGE_MAX = 56.0f / 4.0f; // map lengths: 4 m a unit
 	constexpr float RANGE_CORNER = 32.0f / 4.0f; // a search on from a corner
 	const uint64_t per_turn = (uint64_t)std::max(1L, std::lround(0.2f / dt)); // 0 A.D. turns last 200 ms
-	const uint32_t key = idle_path_key(), corner_key = idle_corner_key(), stuck_key = idle_stuck_key();
+	const uint32_t key = idle_path_key(), corner_key = idle_corner_key(), stuck_key = idle_stuck_key(), held_key = idle_held_key();
 	const uint32_t relaxed_key = idle_relaxed_path_key(), relaxed_corner_key = idle_relaxed_corner_key();
 	const uint32_t sealed_key = idle_sealed_path_key(), sealed_corner_key = idle_sealed_corner_key();
 	const uint32_t sealed_relaxed_key = idle_sealed_relaxed_path_key(), sealed_relaxed_corner_key = idle_sealed_relaxed_corner_key();
@@ -13599,8 +13603,9 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		// its last short path search, among the crowd-scale squares and then the smaller ones, found no
 		// way from where it still stands (the stuck memo, `no_way` below), or once it was caught going round
 		// a way its searches find (the obstructed branch below), and while it follows a path that a search
-		// of its own made sealed found (the idle_sealed_ keys, below). With `as_sealed` a step is tested as
-		// if it were sealed.
+		// of its own made sealed found (the idle_sealed_ keys, below). Any other land walker is sealed only
+		// while it is held inside its own idle units' crowd (below). With `as_sealed` a step is tested as if
+		// it were sealed.
 		const bool sealable = (units_.action_state[i] == ACTION_BUILD && units_.target_building_id[i] != 0) ||
 				(units_.action_state[i] == ACTION_MOVE && units_.has_order[i] && units_.order_kind[i] == ORDER_GARRISON);
 		// A unit walking off a foundation that waited to start (leave_foundation, ORDER_FLAG_LEAVE), for the
@@ -13612,8 +13617,53 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		const float lsx = x0 - last.x, lsz = z0 - last.z, lax = aim_x[i] - last.aim_x, laz = aim_z[i] - last.aim_z;
 		const bool sealed_path = last.key == sealed_key || last.key == sealed_relaxed_key || last.key == sealed_corner_key ||
 				last.key == sealed_relaxed_corner_key;
-		const bool sealed = sealable && lax * lax + laz * laz <= nav::SHORT_PATH_AIM_SLACK * nav::SHORT_PATH_AIM_SLACK &&
-				(sealed_path || (last.key == stuck_key && lsx * lsx + lsz * lsz < 0.25f));
+		const bool held = last.key == held_key && lsx * lsx + lsz * lsz < 0.25f;
+		const bool seal_memo = lax * lax + laz * laz <= nav::SHORT_PATH_AIM_SLACK * nav::SHORT_PATH_AIM_SLACK &&
+				(sealed_path || held || (last.key == stuck_key && lsx * lsx + lsz * lsz < 0.25f));
+		// Whether the walker stands inside the crowd-scale square of one of its own player's units that
+		// stand idle with no order (and not one of its control group, nor its target): the units the seal
+		// lets through (obstructs).
+		auto in_own_crowd = [&] {
+			bool in = false;
+			grid.visit_radius_within(x0, z0, ci + c_max, ci + c_max, [&](int32_t j) {
+				if (in || (size_t)j == i || !idle[j] || units_.id[j] == ignore || (group && crew[j] == group) ||
+						units_.team[j] != owner || units_.action_state[j] != ACTION_IDLE || units_.has_order[j])
+					return;
+				const float h = ci + unit_push_clearance(units_.unit_type[j]);
+				in = std::fabs(x0 - px[j]) <= h && std::fabs(z0 - pz[j]) <= h;
+			});
+			return in;
+		};
+		// Any other land walker held inside such a crowd is sealed the same way while it stays in it, so it
+		// can walk out. RTS0 deviation, with the seal's. 0.28's squares are one-sided (TestRaySquare,
+		// Geometry.cpp:259-281; VertexPathfinder.cpp:110-140, 710-718): a unit may leave a square it stands
+		// in, but not walk into another. RTS0's crowd-scale squares overlap in a block at its own spacing, so
+		// a unit left inside one stands among squares it cannot walk into. A sealed walker crosses its own
+		// idle block, and when its order then changed (a walk out, a stop and a walk, its structure
+		// destroyed) it stood there: of the review probes' garrison walkers crossing a 7x3 or 12x3 own block
+		// with 2 ally rows behind it, a walk out given mid-crossing failed on 7 of 21 and 13 of 24 change
+		// ticks (docs/REMAINING_GAPS.md, SW6). The block's own members stood there the same way (walking
+		// east, 10 of 21 and 20 of 36 never got out), as did units put down inside it (37 of 48).
+		// Such a walker is sealed once it is held there (idle_held_key): a search found no way from where it
+		// stands after its last one from there found none either (the wider search, `no_way`), or just after
+		// a step on the way a search had found was refused (on its path, or on from a corner the path led
+		// to: separation slides a walker off a path that runs between bodies). It takes the note along while
+		// its steps are clear and it is inside the crowd (below). A walker that comes to its own idle crowd
+		// from outside finds its way round by 0.28's rule and is seldom held: of 460 walks, gathers and
+		// returns past random crowds of 18 and 30 units, 1 went another way (a gatherer that a path among
+		// the smaller squares led into a mixed crowd, held there 6 s without this). Sealed on its first
+		// failed search inside its own crowd, 22 of 40 walkers past crowds of 30 own units went another way,
+		// and 22 crossed a unit's body against 15. A formation's member keeps the rule (its aim is its slot,
+		// which moves every tick).
+		const bool sealed = seal_memo && (sealable || (!member && (held || sealed_path) && in_own_crowd()));
+		// A path a sealed search found keeps no seal for a walker no longer sealed: its key goes back to the
+		// unsealed one of its kind. (A unit whose walk ended while it was sealed keeps the key while it
+		// stands, so a later walk toward the same aim from inside its own idle crowd starts sealed.)
+		if (sealed_path && !sealed) {
+			ShortPathMemo &stale = units_.short_path[i];
+			stale.key = stale.key == sealed_key ? key : stale.key == sealed_relaxed_key ? relaxed_key
+			          : stale.key == sealed_corner_key ? corner_key : relaxed_corner_key;
+		}
 		bool as_sealed = false;
 		auto obstructs = [&](int32_t j) {
 			// A unit standing still obstructs one that moves, as in 0.28 (ControlGroupMovementObstructionFilter,
@@ -13691,6 +13741,8 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 			// such a strip. As for builders, the first short search that finds no way seals the walker (3
 			// units at the first failed turn), so one at the edge of its own idle block more than about 3
 			// deep walks through it where 0.28's rule would take it round a little later, if there is a way.
+			// Any other land walker held inside its own idle units' crowd is let through them the same way
+			// while it is in it (`sealed` above), so it can walk out of it.
 			if ((sealed || as_sealed) && units_.team[j] == owner && units_.action_state[j] == ACTION_IDLE &&
 					!units_.has_order[j])
 				return false;
@@ -13781,7 +13833,7 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		const uint8_t failed = units_.motion[i].failed;
 		const bool obstructed = full_step_blocked(npx[i], npz[i], aim_x[i], aim_z[i], relaxed);
 		const float step_x = npx[i], step_z = npz[i]; // the step move_units gave it
-		bool no_way = false;
+		bool no_way = false, path_refused = false;
 		if (obstructed) {
 			// Obstructed: the unit stays put this tick. One within reach of its task is where 0 A.D.'s
 			// move to the target's range would have ended: it works from there without a short path.
@@ -13826,7 +13878,7 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 					clear_as_sealed(npx[i], npz[i], aim_x[i], aim_z[i], relaxed) && aim_step_clear_as_sealed())
 				memo = ShortPathMemo{x0, z0, aim_x[i], aim_z[i], stuck_key};
 			else if (on_path || nav::is_kept_path_key(memo.key, short_path_key_))
-				memo.key = 0;
+				path_refused = on_path && same_aim, memo.key = 0;
 			npx[i] = x0;
 			npz[i] = z0;
 			units_.vel_x[i] = units_.vel_z[i] = 0.0f;
@@ -13837,7 +13889,11 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 			// one stuck for more than 12 every eighth and one stuck for more than 24 every 16th: units
 			// boxed in by idle ones can wait there for minutes, and their searches cost the most.
 			const float sx = x0 - memo.x, sz = z0 - memo.z;
-			no_way = memo.key == stuck_key && sx * sx + sz * sz < 0.25f && same_aim;
+			no_way = idle_stuck_note(memo.key) && sx * sx + sz * sz < 0.25f && same_aim;
+			// A step on the way a search found was refused: on its path (above), or on toward its aim from
+			// the corner the path led to (the memo keeps that corner with key 0). If no way is found from
+			// here either, the unit is held (idle_held_key, `sealed` above).
+			if (dropped && same_aim && sx * sx + sz * sz < 0.25f) path_refused = true;
 			// One with no way from here whose task is within a step along one axis (the larger first) slides
 			// there where that is clear, along the idle squares' sides, as move_units slides along a shore.
 			// Idle units' pushes can leave a walker in a slit between two squares, narrower than the
@@ -13868,6 +13924,10 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 			const uint64_t turn_ticks = per_turn * (failed > 24 ? 16 : failed > 12 ? 8 : failed > 4 || no_way ? 4 : 1);
 			if (!from_corner && (ticks_ + units_.id[i]) % turn_ticks != 0) return;
 		} else if (!from_corner) {
+			// A walker sealed inside its own idle crowd by its held note (not a sealable one) takes the note
+			// along while its steps are clear, so it stays sealed until it is out of the crowd: 0.5 units
+			// on it would search by 0.28's rule again, among the same squares.
+			if (sealed && !sealable && held) memo.x = npx[i], memo.z = npz[i];
 			return;
 		} else {
 			// A corner whose way on towards the aim is clear of idle units needs no search. The path may
@@ -13963,7 +14023,9 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 					building, relaxed_squares, nav_grid_, w, next, IDLE_SQUARE_DELTA, &reached) && reached;
 		}
 		if (!found) {
-			if (obstructed) memo = ShortPathMemo{x0, z0, aim.x, aim.y, stuck_key};
+			// The note that no way was found from here; a unit held here (`no_way` or `path_refused`) gets
+			// idle_held_key, which counts as idle_stuck_key everywhere but in `sealed` above.
+			if (obstructed) memo = ShortPathMemo{x0, z0, aim.x, aim.y, no_way || path_refused ? held_key : stuck_key};
 			return;
 		}
 		// A one-waypoint path from a corner means the way on is clear, and the unit heads for its aim.
@@ -22341,17 +22403,35 @@ void Simulation::tick_unit_ai(float dt) {
 		if (units_.order_kind[i] == ORDER_GARRISON && !interrupted && (now == ACTION_MOVE || now == ACTION_IDLE)) {
 			auto bit = building_id_to_idx_.find(units_.order_target[i]);
 			Building *b = bit == building_id_to_idx_.end() ? nullptr : &buildings_[bit->second];
-			if (!b || !order_still_valid(i, current_order(i))) { finish_order(i); continue; }
+			// The order ends with its walk: GARRISON.APPROACHING's leave stops the unit (StopMoving,
+			// UnitAI.js:3263-3270), and FinishOrder with no order queued sets it IDLE (UnitAI.js:3938-3941),
+			// as 0.28 does when the holder is full or no longer takes it (GARRISONING, :3297-3301). A lost
+			// structure ends no 0.28 order (APPROACHING's MovementUpdate finishes only for a pickup,
+			// :3272-3287): the unit stands with its order, where here it stands idle (a deviation).
+			// finish_order alone left a walker whose structure was destroyed or turned it away walking on
+			// with no order (ACTION_MOVE, ORDER_NONE), a walk no MoveFailed ends (motion_feedback finishes
+			// walk orders only): in its own idle crowd it stood pushing for good.
+			auto give_up = [&] {
+				if (units_.action_state[i] == ACTION_MOVE) {
+					units_.action_state[i] = ACTION_IDLE;
+					units_.has_order[i] = 0;
+					units_.vel_x[i] = units_.vel_z[i] = 0.0f;
+					drop_walk_path(i);
+				}
+				finish_order(i);
+			};
+			if (!b || !order_still_valid(i, current_order(i))) { give_up(); continue; }
 			if (garrison_in_range(i, *b)) {
 				if (units_.order_flags[i] & ORDER_FLAG_TURRET) { // OCCUPYTURRET enter: Turretable.OccupyTurret
 					if (turret_room(*b) && structure_accepts_turret(*b, i)) occupy_turret(i, *b);
-					else finish_order(i);
+					else give_up();
 					continue;
 				}
 				// GARRISONING enter: Garrisonable.Garrison fails on a full holder, one that no longer
-				// takes the unit, or one below EjectHealth, and the unit stops where it stands.
+				// takes the unit, or one below EjectHealth, and the unit stops where it stands
+				// (UnitAI.js:3297-3301).
 				if (!garrison_room(*b, i) || !structure_accepts_garrison(*b, i) || !structure_has_enough_health(*b)) {
-					finish_order(i);
+					give_up();
 					continue;
 				}
 				if (pack_state_can_move(units_.pack_state[i])) garrison_now(i, *b); // else still packing
@@ -33849,7 +33929,7 @@ void Simulation::petra_answer_attack_request(uint8_t source, uint8_t target) {
 bool Simulation::unit_short_waypoint(size_t i, float aim_x, float aim_z, float *wx, float *wz) const {
 	if (i >= units_.count) return false;
 	const ShortPathMemo &m = units_.short_path[i];
-	if (m.key == 0 || m.key == idle_stuck_key()) return false;
+	if (m.key == 0 || idle_stuck_note(m.key)) return false;
 	const float dx = m.aim_x - aim_x, dz = m.aim_z - aim_z;
 	if (dx * dx + dz * dz > nav::SHORT_PATH_AIM_SLACK * nav::SHORT_PATH_AIM_SLACK) return false;
 	// A kept short path of several waypoints holds where the unit searched from: the waypoint it heads

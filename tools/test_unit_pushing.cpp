@@ -247,6 +247,17 @@
 //     now follows a path its sealed search found as a sealed one: he gets in within 2 s of main's time
 //     and never walks through the ally's bodies, and a builder there, which main's seal held the same
 //     way, starts.
+// 39. 38's guard layout (his player's idle block of 7 or 12 columns, 3 rows, 2 rows of an ally's units
+//     behind it, his civic centre beyond), the spearman's order changed on the tick he first follows a
+//     path his sealed search found, inside his block: a walk out east; a stop and, 5 s later, the walk;
+//     his civic centre destroyed and, 5 s later, the walk. On main he stood among squares he could not
+//     walk into: each walk failed after about 7 s (MoveFailed), 13 to 14 units short, and with his centre
+//     gone he walked on with no order (ACTION_MOVE, ORDER_NONE, which no MoveFailed ends) for good. Now
+//     GARRISON.APPROACHING's leave stops him (UnitAI.js:3263-3270; FinishOrder, 3938-3941), and a unit
+//     held inside its own player's idle crowd walks through it while it is in it: he leaves the block
+//     within 6 s each time and stands (IDLE) on the tick his centre goes. A member of the block sent east,
+//     which main held the same way, leaves within 5 s; a spearman from outside walking past the block
+//     still goes round it (in 9.90 s, as on main), never through a body.
 // 40. Player 0's dock site on Stats' Islands soak (main ae8f97dcd, seed 2) at 1300 s, as the game saved it: the
 //     shore's navcells, the civic centre beside it, the trees round it and 93 of the player's units under their
 //     ids, 70 of them sent to build it (Petra sends every worker with no supply left to a dropsite,
@@ -2740,6 +2751,123 @@ int main() {
 		      "a unit sealed past its idle units, refused by an ally's behind them, gets in within 2 s of main's time");
 		CHECK(m7.ally >= 0.99f && m12.ally >= 0.99f, "and never walks through the ally's bodies there");
 		CHECK(mb.in > 0, "a builder held so by main's seal gets to its site");
+	}
+	{
+		// 39. 38's guard layout, the spearman's order changed on the tick he first follows a path his sealed
+		// search found, inside his player's idle block (7 or 12 columns): a walk out east to (14, 6); a stop
+		// and, 5 s later, that walk; his civic centre destroyed and, 5 s later, that walk. A member of the
+		// block (row 1, column 3 of 7) sent the same way. And a spearman from outside walking past the block.
+		constexpr UnitType S = UNIT_SPEARMAN;
+		constexpr float GX = 14.0f, GZ = 6.0f;
+		auto mid_scene = [&](int cols, std::vector<DumpUnit> &units, bool walker) {
+			const float sp = 1.45f, x0 = -0.5f * sp * (cols - 1), z0 = 4.0f - sp;
+			uint32_t id = 1000;
+			for (int r = 0; r < 3; ++r)
+				for (int k = 0; k < cols; ++k) units.push_back({id++, x0 + k * sp, z0 + r * sp, S});
+			for (int r = 0; r < 2; ++r)
+				for (int k = 0; k < cols + 2; ++k) units.push_back({id++, x0 + (k - 1) * sp, z0 + (3 + r) * sp, S, 2});
+			if (walker) units.push_back({3000, 0.0f, -6.0f, S});
+			return dump_scene(CIV_ATHENIANS, {{900, 0.0f, 18.0f, BLD_TOWN_CENTER, 1.0f}}, units, true);
+		};
+		auto sealed_path_key = [](const Simulation &s, uint32_t k) {
+			return k == s.idle_sealed_path_key() || k == s.idle_sealed_relaxed_path_key() || k == s.idle_sealed_corner_key() ||
+			       k == s.idle_sealed_relaxed_corner_key();
+		};
+		struct OutRun {
+			int change = -1;    // the tick his order changed (his first on a sealed path), -1 never
+			int idle = -1;      // ticks from the change until he stood (ACTION_IDLE), -1 not within 5 s
+			int out = -1;       // ticks from the walk's order until he was within 2 units of (14, 6), -1 not in 30 s
+			float ally = 1e9f;  // his least distance to an ally's unit on that walk, over their bodies' radius sum
+		};
+		// Runs unit w's walk to (14, 6) for up to 30 s.
+		auto walk_out = [&](Simulation &s, uint32_t w, const std::vector<DumpUnit> &units, OutRun &r) {
+			s.order_walk(&w, 1, GX, GZ);
+			for (int t = 1; t <= 600; ++t) {
+				s.tick(DT);
+				const int wi = idx(s, w);
+				if (std::hypot(s.units_.pos_x[wi] - GX, s.units_.pos_z[wi] - GZ) < 2.0f) {
+					r.out = t;
+					break;
+				}
+				for (const DumpUnit &u : units) {
+					if (u.team != 2) continue;
+					const int j = idx(s, u.id);
+					r.ally = std::min(r.ally, dist(s, wi, j) / (unit_collision_radius(s.units_.unit_type[wi]) +
+							unit_collision_radius(s.units_.unit_type[j])));
+				}
+			}
+		};
+		// what 0: the walk at once; 1: a stop, the walk 5 s later; 2: the centre destroyed, the walk 5 s later.
+		auto change_run = [&](int cols, int what) {
+			std::vector<DumpUnit> units;
+			auto s = mid_scene(cols, units, true);
+			const uint32_t w = 3000;
+			s->order_garrison(&w, 1, 900);
+			OutRun r;
+			for (int t = 1; t <= 600 && r.change < 0; ++t) {
+				s->tick(DT);
+				if (sealed_path_key(*s, s->units_.short_path[idx(*s, w)].key)) r.change = t;
+			}
+			if (r.change < 0) return r;
+			if (what == 1) s->order_stop(&w, 1);
+			if (what == 2) s->destroy_building(s->buildings_[s->building_id_to_idx_.at(900)]);
+			if (what > 0) {
+				for (int t = 1; t <= 100; ++t) {
+					s->tick(DT);
+					if (r.idle < 0 && s->units_.action_state[idx(*s, w)] == ACTION_IDLE) r.idle = t;
+				}
+			}
+			walk_out(*s, w, units, r);
+			return r;
+		};
+		const OutRun e7 = change_run(7, 0), e12 = change_run(12, 0), st7 = change_run(7, 1), st12 = change_run(12, 1);
+		const OutRun d7 = change_run(7, 2), d12 = change_run(12, 2);
+		std::vector<DumpUnit> mu;
+		auto ms = mid_scene(7, mu, false);
+		OutRun member;
+		walk_out(*ms, 1010, mu, member);
+		// A spearman from outside, south of the block, walking to a point north of the ally's rows: he goes
+		// round both (0.28's rule), never through a body of his own idle units.
+		std::vector<DumpUnit> pu;
+		auto ps = mid_scene(7, pu, true);
+		const uint32_t pw = 3000;
+		ps->order_walk(&pw, 1, 0.0f, 12.0f);
+		int past = -1;
+		float past_own = 1e9f;
+		for (int t = 1; t <= 600; ++t) {
+			ps->tick(DT);
+			const int wi = idx(*ps, pw);
+			if (!ps->units_.has_order[wi]) {
+				if (std::hypot(ps->units_.pos_x[wi], ps->units_.pos_z[wi] - 12.0f) < 2.0f) past = t;
+				break;
+			}
+			for (const DumpUnit &u : pu) {
+				if (u.team != 0 || u.id == pw) continue;
+				const int j = idx(*ps, u.id);
+				past_own = std::min(past_own, dist(*ps, wi, j) / (unit_collision_radius(ps->units_.unit_type[wi]) +
+						unit_collision_radius(ps->units_.unit_type[j])));
+			}
+		}
+		auto sec = [](int t) { return t < 0 ? -1.0f : t * DT; };
+		std::printf("  order changed inside his idle block (first sealed-path tick %d with 7 columns, %d with 12): walk out east "
+		            "out after %.2f s / %.2f s; stop, then the walk: out after %.2f s / %.2f s; centre destroyed: idle after %.2f s "
+		            "/ %.2f s, then the walk out after %.2f s / %.2f s (-1: not within the bound); %.2f of the bodies' radius sum "
+		            "from the ally's units at the closest\n", e7.change, e12.change, sec(e7.out), sec(e12.out), sec(st7.out),
+		            sec(st12.out), sec(d7.idle), sec(d12.idle), sec(d7.out), sec(d12.out),
+		            std::min({e7.ally, e12.ally, st7.ally, st12.ally, d7.ally, d12.ally}));
+		std::printf("  a member of the block sent east: out after %.2f s; a spearman from outside walking past the block: there after "
+		            "%.2f s, %.2f of the bodies' radius sum from his own idle units at the closest\n", sec(member.out), sec(past),
+		            past_own);
+		CHECK(e7.change > 0 && e12.change > 0, "the spearman crossing his idle block follows a path his sealed search found");
+		CHECK(e7.out > 0 && e7.out * DT <= 8.0f && e12.out > 0 && e12.out * DT <= 8.0f,
+		      "sent out of his idle block on that tick, he leaves it within 8 s");
+		CHECK(st7.out > 0 && st7.out * DT <= 8.0f && st12.out > 0 && st12.out * DT <= 8.0f,
+		      "stopped there and sent out 5 s later, he leaves it within 8 s");
+		CHECK(d7.idle > 0 && d7.idle * DT <= 1.0f && d12.idle > 0 && d12.idle * DT <= 1.0f,
+		      "his civic centre destroyed, he stands (IDLE) within 1 s, not walking on with no order");
+		CHECK(d7.out > 0 && d7.out * DT <= 8.0f && d12.out > 0 && d12.out * DT <= 8.0f, "and sent out 5 s later, he leaves it within 8 s");
+		CHECK(member.out > 0 && member.out * DT <= 8.0f, "a member of the block sent out leaves it within 8 s");
+		CHECK(past > 0 && past_own >= 0.99f, "a spearman from outside walks round the block, never through a body of his own idle units");
 	}
 	{
 		// 40. Player 0's dock site on Stats' Islands soak (main ae8f97dcd, seed 2) at 1300 s, as the game saved it:
