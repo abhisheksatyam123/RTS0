@@ -8,28 +8,18 @@
 [ext_resource type="Texture2D" path="res://assets/textures/ui/pregame/menu_panel_background_shading.png" id="6_shading"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel_border"]
-bg_color = Color(0.1, 0.1, 0.12, 0.35)
+bg_color = Color(0, 0, 0, 0)
 border_width_left = 2
 border_width_top = 2
-border_width_right = 2
 border_width_bottom = 2
-border_color = Color(0.9, 0.75, 0.31, 1)
-shadow_color = Color(0, 0, 0, 0.7)
-shadow_size = 8
+border_color = Color(0.901961, 0.745098, 0.313726, 1)
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_subpanel"]
-bg_color = Color(0.12, 0.13, 0.16, 0.95)
-border_width_left = 2
+bg_color = Color(0, 0, 0, 0)
 border_width_top = 2
 border_width_right = 2
 border_width_bottom = 2
-border_color = Color(0.9, 0.75, 0.31, 1)
-corner_radius_top_left = 2
-corner_radius_top_right = 2
-corner_radius_bottom_right = 2
-corner_radius_bottom_left = 2
-shadow_color = Color(0, 0, 0, 0.6)
-shadow_size = 6
+border_color = Color(0.901961, 0.745098, 0.313726, 1)
 
 [node name="MainMenu" type="Control"]
 layout_mode = 3
@@ -63,8 +53,10 @@ color = Color(0, 0, 0, 0.18)
 layout_mode = 1
 anchors_preset = 9
 anchor_bottom = 1.0
-offset_left = 48.0
-offset_right = 308.0
+offset_left = 60.0
+offset_top = -2.0
+offset_right = 300.0
+offset_bottom = 2.0
 grow_vertical = 2
 
 [node name="StoneBg" type="TextureRect" parent="MainPanel"]
@@ -204,20 +196,59 @@ theme_override_font_sizes/font_size = 12
 text = "WILDFIRE GAMES"
 horizontal_alignment = 1
 
-[node name="SubmenuPanel" type="PanelContainer" parent="."]
+[node name="SubmenuPanel" type="Control" parent="."]
 visible = false
 layout_mode = 0
-offset_left = 312.0
+offset_left = 300.0
 offset_top = 220.0
-offset_right = 560.0
+offset_right = 540.0
 offset_bottom = 430.0
+
+[node name="SubStone" type="TextureRect" parent="SubmenuPanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("5_stone")
+expand_mode = 1
+stretch_mode = 1
+
+[node name="SubShading" type="TextureRect" parent="SubmenuPanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("6_shading")
+expand_mode = 1
+
+[node name="SubBorder" type="Panel" parent="SubmenuPanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_subpanel")
 
 [node name="SubmenuContent" type="VBoxContainer" parent="SubmenuPanel"]
-layout_mode = 2
-theme_override_constants/separation = 8
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = 4.0
+offset_right = -4.0
+offset_bottom = -4.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 0
 
 [node name="SubmenuTitle" type="Label" parent="SubmenuPanel/SubmenuContent"]
+visible = false
 layout_mode = 2
 theme_override_colors/font_color = Color(0.9, 0.75, 0.31, 1)
 theme_override_font_sizes/font_size = 13
@@ -226,4 +257,4 @@ horizontal_alignment = 1
 
 [node name="SubmenuButtons" type="VBoxContainer" parent="SubmenuPanel/SubmenuContent"]
 layout_mode = 2
-theme_override_constants/separation = 5
+theme_override_constants/separation = 4
