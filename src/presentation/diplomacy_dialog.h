@@ -126,7 +126,25 @@ public:
 		return shared ? String::num_int64(number) : String("None");
 	}
 
-	void build(Object *owner, Node *parent, RtsoDiplomacyHost *host, RtsoChatWindow *chat) {
+	// Connects the dialog's buttons to the RtsoMain methods they always called, per
+	// row for the player buttons. Run once after build(), before any input.
+	void bind_signals(Object *owner) {
+		for (int p = 0; p < rtso::MAX_PLAYERS; ++p) {
+			Row &r = rows_[p];
+			for (int s = 0; s < 3; ++s) {
+				r.stance[s]->connect("pressed", Callable(owner, "_on_diplo_stance_changed").bind(s, p));
+			}
+			for (int t = 0; t < 4; ++t) {
+				r.tribute[t]->connect("pressed", Callable(owner, "_on_diplo_tribute_pressed").bind(p, (int)TRIBUTE_RES[t]));
+			}
+			r.attack->connect("pressed", Callable(owner, "_on_diplo_attack_request_pressed").bind(p));
+			r.spy->connect("pressed", Callable(owner, "_on_diplo_spy_pressed").bind(p));
+		}
+		colors_btn_->connect("pressed", Callable(owner, "toggle_diplomacy_colors"));
+		close_btn_->connect("pressed", Callable(owner, "toggle_diplomacy"));
+	}
+
+	void build(Node *parent, RtsoDiplomacyHost *host, RtsoChatWindow *chat) {
 		host_ = host;
 		chat_ = chat;
 		panel_ = memnew(Panel);
@@ -219,23 +237,19 @@ public:
 				r.stance[s] = memnew(Button);
 				r.stance[s]->set_custom_minimum_size(Vector2(stance_w(), 20));
 				r.stance[s]->add_theme_font_size_override("font_size", 11);
-				r.stance[s]->connect("pressed", Callable(owner, "_on_diplo_stance_changed").bind(s, p));
 				r.box->add_child(r.stance[s]);
 			}
 			for (int t = 0; t < 4; ++t) {
 				// diplomacyPlayer[n]_tribute[r]: a 20 px resource icon (session/icons/resources/).
 				r.tribute[t] = icon_button(String("res://assets/textures/ui/archive/icons/resources/") + res_name(TRIBUTE_RES[t]) + "_small.png");
-				r.tribute[t]->connect("pressed", Callable(owner, "_on_diplo_tribute_pressed").bind(p, (int)TRIBUTE_RES[t]));
 				r.box->add_child(r.tribute[t]);
 				r.amount[t] = TRIBUTE_DEFAULT;
 			}
 			// diplomacyAttackRequest (attack-request.png), then diplomacySpyRequest (bribes.png).
 			r.attack = icon_button("res://assets/textures/ui/archive/icons/attack-request.png");
 			r.attack->set_tooltip_text(rtso::tr0("Request your allies to attack this enemy"));
-			r.attack->connect("pressed", Callable(owner, "_on_diplo_attack_request_pressed").bind(p));
 			r.box->add_child(r.attack);
 			r.spy = icon_button("res://assets/textures/ui/archive/icons/bribes.png");
-			r.spy->connect("pressed", Callable(owner, "_on_diplo_spy_pressed").bind(p));
 			r.box->add_child(r.spy);
 			vbox->add_child(r.frame);
 		}
@@ -257,7 +271,6 @@ public:
 		bottom->set_h_size_flags(Control::SIZE_SHRINK_CENTER);
 		colors_btn_ = icon_button("res://assets/textures/ui/archive/icons/diplomacy.png", 28.0f);
 		colors_btn_->set_meta("tooltip_style", "session");
-		colors_btn_->connect("pressed", Callable(owner, "toggle_diplomacy_colors"));
 		bottom->add_child(colors_btn_);
 		Label *colors_label = memnew(Label);
 		colors_label->set_text(rtso::tr0("Toggle Diplomacy Colors"));
@@ -269,7 +282,6 @@ public:
 		close_btn_->set_custom_minimum_size(Vector2(128, 28));
 		close_btn_->set_text(rtso::tr0("Close"));
 		close_btn_->add_theme_font_size_override("font_size", 12);
-		close_btn_->connect("pressed", Callable(owner, "toggle_diplomacy"));
 		bottom->add_child(close_btn_);
 		vbox->add_child(bottom);
 
