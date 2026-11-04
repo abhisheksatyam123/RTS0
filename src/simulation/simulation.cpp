@@ -31414,7 +31414,11 @@ uint32_t Simulation::petra_nearest_target(uint8_t kind, bool forced, uint8_t ene
 				const float dx = d.x - b.x, dz = d.z - b.z;
 				if (dx * dx + dz * dz < 20.0f * 20.0f) { defended = true; break; } // 80 m: 20 tiles
 			}
-			if (!defended) consider(b.id, b.x, b.z, 0.0f);
+			// attackPlan.js rushTargetFinder: `dist > minDist` skips a building, so an exact tie goes to the later one.
+			if (!defended) {
+				const float dx = b.x - px, dz = b.z - pz, d = dx * dx + dz * dz;
+				if (!best || d <= best_d) { best_d = d; best = b.id; out_tx = b.x; out_tz = b.z; }
+			}
 		}
 		if (best || !forced) return best;
 	}
