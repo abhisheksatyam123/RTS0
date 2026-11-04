@@ -21415,7 +21415,14 @@ std::vector<uint32_t> Simulation::split_queued(const uint32_t *ids, size_t count
 		for (FormationController &fc : formations_) {
 			if (std::find(fids.begin(), fids.end(), fc.id) == fids.end()) continue;
 			if (!queued) {
-				if (!push_front_order_) fc.queue.clear(); // pushed to the front, the queue carries on after
+				if (!push_front_order_) {
+					fc.queue.clear();
+				} else {
+					// UnitAI PushOrderFront: the walk the controller was on resumes after the new
+					// order, ahead of the rest of the queue.
+					UnitOrder carry;
+					if (formation_current_order(fc, carry) && fc.queue.size() < 64) fc.queue.insert(fc.queue.begin(), carry);
+				}
 				continue;
 			}
 			UnitOrder q = o;
@@ -24709,6 +24716,12 @@ void Simulation::petra_join_trained_plan(uint8_t pid, uint8_t order_plan, uint8_
 // queue lasts, so a civic centre of ours rallying to itself is training emergency units: its
 // other unstarted items are stopped as 0 A.D. does, and no worker is queued there meanwhile.
 bool Simulation::petra_train_emergency_units(const std::vector<std::pair<float, float>> &positions) {
+	// headquarters.js trainEmergencyUnits: nothing while an emergency plan still waits to start
+	// (queues.emergency.hasQueuedUnits); a plan leaves that queue once its unit starts training.
+	for (const Building &b : buildings_)
+		if (b.team == petra_pid_)
+			for (const ProductionOrder &o : b.queue)
+				if (!o.started && o.timer <= 0.0f && o.petra_plan == PETRA_ORDER_EMERGENCY) return false;
 	uint16_t home = 0;
 	const bool naval = petra_classified_topo(home).naval_map;
 	const uint8_t civ = petra_ps().civ;
