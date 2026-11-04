@@ -1538,10 +1538,41 @@ static void play_structure_death(RtsoWorldView &view, uint8_t type, Vector3 pos)
 	view.play_spatial_sound(rtso::load_audio(path), pos, gain > 0.001f ? 20.0f * std::log10(gain) : -80.0f, 95.0f, pitch);
 }
 
-bool RtsoWorldView::is_position_on_screen(Vector3 pos) const {
+bool RtsoWorldView::screen_pan(Vector3 pos, Vector3 &heard_at, float &dist, bool &max_rolloff) const {
 	const Viewport *vp = get_viewport();
 	Camera3D *cam = vp ? vp->get_camera_3d() : nullptr;
-	return !cam || cam->is_position_in_frustum(pos);
+	heard_at = pos;
+	dist = 0.0f;
+	max_rolloff = false;
+	if (!cam) return true;
+	const Vector3 origin = cam->get_global_position();
+	dist = (pos - origin).length();
+	if (cam->is_position_behind(pos)) return false;
+	const Vector2 size = vp->get_visible_rect().size;
+	const Vector2 sp = cam->unproject_position(pos);
+	const float cap = 3.14159265f / 6.0f; // sound.maxstereoangle
+	const float x_buffer = size.x * 0.1f, y_buffer = 15.0f;
+	float offset = 0.0f;
+	bool on_screen = true;
+	if (sp.x < -x_buffer) {
+		on_screen = false;
+		offset = -cap;
+	} else if (sp.x > size.x + x_buffer) {
+		on_screen = false;
+		offset = cap;
+	} else {
+		if (sp.x < 0.0f || sp.x > size.x) max_rolloff = true;
+		offset = cap * (sp.x * 2.0f / size.x - 1.0f);
+	}
+	if (sp.y < -y_buffer || sp.y > size.y + y_buffer) {
+		on_screen = false;
+	} else if (sp.y < 0.0f || sp.y > size.y) {
+		max_rolloff = true;
+	}
+	if (!on_screen) return false;
+	// The emitter goes where 0.28 puts it in the listener's frame: (dist sin, 0, -dist cos), then the camera's basis.
+	heard_at = origin + cam->get_global_transform().basis.xform(Vector3(dist * std::sin(offset), 0.0f, -dist * std::cos(offset)));
+	return true;
 }
 
 void RtsoWorldView::play_spatial_sound_path(const String &path, Vector3 pos, float volume_db, float max_dist, float pitch_scale) {

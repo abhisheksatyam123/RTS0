@@ -188,19 +188,30 @@ public:
 	// the gain falls linearly from 1 at 1 m to 1 - rolloff at 350 m from the listener and stays
 	// there beyond. A sim unit is 4 m. The listener is the camera's focus point (0.28 uses the
 	// camera origin).
-	// rolloff is 0.5 for a sound in view and 0.7 off screen (0.28 SoundGroup.cpp MAX_ROLLOFF).
+	// rolloff is 0.5 in view and 0.7 when the sound is off screen (0.28 SoundGroup.cpp MAX_ROLLOFF).
 	static float falloff_gain(float dist_units, float rolloff = 0.5f) {
 		const float d = std::clamp(dist_units * 4.0f, 1.0f, 350.0f);
 		return 1.0f - rolloff * (d - 1.0f) / (350.0f - 1.0f);
 	}
-	// Whether a point is on the camera's screen. Without one, every point counts as on screen.
-	using OnScreenFn = std::function<bool(godot::Vector3)>;
-	void set_on_screen(OnScreenFn fn) { on_screen_ = std::move(fn); }
-	// A positional sound at pos with its 0.28 falloff from the listener, then the spatial callback.
+	// 0.28 SoundGroup::RadiansOffCenter and UploadPropertiesAndPlay. Given a sound's world position,
+	// returns false when 0.28 wouldn't play it (off screen beyond its buffers). Otherwise heard_at is
+	// where the emitter is placed so Godot pans it to the screen angle (capped at pi/6), dist is the
+	// distance from the camera origin in sim units, and max_rolloff is set when the sound is partly
+	// off screen.
+	using ScreenPanFn = std::function<bool(godot::Vector3 pos, godot::Vector3 &heard_at, float &dist, bool &max_rolloff)>;
+	void set_screen_pan(ScreenPanFn fn) { screen_pan_ = std::move(fn); }
+	// A positional sound at pos with its 0.28 falloff and stereo placement, then the spatial callback.
 	void spatial_at(const godot::Ref<godot::AudioStream> &s, godot::Vector3 pos, float volume_db, float pitch) {
-		const float dx = pos.x - listener_x_, dz = pos.z - listener_z_;
-		const bool visible = !on_screen_ || on_screen_(pos);
-		spatial_(s, pos, volume_db + 20.0f * std::log10(falloff_gain(std::sqrt(dx * dx + dz * dz), visible ? 0.5f : 0.7f)), pitch);
+		godot::Vector3 heard = pos;
+		float dist = 0.0f;
+		bool max_rolloff = false;
+		if (screen_pan_) {
+			if (!screen_pan_(pos, heard, dist, max_rolloff)) return;
+		} else {
+			const float dx = pos.x - listener_x_, dz = pos.z - listener_z_;
+			dist = std::sqrt(dx * dx + dz * dz);
+		}
+		spatial_(s, heard, volume_db + 20.0f * std::log10(falloff_gain(dist, max_rolloff ? 0.7f : 0.5f)), pitch);
 	}
 
 	// Plays a random member of a sound group, omnipresent (0 A.D. Omnipresent /
@@ -839,7 +850,7 @@ private:
 	BattleDetection battle_;
 	double battle_dealt_ = 0.0; // Simulation::battle_damage_dealt(seat_) at the last frame
 	SpatialFn spatial_;
-	OnScreenFn on_screen_;
+	ScreenPanFn screen_pan_;
 	std::mt19937 rng_;
 	godot::String last_played_;
 };
