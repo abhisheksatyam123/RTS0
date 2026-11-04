@@ -21415,7 +21415,14 @@ std::vector<uint32_t> Simulation::split_queued(const uint32_t *ids, size_t count
 		for (FormationController &fc : formations_) {
 			if (std::find(fids.begin(), fids.end(), fc.id) == fids.end()) continue;
 			if (!queued) {
-				if (!push_front_order_) fc.queue.clear(); // pushed to the front, the queue carries on after
+				if (!push_front_order_) {
+					fc.queue.clear();
+				} else {
+					// UnitAI PushOrderFront: the walk the controller was on resumes after the new
+					// order, ahead of the rest of the queue.
+					UnitOrder carry;
+					if (formation_current_order(fc, carry) && fc.queue.size() < 64) fc.queue.insert(fc.queue.begin(), carry);
+				}
 				continue;
 			}
 			UnitOrder q = o;
