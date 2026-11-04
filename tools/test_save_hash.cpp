@@ -69,6 +69,13 @@ static void run(Simulation &s, int ticks) {
 // Field-level comparison of what compute_sim_hash reads, so a failure names the culprit.
 static void compare(const Simulation &a, const Simulation &b) {
 	auto ua = a.units(), ub = b.units();
+	// Each animal's last-turn velocity (save v143) is beside its storage, so it is compared through its view.
+	auto fa = a.fauna(), fb = b.fauna();
+	CMP("fauna count", 0, fa.count, fb.count);
+	for (size_t f = 0; f < fa.count && f < fb.count; ++f) {
+		CMP("fauna aim_vx", f, fa.aim_vx[f], fb.aim_vx[f]);
+		CMP("fauna aim_vz", f, fa.aim_vz[f], fb.aim_vz[f]);
+	}
 	CMP("unit count", 0, ua.count, ub.count);
 	for (size_t i = 0; i < ua.count && i < ub.count; ++i) {
 		CMP("unit alive", i, ua.alive[i], ub.alive[i]);
@@ -80,6 +87,8 @@ static void compare(const Simulation &a, const Simulation &b) {
 		CMP("unit vel_z", i, ua.vel_z[i], ub.vel_z[i]);
 		CMP("unit prev_x", i, ua.prev_x[i], ub.prev_x[i]);
 		CMP("unit prev_z", i, ua.prev_z[i], ub.prev_z[i]);
+		CMP("unit aim_vx", i, ua.aim_vx[i], ub.aim_vx[i]);
+		CMP("unit aim_vz", i, ua.aim_vz[i], ub.aim_vz[i]);
 		CMP("unit target_x", i, ua.target_x[i], ub.target_x[i]);
 		CMP("unit target_z", i, ua.target_z[i], ub.target_z[i]);
 		CMP("unit hp", i, ua.hp[i], ub.hp[i]);
