@@ -1412,6 +1412,15 @@ inline const BuildingTypeInfo &building_type_info(uint8_t type) {
 	return kTable[type];
 }
 
+// Cells a building of `type` built by `civ` occupies. A house is its civ's own 0 A.D. house
+// obstruction (7-16 m, rounded to 8 m cells, round half up): 11 m Gaulish and Iberian, 10 m
+// Briton and 9 m Mauryan houses take one cell; the other civs' 13-16 m houses take the generic two.
+inline int building_footprint(uint8_t type, uint8_t civ) {
+	if (type == BLD_HOUSE && (civ == CIV_GAULS || civ == CIV_IBERIANS || civ == CIV_BRITONS || civ == CIV_MAURYANS))
+		return 1;
+	return building_type_info(type).footprint;
+}
+
 // 0 A.D. structures/{athen,spart,mace,sele,kush,cart,pers,rome,han,germ}/house.xml take
 // template_structure_civic_house_big (Population/Bonus 10, 150 wood, BuildTime 50, Health
 // 1200); the other civs keep template_structure_civic_house (5, 75, 30, 800).

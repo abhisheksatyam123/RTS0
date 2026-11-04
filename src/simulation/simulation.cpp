@@ -1460,8 +1460,7 @@ void Simulation::set_resource_max_gatherers(uint32_t res_id, int max_gatherers) 
 }
 
 uint32_t Simulation::spawn_building(int cell_x, int cell_y, uint8_t type, uint8_t team, float progress, float rot) {
-	const BuildingTypeInfo &binfo = building_type_info(type);
-	int footprint = binfo.footprint;
+	int footprint = building_footprint(type, civ_of(team));
 	float x = (cell_x + footprint * 0.5f) * GRID;
 	float z = (cell_y + footprint * 0.5f) * GRID;
 	return spawn_building_world(x, z, type, team, progress, rot);
@@ -1469,8 +1468,7 @@ uint32_t Simulation::spawn_building(int cell_x, int cell_y, uint8_t type, uint8_
 
 uint32_t Simulation::spawn_building_world(float wx, float wz, uint8_t type, uint8_t team, float progress, float rot) {
 	uint32_t bid = alloc_id();
-	const BuildingTypeInfo &binfo = building_type_info(type);
-	int footprint = binfo.footprint;
+	int footprint = building_footprint(type, civ_of(team));
 	float half = footprint * GRID * 0.5f;
 	int cell_x = (int)std::floor((wx - half) / GRID);
 	int cell_y = (int)std::floor((wz - half) / GRID);
@@ -4037,7 +4035,7 @@ uint64_t Simulation::petra_placement_signature(uint8_t btype, int start_cx, int 
 	auto mix = [&h](uint64_t v) { h = (h ^ v) * 1099511628211ull; };
 	auto fbits = [](float f) { uint32_t u; std::memcpy(&u, &f, sizeof u); return (uint64_t)u; };
 	const BuildRestriction rule = build_restriction(btype, civ_of(petra_pid_));
-	const int foot = building_type_info(btype).footprint;
+	const int foot = building_footprint(btype, civ_of(petra_pid_));
 	// can_place reads cells [c - 1, c + foot] for each candidate c.
 	const int ax0 = start_cx - max_r - 1, ax1 = start_cx + max_r + foot;
 	const int az0 = start_cz - max_r - 1, az1 = start_cz + max_r + foot;
@@ -4098,7 +4096,7 @@ bool Simulation::placement_unexplored(uint8_t player, float x, float z) const {
 
 Simulation::PlacementResult Simulation::check_placement(uint8_t player, int cell_x, int cell_y, uint8_t b_type, float angle) const {
 	if (player >= MAX_PLAYERS || b_type >= BLD_TYPE_COUNT) return PLACE_OBSTRUCTED;
-	const int foot = building_type_info(b_type).footprint;
+	const int foot = building_footprint(b_type, civ_of(player));
 	const float x0 = cell_x * GRID, z0 = cell_y * GRID;
 	const float x1 = x0 + foot * GRID, z1 = z0 + foot * GRID;
 	const float cxw = 0.5f * (x0 + x1), czw = 0.5f * (z0 + z1);
@@ -30051,7 +30049,7 @@ bool Simulation::petra_find_economic_cc_location(uint8_t btype, uint8_t res, boo
 		for (size_t i = 0; i < units_.count && !ships; ++i) // navalManager.transportShips
 			ships = units_.alive[i] && units_.team[i] == petra_pid_ && petra_is_transport_ship(i);
 	}
-	const int foot = building_type_info(btype).footprint;
+	const int foot = building_footprint(btype, civ_of(petra_pid_));
 	for (int iz = 0; iz < w; ++iz) {
 		for (int ix = 0; ix < w; ++ix) {
 			const float x = ((float)ix + 0.5f) * kCcTile - map_half_, z = ((float)iz + 0.5f) * kCcTile - map_half_;
@@ -30300,7 +30298,7 @@ void Simulation::petra_build_defenses() {
 		if (petra_find_defensive_location(btype, cx, cz)) {
 			// queueplanBuilding.js onStart: the construct command fails at a spot BuildRestrictions
 			// refuses (Distance), and the plan is gone all the same.
-			if (petra_has_builder() && petra_can_place(cx, cz, building_type_info(btype).footprint, btype,
+			if (petra_has_builder() && petra_can_place(cx, cz, building_footprint(btype, civ_of(petra_pid_)), btype,
 			        (building_tech_classes(btype) & TC_TOWER) ? 0 : -1) &&
 			    petra_try_pay(PETRA_Q_DEFENSE_BUILDING, cf, cw, cg, cs))
 				petra_spawn_foundation(cx, cz, btype);
@@ -35151,7 +35149,7 @@ bool Simulation::petra_find_position(uint8_t btype, const float *base_at, const 
 	// queueplanBuilding.js places the structure at the tile's centre, the point isNearInvadingArmy
 	// tests here and again when builders are sent (assignToFoundations). The footprint here stands
 	// on whole cells, so an even one's centre is half a cell short of the tile's: test that point.
-	const int foot = building_type_info(btype).footprint;
+	const int foot = building_footprint(btype, civ_of(petra_pid_));
 	const float centre_shift = foot % 2 ? 0.0f : -0.5f * GRID;
 	for (int iz = 0; iz < bh; ++iz)
 		for (int ix = 0; ix < bw; ++ix) {

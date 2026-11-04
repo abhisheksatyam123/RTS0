@@ -893,7 +893,7 @@ bool RtsoMain::snap_placement_to_edges(uint8_t btype, int &cell_x, int &cell_y, 
 	// input.js: the hover resets the angle first, to snap to the edge nearest the default facing.
 	if (hover) placement_angle = rtso::Simulation::DEFAULT_BUILDING_ROT;
 	const float GRID = rtso::Simulation::GRID;
-	const int fp = rtso::building_type_info(btype).footprint;
+	const int fp = rtso::building_footprint(btype, sim->player_civ(local_player()));
 	const float half = fp * GRID * 0.5f;
 	const float x = cell_x * GRID + half, z = cell_y * GRID + half;
 	// The structures the player has seen (GetEntitiesWithStaticObstructionOnScreen draws mirages too).

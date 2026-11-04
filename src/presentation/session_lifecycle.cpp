@@ -1478,7 +1478,7 @@ void RtsoMain::_process(double delta) {
 					}
 				}
 				snap_placement_to_edges(current_build_type, cell_x, cell_y, !build_click_pending);
-				int footprint = rtso::building_type_info(current_build_type).footprint;
+				int footprint = rtso::building_footprint(current_build_type, sim->player_civ(local_player()));
 
 				float gx = (cell_x + footprint * 0.5f) * rtso::Simulation::GRID;
 				float gz = (cell_y + footprint * 0.5f) * rtso::Simulation::GRID;
