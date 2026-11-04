@@ -31654,6 +31654,10 @@ void Simulation::petra_set_rushes() {
 	const float wood = petra_starting_wood(base->x, base->z);
 	// startingStrategy.js gameStart: under 6000 wood, saveResources and an earlier town phase.
 	m.save_resources = wood < 6000.0f ? 1 : 0;
+	// startingStrategy.js: setRushes only when the wood is over 8500 AND canBuildUnits (no rushes
+	// for an AI that cannot train units). Its max stays 0 otherwise.
+	petra_check_can_build_units();
+	if (!petra_can_build_units()) return;
 	int allowed = (int)std::ceil((wood - 8500.0f) / 3000.0f);
 	if (ceasefire_remaining() > 900.0f) allowed = 0;
 	else if (ceasefire_remaining() > 600.0f && allowed > 1) allowed = 1;
