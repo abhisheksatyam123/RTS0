@@ -775,7 +775,9 @@ void RtsoMain::_ready() {
 	session_audio_.set_spatial([this](const Ref<AudioStream> &s, Vector3 pos, float db, float pitch) {
 		if (view) view->play_spatial_sound(s, pos, db, 75.0f, pitch);
 	});
-	session_audio_.set_on_screen([this](Vector3 pos) { return !view || view->is_position_on_screen(pos); });
+	session_audio_.set_screen_pan([this](Vector3 pos, Vector3 &heard_at, float &dist, bool &max_rolloff) {
+		return view && view->screen_pan(pos, heard_at, dist, max_rolloff);
+	});
 
 	// gui/session/Ambient.js: one looping dayscape track ("TODO: Let the map decide the tracks"),
 	// played by PlayAmbientSound at a constant sound.ambientgain. 0.28 plays it at 0.6 beside
