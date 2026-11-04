@@ -126,6 +126,8 @@ static constexpr uint8_t PASS_SHIP     = 4;
 static constexpr uint8_t PASS_SHIP_CLEARANCE = 8;
 static constexpr uint8_t PASS_WARSHIP  = PASS_SHIP | PASS_SHIP_CLEARANCE;
 static constexpr uint8_t PASS_LARGE    = 16;
+// find_path's fallback: navcells a Gaia mine partly covers are closed (NavGrid::mine_sub).
+static constexpr uint8_t PASS_MINE_CLOSED = 32;
 
 // 0 A.D. slopes are metres of rise per metre. An RTS0 unit is a 4 m tile and heights are
 // HEIGHT_PER_METRE units a metre, so a slope in RTS0 units is 0 A.D.'s x 4 x HEIGHT_PER_METRE
@@ -198,6 +200,35 @@ struct NavGrid {
     // maps close their 12 m frame instead (CCmpPathfinder.cpp:711 else branch); find_path_tiles'
     // nodes take the edge at their own spacing, as units do (point_terrain_open).
     float edge_r = 0.0f;
+    // Gaia mines (BlockPathfinding): per navcell, the 8x8 1 m subcells a mine's grown square covers
+    // by 0 A.D.'s rule (all four corners inside, Rasterize.cpp), bit j*8+i for subcell (i, j) with
+    // i along x. Empty without mines (rebuild_nav_grid). The 8 m navcells stay as before; the long
+    // path checks its legs against these bits (avoid_mine_subcells).
+    std::vector<uint64_t> mine_sub;
+    // A navcell that a mine covers in part (some subcells blocked, not all).
+    bool mine_partial(int cx, int cy) const {
+        if (mine_sub.empty()) return false;
+        const uint64_t m = mine_sub[static_cast<size_t>(cy) * static_cast<size_t>(res) + static_cast<size_t>(cx)];
+        return m != 0 && m != ~uint64_t(0);
+    }
+    // Whether the 1 m subcell holding (x, z) is blocked by a mine.
+    bool mine_sub_blocked(float x, float z) const {
+        if (mine_sub.empty()) return false;
+        const float nc = 2.0f * map_half / static_cast<float>(res);
+        const float fx = (x + map_half) / nc, fz = (z + map_half) / nc;
+        if (fx < 0.0f || fz < 0.0f) return false;
+        const int cx = static_cast<int>(fx), cz = static_cast<int>(fz);
+        if (cx >= res || cz >= res) return false;
+        const int i = std::min(7, static_cast<int>((fx - static_cast<float>(cx)) * 8.0f));
+        const int j = std::min(7, static_cast<int>((fz - static_cast<float>(cz)) * 8.0f));
+        return ((mine_sub[static_cast<size_t>(cz) * static_cast<size_t>(res) + static_cast<size_t>(cx)] >> (j * 8 + i)) & 1u) != 0;
+    }
+    // Whether a leg of out (from start) crosses a blocked 1 m subcell, sampled every metre. The start's
+    // and the goal's navcells are not checked: a unit stands in one, and a gatherer's goal is the mine.
+    bool crosses_mine_sub(float sx, float sz, const struct WaypointPath &out) const;
+    // A path whose legs cross a blocked subcell is planned again with the partly covered navcells
+    // closed (PASS_MINE_CLOSED). Keeps the first path if the closed search finds none.
+    bool avoid_mine_subcells(float sx, float sz, float &gx, float &gz, struct WaypointPath &out, uint8_t pass) const;
 
     // Phase 8A: Hierarchical chunk region data.
     // chunk_regions_: res x res, stores per-navcell local region ID within its chunk (0=impassable).
@@ -409,6 +440,7 @@ struct NavGrid {
         if (is_steep(cx, cy)) return false;
         if ((pass & PASS_LARGE) && large_closed.size() == cells.data.size() &&
                 large_closed[static_cast<size_t>(cy) * cells.w + cx]) return false;
+        if ((pass & PASS_MINE_CLOSED) && mine_partial(cx, cy)) return false;
         return true;
     }
 
@@ -2232,6 +2264,40 @@ struct WaypointPath {
 // ---------------------------------------------------------------------------
 // NavGrid::find_path — snap, MakeGoalReachable, JPS, string pull
 // ---------------------------------------------------------------------------
+inline bool NavGrid::crosses_mine_sub(float sx, float sz, const WaypointPath &out) const {
+    if (mine_sub.empty() || out.count == 0) return false;
+    const float sub = 2.0f * map_half / static_cast<float>(res) / 8.0f; // 1 m = 0.25 sim units at 8 m navcells
+    const auto start = world_to_cell(sx, sz);
+    const auto goal = world_to_cell(out.xs[out.count - 1], out.zs[out.count - 1]);
+    float px = sx, pz = sz;
+    for (int k = 0; k < out.count; ++k) {
+        const float x1 = out.xs[k], z1 = out.zs[k];
+        const float len = std::hypot(x1 - px, z1 - pz);
+        const int n = std::max(1, static_cast<int>(std::ceil(len / sub)));
+        for (int s = 1; s <= n; ++s) {
+            const float t = static_cast<float>(s) / static_cast<float>(n);
+            const float x = px + (x1 - px) * t, z = pz + (z1 - pz) * t;
+            const auto c = world_to_cell(x, z);
+            if (c == start || c == goal) continue;
+            if (mine_sub_blocked(x, z)) return true;
+        }
+        px = x1;
+        pz = z1;
+    }
+    return false;
+}
+
+inline bool NavGrid::avoid_mine_subcells(float sx, float sz, float &gx, float &gz, WaypointPath &out, uint8_t pass) const {
+    if (mine_sub.empty() || (pass & PASS_SHIP) || !crosses_mine_sub(sx, sz, out)) return false;
+    WaypointPath closed;
+    float cgx = gx, cgz = gz;
+    if (!find_path_cells(sx, sz, cgx, cgz, closed, static_cast<uint8_t>(pass | PASS_MINE_CLOSED))) return false;
+    out = closed;
+    gx = cgx;
+    gz = cgz;
+    return true;
+}
+
 inline bool NavGrid::find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass) const {
     if (pass & PASS_LARGE) {
         bool narrow_gap = false;
@@ -2250,7 +2316,8 @@ inline bool NavGrid::find_path(float sx, float sz, float tx, float tz, WaypointP
 
 inline bool NavGrid::find_path_on(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass, bool *narrow_gap) const {
     float gx = tx, gz = tz;
-    const bool reached = find_path_cells(sx, sz, gx, gz, out, pass);
+    bool reached = find_path_cells(sx, sz, gx, gz, out, pass);
+    if (reached && avoid_mine_subcells(sx, sz, gx, gz, out, pass)) reached = true;
     if ((pass & PASS_SHIP) || cells.blank()) return reached;
     const int cls = tile_class(pass);
     if (!tile_class_kept(cls)) return reached;
@@ -2681,7 +2748,9 @@ inline bool NavGrid::search_cells_jps(int scx, int scy, int tcx, int tcy, uint8_
         std::vector<std::pair<int,int>> &path_cells) const {
     thread_local nav::JpsBuffers jps; // find_path runs on the worker threads: one search state each
     bool reached;
-    if (!(pass & PASS_SHIP) && cells.w == res && cells.h == res &&
+    // The closed search (PASS_MINE_CLOSED) takes the general path: the fast one reads the arrays and
+    // doesn't know which partly covered navcells are closed.
+    if (!(pass & PASS_SHIP) && !((pass & PASS_MINE_CLOSED) && !mine_sub.empty()) && cells.w == res && cells.h == res &&
             (steep_cells_.blank() || (steep_cells_.w == res && steep_cells_.h == res))) {
         // is_passable_for for a land class, read straight from the arrays: the search tests cells
         // inside the grid only, millions of times on a long path across a big map.

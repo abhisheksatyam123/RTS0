@@ -768,6 +768,31 @@ int main() {
 		CHECK(on(a) && (int)on(b) + (int)on(c) == 1);
 	}
 
+	// 14. A long path never crosses a 1 m subcell a Gaia mine covers (0 A.D. rasterizes a mine's grown
+	// square at 1 m, Rasterize.cpp): NavGrid::mine_sub, avoid_mine_subcells.
+	{
+		static Simulation s;
+		fresh(s);
+		s.spawn_resource_world(0.0f, 0.0f, RES_STONE, 5000);
+		const NavGrid &g = s.nav_grid();
+		int partial = 0;
+		for (int y = 0; y < g.res; ++y)
+			for (int x = 0; x < g.res; ++x) partial += g.mine_partial(x, y) ? 1 : 0;
+		std::printf("  mine: %d navcells it covers in part\n", partial);
+		CHECK(partial > 0);
+		bool all_reached = true, crossed = false;
+		const float legs[][4] = {{-10, 0, 10, 0}, {0, -10, 0, 10}, {-10, -10, 10, 10}, {-12, 2, 12, -2}};
+		for (const auto &l : legs) {
+			WaypointPath out;
+			all_reached = g.find_path(l[0], l[1], l[2], l[3], out, PASS_INFANTRY) && all_reached;
+			crossed = g.crosses_mine_sub(l[0], l[1], out) || crossed;
+		}
+		std::printf("  four legs past the mine: all reached %s, any leg through a mine subcell %s\n",
+				all_reached ? "yes" : "no", crossed ? "yes" : "no");
+		CHECK(all_reached);
+		CHECK(!crossed);
+	}
+
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }
