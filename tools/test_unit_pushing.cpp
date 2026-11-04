@@ -3408,6 +3408,30 @@ int main() {
 		std::printf("  pair split across one edge: %.3f -> %.3f units apart\n", d0, edge1);
 		CHECK(edge1 > d0 + 0.05f, "a pair split across one square edge, orthogonal neighbours, pushes apart");
 	}
+	// 45. The square gate runs after the bodies' overlap, so it keeps RTS0's exemption: an idle unit whose body
+	// overlaps another idle unit's is never held by MinimalForce. A and B straddle a square's corner 0.71 apart
+	// with overlapping bodies, so their own pair never pushes; a third idle spearman 1.0 off A (210 degrees) pushes
+	// A, and A's total push is applied, so A and B part. Run before the overlap, the gate froze them 0.46 apart.
+	{
+		const float H = 64.0f;                  // the default map's half-size (simulation.h map_half_)
+		const float Q = 20.0f * (5.0f / 6.0f);  // a pushing square in RTS0 units (PUSH_SQUARE)
+		const float cx = -H + 3.0f * Q, cz = -H + 3.0f * Q; // the same corner as scenario 44
+		auto s = std::make_unique<Simulation>();
+		setup(*s);
+		const uint32_t a = s->spawn_unit(cx - 0.25f, cz - 0.25f, 0, UNIT_SPEARMAN, 150.0f);
+		const uint32_t b = s->spawn_unit(cx + 0.25f, cz + 0.25f, 0, UNIT_SPEARMAN, 150.0f);
+		const float th = 7.0f * 2.0f * 3.14159265f / 12.0f; // 210 degrees
+		s->spawn_unit(cx - 0.25f + std::cos(th), cz - 0.25f + std::sin(th), 0, UNIT_SPEARMAN, 150.0f);
+		const auto sep = [&]() {
+			const int ia = idx(*s, a), ib = idx(*s, b);
+			return std::hypot(s->units_.pos_x[ia] - s->units_.pos_x[ib], s->units_.pos_z[ia] - s->units_.pos_z[ib]);
+		};
+		const float d0 = sep();
+		for (int t = 0; t < 60; ++t) s->tick(DT);
+		const float d1 = sep();
+		std::printf("  overlapping pair across a square's corner, a third unit pushing one: %.3f -> %.3f units apart\n", d0, d1);
+		CHECK(d1 > 1.0f, "an overlapping pair across a square's corner still parts when a third unit pushes one of them");
+	}
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }
