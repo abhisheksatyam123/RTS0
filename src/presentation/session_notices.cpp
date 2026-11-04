@@ -241,7 +241,7 @@ void RtsoMain::play_civ_voice(const char *action, uint32_t unit_id) {
 		if (selected_building_id != 0 && act == "select")
 			for (const auto &b : sim->buildings())
 				if (b.id == selected_building_id) {
-					session_audio_.play_building_select(b.type);
+					session_audio_.play_building_select(b.type, b.civ);
 					break;
 				}
 		return;
@@ -395,7 +395,7 @@ void RtsoMain::play_inspected_select() {
 	case RtsoInspectorView::INSPECT_BUILDING:
 		for (const auto &b : sim->buildings())
 			if (b.id == id) {
-				if (b.team >= rtso::MAX_PLAYERS) session_audio_.play_building_select(b.type);
+				if (b.team >= rtso::MAX_PLAYERS) session_audio_.play_building_select(b.type, b.civ);
 				break;
 			}
 		break;
@@ -426,7 +426,7 @@ void RtsoMain::play_select_added(const PackedInt32Array &before_units, const std
 		if (std::find(before_structs.begin(), before_structs.end(), id) == before_structs.end()) {
 			for (const auto &b : sim->buildings())
 				if (b.id == id) {
-					session_audio_.play_building_select(b.type);
+					session_audio_.play_building_select(b.type, b.civ);
 					break;
 				}
 			return;
