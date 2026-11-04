@@ -1015,6 +1015,31 @@ int main() {
 		CHECK(k.research_check(1, TECH_SHIP_MOVEMENT_SPEED, pers_dock) == Simulation::TECH_OK);
 	}
 
+	// Fertility Festival (unlock_females_house, 0.28): 200f/100w/100m, 40 s, Village Phase, every civ
+	// but Rome. Female citizen houses train only after it; the civilian houses keep their own tech.
+	{
+		const TechInfo &ti = tech_info(TECH_UNLOCK_FEMALES_HOUSE);
+		CHECK(ti.food_cost == 200 && ti.wood_cost == 100 && ti.gold_cost == 100 && ti.stone_cost == 0);
+		CHECK(std::fabs(ti.research_time - 40.0f) < 0.01f && ti.required_phase == 1 && ti.researcher == BLD_HOUSE);
+		CHECK(tech_available_to_civ(TECH_UNLOCK_FEMALES_HOUSE, CIV_ATHENIANS));
+		CHECK(!tech_available_to_civ(TECH_UNLOCK_FEMALES_HOUSE, CIV_ROMANS));
+		Simulation q;
+		q.reset();
+		auto find_tmpl = [](const char *id) {
+			for (uint16_t t = 0; t < CIV_UNIT_TEMPLATE_COUNT; ++t)
+				if (std::strcmp(civ_unit_template(t).id, id) == 0) return t;
+			return (uint16_t)CIV_UNIT_TEMPLATE_NONE;
+		};
+		const uint16_t fem = find_tmpl("athen/support_female_citizen_house");
+		const uint16_t civ_house = find_tmpl("athen/support_civilian_house");
+		q.set_player_civ(CIV_ATHENIANS);
+		CHECK(fem != CIV_UNIT_TEMPLATE_NONE && civ_house != CIV_UNIT_TEMPLATE_NONE);
+		CHECK(q.train_unlock_tech(0, UNIT_FEMALE_CITIZEN, BLD_HOUSE, fem) == TECH_UNLOCK_FEMALES_HOUSE);
+		CHECK(q.train_unlock_tech(0, UNIT_FEMALE_CITIZEN, BLD_HOUSE, civ_house) == TECH_UNLOCK_CIVILIANS_HOUSE_GENERIC);
+		q.set_player_civ(CIV_ROMANS);
+		CHECK(q.train_unlock_tech(0, UNIT_FEMALE_CITIZEN, BLD_HOUSE, find_tmpl("rome/support_female_citizen_house")) == TECH_NONE);
+	}
+
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }
