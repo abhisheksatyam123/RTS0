@@ -317,6 +317,7 @@ public:
 
 		// Structures finished (owner hears complete_<structure>).
 		std::unordered_map<uint32_t, float> progress;
+		std::unordered_map<uint32_t, uint8_t> types;
 		for (const auto &b : sim->buildings()) {
 			if (b.wrecked) continue;
 			if (b.team == me) {
@@ -324,9 +325,16 @@ public:
 				auto it = bld_progress_.find(b.id);
 				if (fire && it != bld_progress_.end() && it->second < 1.0f && b.build_progress >= 1.0f)
 					play_group("interface/complete/building", building_sound_name(b.type, false), 1.0f);
+				// Upgrade.js PlaySound("upgraded") on the new entity: the structure's type changed
+				// in place (finish_upgrade keeps the id), and the new template's group plays.
+				auto ty = bld_type_.find(b.id);
+				if (fire && ty != bld_type_.end() && ty->second != b.type && b.build_progress >= 1.0f)
+					if (const char *n = upgraded_sound_name(b.type)) play_group("interface/complete/building", n, 1.0f);
+				types[b.id] = b.type;
 			}
 		}
 		bld_progress_.swap(progress);
+		bld_type_.swap(types);
 
 		// Gate.js gate_opening / gate_closing (actor/gate/stonegate_open, _close) where a
 		// gate the viewer sees opens or closes.
@@ -522,6 +530,19 @@ public:
 
 	bool in_battle() const { return battle_.in_battle(); }
 	godot::String last_played() const { return last_played_; }
+
+	// The "upgraded" sound group of the structure an upgrade turns it into (0.28 declares one
+	// only on the civic centre, the gate, the Han academy, the Germans' wagon encampment and the
+	// Persian tachara). nullptr for the rest.
+	static const char *upgraded_sound_name(uint8_t type) {
+		switch (building_research_base(type)) {
+			case BLD_TOWN_CENTER: case BLD_WAGON_ENCAMPMENT: return "complete_civ_center";
+			case BLD_GATE: case BLD_PALISADE_GATE: case BLD_SIEGE_WALL_GATE: return "complete_gate";
+			case BLD_ACADEMY: return "complete_tholos";
+			case BLD_TACHARA: return "complete_greek_theater";
+			default: return nullptr;
+		}
+	}
 
 	static const char *building_sound_name(uint8_t type, bool select) {
 		const char *n = "universal";
@@ -785,6 +806,7 @@ private:
 	unsigned next_ = 0;
 	std::unordered_map<std::string, godot::Ref<godot::AudioStream>> streams_;
 	std::unordered_map<uint32_t, float> bld_progress_;
+	std::unordered_map<uint32_t, uint8_t> bld_type_; // the owner's structures' types last frame
 	std::unordered_map<uint32_t, bool> gate_open_; // gate id -> open last frame
 	std::unordered_map<uint32_t, bool> chicken_fleeing_; // chicken id -> fleeing last frame
 	std::vector<uint32_t> seen_, seen_next_; // living unit ids last frame (ascending) and its scratch
