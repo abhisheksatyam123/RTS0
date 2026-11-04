@@ -36509,8 +36509,10 @@ void Simulation::petra_manage_defense(float dt) {
 			} else {
 				continue;
 			}
+			// 0.28 tests the UnitAI state's order name: GATHER (or idle). A boat carrying its load is
+			// in RETURNRESOURCE, which is not GATHER (DM:591), so it keeps going to its dropsite.
 			const bool gathering = units_.action_state[i] == ACTION_IDLE || units_.action_state[i] == ACTION_GATHER ||
-			                       units_.action_state[i] == ACTION_RETURN_DROPSITE || units_.order_kind[i] == ORDER_GATHER;
+			                       (units_.order_kind[i] == ORDER_GATHER && units_.action_state[i] != ACTION_RETURN_DROPSITE);
 			if (!gathering) continue;
 			const float dx = units_.pos_x[i] - ax, dz = units_.pos_z[i] - az;
 			const float d = std::sqrt(dx * dx + dz * dz);
