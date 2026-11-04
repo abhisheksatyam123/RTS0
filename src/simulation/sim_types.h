@@ -2639,8 +2639,12 @@ inline float civ_unit_cooldown_mult(uint8_t civ, TechClasses c) {
 	if (civ == CIV_ROMANS && (c & TC_STONETHROWER) != 0) return 0.9f;
 	return 1.0f;
 }
+// Unit-class Cost/BuildTime bonuses of a civ's auto-researched technologies: maur_elephants
+// (Elephant !Hero x0.7) and delian_league (Ship x0.75, athen). A template's roster train time
+// carries its own civ's bonus baked in (apply_unit_bonuses), so the owner's is applied on top.
 inline float civ_unit_train_time_mult(uint8_t civ, TechClasses c) {
 	if (civ == CIV_MAURYANS && (c & TC_ELEPHANT) != 0 && (c & TC_HERO) == 0) return 0.7f;
+	if (civ == CIV_ATHENIANS && (c & TC_SHIP) != 0) return 0.75f;
 	return 1.0f;
 }
 

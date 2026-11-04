@@ -97,6 +97,12 @@ int main() {
 		const TechEffect &sh = tech_effects_table()[tech_info(TECH_SIEGE_HEALTH).effect_begin];
 		CHECK(sh.affects_count == 2 && tech_affects_table()[sh.affects].need == TC_RAM &&
 		      tech_affects_table()[sh.affects + 1].need == TC_SIEGETOWER);
+		// Unit-class Cost/BuildTime bonuses of the owner's civ (civbonuses/maur_elephants, delian_league):
+		// a ship or elephant of another civ's template gets its owner's bonus, not the baked one.
+		CHECK(civ_unit_train_time_mult(CIV_MAURYANS, TC_ELEPHANT) == 0.7f);
+		CHECK(civ_unit_train_time_mult(CIV_MAURYANS, TC_ELEPHANT | TC_HERO) == 1.0f);
+		CHECK(civ_unit_train_time_mult(CIV_ATHENIANS, TC_SHIP) == 0.75f);
+		CHECK(civ_unit_train_time_mult(CIV_SPARTANS, TC_SHIP) == 1.0f);
 	}
 	CHECK(tech_info(TECH_FARMING_1).researcher == BLD_FARMSTEAD);
 	CHECK(tech_info(TECH_PHASE_TOWN).researcher == BLD_TOWN_CENTER);
