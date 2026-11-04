@@ -14423,6 +14423,16 @@ constexpr float PUSH_EPSILON = 10.0f / 65536.0f * PUSH_SCALE; // fixed::Epsilon(
 constexpr float PUSH_TURN = 0.2f;                         // 0 A.D. turn length, s
 constexpr int PUSH_MAX_PRESSURE = 255;                    // CCmpUnitMotionManager::MAX_PRESSURE
 constexpr int PUSH_MAX_DAMPING_PRESSURE = 160;            // MAX_PUSH_DAMPING_PRESSURE
+// 0 A.D. bins each unit once a turn, by its turn-start position, into a PUSHING_GRID_SIZE (20 m) square
+// (CCmpUnitMotion_System.cpp:75 and 458-480, 0ad-android checkout), and its pair loop (584-591) pairs a
+// unit only with the units in its own square and its four orthogonal neighbours (consider list 536-547), so
+// a pair across a square's corner never pushes. At the
+// crowd scale the square is 20 m times PUSH_SCALE, with the map's corner as its origin, as 0 A.D.'s
+// squares start at its map's corner. Not ported: 0 A.D. builds each bin's neighbour list round the cell
+// its first unit ends the turn in (513-514, after Move), a quirk RTS0 can't reproduce while it pushes every tick.
+// RTS0 bins a stepping unit by where it stood before its first step this turn, and a standing unit by its
+// tick-start position, so a standing unit that a push moves can change square up to a turn early.
+constexpr float PUSH_SQUARE = 20.0f * PUSH_SCALE;
 constexpr int PUSH_MIN_PRESSURE_IF_OBSTRUCTED = 80;       // MIN_PRESSURE_IF_OBSTRUCTED
 constexpr float PUSH_PRESSURE_STATIC = 2.0f;              // PRESSURE_STATIC_FACTOR
 constexpr float PUSH_PRESSURE_DISTANCE = 5.0f;            // PRESSURE_DISTANCE_FACTOR
@@ -14575,14 +14585,15 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 	if (n_big && !big.build(arena, N, epx, epz, qbig, map_half_, grid.res)) return;
 
 	// The pair loop's inputs, gathered once: twice the average of where each unit stood before and
-	// after move_units (the pushes compare that), where it stood when the turn began (the crossing
-	// test compares that, as 0 A.D. pushes once a turn: over one tick two walkers can't get far
+	// after move_units (the pushes compare that), where a stepping unit stood before its first step this
+	// turn, else where it stood at the tick's start (the crossing test compares that, as 0 A.D. pushes once
+	// a turn: over one tick two walkers can't get far
 	// enough past each other to pass PERPENDICULAR_NUDGE_THRESHOLD), and its pushing data. The
 	// widest clearance this tick bounds every pair's reach: none pushes beyond its clearances times
 	// Radius plus the moving extension.
 	struct PushUnit {
 		float sx, sz;
-		float ix, iz; // where it stood when the turn began: before its first step of the turn, if any
+		float ix, iz; // where a stepping unit stood before its first step this turn, else where it stood at the tick's start
 		float r; // unit_collision_radius, or an animal's FAUNA_PUSH_RADIUS; its push clearance is r * PUSH_CLEARANCE_PER_RADIUS
 		uint32_t id, group; // group: its formation, 0 for none
 		uint16_t w; // unit_push_weight, or an animal's UnitMotion Weight
@@ -14698,6 +14709,17 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 		step_max = std::max({step_max, std::fabs(epx[i] - frx[i]), std::fabs(epz[i] - frz[i])});
 		mov[i] = u.moving;
 	}
+	// Each entity's pushing square, from pu[i].ix, iz (see PushUnit): 0 A.D. bins
+	// every unit once a turn, at its turn-start position; RTS0 bins a standing unit at its tick-start one.
+	// A unit that doesn't push is never looked at.
+	int32_t *sqx = arena.alloc_array<int32_t>(N);
+	int32_t *sqz = arena.alloc_array<int32_t>(N);
+	if (!sqx || !sqz) return;
+	for (size_t i = 0; i < N; ++i) {
+		const bool pushing = i >= n || pushes[i];
+		sqx[i] = pushing ? (int32_t)std::floor((pu[i].ix + map_half_) / PUSH_SQUARE) : 0;
+		sqz[i] = pushing ? (int32_t)std::floor((pu[i].iz + map_half_) / PUSH_SQUARE) : 0;
+	}
 	const float min_push = PUSH_MIN_FORCE * dt / PUSH_TURN;
 	if (n_big) {
 		if (!grid.pack(arena, N, epx, epz, mov) || !grid.alloc_split_flagged(arena)) return;
@@ -14784,6 +14806,16 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 				const float rr = ri + b.r;
 				const float bdx = pxi - epx[j], bdz = pzi - epz[j];
 				if (bdx * bdx + bdz * bdz < rr * rr) body_overlap = true;
+			}
+			// The square gate (0 A.D. pushes a pair only from one pushing square to the same or an orthogonal
+			// neighbour, consider list 536-547 in CCmpUnitMotion_System.cpp). It covers every pair that moves alike (both walking or
+			// both standing) and every same-group pair. A walker and an idle unit outside one group never push:
+			// they slide below, RTS0's own nudge off a standing body (avoid_idle_units keeps a steered walker out of it).
+			// It runs after the bodies' overlap above, so a pair across a square's corner still exempts an
+			// overlapping body from MinimalForce; only its own push is skipped.
+			if (same_group || mi == mj) {
+				const int32_t dsx = sqx[i] - sqx[j], dsz = sqz[i] - sqz[j];
+				if (dsx > 1 || dsx < -1 || dsz > 1 || dsz < -1 || (dsx != 0 && dsz != 0)) return;
 			}
 			// Half the offset of the averages; no pair pushes beyond `reach`.
 			const float hx = (a.sx - b.sx) * 0.5f, hz = (a.sz - b.sz) * 0.5f;
@@ -14926,7 +14958,11 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 			pressure = (uint8_t)std::min(PUSH_MAX_PRESSURE, (int)((PUSH_PRESSURE_DECAY * pressure) >> 16) + added_pressure);
 		// MinimalForce lets crowds settle, but it can also hold idle units that were put on top of
 		// one another (a siege engine's forced eject at its centre): an idle unit whose body overlaps
-		// another idle unit's is always pushed.
+		// another idle unit's is exempt, so its total push is always applied, even where its pair across a
+		// square's corner is skipped by the gate. 0 A.D. has no such exemption (PushAdjust, CCmpUnitMotion_System.cpp:622
+		// in the 0ad-android checkout zeroes any total under MinimalPushing): this is a deliberate RTS0 deviation
+		// (REMAINING_GAPS G124). It stays because without it a corner pair with a third idle unit nearby froze 0.46
+		// units apart after 60 ticks, against 1.54 with it (test_unit_pushing scenario 45).
 		if (!body_overlap && ax * ax + az * az <= min_push * min_push) {
 			ax = az = 0.0f;
 		} else {

@@ -2007,11 +2007,17 @@ void TurnManager::note_out_of_sync(uint32_t turn, uint32_t local_hash, uint32_t 
 		oos_received_hash_ = peer_hash;
 	}
 	oos_detected_ = true;
-	if (std::find(oos_peers_.begin(), oos_peers_.end(), peer_id) == oos_peers_.end())
+	bool new_peer = false;
+	if (std::find(oos_peers_.begin(), oos_peers_.end(), peer_id) == oos_peers_.end()) {
 		oos_peers_.push_back(peer_id);
+		new_peer = true;
+	}
 	std::cerr << "[TurnManager] Out-of-sync detected at turn " << turn << " local_hash=" << local_hash
 	          << " peer=" << peer_id << " peer_hash=" << peer_hash << "\n";
-	if (!net_host_ || !net_host_->isHost() || (oos_reported_ && !earlier)) return;
+	// NetServerTurnManager names every peer whose hash differs on the turn, so a
+	// peer that diverges on the reported turn is added and the report is resent.
+	if (!net_host_ || !net_host_->isHost() || (oos_reported_ && !earlier && !new_peer)) return;
+	const bool first_report = !oos_reported_;
 	// The host's hash is the expected one (NetServerTurnManager "assume the host
 	// is correct"); resent if an earlier diverging turn turns up later, since
 	// reliable UDP can deliver sync checks out of order.
@@ -2025,11 +2031,16 @@ void TurnManager::note_out_of_sync(uint32_t turn, uint32_t local_hash, uint32_t 
 	std::vector<uint8_t> pkt = NetPacketSerializer::pack_message(NetMessageType::NMT_SYNC_ERROR, oos_turn_, payload);
 	net_host_->broadcastCommand(pkt);
 	oos_reported_ = true;
-	oos_dump_pending_ = true;
+	if (first_report) oos_dump_pending_ = true;
 }
 
 void TurnManager::receive_sync_error(const SyncErrorMsg &msg) {
-	if (oos_from_host_ && msg.turn >= oos_turn_) return; // already have this or an earlier turn
+	if (oos_from_host_ && msg.turn > oos_turn_) return; // a later turn
+	if (oos_from_host_ && msg.turn == oos_turn_) {
+		// The same turn again, with more players named: keep the names, no new dump.
+		oos_players_ = msg.player_names;
+		return;
+	}
 	oos_detected_ = true;
 	oos_from_host_ = true;
 	oos_turn_ = msg.turn;
