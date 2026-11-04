@@ -664,6 +664,8 @@ public:
 
 	void play_spatial_sound(const Ref<AudioStream> &stream, Vector3 pos, float volume_db = 0.0f, float max_dist = 75.0f, float pitch_scale = 1.0f);
 	void play_spatial_sound_path(const String &path, Vector3 pos, float volume_db = 0.0f, float max_dist = 75.0f, float pitch_scale = 1.0f);
+	// Whether a point is inside the camera's frustum (0.28 plays off-screen sounds with a steeper rolloff).
+	bool is_position_on_screen(Vector3 pos) const;
 
 	// The building model a structure of this civ, type and (WallSet) half length draws; the
 	// wall placement ghost previews its pieces with it.
