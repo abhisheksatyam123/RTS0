@@ -208,7 +208,7 @@ func show_template(p_kind: String, p_id: int, p_civ: int, reset_history: bool = 
 	var extra := _text_for(d)
 	_icon.texture = Common.icon_for(kind, d, civ)
 	var specific: String = extra.get("specific_name", d.get("specific_name", ""))
-	_name.text = "[center]%s[/center]" % Common.entity_names_formatted(extra.get("generic_name", d["name"]), specific)
+	_name.text = "[center]%s[/center]" % Common.entity_names_formatted(extra.get("generic_name", d["name"]), specific, 16)
 	var vw: Dictionary = extra.get("viewer", {})
 	_stats.text = stats_text(d, vw)
 	# ViewerPage entityRankGlyph: session/icons/ranks/<Identity/Rank>.png on the portrait.
@@ -542,7 +542,7 @@ static func aura_line(a: Dictionary, label := "[b]%s:[/b]") -> String:
 	var t: String = (label % a["name"]) + " " + String(a["description"])
 	var radius := float(a.get("radius", 0))
 	if radius > 0.0:
-		t += " Range: %s %s" % [_num(radius), "meter" if is_equal_approx(radius, 1.0) else "meters"]
+		t += " Range: %s [color=orange]%s[/color]" % [_num(radius), "meter" if is_equal_approx(radius, 1.0) else "meters"]
 	return t
 
 func info_text(d: Dictionary, extra: Dictionary) -> String:
@@ -553,17 +553,15 @@ func info_text(d: Dictionary, extra: Dictionary) -> String:
 	if tooltip != "":
 		blocks.append(tooltip)
 	if extra.get("history", "") != "":
-		blocks.append("[i]%s[/i]" % extra["history"])
+		blocks.append(String(extra["history"]))
 	if kind == "tech" and extra.get("description", "") != "":
-		blocks.append("[i]%s[/i]" % extra["description"])
-	if kind == "tech" and extra.get("requirements_tooltip", "") != "":
-		blocks.append("[color=%s]%s[/color]" % [Common.DIM, extra["requirements_tooltip"]])
+		blocks.append(String(extra["description"]))
 	var auras: Array = d.get("auras", extra.get("auras", [])) # a structure's from templates.json
 	if not auras.is_empty():
-		var t := "[b]Auras:[/b]"
+		var aura_lines: PackedStringArray = []
 		for a in auras:
-			t += "\n" + aura_line(a, "[color=#c9a0ff]%s:[/color]")
-		blocks.append(t)
+			aura_lines.append(aura_line(a, "[color=#c9a0ff]%s:[/color]"))
+		blocks.append("\n".join(aura_lines))
 	var classes: Array = extra.get("classes", [])
 	if not classes.is_empty():
 		blocks.append("[b]Classes:[/b] " + ", ".join(classes))
@@ -576,8 +574,6 @@ func info_text(d: Dictionary, extra: Dictionary) -> String:
 				by.append(_links(d["trained_by_units"], "unit", "tmpl"))
 			if not by.is_empty():
 				blocks.append("[b]Trained by:[/b] " + ", ".join(by))
-			if d.has("requires"):
-				blocks.append("[b]Requires:[/b] " + Common.link("tech", int(d["requires"]["id"]), d["requires"]["name"]))
 			var builds := _buildable(extra.get("builds", []))
 			if not builds.is_empty():
 				blocks.append("[b]Builds:[/b] " + _links(builds, "structure", "type"))
@@ -609,8 +605,6 @@ func info_text(d: Dictionary, extra: Dictionary) -> String:
 			if at.is_empty():
 				at.append(Common.link("structure", int(d["researched_at"]["type"]), d["researched_at"]["name"]))
 			blocks.append("[b]Researched at:[/b] " + ", ".join(at))
-			if d.has("requires"):
-				blocks.append("[b]Requires:[/b] " + Common.link("tech", int(d["requires"]["id"]), d["requires"]["name"]))
 			if not d["unlocks"].is_empty():
 				blocks.append("[b]Unlocks:[/b] " + _links(d["unlocks"], "tech", "id"))
 			if not d["unlocks_units"].is_empty():

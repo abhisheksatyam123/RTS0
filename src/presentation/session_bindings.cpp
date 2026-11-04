@@ -42,6 +42,8 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("has_selection"), &RtsoMain::has_selection);
 	ClassDB::bind_method(D_METHOD("is_placing_building"), &RtsoMain::is_placing_building);
 	ClassDB::bind_method(D_METHOD("select_all_military"), &RtsoMain::select_all_military);
+	// The touch bar's Idle button (touch_controls.gd) calls this: the Period hotkey's idle-worker cycle.
+	ClassDB::bind_method(D_METHOD("cycle_idle_worker"), &RtsoMain::cycle_idle_worker);
 	ClassDB::bind_method(D_METHOD("_on_minimap_clicked", "world_pos"), &RtsoMain::_on_minimap_clicked);
 	ClassDB::bind_method(D_METHOD("_on_flare_requested", "world_pos"), &RtsoMain::_on_flare_requested);
 	ClassDB::bind_method(D_METHOD("_on_minimap_order", "world_pos"), &RtsoMain::_on_minimap_order);
@@ -238,7 +240,6 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_garrison_icons"), &RtsoMain::debug_garrison_icons);
 	ClassDB::bind_method(D_METHOD("debug_selection_state"), &RtsoMain::debug_selection_state);
 	ClassDB::bind_method(D_METHOD("debug_command_row"), &RtsoMain::debug_command_row);
-	ClassDB::bind_method(D_METHOD("debug_test_gpu_separation", "count"), &RtsoMain::debug_test_gpu_separation, DEFVAL(1000));
 	ClassDB::bind_method(D_METHOD("debug_spawn_units", "template_id", "count", "player", "near"), &RtsoMain::debug_spawn_units, DEFVAL(-1), DEFVAL(-1));
 	ClassDB::bind_method(D_METHOD("debug_complete_research", "player", "tech"), &RtsoMain::debug_complete_research);
 	ClassDB::bind_method(D_METHOD("debug_set_capture_points", "building_id", "player", "points"), &RtsoMain::debug_set_capture_points);

@@ -1,4 +1,3 @@
-#include "graphics/gpu_separation.h"
 #include <algorithm>
 #include <cmath>
 #include "network/chat_routing.h"
@@ -64,7 +63,6 @@ RtsoMain::~RtsoMain() {
 	rtso::clear_session_skins();
 	delete sim;
 	sim = nullptr;
-	rtso::GpuSeparation::instance().cleanup();
 }
 
 void RtsoMain::_notification(int p_what) {
@@ -73,7 +71,6 @@ void RtsoMain::_notification(int p_what) {
 		ghost_mat_ok.unref();
 		ghost_mat_bad.unref();
 		rtso::clear_session_skins();
-		rtso::GpuSeparation::instance().cleanup();
 	}
 	if (p_what == NOTIFICATION_WM_SIZE_CHANGED) {
 		apply_safe_area_insets();
@@ -248,7 +245,12 @@ void RtsoMain::play_spatial_sfx(const char *path, Vector3 pos) {
 	if (ResourceLoader::get_singleton()->exists(path)) {
 		Ref<AudioStream> s = ResourceLoader::get_singleton()->load(path);
 		if (s.is_valid()) {
+			// No world view means no camera, so the sound counts as on screen (0.5 rolloff).
+			const Vector2 l = session_audio_.listener();
+			const float dx = pos.x - l.x, dz = pos.z - l.y;
+			const float g = rtso::RtsoSessionAudio::falloff_gain(std::sqrt(dx * dx + dz * dz));
 			spatial_sfx_player->set_position(pos);
+			spatial_sfx_player->set_volume_db(20.0f * std::log10(g));
 			spatial_sfx_player->set_stream(s);
 			spatial_sfx_player->play();
 		}
@@ -1389,6 +1391,25 @@ void RtsoMain::perform_group(int grp, GroupAction action) {
 	play_select_added(before_units, before_structs);
 }
 
+// input.js saveGroup (Ctrl+number, and a long press on a group's button on touch): the
+// group becomes the selection, and with gui.session.disjointcontrolgroups a member leaves
+// every other group.
+void RtsoMain::save_control_group(int grp) {
+	selected_groups[grp].clear();
+	const bool disjoint = rtso::user_config::get_bool("gui.session.disjointcontrolgroups");
+	// Every selected entity, structures too (EntityGroupsContainer.addEntities).
+	PackedInt32Array members = selected_ids;
+	for (uint32_t b : selected_structures()) members.push_back((int32_t)b);
+	for (int s = 0; s < members.size(); ++s) {
+		for (int o = 0; o < 10 && disjoint; ++o) {
+			if (o == grp) continue;
+			const int64_t at = selected_groups[o].find(members[s]);
+			if (at >= 0) selected_groups[o].remove_at(at);
+		}
+		if (!selected_groups[grp].has(members[s])) selected_groups[grp].push_back(members[s]);
+	}
+}
+
 // session.js updateGroups: a click on a group's button selects it (selection.add
 // adds it), a double click snaps to it, a right click breaks it up.
 void RtsoMain::_on_control_group_gui_input(const Ref<InputEvent> &event, int button) {
@@ -1400,6 +1421,11 @@ void RtsoMain::_on_control_group_gui_input(const Ref<InputEvent> &event, int but
 		return;
 	}
 	if (mb->get_button_index() != MOUSE_BUTTON_LEFT) return;
+	// Ctrl-click saves the selection as the group (the touch long press sends one).
+	if (mb->is_ctrl_pressed()) {
+		save_control_group(grp);
+		return;
+	}
 	perform_group(grp, mb->is_double_click() ? GROUP_SNAP : rtso::hotkeys::held("selection.add") ? GROUP_ADD : GROUP_SELECT);
 }
 

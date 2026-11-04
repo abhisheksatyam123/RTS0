@@ -78,6 +78,9 @@ func run() -> void:
 		await observe()
 	await frames(int(args["warmup"])) # models attach and pools fill on the first frames after a load
 	var all := []
+	var draws := []
+	var prims := []
+	var objects := []
 	var n := int(args["frames"])
 	print("[bench_client] measuring ", n, " frames")
 	var t0: float = main.get_overlay_times()["elapsed"]
@@ -87,8 +90,16 @@ func run() -> void:
 		var now := Time.get_ticks_usec()
 		all.append((now - last) / 1000.0) # headless with --fixed-fps nothing waits between frames
 		last = now
+		# Renderer counters for the frame just drawn (exact on every renderer; the dummy driver reports 0).
+		draws.append(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME))
+		prims.append(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME))
+		objects.append(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_OBJECTS_IN_FRAME))
 	var played: float = main.get_overlay_times()["elapsed"] - t0
 	print(line("frame", all))
+	print("draws    mean %8.0f  max %8.0f   (draw calls per frame)" % [mean(draws), pct(draws, 1.0)])
+	print("prims    mean %8.0f  max %8.0f   (triangles per frame)" % [mean(prims), pct(prims, 1.0)])
+	print("objects  mean %8.0f  max %8.0f   (instances per frame)" % [mean(objects), pct(objects, 1.0)])
 	print(JSON.stringify({"frames": n, "mean_ms": mean(all), "p95_ms": pct(all, 0.95), "max_ms": pct(all, 1.0),
-		"match_seconds": played}))
+		"draws_mean": mean(draws), "draws_max": pct(draws, 1.0), "prims_mean": mean(prims), "prims_max": pct(prims, 1.0),
+		"objects_mean": mean(objects), "match_seconds": played}))
 	quit(0)

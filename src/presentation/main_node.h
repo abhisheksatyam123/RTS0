@@ -69,6 +69,7 @@
 #include "minimap_view.h"
 #include "chat_window.h"
 #include "diplomacy_dialog.h"
+#include "lobby_dialog.h"
 #include "hotkeys_godot.h"
 #include "attack_detection.h"
 #include "command_queue_view.h"
@@ -230,6 +231,8 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	// widgets (chat_window.h / diplomacy_dialog.h) own their panel trees;
 	// the bound handler methods below delegate into them.
 	RtsoChatWindow chat_window_;
+	// Multiplayer lobby panel leaf (lobby_dialog.h); RtsoMain keeps its logic.
+	RtsoLobbyDialog lobby_dialog_;
 	RtsoDiplomacyDialog diplo_dialog_;
 	rtso::RtsoObjectivesDialog objectives_dialog_;
 	rtso::RtsoTutorialPanel tutorial_panel_;
@@ -438,6 +441,7 @@ public:
 	// input.js performGroup: select, add or snap (select and move the camera) group `grp`.
 	enum GroupAction { GROUP_SELECT, GROUP_ADD, GROUP_SNAP };
 	void perform_group(int grp, GroupAction action);
+	void save_control_group(int grp);
 	void select_group(int key, bool drop);
 	void _on_garrison_group_clicked(int key);
 	void _on_barter_sell_selected(int resource);
@@ -844,7 +848,6 @@ public:
 	Dictionary debug_selection_state();
 	Array debug_command_row();
 	void _on_top_counter_gui_input(const Ref<InputEvent> &event);
-	Dictionary debug_test_gpu_separation(int count = 1000);
 	PackedInt32Array debug_spawn_units(const String &template_id, int count, int player = -1, int near_player = -1);
 	void debug_complete_research(int player, int tech); // tests: the technology finishes for the player
 	void debug_set_capture_points(int64_t building_id, int player, float points); // tests: taken from the owner

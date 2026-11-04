@@ -3,12 +3,13 @@
 // (see docs/0AD_ATTRIBUTION.md). Included by session_audio.h inside namespace rtso.
 #pragma once
 
-// A 0 A.D. sound group: Sound files under assets/audio/<dir>/, picked at random
-// at Gain and a pitch between pitch_lo and pitch_hi.
+// A 0 A.D. sound group: Sound files under assets/audio/<dir>/, picked at random. The gain
+// is uniform between gain_lo and gain_hi (both Gain unless RandGain), the pitch between
+// pitch_lo and pitch_hi (both <Pitch> unless RandPitch).
 struct AttackSoundGroup {
 	const char *dir;
 	const char *const *files; // nullptr-terminated
-	float gain, pitch_lo, pitch_hi;
+	float gain, gain_lo, gain_hi, pitch_lo, pitch_hi;
 };
 
 inline constexpr uint8_t ATTACK_SOUND_NONE = 255;
@@ -53,42 +54,42 @@ inline const AttackSoundGroup &attack_sound_group(uint8_t g) {
 	static const char *const kFiles34[] = {"swordhit_12a.ogg", "swordhit_10.ogg", "swordhit_10a.ogg", "swordhit_11.ogg", "swordhit_11a.ogg", "swordhit_11b.ogg", "swordhit_12.ogg", "swordhit_15.ogg", "swordhit_12b.ogg", "swordhit_13.ogg", "swordhit_13a.ogg", "swordhit_13b.ogg", "swordhit_14.ogg", "swordhit_14a.ogg", "swordhit_14b.ogg", "swordhit_18.ogg", "swordhit_15a.ogg", "swordhit_15b.ogg", "swordhit_16.ogg", "swordhit_16a.ogg", "swordhit_16b.ogg", "swordhit_17.ogg", "swordhit_17a.ogg", "swordhit_17b.ogg", "swordhit_19a.ogg", "swordhit_18a.ogg", "swordhit_19.ogg", nullptr}; // attack/weapon/sword.xml
 	static const char *const kFiles35[] = {"sword_attack_01.ogg", "sword_attack_02.ogg", "sword_attack_03.ogg", "sword_attack_04.ogg", "sword_attack_05.ogg", "sword_attack_06.ogg", "sword_attack_07.ogg", "sword_attack_08.ogg", "sword_attack_09.ogg", "sword_attack_10.ogg", "sword_attack_11.ogg", "sword_attack_12.ogg", "sword_attack_13.ogg", "sword_attack_14.ogg", "sword_attack_15.ogg", nullptr}; // attack/weapon/sword_attack.xml
 	static const AttackSoundGroup kGroups[ATTACK_SOUND_GROUP_COUNT] = {
-		{"actor/fauna/animal", kFiles0, 1.0f, 1.0f, 1.0f},
-		{"actor/fauna/animal", kFiles1, 1.0f, 1.0f, 1.0f},
-		{"actor/fauna/animal", kFiles2, 1.0f, 1.0f, 1.0f},
-		{"actor/fauna/animal", kFiles3, 0.75f, 1.0f, 1.0f},
-		{"actor/fauna/animal", kFiles4, 1.0f, 1.0f, 1.0f},
-		{"actor/fauna/animal", kFiles5, 1.0f, 1.0f, 1.0f},
-		{"actor/fauna/animal", kFiles6, 1.0f, 1.0f, 1.0f},
-		{"actor/fauna/animal", kFiles7, 1.0f, 1.0f, 1.0f},
-		{"actor/fauna/animal", kFiles8, 1.0f, 1.0f, 1.0f},
-		{"actor/fauna/animal", kFiles9, 1.0f, 1.0f, 1.0f},
-		{"actor/fauna/animal", kFiles10, 1.0f, 1.0f, 1.0f},
-		{"actor/fauna/attack", kFiles11, 1.0f, 1.0f, 1.0f},
-		{"actor/fauna/death", kFiles12, 1.0f, 1.0f, 1.0f},
-		{"actor/fauna/death", kFiles13, 1.0f, 1.0f, 1.0f},
-		{"actor/fauna/death", kFiles14, 1.0f, 1.0f, 1.0f},
-		{"actor/fauna/death", kFiles15, 0.6f, 1.0f, 1.0f},
-		{"actor/human/death", kFiles16, 0.9f, 1.0f, 1.0f},
-		{"actor/human/death", kFiles17, 0.2f, 0.8f, 1.0f},
-		{"actor/ship", kFiles18, 1.0f, 0.8f, 1.0f},
-		{"attack/destruction", kFiles19, 1.0f, 0.8f, 1.2f},
-		{"attack/impact", kFiles20, 0.25f, 1.0f, 1.0f},
-		{"attack/impact", kFiles21, 0.4f, 0.7f, 1.3f},
-		{"attack/impact", kFiles22, 0.4f, 0.7f, 1.3f},
-		{"attack/impact", kFiles23, 0.5f, 0.4f, 0.9f},
-		{"attack/impact", kFiles24, 0.25f, 0.8f, 1.2f},
-		{"attack/siege", kFiles25, 1.0f, 1.0f, 1.0f},
-		{"attack/siege", kFiles26, 1.0f, 0.7f, 1.3f},
-		{"attack/weapon", kFiles27, 0.3f, 0.8f, 1.2f},
-		{"attack/weapon", kFiles28, 0.4f, 1.0f, 1.5f},
-		{"attack/weapon", kFiles29, 0.7f, 0.8f, 1.0f},
-		{"attack/impact", kFiles30, 0.7f, 0.8f, 1.2f},
-		{"attack/weapon", kFiles31, 0.4f, 0.9f, 1.1f},
-		{"attack/weapon", kFiles32, 0.5f, 0.8f, 1.2f},
-		{"attack/weapon", kFiles33, 0.6f, 0.8f, 1.2f},
-		{"attack/weapon", kFiles34, 1.0f, 1.0f, 1.0f},
-		{"attack/weapon", kFiles35, 0.7f, 0.8f, 1.2f},
+		{"actor/fauna/animal", kFiles0, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f},
+		{"actor/fauna/animal", kFiles1, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f},
+		{"actor/fauna/animal", kFiles2, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f},
+		{"actor/fauna/animal", kFiles3, 0.75f, 0.75f, 0.75f, 1.0f, 1.0f},
+		{"actor/fauna/animal", kFiles4, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f},
+		{"actor/fauna/animal", kFiles5, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f},
+		{"actor/fauna/animal", kFiles6, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f},
+		{"actor/fauna/animal", kFiles7, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f},
+		{"actor/fauna/animal", kFiles8, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f},
+		{"actor/fauna/animal", kFiles9, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f},
+		{"actor/fauna/animal", kFiles10, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f},
+		{"actor/fauna/attack", kFiles11, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f},
+		{"actor/fauna/death", kFiles12, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f},
+		{"actor/fauna/death", kFiles13, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f},
+		{"actor/fauna/death", kFiles14, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f},
+		{"actor/fauna/death", kFiles15, 0.6f, 0.6f, 0.6f, 1.0f, 1.0f},
+		{"actor/human/death", kFiles16, 0.9f, 0.9f, 0.9f, 0.9f, 1.1f},
+		{"actor/human/death", kFiles17, 0.2f, 0.2f, 0.2f, 0.8f, 1.0f},
+		{"actor/ship", kFiles18, 1.0f, 1.0f, 1.0f, 0.8f, 1.0f},
+		{"attack/destruction", kFiles19, 1.0f, 0.9f, 1.1f, 0.8f, 1.2f},
+		{"attack/impact", kFiles20, 0.25f, 0.8f, 1.0f, 0.9f, 1.1f},
+		{"attack/impact", kFiles21, 0.4f, 0.2f, 0.5f, 0.7f, 1.3f},
+		{"attack/impact", kFiles22, 0.4f, 0.2f, 0.5f, 0.7f, 1.3f},
+		{"attack/impact", kFiles23, 0.5f, 0.3f, 0.7f, 0.4f, 0.9f},
+		{"attack/impact", kFiles24, 0.25f, 0.2f, 0.35f, 0.8f, 1.2f},
+		{"attack/siege", kFiles25, 1.0f, 0.5f, 0.9f, 0.9f, 1.1f},
+		{"attack/siege", kFiles26, 1.0f, 0.45f, 0.75f, 0.7f, 1.3f},
+		{"attack/weapon", kFiles27, 0.3f, 0.4f, 0.5f, 0.8f, 1.2f},
+		{"attack/weapon", kFiles28, 0.4f, 0.3f, 0.6f, 1.0f, 1.5f},
+		{"attack/weapon", kFiles29, 0.7f, 0.5f, 0.8f, 0.8f, 1.0f},
+		{"attack/impact", kFiles30, 0.7f, 0.6f, 0.8f, 0.8f, 1.2f},
+		{"attack/weapon", kFiles31, 0.4f, 0.2f, 0.4f, 0.9f, 1.1f},
+		{"attack/weapon", kFiles32, 0.5f, 0.2f, 0.5f, 0.8f, 1.2f},
+		{"attack/weapon", kFiles33, 0.6f, 0.5f, 0.8f, 0.8f, 1.2f},
+		{"attack/weapon", kFiles34, 1.0f, 0.8f, 1.0f, 0.9f, 1.1f},
+		{"attack/weapon", kFiles35, 0.7f, 0.6f, 0.8f, 0.8f, 1.2f},
 	};
 	return kGroups[g < ATTACK_SOUND_GROUP_COUNT ? g : 0];
 }

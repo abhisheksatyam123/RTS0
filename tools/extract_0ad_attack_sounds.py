@@ -64,7 +64,7 @@ def fauna_stems(loader):
 
 
 def load_group(audio_root, path):
-    """audio/<path> -> (dir under assets/audio, [files], gain, pitch_lo, pitch_hi)."""
+    """audio/<path> -> (dir under assets/audio, [files], gain, gain_lo, gain_hi, pitch_lo, pitch_hi)."""
     root = ET.parse(os.path.join(audio_root, path)).getroot()
 
     def num(tag, default):
@@ -81,10 +81,19 @@ def load_group(audio_root, path):
     missing = [f for f in files if not os.path.isfile(os.path.join(ASSETS_AUDIO, d, f))]
     if missing:
         sys.exit("%s: %s missing from assets/audio/%s" % (path, ", ".join(missing), d))
-    lo, hi = 1.0, 1.0
+    # SoundGroup.cpp: Gain defaults to 0.7; RandGain picks a gain uniformly between GainLower
+    # (default 0.8) and GainUpper (default 1.0), else the group plays at Gain; RandPitch picks
+    # a pitch between PitchLower (default 0.9) and PitchUpper (default 1.1), else at <Pitch>.
+    gain = num("Gain", 0.7)
+    if num("RandGain", 0) > 0:
+        glo, ghi = num("GainLower", 0.8), num("GainUpper", 1.0)
+    else:
+        glo, ghi = gain, gain
     if num("RandPitch", 0) > 0:
-        lo, hi = num("PitchLower", 1.0), num("PitchUpper", 1.0)
-    return d, files, num("Gain", 1.0), lo, hi
+        plo, phi = num("PitchLower", 0.9), num("PitchUpper", 1.1)
+    else:
+        plo = phi = num("Pitch", 1.0)
+    return d, files, gain, glo, ghi, plo, phi
 
 
 def sounds_of(t, names):
@@ -144,12 +153,13 @@ def emit(groups, units, generic, buildings, fauna):
     w("// (see docs/0AD_ATTRIBUTION.md). Included by session_audio.h inside namespace rtso.")
     w("#pragma once")
     w("")
-    w("// A 0 A.D. sound group: Sound files under assets/audio/<dir>/, picked at random")
-    w("// at Gain and a pitch between pitch_lo and pitch_hi.")
+    w("// A 0 A.D. sound group: Sound files under assets/audio/<dir>/, picked at random. The gain")
+    w("// is uniform between gain_lo and gain_hi (both Gain unless RandGain), the pitch between")
+    w("// pitch_lo and pitch_hi (both <Pitch> unless RandPitch).")
     w("struct AttackSoundGroup {")
     w("\tconst char *dir;")
     w("\tconst char *const *files; // nullptr-terminated")
-    w("\tfloat gain, pitch_lo, pitch_hi;")
+    w("\tfloat gain, gain_lo, gain_hi, pitch_lo, pitch_hi;")
     w("};")
     w("")
     w("inline constexpr uint8_t ATTACK_SOUND_NONE = 255;")
@@ -157,11 +167,11 @@ def emit(groups, units, generic, buildings, fauna):
     w("inline constexpr uint8_t ATTACK_SOUND_GROUP_COUNT = %d;" % len(groups))
     w("")
     w("inline const AttackSoundGroup &attack_sound_group(uint8_t g) {")
-    for i, (p, (d, files, gain, lo, hi)) in enumerate(groups):
+    for i, (p, (d, files, gain, glo, ghi, plo, phi)) in enumerate(groups):
         w("\tstatic const char *const kFiles%d[] = {%s, nullptr}; // %s" % (i, ", ".join('"%s"' % x for x in files), p))
     w("\tstatic const AttackSoundGroup kGroups[ATTACK_SOUND_GROUP_COUNT] = {")
-    for i, (p, (d, files, gain, lo, hi)) in enumerate(groups):
-        w('\t\t{"%s", kFiles%d, %s, %s, %s},' % (d, i, f(gain), f(lo), f(hi)))
+    for i, (p, (d, files, gain, glo, ghi, plo, phi)) in enumerate(groups):
+        w('\t\t{"%s", kFiles%d, %s, %s, %s, %s, %s},' % (d, i, f(gain), f(glo), f(ghi), f(plo), f(phi)))
     w("\t};")
     w("\treturn kGroups[g < ATTACK_SOUND_GROUP_COUNT ? g : 0];")
     w("}")
