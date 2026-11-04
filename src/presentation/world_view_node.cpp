@@ -1971,7 +1971,10 @@ static ClipId resolve_clip_fallback(AnimationPlayer *anim, ClipId want) {
 	ClipId alt = CLIP_NONE;
 	switch (want) {
 		case CLIP_RUN:       alt = CLIP_WALK; break;
-		case CLIP_WALK:      alt = CLIP_RUN; break;
+		// 0 A.D. 0.28 (ObjectEntry::GetAnimations): a movement clip the model lacks plays
+		// the idle animation, not the other locomotion clip. Catapults and bolt shooters
+		// have a Run clip but no Walk, so a slow move shows idle as in 0.28.
+		case CLIP_WALK:      alt = CLIP_IDLE; break;
 		case CLIP_CARRY:     alt = CLIP_WALK; break;
 		case CLIP_CARRY_FOOD:
 		case CLIP_CARRY_MEAT:
