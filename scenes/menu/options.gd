@@ -33,6 +33,7 @@ const SCHEMA := [
 		["boolean", "fog", "Fog", "Enable fog."],
 		["boolean", "postproc", "Post-processing", "Use screen-space post-processing filters (HDR, Bloom, DOF, etc)."],
 		["dropdown", "gi", "Global illumination", "Light bounces off the ground and buildings (SDFGI). Desktop with Vulkan or D3D12 only. Units do not block it.", [["Off", "off"], ["Low", "low"], ["High", "high"]]],
+		["boolean", "pixelart", "3D pixel-art look", "Draw the 3D world at low resolution with pixel outlines. The interface stays sharp."],
 		["dropdown", "renderer.scale", "Resolution scale", "A smaller scale makes rendering faster but produces a more blurry picture, a large scale makes rendering slower but produces a better picture.",
 			[["50%", "0.5"], ["75%", "0.75"], ["87.5%", "0.875"], ["100%", "1.0"], ["125%", "1.25"], ["150%", "1.5"], ["175%", "1.75"], ["200%", "2.0"]]],
 		["dropdown", "renderer.upscale.technique", "Upscale technique", "Technique defines performance and quality of upscaling process.",

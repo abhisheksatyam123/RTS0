@@ -71,12 +71,13 @@ int main() {
 	// its effects stay inside the effects table.
 	CHECK(TECH_COUNT > 80);
 	for (int t = 1; t < TECH_COUNT; ++t) {
+		if (t == TECH_WARSHIP_RAMMING_SPEED) continue; // retired id (0 A.D. 0.28 has no Flanking Maneuvers)
 		const TechInfo &ti = tech_info((uint8_t)t);
 		CHECK(ti.name && ti.name[0] && ti.template_name && ti.template_name[0]);
 		CHECK(ti.researcher < BLD_TYPE_COUNT);
 		CHECK(ti.required_phase >= 1 && ti.required_phase <= 3);
 		CHECK(ti.prerequisite < TECH_COUNT && ti.prerequisite != t);
-		CHECK(ti.civ_mask != 0 || t == TECH_WARSHIP_RAMMING_SPEED); // Flanking Maneuvers: not in 0.28
+		CHECK(ti.civ_mask != 0);
 		// Only the free, instant Seleucid army reforms (pair members with no researchTime) take no time.
 		CHECK(ti.research_time > 0.0f || (t == TECH_TRADITIONAL_ARMY_SELE || t == TECH_REFORMED_ARMY_SELE));
 		for (int e = 0; e < ti.effect_count; ++e)
@@ -513,7 +514,7 @@ int main() {
 			if (std::strcmp(civ_unit_template(i).id, "athen/ship_arrow") == 0) arrow = i;
 		}
 		CHECK(ram != CIV_UNIT_TEMPLATE_NONE && arrow != CIV_UNIT_TEMPLATE_NONE);
-		CHECK(!tech_available_to_civ(TECH_WARSHIP_RAMMING_SPEED, CIV_ATHENIANS)); // not in 0.28
+		CHECK(!tech_available_to_civ(TECH_WARSHIP_RAMMING_SPEED, CIV_ATHENIANS)); // retired: not in 0.28
 		CHECK(tech_info(TECH_WARSHIP_RAMMING_ATTACK).prerequisite == TECH_NONE);
 		CHECK(tech_info(TECH_ARSENAL_PHILON).prerequisite == TECH_DOCK_EFFICIENCY);
 		CHECK(!tech_available_to_civ(TECH_ARSENAL_PHILON, CIV_SPARTANS));
@@ -1012,6 +1013,31 @@ int main() {
 		k.set_building_civ(pers_dock, CIV_PERSIANS);
 		CHECK(k.research_check(1, TECH_SHIP_MOVEMENT_SPEED, cart_dock) == Simulation::TECH_ERR_BUILDING);
 		CHECK(k.research_check(1, TECH_SHIP_MOVEMENT_SPEED, pers_dock) == Simulation::TECH_OK);
+	}
+
+	// Fertility Festival (unlock_females_house, 0.28): 200f/100w/100m, 40 s, Village Phase, every civ
+	// but Rome. Female citizen houses train only after it; the civilian houses keep their own tech.
+	{
+		const TechInfo &ti = tech_info(TECH_UNLOCK_FEMALES_HOUSE);
+		CHECK(ti.food_cost == 200 && ti.wood_cost == 100 && ti.gold_cost == 100 && ti.stone_cost == 0);
+		CHECK(std::fabs(ti.research_time - 40.0f) < 0.01f && ti.required_phase == 1 && ti.researcher == BLD_HOUSE);
+		CHECK(tech_available_to_civ(TECH_UNLOCK_FEMALES_HOUSE, CIV_ATHENIANS));
+		CHECK(!tech_available_to_civ(TECH_UNLOCK_FEMALES_HOUSE, CIV_ROMANS));
+		Simulation q;
+		q.reset();
+		auto find_tmpl = [](const char *id) {
+			for (uint16_t t = 0; t < CIV_UNIT_TEMPLATE_COUNT; ++t)
+				if (std::strcmp(civ_unit_template(t).id, id) == 0) return t;
+			return (uint16_t)CIV_UNIT_TEMPLATE_NONE;
+		};
+		const uint16_t fem = find_tmpl("athen/support_female_citizen_house");
+		const uint16_t civ_house = find_tmpl("athen/support_civilian_house");
+		q.set_player_civ(CIV_ATHENIANS);
+		CHECK(fem != CIV_UNIT_TEMPLATE_NONE && civ_house != CIV_UNIT_TEMPLATE_NONE);
+		CHECK(q.train_unlock_tech(0, UNIT_FEMALE_CITIZEN, BLD_HOUSE, fem) == TECH_UNLOCK_FEMALES_HOUSE);
+		CHECK(q.train_unlock_tech(0, UNIT_FEMALE_CITIZEN, BLD_HOUSE, civ_house) == TECH_UNLOCK_CIVILIANS_HOUSE_GENERIC);
+		q.set_player_civ(CIV_ROMANS);
+		CHECK(q.train_unlock_tech(0, UNIT_FEMALE_CITIZEN, BLD_HOUSE, find_tmpl("rome/support_female_citizen_house")) == TECH_NONE);
 	}
 
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);

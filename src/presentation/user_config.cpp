@@ -38,6 +38,7 @@ const Default kDefaults[] = {
 	{"fog", "true"},
 	{"postproc", "true"},
 	{"gi", "off"},
+	{"pixelart", "false"},
 	{"renderer.scale", "1.0"},
 	{"renderer.upscale.technique", "fsr"},
 	{"shadows", "true"},
