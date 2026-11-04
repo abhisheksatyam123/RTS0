@@ -7296,6 +7296,63 @@ static void test_defense_animal_waits_for_bite() {
 	CHECK(army, "its bite raises one (checkEvents Attacked)");
 }
 
+// A flat, empty four-player match for scenes laid out by hand: Petra is player 1 and allied
+// with player 2; players 0 and 3 are foes. Units are in RTS0 units (4 m each).
+static std::unique_ptr<Simulation> flat_four_player_match() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(7);
+	s->reset();
+	s->set_map_half(64.0f);
+	const int res = 65;
+	s->set_terrain_data(std::vector<float>((size_t)res * res, 1.0f), res, 0.0f);
+	s->begin_bulk_spawn();
+	s->end_bulk_spawn();
+	s->set_victory_condition(VICTORY_ENDLESS);
+	s->set_player_active(0, true, false);
+	s->set_player_active(1, true, true);
+	s->set_player_active(2, true, false);
+	s->set_player_active(3, true, false);
+	s->set_mutual_ally(1, 2);
+	s->petra_config_slot(1).cooperative = 0.6f;
+	return s;
+}
+
+// defenseManager.js isDangerous (DM:189): a foe in an ally's land is dangerous to Petra
+// when two foes each have 8+ units in that ally's land (attackedAllies > 1) and the
+// cooperation level is over 0.7, and the ally's structure there is on connected land. Here
+// fortress 2 stands alone on blinking land, with no civic centre of player 2 in reach of the
+// foes; the control joins its land to a civic centre 34 units off, out of the foes' reach.
+// Returns whether Petra's defence forms an army against the two groups.
+static bool blinking_fortress_army(bool ally_civic_centre) {
+	auto s = flat_four_player_match();
+	s->spawn_building_world(-48.0f, -48.0f, BLD_TOWN_CENTER, 1, 1.0f); // Petra's own, far off
+	s->spawn_building_world(0.0f, 0.0f, BLD_FORTRESS, 2, 1.0f);
+	if (ally_civic_centre) s->spawn_building_world(0.0f, 34.0f, BLD_TOWN_CENTER, 2, 1.0f);
+	s->rebuild_territory();
+	for (int k = 0; k < 9; ++k) { // foe 0, south-west of the fortress
+		s->spawn_unit(-8.0f + 4.0f * (float)(k % 3), -8.0f + 4.0f * (float)(k / 3), 0, UNIT_SWORDSMAN, 1.0e4f);
+		s->spawn_unit(4.0f + 4.0f * (float)(k % 3), 4.0f + 4.0f * (float)(k / 3), 3, UNIT_SPEARMAN, 1.0e4f);
+	}
+	CHECK(s->territory_owner_at(-8.0f, -8.0f) == 2 && s->territory_owner_at(12.0f, 12.0f) == 2,
+	      "the foes stand in the ally's land");
+	CHECK(s->territory_connected_at(0.0f, 0.0f) == ally_civic_centre,
+	      "the fortress's land is connected only with the ally's civic centre");
+	for (int t = 0; t < 10 && s->petra_defense_armies().empty(); ++t) run_ai_turns(*s, 1);
+	return !s->petra_defense_armies().empty();
+}
+
+// G129: an ally's fortress on blinking land is not defended (defenseManager.js:189, isDangerous's
+// help-ally branch, where territory_connected_at is the test). The control with a connected
+// land forms an army against the same two groups, so the blinking case is the only difference.
+static void test_blinking_ally_fortress_not_defended() {
+	const bool connected = blinking_fortress_army(true);
+	const bool blinking = blinking_fortress_army(false);
+	std::printf("  foes at an ally's fortress: army on connected land %s, on blinking land %s\n",
+	            connected ? "yes" : "no", blinking ? "yes" : "no");
+	CHECK(connected, "two foes at an ally's fortress on connected land draw Petra's army");
+	CHECK(!blinking, "two foes at an ally's fortress on blinking land draw no army (G129)");
+}
+
 // defenseArmy.js clear: defenders of a disbanded army standing outside our and allied land go
 // back to the nearest allied structure on their land that shoots (with no defender left in our
 // land to rally on), not to the primary base.
@@ -10740,6 +10797,7 @@ int main(int argc, char **argv) {
 	RUN(test_defense_animals);
 	RUN(test_defense_animal_waits_for_bite);
 	RUN(test_defense_clear_destination);
+	RUN(test_blinking_ally_fortress_not_defended);
 	RUN(test_defense_switch_to_attack);
 	RUN(test_defense_chase_home_no_attack);
 	RUN(test_defense_breakaway_timer);
