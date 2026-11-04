@@ -4152,6 +4152,85 @@ static void test_scuttle_undefendable() {
 	CHECK(gone(bar2), "a hit by a structure is an Attacked event too");
 }
 
+// attackPlan.js:1684 canAttackTarget (G131): an idle attacker's foe pick skips a unit it can't
+// attack. A relic's catafalque has no Health, so only capture reaches it.
+static void test_attack_skips_catafalque() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	const float hx = -tx * 0.3f, hz = -tz * 0.3f; // the enemy's side of the map
+	const uint32_t house = s->spawn_building_world(hx, hz, BLD_HOUSE, 0, 1.0f);
+	for (size_t j = 0; j < s->units_.count; ++j)
+		if (s->units_.alive[j] && s->units_.team[j] == 0) { s->units_.alive[j] = 0; s->units_.action_state[j] = ACTION_DYING; }
+	run_for(*s, 0.5f);
+	const uint32_t sword = s->spawn_unit(hx + 1.0f, hz + 1.0f, 1, UNIT_SWORDSMAN, 1.0e6f);
+	const uint32_t relic = s->spawn_unit(hx + 3.0f, hz + 1.0f, 0, UNIT_CATAFALQUE, 1.0e6f);
+	auto &plan = s->petra_attack_plan_;
+	plan.squad = {sword};
+	plan.initial_squad_size = 1;
+	plan.target_building_id = house;
+	plan.target_x = hx;
+	plan.target_z = hz;
+	plan.target_player = 0;
+	plan.state = Simulation::AttackPlan::ATTACKED;
+	plan.state_timer = 0.0f;
+	s->petra_attack_units(plan);
+	const int32_t i = s->lookup_unit(sword);
+	const bool hit_relic = i >= 0 && s->units_.target_unit_id[i] == relic;
+	std::printf("  foe pick: the attacker picks the catafalque %s\n", hit_relic ? "yes" : "no");
+	CHECK(!hit_relic, "an idle attacker doesn't pick a foe it can't attack (canAttackTarget, a catafalque)");
+}
+
+// attackPlan.js ARRIVED (G132): the squad stops and the per-unit loop runs on the same update, as
+// startingAttack does, so a unit with an enemy in reach attacks it at once. A squad-wide
+// attack-move left every unit walking with no target.
+static void test_arrival_targets_in_reach() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	const float hx = -tx * 0.3f, hz = -tz * 0.3f; // the enemy's side of the map
+	const uint32_t house = s->spawn_building_world(hx, hz, BLD_HOUSE, 0, 1.0f);
+	for (size_t j = 0; j < s->units_.count; ++j)
+		if (s->units_.alive[j] && s->units_.team[j] == 0) { s->units_.alive[j] = 0; s->units_.action_state[j] = ACTION_DYING; }
+	run_for(*s, 0.5f);
+	// The squad stands at the target; a passive enemy spearman is 2 m away, in reach.
+	const uint32_t sword = s->spawn_unit(hx + 1.0f, hz + 1.0f, 1, UNIT_SWORDSMAN, 1.0e6f);
+	const uint32_t foe = s->spawn_unit(hx + 3.0f, hz + 1.0f, 0, UNIT_SPEARMAN, 1.0e6f);
+	s->order_set_stance(&foe, 1, STANCE_PASSIVE);
+	auto &plan = s->petra_attack_plan_;
+	plan.squad = {sword};
+	plan.initial_squad_size = 1;
+	plan.target_building_id = house;
+	plan.target_x = hx;
+	plan.target_z = hz;
+	plan.target_player = 0;
+	plan.path_x = {hx}; // the arrival test reads the next waypoint
+	plan.path_z = {hz};
+	plan.last_x = hx + 50.0f; // moved since the last turn, so not stuck
+	plan.last_z = hz + 50.0f;
+	plan.state = Simulation::AttackPlan::WALKING; // the arrival that stops the squad and attacks
+	plan.state_timer = 0.0f;
+	s->petra_update_attack_plan(plan, tx, tz);
+	const int32_t i = s->lookup_unit(sword);
+	const bool arrived = plan.state == Simulation::AttackPlan::ATTACKED;
+	const bool fights = i >= 0 && s->units_.target_unit_id[i] == foe;
+	std::printf("  arrival: the plan is attacking %s, the unit in reach targets the foe %s\n", arrived ? "yes" : "no", fights ? "yes" : "no");
+	CHECK(arrived, "the squad at its target is attacking when it arrives");
+	CHECK(fights, "a unit with an enemy in reach targets it on the arrival update (startingAttack)");
+}
+
 // headquarters.js update: buildDefenses runs only above Sandbox.
 static void test_sandbox_builds_no_defenses() {
 	int planned[2] = {};
@@ -7257,7 +7336,7 @@ static void test_defense_clear_destination() {
 	CHECK(found, "a neutral spot beside Petra's land");
 	if (!found) return;
 	const float tower_x = cx + (edge_x - cx) * 0.8f, tower_z = cz + (edge_z - cz) * 0.8f;
-	s->spawn_building_world(tower_x, tower_z, BLD_SENTRY_TOWER, 1);
+	const uint32_t tower = s->spawn_building_world(tower_x, tower_z, BLD_SENTRY_TOWER, 1);
 	std::vector<uint32_t> defenders;
 	for (int k = 0; k < 4; ++k) defenders.push_back(s->spawn_unit(spot_x + (float)k, spot_z + 2.0f, 1, UNIT_SPEARMAN));
 	const uint32_t foe = s->spawn_unit(spot_x, spot_z - 2.0f, 0, UNIT_SWORDSMAN, 1.0e4f);
@@ -7265,11 +7344,34 @@ static void test_defense_clear_destination() {
 	s->petra_defense_armies_.emplace_back();
 	s->petra_defense_armies_.back().foe_ids.push_back(foe);
 	s->petra_defense_armies_.back().defender_ids = defenders;
+	// The foe is already dead, so the army disbands on its first turn while still on neutral land.
+	if (const int32_t fi = s->lookup_unit(foe); fi >= 0) { s->units_.alive[fi] = 0; s->units_.action_state[fi] = ACTION_DYING; }
 	bool gone = false;
 	for (int t = 0; t < 8 && !gone; ++t) {
 		run_ai_turns(*s, 1);
 		gone = !s->petra_is_defender(defenders[0]);
 	}
+	// defenseArmy.js:284-286 moveToRange(radius, radius + 5): an army walks to the band from the
+	// tower's footprint out to 5 m past it, and a unit in the band stops there. So each walk target
+	// lies 0 to 5 m beyond the footprint (G130), not at the tower's centre.
+	const auto tb = s->building_id_to_idx_.find(tower);
+	const float tower_r = tb != s->building_id_to_idx_.end()
+	    ? std::hypot(s->buildings_[tb->second].half_size, s->buildings_[tb->second].half_d) : 0.0f;
+	float gap_min = 1.0e9f, gap_max = -1.0e9f;
+	int nb = 0;
+	for (uint32_t id : defenders) {
+		const int32_t i = s->lookup_unit(id);
+		// A defender already on our land when it disbands stops where it stands (not in the band):
+		// only those still on neutral land at disband are measured.
+		if (i < 0 || s->territory_owner_at(s->units_.pos_x[i], s->units_.pos_z[i]) >= 0) continue;
+		const float gap = std::hypot(s->units_.target_x[i] - tower_x, s->units_.target_z[i] - tower_z) - tower_r;
+		gap_min = std::min(gap_min, gap);
+		gap_max = std::max(gap_max, gap);
+		++nb;
+	}
+	std::printf("  clear: defenders' walk targets lie %.2f to %.2f units beyond the tower's footprint (band 0 to 1.25)\n",
+	            nb ? gap_min : 0.0f, nb ? gap_max : 0.0f);
+	CHECK(nb > 0 && gap_min > -0.1f && gap_max < 1.35f, "disbanded defenders walk to the band 0 to 5 m past the footprint, not to its centre");
 	float to_tower = 0.0f, to_cc = 0.0f;
 	int n = 0;
 	for (uint32_t id : defenders) {
@@ -10591,6 +10693,8 @@ int main(int argc, char **argv) {
 	RUN(test_rush_target_obstruction);
 	RUN(test_capture_helper_is_a_capturer);
 	RUN(test_scuttle_undefendable);
+	RUN(test_attack_skips_catafalque);
+	RUN(test_arrival_targets_in_reach);
 	RUN(test_sandbox_builds_no_defenses);
 	RUN(test_rush_any_phase);
 	RUN(test_attack_plan_keeps_hunters);
