@@ -307,6 +307,21 @@ func run() -> void:
 		await frames(2)
 		var g1 := selected()
 		check(Array(men).all(func(m): return m in g1) and g1.size() == men.size(), "tapping the group icon selects its %d men: %s" % [men.size(), str(g1)])
+		# A long press on the icon sets the group to the selection. The men move as a formation,
+		# so use a lone spearman: the group then holds only him.
+		var lone: PackedInt32Array = main.debug_spawn_units("athen/infantry_spearman_b", 1)
+		await frames(10)
+		main.debug_select_units(lone)
+		await frames(2)
+		var ic: Vector2 = (icons[0] as Button).get_global_rect().get_center()
+		await hold(ic)
+		await frames(2)
+		main.debug_select_units(PackedInt32Array())
+		await frames(2)
+		await tap(ic)
+		await frames(2)
+		var g2 := selected()
+		check(g2 == [int(lone[0])], "a long press on the group icon sets the group to the selection, so a tap now selects only that man: %s" % str(g2))
 
 	print("FAILURES: %d" % failures)
 	quit(1 if failures else 0)

@@ -67,11 +67,18 @@ EXTRA_STATS = {
     "Looter/Resource/metal": "TSTAT_LOOT_METAL",
 }
 
+# Range auras with a RequiredXp multiplier that no 0 A.D. template names, so no unit gets them: 0.28's
+# centurion.json (the base file; only centurion_1 and centurion_2 are referenced by templates).
+UNREFERENCED_XP_AURAS = {"centurion"}
+
 # 0 A.D. classes with no TechClass bit, as alternatives of classes RTS0 has.
-# Human: every unit but siege engines and ships (dogs and elephants are Human too).
+# Human: the classes 0 A.D. gives its infantry, cavalry, champion, hero, elephant and dog bases and
+# its support units (template_unit_support is Human Organic: civilians, traders, healers). Catafalque
+# units carry Unit and Relic only, so they are not Human; the old "Unit !Siege !Ship" alias reached them.
 # Economic: template_structure_economic's children, the dock and the corral.
 EXTRA_ALIASES = {
-    "Human": ["Unit !Siege !Ship"],
+    "Human": ["Infantry", "Cavalry", "Champion", "Hero", "Elephant", "Dog", "Citizen", "FemaleCitizen",
+              "Civilian", "Worker", "Trader", "Healer"],
     "Economic": ["Storehouse", "Farmstead", "Market", "Dock", "Corral"],
     # Nastasen's Gift of Warships: units/kush/ship_arrow is Kush's only ArrowShip, and the
     # aura reaches only its Kushite owner, who trains no other civ's ships.
@@ -208,7 +215,9 @@ def main() -> int:
             continue
         for m in j.get("modifications", []):
             if m["value"] == "Promotion/RequiredXp" and "multiply" in m:
-                xp_auras.append((os.path.basename(rel)[:-5], float(m["multiply"])))
+                name = os.path.basename(rel)[:-5]
+                if name not in UNREFERENCED_XP_AURAS:
+                    xp_auras.append((name, float(m["multiply"])))
             if m["value"] == "Builder/Rate" and "multiply" in m:
                 build_auras.append((os.path.basename(rel)[:-5], float(m["multiply"]), bool(j.get("stackable"))))
 

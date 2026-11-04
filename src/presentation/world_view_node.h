@@ -444,6 +444,9 @@ private:
 		int baked_count = 0;
 		int last_frame[CROWD_PHASES] = {-1, -1, -1};
 		int last_lod_frame[CROWD_PHASES] = {-1, -1, -1};
+		// Walk and run cycles: the pose clock of each sub-batch, advanced by the ground the
+		// units in it cover (presentation only), so the feet keep pace with the ground.
+		float loco_clock[CROWD_PHASES] = {0.0f, 0.0f, 0.0f};
 	};
 	struct CrowdBatch {
 		MultiMeshInstance3D *mmi[CROWD_CLIP_COUNT][CROWD_PHASES] = {};
