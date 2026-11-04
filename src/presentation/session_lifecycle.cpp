@@ -474,7 +474,8 @@ void RtsoMain::_ready() {
 	// Multiplayer lobby panel (lobby_dialog.h). Its buttons connect to the RtsoMain
 	// methods in bind_signals below, as the inline connects did.
 	{
-		auto lw = lobby_dialog_.build(ui_layer);
+		lobby_dialog_.instantiate();
+		auto lw = lobby_dialog_->build(ui_layer);
 		lobby_panel = lw.panel;
 		lobby_name = lw.name;
 		lobby_host = lw.host;
@@ -486,7 +487,7 @@ void RtsoMain::_ready() {
 		lobby_status = lw.status;
 		lobby_players = lw.players;
 		lobby_seats = lw.seats;
-		lobby_dialog_.bind_signals(this);
+		lobby_dialog_->bind_signals(this);
 	}
 
 	// =========================================================================
