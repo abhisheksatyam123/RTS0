@@ -1,7 +1,8 @@
 [
- {"rig": "athen_infantry_spearman_a", "walk": 30, "run": 8, "note": "traced from infantry_spearman_b: biped/hoplite walk1 (30), run1 (8); walk2 32, run2 9, run3 10"},
- {"rig": "athen_cavalry_swordsman_a", "walk": 7, "run": 3, "note": "traced from cavalry_swordsman_b: quadraped/horse_trot (7), horse_gallop (3)"},
- {"rig": "maur_elephant_archer_a", "walk": 20, "run": 8, "note": "traced from elephantry_archer_b: base_elephant_asian"},
- {"rig": "athen_siege_ram", "walk": 15, "run": 30, "note": "traced from romans/siege_ram actor"},
+ {"rig": "athen_spearman", "walk": 30, "run": 8, "note": "0.28 default spearman actor infantry_spearman_b: biped/hoplite walk1 30, run1 8 (walk2 32, run2 9, run3 10 also exist)"},
+ {"rig": "athen_cavalry", "walk": 7, "run": 3, "note": "cavalry_swordsman_b: quadraped/horse_trot 7, horse_gallop 3"},
+ {"rig": "maur_elephant", "walk": 20, "run": 8, "note": "elephantry_archer_b: base_elephant_asian walk 20, run 8"},
+ {"rig": "athen_ram", "walk": 15, "run": 30, "note": "romans/siege_ram actor walk 15, run 30"},
+ {"rig": "athen_siege_ram", "walk": 15, "run": 30, "note": "same actor, packed/siege key"},
  {"rig": "boar", "walk": 10, "run": 8, "note": "fauna/boar.xml"}
 ]
