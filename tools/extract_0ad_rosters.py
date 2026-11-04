@@ -942,7 +942,8 @@ BUILDING_CLASS = {
     "Wall": ["BLD_WALL_SEGMENT", "BLD_GATE", "BLD_WALL_TOWER"],
     "Tower": ["BLD_TOWER", "BLD_SENTRY_TOWER", "BLD_TOWER_GREAT"], "Field": ["BLD_FIELD"],
     "Storehouse": ["BLD_STOREHOUSE"],
-    "House": ["BLD_HOUSE"] + MAP_HOUSES,
+    # 0.28 House (G113): cart apartment, pers inn and warehouse, gaul tavern and rome tent join the house and map houses.
+    "House": ["BLD_HOUSE", "BLD_APARTMENT", "BLD_INN", "BLD_WAREHOUSE", "BLD_TAVERN", "BLD_TENT"] + MAP_HOUSES,
     "Economic": ["BLD_STOREHOUSE", "BLD_FARMSTEAD", "BLD_MARKET", "BLD_CORRAL", "BLD_HOUSE"] + MAP_HOUSES + [
                  "BLD_TRADING_POST",  # trading_post_* inherit template_structure_economic_market
                  "BLD_MILL"],  # mill_greek: rotary_mill|template_structure_economic_farmstead
