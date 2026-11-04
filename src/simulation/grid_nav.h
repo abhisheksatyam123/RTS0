@@ -200,35 +200,31 @@ struct NavGrid {
     // maps close their 12 m frame instead (CCmpPathfinder.cpp:711 else branch); find_path_tiles'
     // nodes take the edge at their own spacing, as units do (point_terrain_open).
     float edge_r = 0.0f;
-    // Gaia mines (BlockPathfinding): per navcell, the 8x8 1 m subcells a mine's grown square covers
-    // by 0 A.D.'s rule (all four corners inside, Rasterize.cpp), bit j*8+i for subcell (i, j) with
-    // i along x. Empty without mines (rebuild_nav_grid). The 8 m navcells stay as before; the long
-    // path checks its legs against these bits (avoid_mine_subcells).
-    std::vector<uint64_t> mine_sub;
-    // A navcell that a mine covers in part (some subcells blocked, not all).
-    bool mine_partial(int cx, int cy) const {
-        if (mine_sub.empty()) return false;
-        const uint64_t m = mine_sub[static_cast<size_t>(cy) * static_cast<size_t>(res) + static_cast<size_t>(cx)];
+    // Gaia mines (BlockPathfinding), per passability class (0 default, 1 large): per navcell, the 8x8
+    // 1 m subcells a mine's grown square covers by 0 A.D.'s four-corner rule (Rasterize.cpp), bit
+    // (y%8)*8+(x%8) for subcell (x, y). Empty without mines (rebuild_nav_grid). The 8 m navcells stay
+    // as they are; the long path checks every subcell its legs cross (avoid_mine_subcells).
+    std::vector<uint64_t> mine_sub[2];
+    bool mine_any() const { return !mine_sub[0].empty() || !mine_sub[1].empty(); }
+    // A navcell a mine of this class covers in part (some subcells blocked, not all).
+    bool mine_partial(int cls, int cx, int cy) const {
+        if (mine_sub[cls].empty()) return false;
+        const uint64_t m = mine_sub[cls][static_cast<size_t>(cy) * static_cast<size_t>(res) + static_cast<size_t>(cx)];
         return m != 0 && m != ~uint64_t(0);
     }
-    // Whether the 1 m subcell holding (x, z) is blocked by a mine.
-    bool mine_sub_blocked(float x, float z) const {
-        if (mine_sub.empty()) return false;
-        const float nc = 2.0f * map_half / static_cast<float>(res);
-        const float fx = (x + map_half) / nc, fz = (z + map_half) / nc;
-        if (fx < 0.0f || fz < 0.0f) return false;
-        const int cx = static_cast<int>(fx), cz = static_cast<int>(fz);
-        if (cx >= res || cz >= res) return false;
-        const int i = std::min(7, static_cast<int>((fx - static_cast<float>(cx)) * 8.0f));
-        const int j = std::min(7, static_cast<int>((fz - static_cast<float>(cz)) * 8.0f));
-        return ((mine_sub[static_cast<size_t>(cz) * static_cast<size_t>(res) + static_cast<size_t>(cx)] >> (j * 8 + i)) & 1u) != 0;
+    // Whether the 1 m subcell at subcell coordinates (sx, sy) is blocked for this class.
+    bool mine_subcell_blocked(int cls, int sx, int sy) const {
+        if (mine_sub[cls].empty() || sx < 0 || sy < 0 || sx >= res * 8 || sy >= res * 8) return false;
+        const uint64_t m = mine_sub[cls][static_cast<size_t>(sy / 8) * static_cast<size_t>(res) + static_cast<size_t>(sx / 8)];
+        return ((m >> ((sy % 8) * 8 + sx % 8)) & 1u) != 0;
     }
-    // Whether a leg of out (from start) crosses a blocked 1 m subcell, sampled every metre. The start's
-    // and the goal's navcells are not checked: a unit stands in one, and a gatherer's goal is the mine.
-    bool crosses_mine_sub(float sx, float sz, const struct WaypointPath &out) const;
-    // A path whose legs cross a blocked subcell is planned again with the partly covered navcells
-    // closed (PASS_MINE_CLOSED). Keeps the first path if the closed search finds none.
-    bool avoid_mine_subcells(float sx, float sz, float &gx, float &gz, struct WaypointPath &out, uint8_t pass) const;
+    // Whether a long path leg of out (from (sx, sz)) crosses a blocked subcell of this class. The walk is
+    // the navcell walker (CheckLineMovement) on the 1 m grid, so it visits every subcell the leg touches.
+    // The start's and the goal's navcells are not checked: a unit stands in one, and a gatherer's goal is its mine.
+    bool crosses_mine_sub(int cls, float sx, float sz, const struct WaypointPath &out) const;
+    // Re-plans a path whose legs cross a blocked subcell with the partly covered navcells closed
+    // (PASS_MINE_CLOSED). 0: no change; 1: out and the goal are replaced; 2: no route avoids the mines.
+    int avoid_mine_subcells(float sx, float sz, float &gx, float &gz, struct WaypointPath &out, uint8_t pass) const;
 
     // Phase 8A: Hierarchical chunk region data.
     // chunk_regions_: res x res, stores per-navcell local region ID within its chunk (0=impassable).
@@ -440,7 +436,7 @@ struct NavGrid {
         if (is_steep(cx, cy)) return false;
         if ((pass & PASS_LARGE) && large_closed.size() == cells.data.size() &&
                 large_closed[static_cast<size_t>(cy) * cells.w + cx]) return false;
-        if ((pass & PASS_MINE_CLOSED) && mine_partial(cx, cy)) return false;
+        if ((pass & PASS_MINE_CLOSED) && mine_partial(tile_class(pass), cx, cy)) return false;
         return true;
     }
 
@@ -450,11 +446,11 @@ struct NavGrid {
     // line it misses no navcell the line touches inside, and never steps diagonally between two.
     // The ends are in navcells (0 to res); visit(x, y) is called for each until it returns false.
     template <class Visit>
-    void walk_line(float fx0, float fy0, float fx1, float fy1, Visit &&visit) const {
-        int x = std::clamp(static_cast<int>(std::floor(fx0)), 0, res - 1);
-        int y = std::clamp(static_cast<int>(std::floor(fy0)), 0, res - 1);
-        const int x1 = std::clamp(static_cast<int>(std::floor(fx1)), 0, res - 1);
-        const int y1 = std::clamp(static_cast<int>(std::floor(fy1)), 0, res - 1);
+    static void walk_grid(int n, float fx0, float fy0, float fx1, float fy1, Visit &&visit) {
+        int x = std::clamp(static_cast<int>(std::floor(fx0)), 0, n - 1);
+        int y = std::clamp(static_cast<int>(std::floor(fy0)), 0, n - 1);
+        const int x1 = std::clamp(static_cast<int>(std::floor(fx1)), 0, n - 1);
+        const int y1 = std::clamp(static_cast<int>(std::floor(fy1)), 0, n - 1);
         const int di = x < x1 ? 1 : x1 < x ? -1 : 0;
         const int dj = y < y1 ? 1 : y1 < y ? -1 : 0;
         const float lx = fx1 - fx0, ly = fy1 - fy0;
@@ -470,6 +466,11 @@ struct NavGrid {
             if ((sa < 0.0f && sb < 0.0f) || (sa > 0.0f && sb > 0.0f)) x += di;
             else y += dj;
         }
+    }
+
+    template <class Visit>
+    void walk_line(float fx0, float fy0, float fx1, float fy1, Visit &&visit) const {
+        walk_grid(res, fx0, fy0, fx1, fy1, visit);
     }
 
     // CheckLineMovement between two navcell centres: no navcell the line passes through is
@@ -2264,38 +2265,47 @@ struct WaypointPath {
 // ---------------------------------------------------------------------------
 // NavGrid::find_path — snap, MakeGoalReachable, JPS, string pull
 // ---------------------------------------------------------------------------
-inline bool NavGrid::crosses_mine_sub(float sx, float sz, const WaypointPath &out) const {
-    if (mine_sub.empty() || out.count == 0) return false;
-    const float sub = 2.0f * map_half / static_cast<float>(res) / 8.0f; // 1 m = 0.25 sim units at 8 m navcells
+inline bool NavGrid::crosses_mine_sub(int cls, float sx, float sz, const WaypointPath &out) const {
+    if (mine_sub[cls].empty() || out.count == 0) return false;
     const auto start = world_to_cell(sx, sz);
     const auto goal = world_to_cell(out.xs[out.count - 1], out.zs[out.count - 1]);
+    // Subcell coordinates: 8 per navcell, so one subcell is 1 m (0.25 sim units at 8 m navcells).
+    const float k = static_cast<float>(res) * 8.0f / (map_half * 2.0f);
     float px = sx, pz = sz;
-    for (int k = 0; k < out.count; ++k) {
-        const float x1 = out.xs[k], z1 = out.zs[k];
-        const float len = std::hypot(x1 - px, z1 - pz);
-        const int n = std::max(1, static_cast<int>(std::ceil(len / sub)));
-        for (int s = 1; s <= n; ++s) {
-            const float t = static_cast<float>(s) / static_cast<float>(n);
-            const float x = px + (x1 - px) * t, z = pz + (z1 - pz) * t;
-            const auto c = world_to_cell(x, z);
-            if (c == start || c == goal) continue;
-            if (mine_sub_blocked(x, z)) return true;
-        }
+    for (int leg = 0; leg < out.count; ++leg) {
+        const float x1 = out.xs[leg], z1 = out.zs[leg];
+        bool hit = false;
+        // On the first leg a unit pushed into a blocked subcell walks out of it: blocked subcells count
+        // only once the leg has reached an open one (0 A.D.'s units leave an obstruction the same way).
+        bool left = leg > 0;
+        walk_grid(res * 8, (px + map_half) * k, (pz + map_half) * k, (x1 + map_half) * k, (z1 + map_half) * k,
+                [&](int x, int y) {
+                    const int cx = x / 8, cy = y / 8;
+                    if ((cx == start.first && cy == start.second) || (cx == goal.first && cy == goal.second)) return true;
+                    if (!mine_subcell_blocked(cls, x, y)) left = true;
+                    else if (left) hit = true;
+                    return !hit;
+                });
+        if (hit) return true;
         px = x1;
         pz = z1;
     }
     return false;
 }
 
-inline bool NavGrid::avoid_mine_subcells(float sx, float sz, float &gx, float &gz, WaypointPath &out, uint8_t pass) const {
-    if (mine_sub.empty() || (pass & PASS_SHIP) || !crosses_mine_sub(sx, sz, out)) return false;
+inline int NavGrid::avoid_mine_subcells(float sx, float sz, float &gx, float &gz, WaypointPath &out, uint8_t pass) const {
+    const int cls = tile_class(pass);
+    if (!mine_any() || (pass & PASS_SHIP) || !crosses_mine_sub(cls, sx, sz, out)) return 0;
     WaypointPath closed;
     float cgx = gx, cgz = gz;
-    if (!find_path_cells(sx, sz, cgx, cgz, closed, static_cast<uint8_t>(pass | PASS_MINE_CLOSED))) return false;
+    // A closed search that finds no route, or whose route still crosses a mine, is no route: 0 A.D.'s
+    // 1 m obstruction would stop the unit there, and steering would walk it through the square.
+    if (!find_path_cells(sx, sz, cgx, cgz, closed, static_cast<uint8_t>(pass | PASS_MINE_CLOSED))) return 2;
+    if (crosses_mine_sub(cls, sx, sz, closed)) return 2;
     out = closed;
     gx = cgx;
     gz = cgz;
-    return true;
+    return 1;
 }
 
 inline bool NavGrid::find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass) const {
@@ -2317,7 +2327,10 @@ inline bool NavGrid::find_path(float sx, float sz, float tx, float tz, WaypointP
 inline bool NavGrid::find_path_on(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass, bool *narrow_gap) const {
     float gx = tx, gz = tz;
     bool reached = find_path_cells(sx, sz, gx, gz, out, pass);
-    if (reached && avoid_mine_subcells(sx, sz, gx, gz, out, pass)) reached = true;
+    if (reached) {
+        const int mines = avoid_mine_subcells(sx, sz, gx, gz, out, pass);
+        if (mines == 2) return false;
+    }
     if ((pass & PASS_SHIP) || cells.blank()) return reached;
     const int cls = tile_class(pass);
     if (!tile_class_kept(cls)) return reached;
@@ -2750,7 +2763,7 @@ inline bool NavGrid::search_cells_jps(int scx, int scy, int tcx, int tcy, uint8_
     bool reached;
     // The closed search (PASS_MINE_CLOSED) takes the general path: the fast one reads the arrays and
     // doesn't know which partly covered navcells are closed.
-    if (!(pass & PASS_SHIP) && !((pass & PASS_MINE_CLOSED) && !mine_sub.empty()) && cells.w == res && cells.h == res &&
+    if (!(pass & PASS_SHIP) && !((pass & PASS_MINE_CLOSED) && mine_any()) && cells.w == res && cells.h == res &&
             (steep_cells_.blank() || (steep_cells_.w == res && steep_cells_.h == res))) {
         // is_passable_for for a land class, read straight from the arrays: the search tests cells
         // inside the grid only, millions of times on a long path across a big map.
