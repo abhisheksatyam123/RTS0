@@ -773,8 +773,10 @@ void RtsoWorldView::_ready() {
 	// Initialize 3D Positional Spatial Audio Pool
 	for (size_t p = 0; p < SPATIAL_AUDIO_POOL_SIZE; ++p) {
 		spatial_players[p] = memnew(AudioStreamPlayer3D);
-		spatial_players[p]->set_max_distance(80.0f);
-		spatial_players[p]->set_unit_size(8.0f);
+		// Distance falloff is 0.28's linear OpenAL model, applied by session_audio.h spatial_at:
+		// no Godot attenuation or cut-off here.
+		spatial_players[p]->set_attenuation_model(AudioStreamPlayer3D::ATTENUATION_DISABLED);
+		spatial_players[p]->set_max_distance(1.0e6f);
 		spatial_players[p]->set_volume_db(0.0f);
 		spatial_players[p]->set_bus("Action"); // sound.actiongain
 		add_child(spatial_players[p]);
@@ -1519,7 +1521,7 @@ void RtsoWorldView::play_spatial_sound(const Ref<AudioStream> &stream, Vector3 p
 		spatial_end_ms_[slot] = now + (uint64_t)(1000.0 * (len > 0.0 ? len / std::max(0.05f, pitch_scale) : 1.0));
 		if (player->get_stream() != stream) player->set_stream(stream);
 		player->set_volume_db(volume_db);
-		player->set_max_distance(max_dist);
+		(void)max_dist; // the 0.28 falloff (session_audio.h spatial_at) replaces the old per-call cut-off
 		player->set_pitch_scale(pitch_scale);
 		player->play();
 	}

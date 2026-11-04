@@ -183,6 +183,21 @@ public:
 	}
 	void set_spatial(SpatialFn fn) { spatial_ = std::move(fn); }
 
+	// 0.28's positional gain (SoundManager.cpp alDistanceModel(AL_LINEAR_DISTANCE); SoundGroup.cpp
+	// SetRollOff with sound.mindistance 1 m, sound.maxdistance 350 m and the default rolloff 0.5):
+	// the gain falls linearly from 1 at 1 m to 1 - rolloff at 350 m from the listener and stays
+	// there beyond. A sim unit is 4 m. The listener is the camera's focus point (0.28 uses the
+	// camera origin).
+	static float falloff_gain(float dist_units) {
+		const float d = std::clamp(dist_units * 4.0f, 1.0f, 350.0f);
+		return 1.0f - 0.5f * (d - 1.0f) / (350.0f - 1.0f);
+	}
+	// A positional sound at pos with its 0.28 falloff from the listener, then the spatial callback.
+	void spatial_at(const godot::Ref<godot::AudioStream> &s, godot::Vector3 pos, float volume_db, float pitch) {
+		const float dx = pos.x - listener_x_, dz = pos.z - listener_z_;
+		spatial_(s, pos, volume_db + 20.0f * std::log10(falloff_gain(std::sqrt(dx * dx + dz * dz))), pitch);
+	}
+
 	// Plays a random member of a sound group, omnipresent (0 A.D. Omnipresent /
 	// Distanceless sound groups). gain is the group's linear Gain.
 	bool play_group(const char *dir, const char *prefix, float gain = 1.0f) {
@@ -206,7 +221,7 @@ public:
 		const godot::String path = g[rng_() % g.size()];
 		godot::Ref<godot::AudioStream> s = stream(path);
 		if (s.is_null()) return false;
-		spatial_(s, godot::Vector3(x, 0.5f, z), gain > 0.001f ? 20.0f * std::log10(gain) : -80.0f, 1.0f);
+		spatial_at(s, godot::Vector3(x, 0.5f, z), gain > 0.001f ? 20.0f * std::log10(gain) : -80.0f, 1.0f);
 		last_played_ = path;
 		return true;
 	}
@@ -680,7 +695,7 @@ private:
 							if (!g.empty()) {
 								godot::Ref<godot::AudioStream> snd = stream(g[rng_() % g.size()]);
 								if (snd.is_valid()) {
-									spatial_(snd, godot::Vector3(uv.pos_x[i], 0.5f, uv.pos_z[i]), -8.0f, 1.0f);
+									spatial_at(snd, godot::Vector3(uv.pos_x[i], 0.5f, uv.pos_z[i]), -8.0f, 1.0f);
 									++work_in_window_;
 									++work_sounds_;
 								}
@@ -729,7 +744,7 @@ private:
 		if (path.is_empty()) return false;
 		godot::Ref<godot::AudioStream> s = stream(path);
 		if (s.is_null()) return false;
-		spatial_(s, godot::Vector3(x, y, z), gain > 0.001f ? 20.0f * std::log10(gain) : -80.0f, pitch);
+		spatial_at(s, godot::Vector3(x, y, z), gain > 0.001f ? 20.0f * std::log10(gain) : -80.0f, pitch);
 		++combat_in_window_;
 		++combat_sounds_;
 		last_played_ = path;
@@ -798,7 +813,7 @@ private:
 		if (path.is_empty()) return;
 		godot::Ref<godot::AudioStream> s = stream(path);
 		if (s.is_null()) return;
-		spatial_(s, godot::Vector3(x, 0.5f, z), gain > 0.001f ? 20.0f * std::log10(gain) : -80.0f, pitch);
+		spatial_at(s, godot::Vector3(x, 0.5f, z), gain > 0.001f ? 20.0f * std::log10(gain) : -80.0f, pitch);
 		last_played_ = path;
 	}
 
