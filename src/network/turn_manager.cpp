@@ -1007,8 +1007,11 @@ void TurnManager::set_net_host(NetHost *net_host, uint32_t client_id) {
 				if (NetPacketSerializer::parse_client_paused(msg.payload.data(), msg.payload.size(), cpm))
 					this->receive_client_paused(peer_id, cpm);
 			} else if (msg.type == static_cast<uint8_t>(NetMessageType::NMT_GAME_START)) {
+				// 0 A.D. NetServer: only the controller may start the game
+				// (GetGUID() != m_ControllerGUID is refused). A joiner's
+				// NMT_GAME_START would otherwise set the match's settings and seats.
 				GameStartMsg gsm;
-				if (NetPacketSerializer::parse_game_start(msg.payload.data(), msg.payload.size(), gsm)) {
+				if (peer_id == 0 && NetPacketSerializer::parse_game_start(msg.payload.data(), msg.payload.size(), gsm)) {
 					GameSetupParams setup;
 					if (parse_game_start_full(gsm.init_attributes, setup)) {
 						this->has_pending_game_start_ = true;
