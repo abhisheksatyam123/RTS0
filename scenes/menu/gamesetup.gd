@@ -1388,7 +1388,10 @@ func _build_tips() -> void:
 	text.text = tr(SP_TIP)
 	text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	text.add_theme_font_size_override("font_size", 12)
+	# TipsPanel.xml aiTips: ModernLeftLabelText, top-aligned (bold 14, white, left).
+	MODERN.label_text(text)
+	text.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	text.vertical_alignment = VERTICAL_ALIGNMENT_TOP
 	row.add_child(text)
 	var tick := CheckBox.new()
 	tick.name = "DisplaySPTips"

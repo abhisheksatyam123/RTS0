@@ -2381,8 +2381,17 @@ struct MotionTurn {
 	uint8_t blocked = 0; // bit 1: a closed gate stopped one of this turn's steps; bit 2: separation() slid a plain
 	                     // walk off a standing body with no other push (simulation.cpp MOTION_BLOCKED, MOTION_SLID)
 	uint8_t pressure = 0; // MotionState::pushingPressure (0-255): how pushed the unit is; kept when a turn resets
+	// The reversal watch (motion_feedback's loop_reversal): the unit direction of this walk's last free turn, and
+	// the two spots a walk keeps turning back between, with how many reversals came over them in a row.
+	float way_x = 0.0f, way_z = 0.0f;
+	float span_x = 0.0f, span_z = 0.0f;   // the first end of the span
+	float span2_x = 0.0f, span2_z = 0.0f; // the second end, once span_two is set
+	uint8_t way_known = 0;   // a free turn has set way_x, way_z
+	uint8_t span_repeats = 0; // reversals over the span in a row
+	uint8_t span_two = 0;    // span2_x, span2_z are set
+	uint8_t span_pad = 0;    // explicit, so the saved struct holds no hidden padding
 };
-static_assert(sizeof(MotionTurn) == 20, "MotionTurn is saved raw");
+static_assert(sizeof(MotionTurn) == 48, "MotionTurn is saved raw");
 
 struct CivHeroAura {
 	const char *id;
@@ -2630,8 +2639,12 @@ inline float civ_unit_cooldown_mult(uint8_t civ, TechClasses c) {
 	if (civ == CIV_ROMANS && (c & TC_STONETHROWER) != 0) return 0.9f;
 	return 1.0f;
 }
+// Unit-class Cost/BuildTime bonuses of a civ's auto-researched technologies: maur_elephants
+// (Elephant !Hero x0.7) and delian_league (Ship x0.75, athen). A template's roster train time
+// carries its own civ's bonus baked in (apply_unit_bonuses), so the owner's is applied on top.
 inline float civ_unit_train_time_mult(uint8_t civ, TechClasses c) {
 	if (civ == CIV_MAURYANS && (c & TC_ELEPHANT) != 0 && (c & TC_HERO) == 0) return 0.7f;
+	if (civ == CIV_ATHENIANS && (c & TC_SHIP) != 0) return 0.75f;
 	return 1.0f;
 }
 

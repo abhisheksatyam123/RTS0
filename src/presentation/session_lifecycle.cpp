@@ -471,92 +471,23 @@ void RtsoMain::_ready() {
 	lobby_btn->set_visible(false);
 	top_hbox->add_child(lobby_btn);
 
-	lobby_panel = memnew(Panel);
-	lobby_panel->set_visible(false);
-	lobby_panel->set_anchor(SIDE_LEFT, 0.0f);
-	lobby_panel->set_anchor(SIDE_RIGHT, 0.0f);
-	lobby_panel->set_anchor(SIDE_TOP, 0.0f);
-	lobby_panel->set_anchor(SIDE_BOTTOM, 0.0f);
-	lobby_panel->set_offset(SIDE_LEFT, 16.0f);
-	lobby_panel->set_offset(SIDE_RIGHT, 420.0f);
-	lobby_panel->set_offset(SIDE_TOP, 52.0f);
-	lobby_panel->set_offset(SIDE_BOTTOM, 320.0f);
-	ui_layer->add_child(lobby_panel);
-
-	VBoxContainer *lobby_box = memnew(VBoxContainer);
-	lobby_box->set_anchors_preset(Control::PRESET_FULL_RECT);
-	lobby_box->set_offset(SIDE_LEFT, 8);
-	lobby_box->set_offset(SIDE_RIGHT, -8);
-	lobby_box->set_offset(SIDE_TOP, 8);
-	lobby_box->set_offset(SIDE_BOTTOM, -8);
-	lobby_panel->add_child(lobby_box);
-
-	Label *lobby_title = memnew(Label);
-	lobby_title->set_text("Multiplayer lobby");
-	lobby_box->add_child(lobby_title);
-
-	HBoxContainer *name_row = memnew(HBoxContainer);
-	lobby_name = memnew(LineEdit);
-	lobby_name->set_placeholder("Player name");
-	lobby_name->set_text("Player");
-	lobby_name->set_h_size_flags(Control::SIZE_EXPAND_FILL);
-	rtso::parent_line_edit(name_row, lobby_name);
-	lobby_host = memnew(LineEdit);
-	lobby_host->set_placeholder("127.0.0.1");
-	lobby_host->set_text("127.0.0.1");
-	lobby_host->set_custom_minimum_size(Vector2(110, 0));
-	rtso::parent_line_edit(name_row, lobby_host);
-	lobby_port = memnew(LineEdit);
-	lobby_port->set_placeholder("20595");
-	lobby_port->set_text("20595");
-	lobby_port->set_custom_minimum_size(Vector2(70, 0));
-	rtso::parent_line_edit(name_row, lobby_port);
-	lobby_password = memnew(LineEdit);
-	lobby_password->set_placeholder("Password");
-	lobby_password->set_secret(true);
-	lobby_password->set_custom_minimum_size(Vector2(90, 0));
-	rtso::parent_line_edit(name_row, lobby_password);
-	lobby_box->add_child(name_row);
-
-	lobby_rooms = memnew(ItemList);
-	lobby_rooms->set_custom_minimum_size(Vector2(0, 140));
-	lobby_box->add_child(lobby_rooms);
-
-	HBoxContainer *lobby_actions = memnew(HBoxContainer);
-	Button *host_b = memnew(Button);
-	host_b->set_text("Host");
-	host_b->connect("pressed", Callable(this, "_on_lobby_host_pressed"));
-	lobby_actions->add_child(host_b);
-	Button *join_b = memnew(Button);
-	join_b->set_text("Join");
-	join_b->connect("pressed", Callable(this, "_on_lobby_join_pressed"));
-	lobby_actions->add_child(join_b);
-	lobby_observe = memnew(Button);
-	lobby_observe->set_text("Observe");
-	lobby_observe->set_toggle_mode(true);
-	lobby_observe->set_tooltip_text("Watch instead of playing: host or join a match (or one in progress) as an observer");
-	lobby_observe->connect("toggled", Callable(this, "_on_lobby_observe_toggled"));
-	lobby_actions->add_child(lobby_observe);
-	Button *ref_b = memnew(Button);
-	ref_b->set_text("Refresh");
-	ref_b->connect("pressed", Callable(this, "_on_lobby_refresh_pressed"));
-	lobby_actions->add_child(ref_b);
-	Button *start_b = memnew(Button);
-	lobby_start_btn_ = start_b;
-	start_b->set_text("Start");
-	start_b->set_tooltip_text("Host: regenerate map with a fresh seed and broadcast map+seed (NMT_GAME_START)");
-	start_b->connect("pressed", Callable(this, "_on_lobby_start_pressed"));
-	lobby_actions->add_child(start_b);
-	lobby_box->add_child(lobby_actions);
-
-	lobby_status = memnew(Label);
-	lobby_status->set_text("Lobby HTTP 127.0.0.1:8088 - run tools/lobby_server.py");
-	lobby_box->add_child(lobby_status);
-	lobby_players = memnew(Label);
-	lobby_players->set_autowrap_mode(TextServer::AUTOWRAP_WORD_SMART);
-	lobby_box->add_child(lobby_players);
-	lobby_seats = memnew(VBoxContainer);
-	lobby_box->add_child(lobby_seats);
+	// Multiplayer lobby panel (lobby_dialog.h). Its buttons connect to the RtsoMain
+	// methods in bind_signals below, as the inline connects did.
+	{
+		auto lw = lobby_dialog_.build(ui_layer);
+		lobby_panel = lw.panel;
+		lobby_name = lw.name;
+		lobby_host = lw.host;
+		lobby_port = lw.port;
+		lobby_password = lw.password;
+		lobby_rooms = lw.rooms;
+		lobby_observe = lw.observe;
+		lobby_start_btn_ = lw.start;
+		lobby_status = lw.status;
+		lobby_players = lw.players;
+		lobby_seats = lw.seats;
+		lobby_dialog_.bind_signals(this);
+	}
 
 	// =========================================================================
 	// 2. BOTTOM INSPECTOR PANEL (5-Bar Stack: Health, Capture, XP, Stamina, Aura)
@@ -842,6 +773,9 @@ void RtsoMain::_ready() {
 	session_audio_.set_spatial([this](const Ref<AudioStream> &s, Vector3 pos, float db, float pitch) {
 		if (view) view->play_spatial_sound(s, pos, db, 75.0f, pitch);
 	});
+	session_audio_.set_screen_pan([this](Vector3 pos, Vector3 &heard_at, float &dist, bool &max_rolloff) {
+		return view && view->screen_pan(pos, heard_at, dist, max_rolloff);
+	});
 
 	// gui/session/Ambient.js: one looping dayscape track ("TODO: Let the map decide the tracks"),
 	// played by PlayAmbientSound at a constant sound.ambientgain. 0.28 plays it at 0.6 beside
@@ -864,8 +798,10 @@ void RtsoMain::_ready() {
 
 	spatial_sfx_player = memnew(AudioStreamPlayer3D);
 	spatial_sfx_player->set_bus("Action");
-	spatial_sfx_player->set_max_distance(75.0f);
-	spatial_sfx_player->set_unit_size(10.0f);
+	// 0.28's linear falloff, as session_audio.h spatial_at: Godot attenuation is off, and the
+	// volume is set per play in main_node.cpp play_spatial_sfx.
+	spatial_sfx_player->set_attenuation_model(AudioStreamPlayer3D::ATTENUATION_DISABLED);
+	spatial_sfx_player->set_max_distance(1.0e6f);
 	spatial_sfx_player->set_volume_db(0.0f);
 	add_child(spatial_sfx_player);
 
