@@ -24,11 +24,14 @@ void vertex() {
 }
 
 // Linear eye-space depth (positive, metres) at a screen UV.
+// INV_PROJECTION_MATRIX and PROJECTION_MATRIX are not available to fragment() in Godot 4.3
+// (the shader failed to compile, which left the quad washed out). The camera's planes come in
+// as uniforms instead. Godot's forward renderers store reversed depth (1 at the near plane).
+uniform float cam_near = 0.05;
+uniform float cam_far = 4000.0;
 float linear_depth(vec2 uv) {
 	float d = texture(depth_texture, uv).r;
-	vec4 view = INV_PROJECTION_MATRIX * vec4(uv * 2.0 - 1.0, d, 1.0);
-	view.xyz /= view.w;
-	return -view.z;
+	return cam_near * cam_far / (cam_near + d * (cam_far - cam_near));
 }
 
 vec3 decode_normal(vec2 uv) {
@@ -40,10 +43,8 @@ void fragment() {
 	vec2 offsets[4] = vec2[4](vec2(-1.0, 0.0), vec2(1.0, 0.0), vec2(0.0, -1.0), vec2(0.0, 1.0));
 
 	float center_depth = linear_depth(SCREEN_UV);
-	if (center_depth > max_outline_distance) {
-		ALBEDO = texture(screen_texture, SCREEN_UV).rgb;
-		return;
-	}
+	// No outline beyond max_outline_distance (fragment() may not return early in Godot 4.3).
+	float in_range = step(center_depth, max_outline_distance);
 	vec3 center_normal = decode_normal(SCREEN_UV);
 
 	// Outer silhouettes: neighbours much farther away than the centre.
@@ -69,7 +70,8 @@ void fragment() {
 	// Suppress the normal highlight wherever an outer outline already sits (no double lines).
 	float mask = clamp(smoothstep(0.5, 1.0, inverse_depth) * 4.0, 0.0, 1.0);
 	float inner = clamp(clamp(normal_diff, 0.0, 1.0) - mask, 0.0, 1.0);
-	inner = clamp(inner - outer, 0.0, 1.0);
+	inner = clamp(inner - outer, 0.0, 1.0) * in_range;
+	outer *= in_range;
 
 	vec3 color = texture(screen_texture, SCREEN_UV).rgb;
 	color += inner * brighter_line;

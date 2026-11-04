@@ -295,6 +295,7 @@ void RtsoCameraRig::sync_pixel_art() {
 		Ref<ShaderMaterial> mat;
 		mat.instantiate();
 		mat->set_shader(sh);
+		pixel_mat_ = mat;
 		Ref<QuadMesh> quad;
 		quad.instantiate();
 		quad->set_size(Vector2(2.0f, 2.0f));
@@ -308,6 +309,10 @@ void RtsoCameraRig::sync_pixel_art() {
 	}
 	pixel_on_ = want;
 	if (pixel_quad_) pixel_quad_->set_visible(want);
+	if (want && pixel_mat_.is_valid()) {
+		pixel_mat_->set_shader_parameter("cam_near", cam->get_near());
+		pixel_mat_->set_shader_parameter("cam_far", cam->get_far());
+	}
 }
 
 void RtsoCameraRig::_process(double delta) {
