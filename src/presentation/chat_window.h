@@ -116,6 +116,19 @@ class RtsoChatWindow {
 public:
 	// owner: signal target object (RtsoMain, whose bound methods receive the
 	// connections below). parent: ui CanvasLayer. host: coordinator hooks.
+	// Connects the window's buttons and fields to the RtsoMain methods they always
+	// called (ChatWindow.js handlers). Run once after build(), before any input.
+	void bind_signals(Object *owner) {
+		owner_ = owner;
+		filter_select_->connect("item_selected", Callable(owner, "_on_chat_filter_selected"));
+		filter_select_->connect("item_selected", Callable(input_, "grab_focus").unbind(1));
+		input_->connect("text_submitted", Callable(owner, "_on_chat_text_submitted"));
+		input_->connect("gui_input", Callable(owner, "_on_chat_input_gui"));
+		cancel_->connect("pressed", Callable(owner, "toggle_chat"));
+		history_box_->connect("toggled", Callable(owner, "_on_chat_history_toggled"));
+		send_btn_->connect("pressed", Callable(owner, "_on_chat_send_pressed"));
+	}
+
 	void build(Object *owner, Node *parent, RtsoChatHost *host) {
 		host_ = host;
 		// =========================================================================
@@ -141,7 +154,6 @@ public:
 		filter_select_ = memnew(RtsoSafeSelect);
 		refill_filters(false);
 		filter_select_->set_tooltip_text("Filter the chat history.");
-		filter_select_->connect("item_selected", Callable(owner, "_on_chat_filter_selected"));
 		place(history_page_, filter_select_, 0, 0, 1, 0, 75, 10, -16, 34);
 		// chatHistoryText "10 46 100%-10 100%": ModernDarkBoxGold, ChatPanel.
 		log_ = memnew(RichTextLabel);
@@ -161,21 +173,17 @@ public:
 		place(page, caption("Text:"), 0, 0, 0, 0, 16, 46, 50, 70);
 		input_ = memnew(LineEdit);
 		input_->set_name("ChatInput");
-		input_->connect("text_submitted", Callable(owner, "_on_chat_text_submitted"));
-		input_->connect("gui_input", Callable(owner, "_on_chat_input_gui"));
 		input_->set_max_length(1024); // chat_window.xml chatInput max_length
 		rtso::parent_line_edit(page, input_);
 		place(nullptr, input_, 0, 0, 1, 0, 75, 46, -16, 72);
 		// ChatWindow.onSelectionChange: picking an addressee or a filter focuses the input.
 		channel_->connect("item_selected", Callable(input_, "grab_focus").unbind(1));
-		filter_select_->connect("item_selected", Callable(input_, "grab_focus").unbind(1));
-		Button *cancel = memnew(Button);
+		cancel_ = memnew(Button);
+		Button *cancel = cancel_;
 		cancel->set_text("Cancel");
-		cancel->connect("pressed", Callable(owner, "toggle_chat"));
 		place(page, cancel, 0, 0, 0.3f, 0, 16, 80, 16, 116);
 		// extendedChat, a ModernTickBox at "50%-40 100%-40 50%-20 100%-12", and its caption.
 		history_box_ = memnew(CheckBox);
-		history_box_->connect("toggled", Callable(owner, "_on_chat_history_toggled"));
 		place(page, history_box_, 0.5f, 0, 0.5f, 0, -40, 88, -20, 116);
 		Label *history = memnew(Label);
 		history->set_text("History");
@@ -186,7 +194,6 @@ public:
 		place(page, history, 0.5f, 0, 0.5f, 0, -20, 80, 50, 116);
 		send_btn_ = memnew(Button);
 		send_btn_->set_text("Send");
-		send_btn_->connect("pressed", Callable(owner, "_on_chat_send_pressed"));
 		place(page, send_btn_, 0.7f, 0, 1, 0, -16, 80, -16, 116);
 
 		panel_->set_visible(false);
@@ -747,6 +754,7 @@ public:
 	}
 private:
 	Object *owner_ = nullptr;
+	Button *cancel_ = nullptr;
 
 	std::vector<String> tags_;  // the wire tag of each addressee entry
 	String last_private_;       // session.privatechat reopens it

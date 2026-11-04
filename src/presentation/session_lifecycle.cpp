@@ -727,8 +727,10 @@ void RtsoMain::_ready() {
 	// (chat_window.h / diplomacy_dialog.h own the panel trees; the bound
 	// handler methods below delegate into them).
 	chat_window_.build(this, ui_layer, this);
+	chat_window_.bind_signals(this);
 	refresh_chat_tooltips();
-	diplo_dialog_.build(this, ui_layer, this, &chat_window_);
+	diplo_dialog_.build(ui_layer, this, &chat_window_);
+	diplo_dialog_.bind_signals(this);
 	objectives_dialog_.build(ui_layer, this, "toggle_objectives");
 	tutorial_panel_.build(ui_layer, this, "_on_tutorial_ready_pressed");
 	panel_entities_.build(ui_layer, this, "_on_panel_entity_gui_input", 58.0f); // PanelEntities.xml, under the top panel
