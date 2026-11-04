@@ -144,7 +144,8 @@ enum TechnologyId : uint8_t {
 	TECH_RESETTLEMENT = 135, // resettlement
 	TECH_CELTIC_AUXILIARIES = 136, // celtic_auxiliaries (hand-added: Loot/<res> of the unit)
 	TECH_WAGON_TRAINS = 137, // wagon_trains
-	TECH_COUNT = 138
+	TECH_PHEIDIAN_WORKSHOP = 138, // pheidian_workshop (hand-added: no 0.28 template researches it, so civ_mask is 0)
+	TECH_COUNT = 139
 };
 
 // A set of 0 A.D. classes (TechClass bits 0..63 in lo, 64..127 in hi).
@@ -331,6 +332,8 @@ inline const TechClassExpr *tech_affects_table() {
 		{TC_SIEGETOWER, 0},
 		{TC_COLONY, 0},
 		{TC_CIVCENTRE, TC_COLONY | TC_NAVAL}, // 83 hellenistic_metropolis: CivCentre !Colony !Naval
+		{TC_TEMPLE, 0}, // 84 pheidian_workshop: Temple (affects alternatives 84..85)
+		{TC_WONDER, 0}, // 85 pheidian_workshop: Wonder
 	};
 	return kAffects;
 }
@@ -538,6 +541,8 @@ inline const TechEffect *tech_effects_table() {
 		{TSTAT_VISION, TOP_MUL, 71, 1, 1.1f}, // ship_vision
 		{TSTAT_VISION, TOP_MUL, 79, 1, 1.25f}, // ship_vision
 		{TSTAT_POP_BONUS, TOP_ADD, 82, 1, 10.0f}, // wagon_trains (its Promotion/RequiredXp is in promotion_data.h)
+		{TSTAT_COST_STONE, TOP_MUL, 84, 2, 0.5f}, // pheidian_workshop: Temple or Wonder
+		{TSTAT_BUILD_TIME, TOP_MUL, 84, 2, 0.5f}, // pheidian_workshop: Temple or Wonder
 	};
 	return kEffects + 1;
 }
@@ -686,6 +691,7 @@ inline const TechInfo &tech_info(uint8_t tech_id) {
 		{"Migratory Resettlement", "All Structures except for walls do not decay to neutral or enemy territory.", 0, 200, 200, 200, 40.0f, 2, BLD_TOWN_CENTER, TECH_NONE, 0x8000, 188, 1, "resettlement"},
 		{"Celtic Auxiliaries", "Mercenaries −50% metal cost but +50 food cost.", 0, 0, 550, 0, 45.0f, 3, BLD_EMBASSY, TECH_NONE, 0x0010, 189, 4, "celtic_auxiliaries"},
 		{"Wagon Trains", "Supply Wagons +5 population space and Wagon Encampments +10 population space. Training Germanic Workers unlocked from the Supply Wagon as well.", 0, 400, 100, 0, 40.0f, 2, BLD_WAGON_ENCAMPMENT, TECH_NONE, 0x8000, 199, 1, "wagon_trains"},
+		{"Pheidian Workshop", "Temples and Wonder −50% stone cost and build time.", 0, 0, 0, 300, 40.0f, 2, BLD_TEMPLE, TECH_PHASE_TOWN, 0x0000, 200, 2, "pheidian_workshop"},
 	};
 	if (tech_id >= TECH_COUNT) return kTable[TECH_NONE];
 	return kTable[tech_id];

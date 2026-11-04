@@ -76,7 +76,7 @@ int main() {
 		CHECK(ti.researcher < BLD_TYPE_COUNT);
 		CHECK(ti.required_phase >= 1 && ti.required_phase <= 3);
 		CHECK(ti.prerequisite < TECH_COUNT && ti.prerequisite != t);
-		CHECK(ti.civ_mask != 0 || t == TECH_WARSHIP_RAMMING_SPEED); // Flanking Maneuvers: not in 0.28
+		CHECK(ti.civ_mask != 0 || t == TECH_WARSHIP_RAMMING_SPEED || t == TECH_PHEIDIAN_WORKSHOP); // not in 0.28 templates
 		// Only the free, instant Seleucid army reforms (pair members with no researchTime) take no time.
 		CHECK(ti.research_time > 0.0f || (t == TECH_TRADITIONAL_ARMY_SELE || t == TECH_REFORMED_ARMY_SELE));
 		for (int e = 0; e < ti.effect_count; ++e)
@@ -102,6 +102,19 @@ int main() {
 		CHECK(civ_unit_train_time_mult(CIV_MAURYANS, TC_ELEPHANT | TC_HERO) == 1.0f);
 		CHECK(civ_unit_train_time_mult(CIV_ATHENIANS, TC_SHIP) == 0.75f);
 		CHECK(civ_unit_train_time_mult(CIV_SPARTANS, TC_SHIP) == 1.0f);
+		// pheidian_workshop (0.28 civbonuses-like tech, no 0.28 template researches it): Temple or
+		// Wonder Cost/Resources/stone and Cost/BuildTime x0.5, at Town Phase for athen only (civ_mask 0).
+		const TechInfo &pw = tech_info(TECH_PHEIDIAN_WORKSHOP);
+		CHECK(pw.stone_cost == 300 && pw.required_phase == 2 && pw.prerequisite == TECH_PHASE_TOWN && pw.civ_mask == 0);
+		CHECK(pw.effect_count == 2 && pw.effect_begin > 0); // tech_effects_table() skips its None row
+		for (int e = 0; e < pw.effect_count; ++e) {
+			const TechEffect &fx = tech_effects_table()[pw.effect_begin + e];
+			CHECK(fx.op == TOP_MUL && fx.value == 0.5f && fx.affects_count == 2);
+			CHECK(tech_affects_table()[fx.affects].need == TC_TEMPLE && tech_affects_table()[fx.affects + 1].need == TC_WONDER);
+		}
+		CHECK(tech_effects_table()[pw.effect_begin].stat == TSTAT_COST_STONE);
+		CHECK(tech_effects_table()[pw.effect_begin + 1].stat == TSTAT_BUILD_TIME);
+		CHECK(kTechResearchRank[TECH_PHEIDIAN_WORKSHOP] == 255);
 	}
 	CHECK(tech_info(TECH_FARMING_1).researcher == BLD_FARMSTEAD);
 	CHECK(tech_info(TECH_PHASE_TOWN).researcher == BLD_TOWN_CENTER);
