@@ -25082,18 +25082,34 @@ int Simulation::petra_train_more_workers() {
 	const float support_max = support_ratio * (float)target;
 	const float support_num = support_max * (1.0f - det::exp(-alpha * (float)total / support_max));
 
+	// The scarce-resource penalty findBestTrainableUnit adds (getTotalResourceLevel and
+	// getAvailableResources): under 800 in stock and under 800 left round our dropsites, x0.6
+	// (over 400 left) or x0.2. Workers take it too; the under-45 stone and metal halving is
+	// only for soldiers (speed and costsResource 0.5 requirements).
+	float scarce[RES_COUNT] = {1.0f, 1.0f, 1.0f, 1.0f};
+	{
+		float remaining[RES_COUNT];
+		petra_total_resource_level(remaining);
+		for (int r = 0; r < RES_COUNT; ++r)
+			if (petra_available_resource((uint8_t)r) <= 800.0f && remaining[r] <= 800.0f) // getAvailableResources
+				scarce[r] = std::min(scarce[r], remaining[r] > 400.0f ? 0.6f : 0.2f);
+	}
 	// findBestTrainableUnit(["Support+Worker"], costsResource food): the civ's 0.28 civilian
-	// (support_civilian at the civic centre), the cheapest that a civic centre of ours trains.
+	// (support_civilian at the civic centre). Its score is 0.1 times each scarce penalty on a
+	// resource it costs, over 1 + its total cost; the best score wins.
 	uint16_t civilian = CIV_UNIT_TEMPLATE_NONE;
-	float civilian_cost = 0.0f;
+	float civilian_score = 0.0f;
 	for (uint16_t tmpl : civ_roster_ids(petra_ps().civ)) {
 		const CivUnitTemplate &t = civ_unit_template(tmpl);
 		if (!(t.flags & ROSTER_CIVILIAN) || t.phase > petra_ps().phase || triggers_.template_disabled(tmpl)) continue;
 		if (!petra_has_trainer(tmpl)) continue; // trainable here, however busy the civic centre
 		float cost[RES_COUNT];
 		unit_train_cost(petra_pid_, tmpl, civ_template_unit_info(tmpl, t.unit_type), cost);
-		const float sum = cost[RES_FOOD] + cost[RES_WOOD] + cost[RES_GOLD] + cost[RES_STONE];
-		if (civilian == CIV_UNIT_TEMPLATE_NONE || sum < civilian_cost) { civilian = tmpl; civilian_cost = sum; }
+		float value = 0.1f;
+		for (int r = 0; r < RES_COUNT; ++r)
+			if (cost[r] > 0.0f) value *= scarce[r];
+		const float score = value / (1.0f + cost[RES_FOOD] + cost[RES_WOOD] + cost[RES_GOLD] + cost[RES_STONE]);
+		if (civilian == CIV_UNIT_TEMPLATE_NONE || score > civilian_score) { civilian = tmpl; civilian_score = score; }
 	}
 	uint16_t soldier = CIV_UNIT_TEMPLATE_NONE;
 	// No civilian to train (map-disabled): soldiers instead, as 0.28's !templateDef.
@@ -25104,14 +25120,11 @@ int Simulation::petra_train_more_workers() {
 		// siege tower, and the scarce-resource penalty findBestTrainableUnit adds: under 800 in
 		// stock and under 800 left round our dropsites (getTotalResourceLevel), x0.6 (over 400 left) or x0.2.
 		const int pick = (int)petra_rng_.range_int(0, 2);
-		float penalty[RES_COUNT] = {1.0f, 1.0f, 1.0f, 1.0f};
-		if (total < 45) penalty[RES_STONE] = penalty[RES_GOLD] = 0.5f;
-		{
-			float remaining[RES_COUNT];
-			petra_total_resource_level(remaining);
-			for (int r = 0; r < RES_COUNT; ++r)
-				if (petra_available_resource((uint8_t)r) <= 800.0f && remaining[r] <= 800.0f) // getAvailableResources
-					penalty[r] = std::min(penalty[r], remaining[r] > 400.0f ? 0.6f : 0.2f);
+		float penalty[RES_COUNT];
+		for (int r = 0; r < RES_COUNT; ++r) penalty[r] = scarce[r];
+		if (total < 45) {
+			penalty[RES_STONE] = std::min(penalty[RES_STONE], 0.5f);
+			penalty[RES_GOLD] = std::min(penalty[RES_GOLD], 0.5f);
 		}
 		float best_value = 0.0f;
 		for (uint16_t tmpl : civ_roster_ids(petra_ps().civ)) {
@@ -27050,8 +27063,10 @@ void Simulation::petra_check_hunt_drift(PetraHuntScan &scan) {
 		if (fauna_.food_amount[fit->second] <= 0) continue; // only food supplies
 		const float tx = fauna_.pos_x[fit->second], tz = fauna_.pos_z[fit->second];
 		const int terr = territory_owner_at(tx, tz);
-		bool drifted = petra_foe(terr);
-		if (!drifted && terr < 0) {
+		// worker.js: territoryOwner 0 (neutral) is Gaia, an enemy, so the hunt is retried; only land
+		// of a player that is neither ally nor enemy takes the food-dropsite distance check.
+		bool drifted = terr < 0 || petra_foe(terr);
+		if (!drifted && !is_ally((uint8_t)petra_pid_, (uint8_t)terr)) {
 			const float d2 = (gcls == GATHER_CAVALRY ? 90000.0f : 30000.0f) / 16.0f;
 			auto [cx, cz] = nav_grid_.world_to_cell(tx, tz); // getLandAccess(target)
 			drifted = !petra_food_drop_near(scan, nav_grid_.global_region_at(cx, cz, PASS_INFANTRY), tx, tz, d2);
@@ -41739,6 +41754,10 @@ void Simulation::tick_hunters() {
 		if (it == fauna_id_to_idx_.end()) continue;
 		const size_t f = it->second;
 		if (st == ACTION_MOVE) continue; // herding: order_herd walks the herder over
+		if (fauna_.alive[f] && fauna_.hp[f] <= 0.0f && fauna_.behavior[f] != FAUNA_CORRALLED) {
+			fauna_killed(f, i); // Health.js CreateCorpse: the hunters' orders go to the carcass
+			continue;
+		}
 		if (!fauna_.alive[f] || fauna_.hp[f] <= 0.0f || fauna_.behavior[f] == FAUNA_CORRALLED) {
 			units_.target_unit_id[i] = 0;
 			units_.action_state[i] = ACTION_IDLE; // tick_unit_ai resumes an interrupted order
@@ -41757,7 +41776,7 @@ void Simulation::tick_hunters() {
 		const bool slaughter = finfo.is_domestic() && unit_has_slaughter(ut, units_.tmpl[i]);
 		const float dx = units_.pos_x[i] - fx, dz = units_.pos_z[i] - fz;
 		// The animal's footprint. Slaughter's MaxRange is 2 m even for archers, who walk up to it.
-		const float reach = (slaughter ? SLAUGHTER_RANGE : units_.attack_range[i]) + 1.0f;
+		const float reach = (slaughter ? SLAUGHTER_RANGE : units_.attack_range[i]) + finfo.footprint;
 		const bool in_reach = dx * dx + dz * dz <= reach * reach;
 		if (in_reach) units_.chase_target[i] = tid; // COMBAT.ATTACKING: CHASING follows it from here
 		if (!attack_ready(i, in_reach, slaughter ? SLAUGHTER_PREPARE : unit_combat_at(i).prepare)) continue;
