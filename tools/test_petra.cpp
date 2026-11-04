@@ -7322,19 +7322,32 @@ static std::unique_ptr<Simulation> flat_four_player_match() {
 // cooperation level is over 0.7, and the ally's structure there is on connected land. Here
 // fortress 2 stands alone on blinking land, with no civic centre of player 2 in reach of the
 // foes; the control joins its land to a civic centre 34 units off, out of the foes' reach.
-// Returns whether Petra's defence forms an army against the two groups.
+// Both scenes keep every foe in the fortress's own land, so this test does not tell the fortress's
+// land from a foe's (a foe on connected land within reach of a blinking structure needs a layout
+// this flat map does not give). Returns whether Petra's defence forms an army against the two groups.
 static bool blinking_fortress_army(bool ally_civic_centre) {
 	auto s = flat_four_player_match();
 	s->spawn_building_world(-48.0f, -48.0f, BLD_TOWN_CENTER, 1, 1.0f); // Petra's own, far off
 	s->spawn_building_world(0.0f, 0.0f, BLD_FORTRESS, 2, 1.0f);
 	if (ally_civic_centre) s->spawn_building_world(0.0f, 34.0f, BLD_TOWN_CENTER, 2, 1.0f);
 	s->rebuild_territory();
-	for (int k = 0; k < 9; ++k) { // foe 0, south-west of the fortress
-		s->spawn_unit(-8.0f + 4.0f * (float)(k % 3), -8.0f + 4.0f * (float)(k / 3), 0, UNIT_SWORDSMAN, 1.0e4f);
-		s->spawn_unit(4.0f + 4.0f * (float)(k % 3), 4.0f + 4.0f * (float)(k / 3), 3, UNIT_SPEARMAN, 1.0e4f);
+	// Foes stay off the fortress footprint (half-width 2 units). Track each foe's ground and its
+	// distance to the control's civic centre, which must lie beyond the melee reach (375 units²).
+	int in_ally_land = 0;
+	float nearest_cc2 = 1.0e9f;
+	auto place = [&](float x, float z, uint8_t team, UnitType type) {
+		s->spawn_unit(x, z, team, type, 1.0e4f);
+		in_ally_land += s->territory_owner_at(x, z) == 2;
+		const float dx = x, dz = z - 34.0f, d2 = dx * dx + dz * dz;
+		if (d2 < nearest_cc2) nearest_cc2 = d2;
+	};
+	for (int k = 0; k < 9; ++k) {
+		place(-12.0f + 4.0f * (float)(k % 3), -12.0f + 4.0f * (float)(k / 3), 0, UNIT_SWORDSMAN); // foe 0, south-west
+		place(4.0f + 4.0f * (float)(k % 3), 4.0f + 4.0f * (float)(k / 3), 3, UNIT_SPEARMAN);     // foe 3, north-east
 	}
-	CHECK(s->territory_owner_at(-8.0f, -8.0f) == 2 && s->territory_owner_at(12.0f, 12.0f) == 2,
-	      "the foes stand in the ally's land");
+	CHECK(in_ally_land == 18, "all 18 foes stand in the ally's land (8 or more of each foe, attackedAllies)");
+	if (ally_civic_centre)
+		CHECK(nearest_cc2 > 375.0f, "no foe is within the control civic centre's reach, so the army comes through the help-ally branch");
 	CHECK(s->territory_connected_at(0.0f, 0.0f) == ally_civic_centre,
 	      "the fortress's land is connected only with the ally's civic centre");
 	for (int t = 0; t < 10 && s->petra_defense_armies().empty(); ++t) run_ai_turns(*s, 1);
@@ -7345,12 +7358,12 @@ static bool blinking_fortress_army(bool ally_civic_centre) {
 // help-ally branch, where territory_connected_at is the test). The control with a connected
 // land forms an army against the same two groups, so the blinking case is the only difference.
 static void test_blinking_ally_fortress_not_defended() {
-	const bool connected = blinking_fortress_army(true);
-	const bool blinking = blinking_fortress_army(false);
+	const bool army_on_connected = blinking_fortress_army(true);
+	const bool army_on_blinking = blinking_fortress_army(false);
 	std::printf("  foes at an ally's fortress: army on connected land %s, on blinking land %s\n",
-	            connected ? "yes" : "no", blinking ? "yes" : "no");
-	CHECK(connected, "two foes at an ally's fortress on connected land draw Petra's army");
-	CHECK(!blinking, "two foes at an ally's fortress on blinking land draw no army (G129)");
+	            army_on_connected ? "yes" : "no", army_on_blinking ? "yes" : "no");
+	CHECK(army_on_connected, "two foes at an ally's fortress on connected land draw Petra's army");
+	CHECK(!army_on_blinking, "two foes at an ally's fortress on blinking land draw no army (G129)");
 }
 
 // defenseArmy.js clear: defenders of a disbanded army standing outside our and allied land go
