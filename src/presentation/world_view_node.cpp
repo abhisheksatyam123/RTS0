@@ -3002,6 +3002,26 @@ void RtsoWorldView::hide_unit_vis(UnitVis &v) {
 		v.anim->set_active(false);
 }
 
+// Walk playback factor of a unit model (data/walk_cadence_scale.json, tools/gait_speed.py): a
+// walk cycle whose step rate falls outside 0 A.D.'s plausible 1.5-2.5 steps a second is sped up
+// or slowed to the nearest bound, so the walk's cadence reads right. 1 for every other model.
+static float walk_cadence_scale(const char *model) {
+	static std::unordered_map<std::string, float> &table = *new std::unordered_map<std::string, float>();
+	static bool loaded = false;
+	if (!loaded) {
+		loaded = true;
+		Ref<FileAccess> f = FileAccess::open("res://data/walk_cadence_scale.json", FileAccess::READ);
+		if (f.is_valid()) {
+			Dictionary root = JSON::parse_string(f->get_as_text());
+			Array keys = root.keys();
+			for (int i = 0; i < keys.size(); ++i)
+				table[String(keys[i]).utf8().get_data()] = (float)(double)root[keys[i]];
+		}
+	}
+	auto it = model ? table.find(model) : table.end();
+	return it != table.end() ? it->second : 1.0f;
+}
+
 // Crowd clip slots. 0 A.D. plays the real clip for every unit (gather_*,
 // build, carry, heal...); the crowd keeps one baked MultiMesh per slot.
 // The formation variant clips take the slots after CROWD_FORM_SLOT, in kFormClips order.
@@ -4946,6 +4966,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 				if (speed2 > 0.05f) {
 					const float base = sim->unit_base_walk_speed(i);
 					if (base > 0.001f) pace = Math::clamp(std::sqrt(speed2) / base, 0.3f, 2.5f);
+					if (slot == 1) pace *= walk_cadence_scale(crowd_key_model(civ, key));
 				}
 			}
 			pace_sum[civ][key][slot][phase] += pace;
@@ -5293,6 +5314,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			if (!dying && (want.clip == CLIP_WALK || want.clip == CLIP_RUN) && speed2 > 0.05f) {
 				const float base = sim->unit_base_walk_speed(i);
 				if (base > 0.001f) pace = Math::clamp(std::sqrt(speed2) / base, 0.3f, 2.5f);
+				if (want.clip == CLIP_WALK) pace *= walk_cadence_scale(utype_str.utf8().get_data());
 			}
 			v.anim->set_speed_scale(pace);
 		} else {
