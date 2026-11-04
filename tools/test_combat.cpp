@@ -60,6 +60,7 @@
 #include "simulation/simulation.h"
 #undef private
 
+#include <algorithm>
 #include <cmath>
 #include <set>
 #include <cstdio>
@@ -1590,35 +1591,95 @@ static void test_p14_invulnerable_fallthrough() {
 	check(s.units_.hp[idx(s, a)] == a0, "the invulnerable aimed target takes nothing");
 }
 
-// Aim predicts with the last turn's average velocity ((position - previous position) /
-// turn, CCmpPosition m_PrevX/m_PrevZ), not the instantaneous one.
+// Aim predicts with the last full turn's average velocity ((position - previous position) / turn,
+// CCmpPosition m_PrevX/m_PrevZ at each turn start), the same at every tick of the turn, not the
+// instantaneous one and not a fraction of it that depends on where in the turn the shot falls.
 static void test_p14_aim_velocity() {
-	std::printf("30. aim uses the last turn's velocity (P14)\n");
+	std::printf("30. aim uses the last full turn's velocity at every phase of the turn (P14)\n");
 	Simulation s;
 	setup(s);
 	uint32_t w = s.spawn_unit(0.0f, 0.0f, 0, UNIT_SWORDSMAN);
 	const int wi = idx(s, w);
 	s.order_walk(&w, 1, 60.0f, 0.0f);
-	float px = 0.0f, cruise = 0.0f;
-	for (int k = 0; k < 10; ++k) {
-		s.tick(DT);
-		if (k == 5) px = s.units_.pos_x[wi];
-	}
-	cruise = (s.units_.pos_x[wi] - px) / 0.2f; // two lockstep turns of steady walking
+	for (int k = 0; k < 20; ++k) s.tick(DT); // accelerate to a steady walk
+	const float cruise = s.units_.vel_x[wi];
 	check(cruise > 0.5f, "the walker cruises");
-	// Stop mid-turn: the instantaneous velocity is zero at once, but the aim velocity
-	// still reports the last turn's until the turn boundary snapshots it.
+	// Every tick of three turns: once a turn has passed, the aim is the cruise speed, whichever tick
+	// of the turn it is read on (the old partial-window aim read 1/4 .. 4/4 of it by phase).
+	float worst = 0.0f;
+	for (int k = 0; k < 12; ++k) {
+		s.tick(DT);
+		float vx = 0.0f, vz = 0.0f;
+		s.aim_velocity_unit((size_t)wi, vx, vz);
+		if (k >= 4) worst = std::max(worst, std::fabs(vx - cruise) / cruise);
+	}
+	std::printf("      cruising %.2f u/s, worst aim error over the phases %.1f%%\n", cruise, 100.0f * worst);
+	check(worst < 0.1f, "aim leads with the last full turn's velocity on every tick of the turn");
+	// Stop: the first boundary after it averages the walk and the stop, the next one is at rest.
 	s.cmd_stop(&w, 1);
-	s.tick(DT);
+	for (int k = 0; k < 8; ++k) s.tick(DT);
 	float vx = 0.0f, vz = 0.0f;
 	s.aim_velocity_unit((size_t)wi, vx, vz);
-	std::printf("      cruising %.2f u/s, after one stopped tick aim says %.2f, instant %.2f\n",
-			cruise, vx, s.units_.vel_x[wi]);
 	check(std::fabs(s.units_.vel_x[wi]) < 1e-3f, "the stopped unit's instantaneous velocity is zero");
-	check(std::fabs(vx - 0.5f * cruise) < 0.35f * cruise, "aim still leads with the last turn's velocity");
-	for (int k = 0; k < 4; ++k) s.tick(DT); // cross the turn boundary
-	s.aim_velocity_unit((size_t)wi, vx, vz);
-	check(std::fabs(vx) < 1e-3f && std::fabs(vz) < 1e-3f, "past the boundary, aim knows it stopped");
+	check(std::fabs(vx) < 1e-3f && std::fabs(vz) < 1e-3f, "once a whole turn has passed at rest, aim knows it stopped");
+}
+
+// The aim port's review fixes (P14): a teleport clears the lead, an occupied turret keeps it, a stale path
+// is not walked, and an attacker on a unit stops at its stop distance (MoveToTargetRange).
+static void test_p14_aim_review() {
+	std::printf("32. aim lead: teleports, stale paths and the attacker's stop distance (P14)\n");
+	Simulation s;
+	setup(s);
+	uint32_t a = s.spawn_unit(0.0f, 0.0f, 0, UNIT_SWORDSMAN);
+	uint32_t tg = s.spawn_unit(60.0f, 0.0f, 1, UNIT_SWORDSMAN);
+	const int ai = idx(s, a), ti = idx(s, tg);
+	(void)ti;
+	// A teleport (JumpTo) clears the lead until the turn starts; an occupied turret keeps the walk's (MoveTo).
+	s.units_.aim_vx[ai] = 3.0f;
+	s.units_.aim_vz[ai] = 1.0f;
+	s.units_.pos_x[ai] = 10.0f;
+	s.units_.pos_z[ai] = -4.0f;
+	s.unit_jumped((size_t)ai);
+	check(s.units_.aim_vx[ai] == 0.0f && s.units_.aim_vz[ai] == 0.0f, "a teleport clears the lead until the turn starts");
+	check(s.units_.prev_x[ai] == 10.0f && s.units_.prev_z[ai] == -4.0f, "the turn-start position is where it landed");
+	s.units_.aim_vx[ai] = 3.0f;
+	s.unit_reset_prev((size_t)ai);
+	check(s.units_.aim_vx[ai] == 3.0f, "an occupied turret keeps the walk's lead (MoveTo, not JumpTo)");
+	// A stationary attacker with a leftover path (an earlier walk) does not walk it.
+	s.units_.pos_x[ai] = 0.0f;
+	s.units_.pos_z[ai] = 0.0f;
+	s.units_.vel_x[ai] = s.units_.vel_z[ai] = 0.0f;
+	s.units_.aim_vx[ai] = s.units_.aim_vz[ai] = 0.0f;
+	s.units_.action_state[ai] = ACTION_ATTACK;
+	s.units_.target_unit_id[ai] = tg;
+	s.units_.target_building_id[ai] = 0;
+	s.units_.has_order[ai] = 1;
+	s.units_.target_x[ai] = 60.0f;
+	s.units_.target_z[ai] = 0.0f;
+	s.unit_paths_[ai].count = 2;
+	s.unit_paths_[ai].cur = 0;
+	s.unit_paths_[ai].xs[0] = 0.0f;
+	s.unit_paths_[ai].zs[0] = -40.0f;
+	s.unit_paths_[ai].xs[1] = 0.0f;
+	s.unit_paths_[ai].zs[1] = -80.0f;
+	s.units_.waypoint_count[ai] = 2;
+	s.units_.waypoint_cur[ai] = 0;
+	float fx = 1.0f, fz = 1.0f;
+	s.unit_future_position((size_t)ai, 2.0f, fx, fz);
+	check(fx == 0.0f && fz == 0.0f, "a stale path is not walked by a stationary attacker");
+	// An attacker walking at its target ends its walk at its stop distance from it, and one already within
+	// that distance stands.
+	s.units_.waypoint_count[ai] = 0;
+	s.units_.vel_x[ai] = 4.0f;
+	const float stop = s.attack_stop_distance((size_t)ai);
+	s.unit_future_position((size_t)ai, 40.0f, fx, fz); // long enough to reach the stop point
+	const float dd = std::sqrt((60.0f - fx) * (60.0f - fx) + fz * fz);
+	std::printf("      stop distance %.2f m, predicted stop %.3f m from the target\n", stop, dd);
+	check(std::fabs(dd - stop) < 1e-3f, "a walk at its target ends at the stop distance from it");
+	s.units_.pos_x[ai] = 60.0f - 0.5f * stop;
+	s.unit_future_position((size_t)ai, 40.0f, fx, fz);
+	check(std::fabs(fx - s.units_.pos_x[ai]) < 1e-4f && std::fabs(fz) < 1e-4f,
+		"an attacker already within its stop distance stands");
 }
 
 // What main's P14 left: PredictTimeToTarget's lead, ApplyStatus carried by the arrow, and
@@ -1710,6 +1771,7 @@ int main() {
 	test_p14_stray_armour();
 	test_p14_invulnerable_fallthrough();
 	test_p14_aim_velocity();
+	test_p14_aim_review();
 	test_p14_leftovers();
 	if (g_failures) {
 		std::printf("test_combat: FAIL (%d)\n", g_failures);
