@@ -1,21 +1,25 @@
 {
- "athen_cavalry_swordsman_a": {
+ "athen_cavalry": {
   "run": 3,
   "walk": 7
  },
- "athen_infantry_spearman_a": {
-  "run": 8,
-  "walk": 30
+ "athen_ram": {
+  "run": 30,
+  "walk": 15
  },
  "athen_siege_ram": {
   "run": 30,
   "walk": 15
  },
+ "athen_spearman": {
+  "run": 8,
+  "walk": 30
+ },
  "boar": {
   "run": 8,
   "walk": 10
  },
- "maur_elephant_archer_a": {
+ "maur_elephant": {
   "run": 8,
   "walk": 20
  }
