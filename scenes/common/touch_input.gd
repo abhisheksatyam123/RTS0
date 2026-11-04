@@ -184,14 +184,11 @@ func _now() -> float:
 	return Time.get_ticks_msec() / 1000.0
 
 func _is_over_gui(pos: Vector2) -> bool:
+	# Rect test only: the viewport's hovered control lags the touch (its motion is queued, not yet
+	# processed), so a tap in the world could read the control the pointer last sat over.
 	var vp := get_viewport()
 	if vp == null:
 		return false
-	var c := vp.gui_get_hovered_control()
-	if c != null and c.is_visible_in_tree() and c.mouse_filter != Control.MOUSE_FILTER_IGNORE:
-		var cls_name := c.get_class()
-		if cls_name != "SubViewportContainer" and c.name != "WorldView" and c.name != "Background" and cls_name != "RtsoSelectionRect":
-			return true
 	return _check_gui_at(vp, _to_canvas(pos))
 
 # A touch is in window pixels, but control rects are in the viewport's canvas units (the
@@ -216,6 +213,9 @@ func _ctrl_click(pos: Vector2) -> void:
 	_mods[KEY_CTRL] = was
 
 func _check_gui_at(node: Node, pos: Vector2) -> bool:
+	# A hidden node hides its whole subtree: its children are not on screen.
+	if node is CanvasItem and not node.visible:
+		return false
 	if node is Control and node.visible:
 		var cls_name := node.get_class()
 		if cls_name != "SubViewportContainer" and node.name != "WorldView" and node.name != "Background" and cls_name != "RtsoSelectionRect":
