@@ -1547,7 +1547,7 @@ void RtsoWorldView::play_spatial_sound_path(const String &path, Vector3 pos, flo
 			res_path = "res://" + res_path;
 		}
 	}
-	if (ResourceLoader::get_singleton()->exists(res_path)) {
+	if (rtso::Assets::res_exists(res_path)) {
 		Ref<AudioStream> s = ResourceLoader::get_singleton()->load(res_path);
 		play_spatial_sound(s, pos, volume_db, max_dist, pitch_scale);
 	}
@@ -2954,6 +2954,7 @@ void RtsoWorldView::update_ambient_fx(BuildingVis &v, const String &glb_id, floa
 	if (!v.root) return;
 	std::vector<GPUParticles3D *> &emitters = death ? v.death_fx : v.ambient_fx;
 	std::vector<Vector3> &emitter_pos = death ? v.death_pos : v.ambient_pos;
+	std::vector<uint8_t> &emitter_rel = death ? v.death_rel : v.ambient_rel;
 	FxKey &vkey = death ? v.death_key : v.ambient_key;
 	if (!vkey.same(glb_id, k, 0.0f, 0.0f)) {
 		for (GPUParticles3D *p : emitters) {
@@ -2962,6 +2963,7 @@ void RtsoWorldView::update_ambient_fx(BuildingVis &v, const String &glb_id, floa
 		}
 		emitters.clear();
 		emitter_pos.clear();
+		emitter_rel.clear();
 		vkey.set(glb_id, k, 0.0f, 0.0f);
 		if (glb_id.is_empty()) return;
 		load_ambient_fx();
@@ -2980,12 +2982,13 @@ void RtsoWorldView::update_ambient_fx(BuildingVis &v, const String &glb_id, floa
 			v.root->add_child(p);
 			emitters.push_back(p);
 			emitter_pos.push_back(fx.pos + Vector3(mid(d.pos[0]), mid(d.pos[1]), mid(d.pos[2])) * set.metre);
+			emitter_rel.push_back(d.relative ? 1 : 0);
 		}
 	}
 	const Basis unturn = v.root->get_transform().basis.inverse();
 	for (size_t i = 0; i < emitters.size(); ++i) {
 		GPUParticles3D *p = emitters[i];
-		const Transform3D t(bool(p->get_meta("relative")) ? Basis() : unturn, base + emitter_pos[i] * k);
+		const Transform3D t(emitter_rel[i] ? Basis() : unturn, base + emitter_pos[i] * k);
 		if (p->get_transform() != t) p->set_transform(t);
 	}
 }
@@ -5736,9 +5739,11 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			building_pool[s].decal_key = FxKey();
 			building_pool[s].ambient_fx.clear();
 			building_pool[s].ambient_pos.clear();
+			building_pool[s].ambient_rel.clear();
 			building_pool[s].ambient_key = FxKey();
 			building_pool[s].death_fx.clear();
 			building_pool[s].death_pos.clear();
+			building_pool[s].death_rel.clear();
 			building_pool[s].death_key = FxKey();
 			building_slot.erase(building_pool[s].sim_id);
 		}

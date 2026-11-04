@@ -157,10 +157,12 @@ private:
 		// temple fires, burning rubble), with their GLB positions for re-seating.
 		std::vector<GPUParticles3D *> ambient_fx;
 		std::vector<Vector3> ambient_pos;
+		std::vector<uint8_t> ambient_rel; // per emitter: keeps the world basis (no unturn)
 		FxKey ambient_key; // the GLB id and scale they were made for
 		// The dust and smoke of the actor's "death" variant, raised when it collapses.
 		std::vector<GPUParticles3D *> death_fx;
 		std::vector<Vector3> death_pos;
+		std::vector<uint8_t> death_rel;
 		FxKey death_key;
 	};
 
