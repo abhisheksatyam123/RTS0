@@ -228,9 +228,6 @@ public:
 	const std::vector<uint8_t> &target() const { return target_; }
 	const std::vector<uint8_t> &shown() const { return shown_; }
 
-	using GpuBitmapFn = bool (*)(const uint8_t *fow, int res, std::vector<uint8_t> &out);
-	static void register_gpu_hook(GpuBitmapFn fn);
-
 	// CLOSTexture::GenerateBitmap, exposed for tests: out is res * UPSAMPLE pixels a side.
 	static void generate_bitmap(const uint8_t *fow, int res, std::vector<uint8_t> &out);
 

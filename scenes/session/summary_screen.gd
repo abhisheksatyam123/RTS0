@@ -629,7 +629,7 @@ static func _dropdown_font() -> FontVariation:
 static func clear_cache() -> void:
 	_bold_font = null
 	_dd_font = null
-	pending.clear()
+	# Not pending: it is the match's hand-off to the summary, and RtsoMain clears these caches as the match leaves.
 
 func _label(text: String, size := 14, color := Color.WHITE) -> Label:
 	var l := Label.new()
@@ -743,7 +743,8 @@ func _build() -> void:
 			front.border_width_bottom = 0
 			b.add_theme_stylebox_override(st, front)
 		b.add_theme_font_override("font", bold_font())
-		b.add_theme_font_size_override("font_size", 14)
+		# Phones: a bigger tab label, as the short screen leaves the tabs small.
+		b.add_theme_font_size_override("font_size", 15 if UserSettings.is_phone_screen() else 14)
 		b.tooltip_text = "\n".join([L10n.sprintf(L10n.t("Focus the %(name)s summary tab."), {"name": L10n.t(labels[i])}),
 			_colorize_hotkey(L10n.t("Scroll down or use %(hotkey)s to move a tab right."), "tab.next"),
 			_colorize_hotkey(L10n.t("Scroll up or use %(hotkey)s to move a tab left."), "tab.prev")])

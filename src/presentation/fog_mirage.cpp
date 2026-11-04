@@ -475,14 +475,6 @@ void FogMirages::pass(const Simulation &sim, uint8_t viewer) {
 // LosShading (CLOSTexture)
 // =============================================================================
 
-namespace {
-LosShading::GpuBitmapFn g_los_gpu_fn = nullptr;
-} // namespace
-
-void LosShading::register_gpu_hook(GpuBitmapFn fn) {
-	g_los_gpu_fn = fn;
-}
-
 void LosShading::generate_bitmap(const uint8_t *fow, int res, std::vector<uint8_t> &out) {
 	const int fr = res * UPSAMPLE; // bitmap pixels a side
 	out.assign((size_t)fr * (size_t)fr, 0);
@@ -562,9 +554,7 @@ void LosShading::set_target(const uint8_t *fow, int res) {
 	const bool resized = res != res_;
 	res_ = res;
 	last_fow_.assign(fow, fow + n);
-	if (!g_los_gpu_fn || !g_los_gpu_fn(fow, res, target_)) {
-		generate_bitmap(fow, res, target_);
-	}
+	generate_bitmap(fow, res, target_);
 	since_recompute_ = 0.0f;
 	settled_ = false;
 	++gen_;

@@ -190,19 +190,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			const bool add = fired(("selection.group.add." + n).c_str());
 			if (!sel && !save && !add) continue;
 			if (save) {
-				selected_groups[grp].clear();
-				const bool disjoint = rtso::user_config::get_bool("gui.session.disjointcontrolgroups");
-				// Every selected entity, structures too (EntityGroupsContainer.addEntities).
-				PackedInt32Array members = selected_ids;
-				for (uint32_t b : selected_structures()) members.push_back((int32_t)b);
-				for (int s = 0; s < members.size(); ++s) {
-					for (int o = 0; o < 10 && disjoint; ++o) {
-						if (o == grp) continue;
-						const int64_t at = selected_groups[o].find(members[s]);
-						if (at >= 0) selected_groups[o].remove_at(at);
-					}
-					if (!selected_groups[grp].has(members[s])) selected_groups[grp].push_back(members[s]);
-				}
+				save_control_group(grp);
 				return;
 			}
 			if (add) {

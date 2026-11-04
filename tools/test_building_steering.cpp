@@ -208,6 +208,9 @@
 //     Without them the re-plan fails, and find_path returns false with the re-plan's own path, as 0.28's
 //     long path for the class has no other class to fall back on (HierarchicalPathfinder.cpp:689-719),
 //     not the default class's, which goes through the gap.
+// 48. The G30 gap sweep: a ram's large-class long path across a barrier of houses with one gap of 6.5 to
+//     9 m, over 32 phases of the gap's centre. Houses less than 8 m from another are crowded and grow 1 m for
+//     the large class, so the gaps of 6.5, 7 and 7.5 m close at every phase; the 9 m gap stays open.
 //  For every scenario the unit bodies must never overlap a footprint that blocks movement by more
 //  than MAX_PENETRATION (separation() alone allows deep overlap when a unit walks head-on into a wall).
 //  Exit: 0 = PASS, 1 = FAIL. Prints the measurements either way.
@@ -3088,6 +3091,66 @@ static void find_path_after_failed_narrow_gap_replan() {
 	check(!through_gap(failed) && !same(failed, def), "find_path fell back to the default class's path through a gap too narrow for the class");
 }
 
+// 48. The G30 gap sweep (docs/REMAINING_GAPS.md): a ram's large-class long path from (xc, -10) to (xc, 8)
+// across a barrier of houses on z = 0 with one gap of width g (metres) centred on x = xc, for 32 phases of
+// xc 0.25 m apart. A house with another less than 8 m away is crowded (TileObstruction::crowd) and grows 1 m
+// for the large class (0.28's CLEARANCE_EXTENSION_RADIUS), so the two houses either side of a gap under 8 m
+// close it at every phase, and the path goes round. At 9 m the gap is open and the path goes through it at
+// every phase, as 0.28's does. Exactly 8 m is left as main has it (scenario 8 keeps its centred gap open):
+// 0.28 closes that gap only at whole-metre phases, and RTS0 does not close it at any.
+static void large_path_round_crowded_gaps() {
+	struct Case {
+		float gap_m;
+		bool closed;
+	};
+	const Case cases[] = {{6.5f, true}, {7.0f, true}, {7.5f, true}, {9.0f, false}};
+	float hu = 1.0f, hv = 1.0f;
+	house_half_size(hu, hv);
+	const float z0 = 0.0f, zs0 = -10.0f, zg0 = 8.0f;
+	for (const Case &c : cases) {
+		const float half = c.gap_m / 8.0f; // half the gap in world units (1 wu = 4 m)
+		int found = 0, through = 0;
+		for (int ph = 0; ph < 32; ++ph) {
+			const float xc = (ph * 0.25f) / 4.0f;
+			Simulation s;
+			setup(s);
+			constexpr int RES = 65;
+			constexpr float HALF = 64.0f;
+			s.set_map_half(HALF);
+			std::vector<float> h((size_t)RES * RES, 3.0f);
+			s.set_terrain_data(h, RES, 0.0f);
+			s.begin_bulk_spawn();
+			s.end_bulk_spawn();
+			for (int k = 0; k < 40; ++k) {
+				const float x = half + hu + 2.0f * hu * k;
+				s.spawn_building_world(xc + x, z0, BLD_HOUSE, 0, 1.0f);
+				s.spawn_building_world(xc - x, z0, BLD_HOUSE, 0, 1.0f);
+				if (xc + x > 56.0f) break;
+			}
+			const uint32_t ram = s.spawn_unit(xc, zs0, 0, UNIT_SIEGE_RAM);
+			s.tick(DT);
+			const uint8_t pass = s.unit_land_pass((size_t)index_of(s, ram));
+			WaypointPath p;
+			if (!s.find_path(xc, zs0, xc, zg0, p, pass)) continue;
+			++found;
+			float px = xc, pz = zs0;
+			bool crossed_in_gap = false;
+			for (int k = 0; k < p.count; ++k) {
+				const float qx = p.xs[k], qz = p.zs[k];
+				if ((pz - z0) * (qz - z0) <= 0.0f && pz != qz) {
+					const float x = px + (z0 - pz) * (qx - px) / (qz - pz);
+					if (std::fabs(x - xc) < half) crossed_in_gap = true;
+				}
+				px = qx, pz = qz;
+			}
+			through += crossed_in_gap ? 1 : 0;
+		}
+		std::printf("  G30 gap %4.1f m: found %2d of 32 phases, through the gap %2d\n", c.gap_m, found, through);
+		check(found == 32 && (c.closed ? through == 0 : through == 32),
+				c.closed ? "a large path crosses a gap under 8 m between crowded houses (G30)" : "a large path no longer crosses a 9 m gap (G30)");
+	}
+}
+
 int main() {
 	std::printf("RTS0 building steering test (src/simulation/nav/building_steering.h)\n");
 	guard_behind_wall();
@@ -3136,6 +3199,7 @@ int main() {
 	orders_after_load();
 	field_and_felled_tree_then_load();
 	find_path_after_failed_narrow_gap_replan();
+	large_path_round_crowded_gaps();
 	if (g_failures) {
 		std::printf("FAIL (%d)\n", g_failures);
 		return 1;

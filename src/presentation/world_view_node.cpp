@@ -810,6 +810,7 @@ void RtsoWorldView::_ready() {
 
 	init_damage_fx();
 	init_animation_controllers();
+	init_blob_shadows();
 }
 
 // The terrain and water write their own FOG (fogged, then darkened by the LOS, as
@@ -865,6 +866,79 @@ void RtsoWorldView::set_fog_overlay(Node *n, float brightness) {
 // DamageVariants of template_structure.xml: mediumdamage (65% hit points)
 // smokes, heavydamage (35%) burns. Smoke lives 6 s instead of 14-16 s so a
 // burning town does not fill the smaller RTS0 maps.
+// Blob shadows: a soft dark disc under each unit, structure and tree, sized by its footprint.
+// One MultiMesh of ground quads (flat, unshaded, alpha-blended) so it costs one draw on every
+// renderer, Compatibility included. Each disc is drawn where its object is seen (the same LOS
+// test the units use), so a hidden unit leaves no shadow behind.
+void RtsoWorldView::init_blob_shadows() {
+	Ref<Shader> sh;
+	sh.instantiate();
+	sh->set_code(
+			"shader_type spatial;\n"
+			"render_mode blend_mix, unshaded, cull_disabled, depth_draw_never, shadows_disabled, fog_disabled;\n"
+			"uniform float strength : hint_range(0.0, 1.0) = 0.6;\n"
+			"void fragment() {\n"
+			"\tfloat d = length(UV - vec2(0.5)) * 2.0;\n"
+			"\tALBEDO = vec3(0.0);\n"
+			"\tALPHA = (1.0 - smoothstep(0.0, 1.0, d)) * strength;\n"
+			"}\n");
+	Ref<ShaderMaterial> mat;
+	mat.instantiate();
+	mat->set_shader(sh);
+	Ref<PlaneMesh> plane;
+	plane.instantiate();
+	plane->set_size(Vector2(1.0f, 1.0f));
+	plane->set_material(mat);
+	blob_mm_.instantiate();
+	blob_mm_->set_transform_format(MultiMesh::TRANSFORM_3D);
+	blob_mm_->set_mesh(plane);
+	blob_mmi_ = memnew(MultiMeshInstance3D);
+	blob_mmi_->set_multimesh(blob_mm_);
+	blob_mmi_->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_OFF);
+	add_child(blob_mmi_);
+}
+
+void RtsoWorldView::update_blob_shadows(const rtso::Simulation *sim) {
+	if (!blob_mmi_ || !sim) return;
+	// The discs' ground height: the terrain, or the water's surface where the water is higher.
+	const float water_h = sim->water_height() > -0.5f ? sim->water_height() : -1.0e9f;
+	auto ground = [&](float x, float z) { return std::max(sim->get_terrain_height(x, z), water_h) + 0.12f; };
+	std::vector<Transform3D> discs;
+	discs.reserve(sim->unit_count() + sim->buildings().size() + 64);
+
+	// Units: a disc 2.6 collision radii across. Ships float on the water, so they get none.
+	const auto uview = sim->units();
+	for (size_t i = 0; i < uview.count; ++i) {
+		if (!uview.alive[i] || rtso::unit_is_ship(uview.unit_type[i])) continue;
+		const float x = uview.pos_x[i], z = uview.pos_z[i];
+		if (!rtso::los_sees_unit(*sim, local_player_, x, z, uview.team[i])) continue;
+		const float d = 2.6f * rtso::unit_collision_radius(uview.unit_type[i]);
+		discs.emplace_back(Basis().scaled(Vector3(d, 1.0f, d)), Vector3(x, ground(x, z), z));
+	}
+
+	// Structures: their footprint, turned with the building. Ours always; others' where the
+	// fog shows them (their last-seen mirage is drawn there too).
+	for (const auto &b : sim->buildings()) {
+		if (b.wrecked) continue;
+		if (b.team != 0 && mirages_.los_at(b.x, b.z) == rtso::Simulation::FOW_UNEXPLORED) continue;
+		const float hw = 1.1f * b.half_size, hd = 1.1f * (b.half_d > 0.0f ? b.half_d : b.half_size);
+		discs.emplace_back(Basis(Vector3(0.0f, 1.0f, 0.0f), b.rot).scaled(Vector3(2.0f * hw, 1.0f, 2.0f * hd)),
+				Vector3(b.x, ground(b.x, b.z), b.z));
+	}
+
+	// Wood: a disc 1.3 units (about 5 m) across, in explored land only.
+	const auto rview = sim->resources();
+	for (size_t r = 0; r < rview.count; ++r) {
+		if (rview.type[r] != rtso::RES_WOOD || (rview.alive && !rview.alive[r])) continue;
+		const float x = rview.x[r], z = rview.z[r];
+		if (mirages_.los_at(x, z) == rtso::Simulation::FOW_UNEXPLORED) continue;
+		discs.emplace_back(Basis().scaled(Vector3(1.3f, 1.0f, 1.3f)), Vector3(x, ground(x, z), z));
+	}
+
+	blob_mm_->set_instance_count((int)discs.size());
+	for (size_t i = 0; i < discs.size(); ++i) blob_mm_->set_instance_transform((int)i, discs[i]);
+}
+
 void RtsoWorldView::init_damage_fx() {
 	auto particle_mat = [](const char *tex_path, bool additive) {
 		Ref<StandardMaterial3D> m;
@@ -2951,6 +3025,9 @@ static constexpr uint64_t CROWD_DEATH_SLOTS = (1ull << 3) | (1ull << 24);
 // Fauna clip slots that hold their last frame: death (3) and the second death (5).
 static constexpr uint32_t FAUNA_DEATH_SLOTS = (1u << 3) | (1u << 5);
 
+// Walk (1) and run (4) crowd slots: the locomotion clips whose pace follows the ground covered.
+static constexpr bool crowd_slot_is_locomotion(int slot) { return slot == 1 || slot == 4; }
+
 static int crowd_slot_of(ClipId clip) {
 	switch (clip) {
 		case CLIP_WALK: return 1;
@@ -3319,7 +3396,8 @@ void RtsoWorldView::cycle_puppet_meshes(CrowdPuppet *row, Ref<MultiMesh> meshes[
 			} else {
 				// Desynchronize animation phases across sub-batches
 				const float phase_offset = (float)p * (row[c].baked_count / (float)CROWD_PHASES);
-				frame = wrap_mod((int)(anim_time * 16.0f + phase_offset), row[c].baked_count);
+				const float clock = crowd_slot_is_locomotion(c) ? row[c].loco_clock[p] : anim_time;
+				frame = wrap_mod((int)(clock * 16.0f + phase_offset), row[c].baked_count);
 			}
 			if (frame != row[c].last_frame[p] && row[c].posed_frames[frame].is_valid()) {
 				meshes[c][p]->set_mesh(row[c].posed_frames[frame]);
@@ -3786,6 +3864,9 @@ void RtsoWorldView::warm_models(const rtso::Simulation *sim, const std::function
 	}
 }
 
+// Crossfade length between two unit clips, seconds (Godot AnimationPlayer custom blend).
+static constexpr double kUnitClipBlendSec = 0.2;
+
 void RtsoWorldView::play_unit_clip(UnitVis &v, const StringName &clip, bool loop) {
 	if (!v.anim || !UtilityFunctions::is_instance_valid(v.anim) || clip == StringName()) return;
 	if (v.clip == clip) return;
@@ -3795,7 +3876,9 @@ void RtsoWorldView::play_unit_clip(UnitVis &v, const StringName &clip, bool loop
 	if (a.is_valid()) {
 		a->set_loop_mode(loop ? Animation::LOOP_LINEAR : Animation::LOOP_NONE);
 	}
-	v.anim->play(clip);
+	// A clip change crossfades from the pose on screen (0 A.D. blends its action changes too),
+	// so an idle-to-walk or walk-to-attack turn does not snap. Presentation only.
+	v.anim->play(clip, kUnitClipBlendSec);
 	v.anim->advance(0.0);
 	apply_vis_tools(v, clip);
 }
@@ -4613,6 +4696,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	refresh_silhouettes();
 
 	update_fog(sim, delta);
+	update_blob_shadows(sim);
 	if (paint_dirty_ && sim->resources().count > 0) build_ground_paint(sim);
 	update_territory_borders(sim);
 	if (border_mi_ && border_mi_->is_visible() == cinema_playing_) border_mi_->set_visible(!cinema_playing_);
@@ -4621,11 +4705,6 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	for (int t = 0; t < rtso::UNIT_TYPE_COUNT; ++t) {
 		anim_controllers[t].update(delta * 1000.0f);
 	}
-	// Mounts (cavalry, camels, chariots): the walk and run cycles play at the pace of the ground covered, as 0 A.D.
-	// syncs a mount's stride to its speed; a mount at its base walk plays the clip as made.
-	// The controller is shared by the type, so the pace follows the cavalry moving this frame.
-	static const uint8_t kMounts[] = { rtso::UNIT_CAVALRY, rtso::UNIT_CAMEL, rtso::UNIT_CHARIOT, rtso::UNIT_SCYTHED_CHARIOT };
-	for (uint8_t m : kMounts) anim_controllers[m].set_speed(1.0f);
 
 	std::unordered_set<int32_t> sel_set;
 	if (selected_ids.size() > 0) sel_set.reserve((size_t)selected_ids.size());
@@ -4818,6 +4897,8 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	static float *crowd_buffer_ptr[rtso::CIV_COUNT][CROWD_KEY_COUNT][CROWD_CLIP_COUNT][CROWD_PHASES];
 	static float *crowd_lod_buffer_ptr[rtso::CIV_COUNT][CROWD_KEY_COUNT][CROWD_CLIP_COUNT][CROWD_PHASES];
 	static float *crowd_proxy_buffer_ptr[rtso::CIV_COUNT][CROWD_KEY_COUNT];
+	// Per batch, clip and sub-batch: the sum of the units' pace (speed over walk speed, clamped), over the same units as counts.
+	static float pace_sum[rtso::CIV_COUNT][CROWD_KEY_COUNT][CROWD_CLIP_COUNT][CROWD_PHASES];
 	static const int no_units[CROWD_CLIP_COUNT][CROWD_PHASES] = {};
 	static const int no_total[CROWD_CLIP_COUNT] = {};
 	for (const uint32_t ck : crowd_seen_list_) crowd_seen_[ck >> 16][ck & 0xFFFF] = 0;
@@ -4844,6 +4925,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			std::memset(counts[civ][key], 0, sizeof(counts[civ][key]));
 			std::memset(lod_counts[civ][key], 0, sizeof(lod_counts[civ][key]));
 			proxy_counts[civ][key] = 0;
+			std::memset(pace_sum[civ][key], 0, sizeof(pace_sum[civ][key]));
 			std::memset(total_counts[civ][key], 0, sizeof(total_counts[civ][key]));
 			std::memset(written[civ][key], 0, sizeof(written[civ][key]));
 			std::memset(lod_written[civ][key], 0, sizeof(lod_written[civ][key]));
@@ -4855,11 +4937,23 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		const int phase = (int)(uview.id[i] % (uint32_t)CROWD_PHASES);
 		if (lod_tier == 2) {
 			proxy_counts[civ][key]++;
-		} else if (lod_tier == 1) {
-			lod_counts[civ][key][slot][phase]++;
-			total_counts[civ][key][slot]++;
 		} else {
-			counts[civ][key][slot][phase]++;
+			float pace = 1.0f;
+			if (crowd_slot_is_locomotion(slot)) {
+				const float ux = uview.vel_x[i], uz = uview.vel_z[i];
+				const float speed2 = ux * ux + uz * uz;
+				pace = 0.3f; // standing still in a walk pose: the clock barely moves
+				if (speed2 > 0.05f) {
+					const float base = sim->unit_base_walk_speed(i);
+					if (base > 0.001f) pace = Math::clamp(std::sqrt(speed2) / base, 0.3f, 2.5f);
+				}
+			}
+			pace_sum[civ][key][slot][phase] += pace;
+			if (lod_tier == 1) {
+				lod_counts[civ][key][slot][phase]++;
+			} else {
+				counts[civ][key][slot][phase]++;
+			}
 			total_counts[civ][key][slot]++;
 		}
 	}
@@ -4883,14 +4977,24 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			}
 			if (p_cnt > 0) crowd_proxy_mm(cb);
 		}
+		if (any) {
+			for (int c = 0; c < CROWD_CLIP_COUNT; ++c) {
+				if (!crowd_slot_is_locomotion(c)) continue;
+				for (int p = 0; p < CROWD_PHASES; ++p) {
+					const int n = row[c][p] + lod_row[c][p];
+					if (n > 0) cb.puppet[c].loco_clock[p] += delta * pace_sum[civ][t][c][p] / (float)n;
+				}
+			}
+		}
 		cycle_puppet_meshes(cb.puppet, cb.mm, row, CROWD_CLIP_COUNT, CROWD_DEATH_SLOTS);
 		for (int c = 0; c < CROWD_CLIP_COUNT; ++c) {
 			if (cb.puppet[c].baked_count > 0) {
 				const bool is_death = (CROWD_DEATH_SLOTS & (1ull << c)) != 0;
 				for (int p = 0; p < CROWD_PHASES; ++p) {
 					if (cb.lod_mm[c][p].is_valid() && lod_row[c][p] > 0) {
+						const float clock = crowd_slot_is_locomotion(c) ? cb.puppet[c].loco_clock[p] : anim_time;
 						int frame = is_death ? std::min((int)(anim_time * 10.0f), cb.puppet[c].baked_count - 1)
-								: wrap_mod((int)(anim_time * 16.0f + (float)p * (cb.puppet[c].baked_count / (float)CROWD_PHASES)), cb.puppet[c].baked_count);
+								: wrap_mod((int)(clock * 16.0f + (float)p * (cb.puppet[c].baked_count / (float)CROWD_PHASES)), cb.puppet[c].baked_count);
 						if (frame != cb.puppet[c].last_lod_frame[p] && cb.puppet[c].lod_frames[frame].is_valid()) {
 							cb.lod_mm[c][p]->set_mesh(cb.puppet[c].lod_frames[frame]);
 							cb.puppet[c].last_lod_frame[p] = frame;
@@ -4966,13 +5070,6 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		float vx = uview.vel_x[i];
 		float vz = uview.vel_z[i];
 		float speed2 = vx * vx + vz * vz;
-		const bool mount = utype == rtso::UNIT_CAVALRY || utype == rtso::UNIT_CAMEL ||
-				utype == rtso::UNIT_CHARIOT || utype == rtso::UNIT_SCYTHED_CHARIOT;
-		if (mount && speed2 > 0.05f) {
-			const float base = sim->unit_base_walk_speed(i);
-			if (base > 0.001f)
-				anim_controllers[utype].set_speed(Math::clamp(std::sqrt(speed2) / base, 0.3f, 2.5f));
-		}
 
 		// Smooth visual position interpolation to prevent snapping
 		float x = tx;
@@ -5190,7 +5287,14 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		if (v.anim && UtilityFunctions::is_instance_valid(v.anim)) {
 			v.anim->set_active(true);
 			v.anim->set_callback_mode_process(AnimationMixer::ANIMATION_CALLBACK_MODE_PROCESS_MANUAL);
-			v.anim->set_speed_scale(1.0);
+			// Walk and run cycles play at the pace of the ground covered (0 A.D. scales a
+			// locomotion clip by speed over walk speed, so the feet keep up with the ground).
+			float pace = 1.0f;
+			if (!dying && (want.clip == CLIP_WALK || want.clip == CLIP_RUN) && speed2 > 0.05f) {
+				const float base = sim->unit_base_walk_speed(i);
+				if (base > 0.001f) pace = Math::clamp(std::sqrt(speed2) / base, 0.3f, 2.5f);
+			}
+			v.anim->set_speed_scale(pace);
 		} else {
 			v.anim = nullptr;
 		}
