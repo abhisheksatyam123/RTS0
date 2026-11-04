@@ -300,7 +300,8 @@ static void test_camps() {
 	CHECK(at(s, 0, 50.0f, -52.0f, BLD_ARMY_CAMP) == Simulation::PLACE_OK);        // enemy
 	s.spawn_building_world(30.0f, 50.0f, BLD_ARMY_CAMP, 0, 0.0f);
 	CHECK(at(s, 0, 50.0f, -52.0f, BLD_ARMY_CAMP) == Simulation::PLACE_OK);        // 100 away
-	CHECK(at(s, 0, 50.0f, 40.0f, BLD_ARMY_CAMP) == Simulation::PLACE_DISTANCE);
+	// Centre to centre, less the new camp's half size: 18 units (72 m) less 8 m is inside the 80 m limit.
+	CHECK(at(s, 0, 45.0f, 40.0f, BLD_ARMY_CAMP) == Simulation::PLACE_DISTANCE);
 	CHECK(at(s, 1, 50.0f, 40.0f, BLD_ARMY_CAMP) == Simulation::PLACE_OK);         // only one's own count
 	CHECK(at(s, 0, -30.0f, 50.0f, BLD_MERCENARY_CAMP) == Simulation::PLACE_OK);
 	CHECK(at(s, 0, 50.0f, 40.0f, BLD_MERCENARY_CAMP) == Simulation::PLACE_OK);
