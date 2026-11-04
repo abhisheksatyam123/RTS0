@@ -4374,8 +4374,9 @@ Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, ui
 	}
 
 	// 4. Distance from the player's own structures (foundations included) of the
-	// same class: centre to centre, less the new structure's half size (0 A.D.
-	// BuildRestrictions measures from the placed entity, minus its obstructionRadius.min).
+	// same class: centre to centre, less the new structure's half size. 0 A.D.
+	// BuildRestrictions subtracts the new template's obstructionRadius.min; RTS0 has
+	// no per-template obstruction radius yet, so its footprint half stands in.
 	if (rule.distance_class != DIST_NONE) {
 		const float half = rect ? rect->half_size : 0.5f * (x1 - x0);
 		for (const Building &b : buildings_) {
