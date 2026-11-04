@@ -152,10 +152,10 @@ inline EntityAttackSounds unit_attack_sounds(uint16_t tmpl, uint8_t unit_type) {
 	return {ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE};
 }
 
-// One Sound of group g at random (RandOrder) and its pitch (RandPitch); empty for
-// ATTACK_SOUND_NONE.
+// One Sound of group g at random (RandOrder), its gain (RandGain) and its pitch (RandPitch);
+// empty for ATTACK_SOUND_NONE.
 template <class Rng>
-inline godot::String pick_attack_sound(uint8_t g, Rng &rng, float *pitch) {
+inline godot::String pick_attack_sound(uint8_t g, Rng &rng, float *pitch, float *gain) {
 	*pitch = 1.0f;
 	if (g == ATTACK_SOUND_NONE || g >= ATTACK_SOUND_GROUP_COUNT) return godot::String();
 	const AttackSoundGroup &grp = attack_sound_group(g);
@@ -164,6 +164,8 @@ inline godot::String pick_attack_sound(uint8_t g, Rng &rng, float *pitch) {
 	if (n == 0) return godot::String();
 	const float u = (float)(rng() % 1000) / 1000.0f;
 	*pitch = grp.pitch_lo + (grp.pitch_hi - grp.pitch_lo) * u;
+	const float v = (float)(rng() % 1000) / 1000.0f;
+	*gain = grp.gain_lo + (grp.gain_hi - grp.gain_lo) * v;
 	return godot::String(kAudioRoot) + grp.dir + "/" + grp.files[rng() % n];
 }
 
@@ -722,12 +724,11 @@ private:
 			return false;
 		}
 		if (!sim->is_entity_visible_to_viewer(x, z, team, me)) return false;
-		float pitch = 1.0f;
-		const godot::String path = pick_attack_sound(g, rng_, &pitch);
+		float pitch = 1.0f, gain = 1.0f;
+		const godot::String path = pick_attack_sound(g, rng_, &pitch, &gain);
 		if (path.is_empty()) return false;
 		godot::Ref<godot::AudioStream> s = stream(path);
 		if (s.is_null()) return false;
-		const float gain = attack_sound_group(g).gain;
 		spatial_(s, godot::Vector3(x, y, z), gain > 0.001f ? 20.0f * std::log10(gain) : -80.0f, pitch);
 		++combat_in_window_;
 		++combat_sounds_;
@@ -792,12 +793,11 @@ private:
 	// Health.js PlaySound("death"): group g where the entity died, while the viewer sees it.
 	void play_death(const Simulation *sim, uint8_t me, uint8_t g, uint8_t team, float x, float z) {
 		if (!spatial_ || g == ATTACK_SOUND_NONE || !sim->is_entity_visible_to_viewer(x, z, team, me)) return;
-		float pitch = 1.0f;
-		const godot::String path = pick_attack_sound(g, rng_, &pitch);
+		float pitch = 1.0f, gain = 1.0f;
+		const godot::String path = pick_attack_sound(g, rng_, &pitch, &gain);
 		if (path.is_empty()) return;
 		godot::Ref<godot::AudioStream> s = stream(path);
 		if (s.is_null()) return;
-		const float gain = attack_sound_group(g).gain;
 		spatial_(s, godot::Vector3(x, 0.5f, z), gain > 0.001f ? 20.0f * std::log10(gain) : -80.0f, pitch);
 		last_played_ = path;
 	}
