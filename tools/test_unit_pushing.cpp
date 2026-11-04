@@ -3375,6 +3375,39 @@ int main() {
 		CHECK(ended > 0 && ended * DT <= 30.0f && dgoal > 3.0f,
 		      "a walk that keeps turning back over one spot fails within 30 s (MoveFailed), and the ram stands short of the point");
 	}
+	// 44. Pushing squares (0 A.D.'s PUSHING_GRID_SIZE, 20 m, at the crowd scale: 16.7 units, from the map's corner).
+	// 0 A.D. pushes a pair only from one square to the same or an orthogonal neighbour
+	// (CCmpUnitMotion_System.cpp:505-523), so two idle spearmen 0.7 apart across a square's corner never push
+	// each other, while the same pair inside one square, or split across one edge, do.
+	{
+		const float H = 64.0f;                  // the default map's half-size (simulation.h map_half_)
+		const float Q = 20.0f * (5.0f / 6.0f);  // a pushing square in RTS0 units (PUSH_SQUARE)
+		const float cx = -H + 3.0f * Q, cz = -H + 3.0f * Q; // a corner of the squares, inside the map
+		// Two idle spearmen at (ax, az) and (bx, bz) for 40 ticks: their separation before and after.
+		auto pair_sep = [&](float ax, float az, float bx, float bz, float &before) {
+			auto s = std::make_unique<Simulation>();
+			setup(*s);
+			const uint32_t a = s->spawn_unit(ax, az, 0, UNIT_SPEARMAN, 150.0f);
+			const uint32_t b = s->spawn_unit(bx, bz, 0, UNIT_SPEARMAN, 150.0f);
+			const auto sep = [&]() {
+				const int ia = idx(*s, a), ib = idx(*s, b);
+				return std::hypot(s->units_.pos_x[ia] - s->units_.pos_x[ib], s->units_.pos_z[ia] - s->units_.pos_z[ib]);
+			};
+			before = sep();
+			for (int t = 0; t < 40; ++t) s->tick(DT);
+			return sep();
+		};
+		float d0 = 0.0f;
+		const float diag1 = pair_sep(cx - 0.25f, cz - 0.25f, cx + 0.25f, cz + 0.25f, d0);
+		std::printf("  diagonal pair across a square's corner: %.3f -> %.3f units apart\n", d0, diag1);
+		CHECK(std::fabs(diag1 - d0) < 1e-3f, "two idle spearmen diagonal across a pushing square's corner do not push each other");
+		const float same1 = pair_sep(cx + 0.25f, cz + 0.25f, cx + 0.75f, cz + 0.75f, d0);
+		std::printf("  pair inside one square: %.3f -> %.3f units apart\n", d0, same1);
+		CHECK(same1 > d0 + 0.05f, "the same pair inside one square push apart");
+		const float edge1 = pair_sep(cx - 0.25f, cz + 0.25f, cx + 0.25f, cz + 0.25f, d0);
+		std::printf("  pair split across one edge: %.3f -> %.3f units apart\n", d0, edge1);
+		CHECK(edge1 > d0 + 0.05f, "a pair split across one square edge, orthogonal neighbours, pushes apart");
+	}
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }

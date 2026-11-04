@@ -14238,6 +14238,12 @@ constexpr float PUSH_EPSILON = 10.0f / 65536.0f * PUSH_SCALE; // fixed::Epsilon(
 constexpr float PUSH_TURN = 0.2f;                         // 0 A.D. turn length, s
 constexpr int PUSH_MAX_PRESSURE = 255;                    // CCmpUnitMotionManager::MAX_PRESSURE
 constexpr int PUSH_MAX_DAMPING_PRESSURE = 160;            // MAX_PUSH_DAMPING_PRESSURE
+// 0 A.D. bins each moving unit by its tick-start position into a PUSHING_GRID_SIZE (20 m) square, and
+// Push runs only for a pair in the same square or in one of its four orthogonal neighbours
+// (CCmpUnitMotion_System.cpp:42-50, 505-523), so a pair across a square's corner never pushes. At the
+// crowd scale the square is 20 m times PUSH_SCALE, with the map's corner as its origin, as 0 A.D.'s
+// squares start at its map's corner.
+constexpr float PUSH_SQUARE = 20.0f * PUSH_SCALE;
 constexpr int PUSH_MIN_PRESSURE_IF_OBSTRUCTED = 80;       // MIN_PRESSURE_IF_OBSTRUCTED
 constexpr float PUSH_PRESSURE_STATIC = 2.0f;              // PRESSURE_STATIC_FACTOR
 constexpr float PUSH_PRESSURE_DISTANCE = 5.0f;            // PRESSURE_DISTANCE_FACTOR
@@ -14411,6 +14417,14 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 	float *wsz = arena.alloc_array<float>(N);
 	uint8_t *mov = arena.alloc_array<uint8_t>(N); // PushUnit::moving, which the grids' packed units carry (PACKED_FLAG; see the pair loop)
 	if (!pu || !frx || !frz || !wsx || !wsz || !mov) return;
+	// Each entity's pushing square, from where it stood when the tick began (frx, frz).
+	int32_t *sqx = arena.alloc_array<int32_t>(N);
+	int32_t *sqz = arena.alloc_array<int32_t>(N);
+	if (!sqx || !sqz) return;
+	for (size_t i = 0; i < N; ++i) {
+		sqx[i] = (int32_t)std::floor((frx[i] + map_half_) / PUSH_SQUARE);
+		sqz[i] = (int32_t)std::floor((frz[i] + map_half_) / PUSH_SQUARE);
+	}
 	// With animals in the pass (see the pair loop): the unit or animal each attacks (0 for none),
 	// whether it is an animal standing at its target in COMBAT ATTACKING (swing), and the unit or
 	// animal its move heads for, whose shape never obstructs it (CCmpUnitMotion.h:1231-1237
@@ -14619,6 +14633,14 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 				if (!mi || (is_unit && !steps.want_x) || bdx * bdx + bdz * bdz >= r_overlap * r_overlap) return;
 				if ((!is_unit || (size_t)j >= n) && b.id == own_target) return;
 				slide = true;
+			}
+			// 0 A.D. pushes a pair only from one pushing square to the same or an orthogonal neighbour
+			// (CCmpUnitMotion_System.cpp:505-523), so a pair across a square's corner never pushes. The
+			// walker's slide above is RTS0's own nudge off a standing body (0 A.D.'s CheckMovement keeps a
+			// walker out of it), not a push, so it stays.
+			if (!slide) {
+				const int32_t dsx = sqx[i] - sqx[j], dsz = sqz[i] - sqz[j];
+				if (dsx > 1 || dsx < -1 || dsz > 1 || dsz < -1 || (dsx != 0 && dsz != 0)) return;
 			}
 			float combined = (ci + b.r * PUSH_CLEARANCE_PER_RADIUS) * PUSH_CORRECTION;
 			const float max_dist = same_group ? combined
