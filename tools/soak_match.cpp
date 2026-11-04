@@ -778,8 +778,12 @@ int main(int argc, char **argv) {
 			const int32_t f = id ? s.lookup_unit(id) : -1;
 			if (f < 0) continue;
 			s.apply_rank_bonus((size_t)f, s.units_.rank[f], s.units_.rank[i]); // a template trained above Basic starts ranked
-			const float was[4] = {s.units_.max_hp[i], s.units_.attack_damage[i], s.units_.speed[i], s.units_.attack_range[i]};
-			const float now[4] = {s.units_.max_hp[f], s.units_.attack_damage[f], s.units_.speed[f], s.units_.attack_range[f]};
+			// Health/Max auras (Xerxes, Antiochus IV) rescale a unit's max_hp in place, so compare
+			// the base health: each side without its aura multiplier.
+			const float aura_was = s.units_.aura_hp_mult[i] > 0.0f ? s.units_.aura_hp_mult[i] : 1.0f;
+			const float aura_now = s.units_.aura_hp_mult[f] > 0.0f ? s.units_.aura_hp_mult[f] : 1.0f;
+			const float was[4] = {s.units_.max_hp[i] / aura_was, s.units_.attack_damage[i], s.units_.speed[i], s.units_.attack_range[i]};
+			const float now[4] = {s.units_.max_hp[f] / aura_now, s.units_.attack_damage[f], s.units_.speed[f], s.units_.attack_range[f]};
 			static const char *kName[4] = {"max_hp", "attack", "speed", "range"};
 			for (int k = 0; k < 4; ++k)
 				if (off(was[k], now[k]) && drift++ < 40)
