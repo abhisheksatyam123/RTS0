@@ -31986,6 +31986,9 @@ void Simulation::petra_attack_units(AttackPlan &plan) {
 			if (siege_unit && b.build_progress <= 0.0f) continue;
 			const float dx = b.x - units_.pos_x[i], dz = b.z - units_.pos_z[i];
 			if (dx * dx + dz * dz > range2 || petra_building_land(b) != land) continue;
+			if (!unit_can_target_building((size_t)i, b.type)) continue; // canAttackTarget (attackPlan.js:1632, 1752)
+			// isBlocked: while a blocker holds the plan, only its target is picked (attackPlan.js:1750).
+			if (!siege_unit && blocked && b.id != plan.target_building_id) continue;
 			c.push_back({-building_value(i, b, siege_unit), bi});
 		}
 		if (c.empty()) return -1;
@@ -32064,6 +32067,9 @@ void Simulation::petra_attack_units(AttackPlan &plan) {
 			if (dist2 > range2) continue;
 			if (chases_fleeing && (cls((int32_t)j) & TC_FEMALECITIZEN) && units_.action_state[j] == ACTION_FLEE) continue;
 			if (petra_land_at(units_.pos_x[j], units_.pos_z[j]) != land) continue;
+			// attackPlan.js:1684 canAttackTarget. The Animal test (:1686) holds by construction:
+			// animals are fauna_ entries, never in this unit scan.
+			if (!unit_can_target((size_t)i, j)) continue;
 			const bool vetoed = veto.count(units_.id[j]) != 0;
 			if (vetoed && far_from_target) continue;
 			float v = petra_is_support_unit(units_.unit_type[j]) ? 50.0f : 0.0f;
