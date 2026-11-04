@@ -71,12 +71,13 @@ int main() {
 	// its effects stay inside the effects table.
 	CHECK(TECH_COUNT > 80);
 	for (int t = 1; t < TECH_COUNT; ++t) {
+		if (t == TECH_WARSHIP_RAMMING_SPEED) continue; // retired id (0 A.D. 0.28 has no Flanking Maneuvers)
 		const TechInfo &ti = tech_info((uint8_t)t);
 		CHECK(ti.name && ti.name[0] && ti.template_name && ti.template_name[0]);
 		CHECK(ti.researcher < BLD_TYPE_COUNT);
 		CHECK(ti.required_phase >= 1 && ti.required_phase <= 3);
 		CHECK(ti.prerequisite < TECH_COUNT && ti.prerequisite != t);
-		CHECK(ti.civ_mask != 0 || t == TECH_WARSHIP_RAMMING_SPEED); // Flanking Maneuvers: not in 0.28
+		CHECK(ti.civ_mask != 0);
 		// Only the free, instant Seleucid army reforms (pair members with no researchTime) take no time.
 		CHECK(ti.research_time > 0.0f || (t == TECH_TRADITIONAL_ARMY_SELE || t == TECH_REFORMED_ARMY_SELE));
 		for (int e = 0; e < ti.effect_count; ++e)
@@ -513,7 +514,7 @@ int main() {
 			if (std::strcmp(civ_unit_template(i).id, "athen/ship_arrow") == 0) arrow = i;
 		}
 		CHECK(ram != CIV_UNIT_TEMPLATE_NONE && arrow != CIV_UNIT_TEMPLATE_NONE);
-		CHECK(!tech_available_to_civ(TECH_WARSHIP_RAMMING_SPEED, CIV_ATHENIANS)); // not in 0.28
+		CHECK(!tech_available_to_civ(TECH_WARSHIP_RAMMING_SPEED, CIV_ATHENIANS)); // retired: not in 0.28
 		CHECK(tech_info(TECH_WARSHIP_RAMMING_ATTACK).prerequisite == TECH_NONE);
 		CHECK(tech_info(TECH_ARSENAL_PHILON).prerequisite == TECH_DOCK_EFFICIENCY);
 		CHECK(!tech_available_to_civ(TECH_ARSENAL_PHILON, CIV_SPARTANS));
