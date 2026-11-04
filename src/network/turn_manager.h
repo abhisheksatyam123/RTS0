@@ -261,6 +261,9 @@ public:
 	// Joiner side: ask the host for the setup + turn-0 state.
 	void request_join_sync(uint32_t requested_turn);
 	const std::string &last_game_start_attributes() const { return last_game_start_attributes_; }
+	// The host records the setup it sent, for the late-join resend. Only the host
+	// sends GAME_START, so a received one never sets this (see the receive path).
+	void remember_sent_game_start(const std::string &attrs) { last_game_start_attributes_ = attrs; }
 	uint32_t join_sync_round_trips() const { return join_sync_round_trips_; }
 	bool join_sync_accepted() const { return join_sync_accepted_; }
 	uint8_t join_sync_error() const { return join_sync_error_; }
