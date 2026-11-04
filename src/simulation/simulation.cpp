@@ -1468,6 +1468,7 @@ uint32_t Simulation::spawn_building(int cell_x, int cell_y, uint8_t type, uint8_
 
 uint32_t Simulation::spawn_building_world(float wx, float wz, uint8_t type, uint8_t team, float progress, float rot) {
 	uint32_t bid = alloc_id();
+	const BuildingTypeInfo &binfo = building_type_info(type);
 	int footprint = building_footprint(type, civ_of(team));
 	float half = footprint * GRID * 0.5f;
 	int cell_x = (int)std::floor((wx - half) / GRID);
