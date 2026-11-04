@@ -7,6 +7,8 @@
 // the local player. Stance changes ride lockstep cmd 22, tribute cmd 27 and bribes
 // cmd 42 through RtsoDiplomacyHost.
 
+#include "user_config.h"
+
 #include <godot_cpp/classes/button.hpp>
 #include <godot_cpp/classes/control.hpp>
 #include <godot_cpp/classes/font_variation.hpp>
@@ -172,7 +174,7 @@ public:
 		head->set_custom_minimum_size(Vector2(0, 32));
 		head->add_theme_constant_override("separation", 0);
 		const char *heads[] = {"", "Name", "Civilization", "Team", "Theirs", "A", "N", "E", "Tribute", "", ""};
-		const float widths[] = {OUTCOME_W, NAME_W, CIV_W, TEAM_W, THEIRS_W, STANCE_W, STANCE_W, STANCE_W, TRIBUTE_W * 4 + 18.0f, ATTACK_W, SPY_W};
+		const float widths[] = {OUTCOME_W, NAME_W, CIV_W, TEAM_W, THEIRS_W, stance_w(), stance_w(), stance_w(), TRIBUTE_W * 4 + 18.0f, ATTACK_W, SPY_W};
 		for (int i = 0; i < 11; ++i) {
 			Label *l = memnew(Label);
 			l->set_text(heads[i]);
@@ -215,7 +217,7 @@ public:
 			r.theirs = add_label(r.box, THEIRS_W);
 			for (int s = 0; s < 3; ++s) {
 				r.stance[s] = memnew(Button);
-				r.stance[s]->set_custom_minimum_size(Vector2(STANCE_W, 20));
+				r.stance[s]->set_custom_minimum_size(Vector2(stance_w(), 20));
 				r.stance[s]->add_theme_font_size_override("font_size", 11);
 				r.stance[s]->connect("pressed", Callable(owner, "_on_diplo_stance_changed").bind(s, p));
 				r.box->add_child(r.stance[s]);
@@ -536,6 +538,8 @@ public:
 private:
 	bool colors_on_ = false;
 	godot::Ref<godot::FontVariation> bold_;
+	// The A / N / E stance columns: wider on phones, where the headers need room.
+	static float stance_w() { return rtso::user_config::mobile_defaults() ? 28.0f : STANCE_W; }
 	static constexpr float ATTACK_W = 20.0f, OUTCOME_W = 25.0f;
 	static constexpr float NAME_W = 125.0f, CIV_W = 100.0f, TEAM_W = 50.0f, THEIRS_W = 60.0f, STANCE_W = 20.0f,
 		TRIBUTE_W = 20.0f, SPY_W = 20.0f;
