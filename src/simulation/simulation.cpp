@@ -4374,12 +4374,13 @@ Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, ui
 	}
 
 	// 4. Distance from the player's own structures (foundations included) of the
-	// same class, measured between footprint edges.
+	// same class: centre to centre, less the new structure's half size (0 A.D.
+	// BuildRestrictions measures from the placed entity, minus its obstructionRadius.min).
 	if (rule.distance_class != DIST_NONE) {
 		const float half = rect ? rect->half_size : 0.5f * (x1 - x0);
 		for (const Building &b : buildings_) {
 			if (b.team != player || b.hp <= 0.0f || distance_class_of(b.type) != rule.distance_class) continue;
-			const float d = det::hypot(b.x - cxw, b.z - czw) - half - b.half_size;
+			const float d = det::hypot(b.x - cxw, b.z - czw) - half;
 			if (d < rule.min_distance) return PLACE_DISTANCE;
 		}
 	}
