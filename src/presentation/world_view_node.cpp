@@ -3063,6 +3063,34 @@ static float walk_cadence_scale(const char *model) {
 	return it != table.end() ? it->second : 1.0f;
 }
 
+// 0 A.D. 0.28 movement rate (data/anim_walk_rate.json, tools/anim_walk_rate.py): a Walk or Run clip
+// plays at (metres a second) x (the actor's animation speed attribute / 100). Returns that
+// attribute as a fraction, or -1 when the rig is not in the table (the model keeps its base pace).
+static float walk_rate_attr(const char *model, bool run) {
+	static std::unordered_map<std::string, std::pair<float, float>> &table =
+			*new std::unordered_map<std::string, std::pair<float, float>>();
+	static bool loaded = false;
+	if (!loaded) {
+		loaded = true;
+		Ref<FileAccess> f = FileAccess::open("res://data/anim_walk_rate.json", FileAccess::READ);
+		if (f.is_valid()) {
+			Dictionary root = JSON::parse_string(f->get_as_text());
+			Array keys = root.keys();
+			for (int i = 0; i < keys.size(); ++i) {
+				Dictionary e = root[keys[i]];
+				table[String(keys[i]).utf8().get_data()] = {
+					(float)(double)e["walk"] / 100.0f, (float)(double)e["run"] / 100.0f };
+			}
+		}
+	}
+	auto it = model ? table.find(model) : table.end();
+	if (it == table.end()) return -1.0f;
+	return run ? it->second.second : it->second.first;
+}
+
+// Metres a second of a sim speed (sim units a second; the rosters' SPEED_SCALE is 0.356).
+static constexpr float SIM_UNITS_PER_METRE_SCALE = 0.356f;
+
 // Crowd clip slots. 0 A.D. plays the real clip for every unit (gather_*,
 // build, carry, heal...); the crowd keeps one baked MultiMesh per slot.
 // The formation variant clips take the slots after CROWD_FORM_SLOT, in kFormClips order.
@@ -5005,9 +5033,15 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 				const float speed2 = ux * ux + uz * uz;
 				pace = 0.3f; // standing still in a walk pose: the clock barely moves
 				if (speed2 > 0.05f) {
-					const float base = sim->unit_base_walk_speed(i);
-					if (base > 0.001f) pace = Math::clamp(std::sqrt(speed2) / base, 0.3f, 2.5f);
-					if (slot == 1) pace *= walk_cadence_scale(crowd_key_model(civ, key));
+					const float attr = walk_rate_attr(crowd_key_model(civ, key), slot == 4);
+					if (attr > 0.0f) {
+						// 0 A.D. 0.28: rate = metres a second x the clip's speed attribute / 100.
+						pace = Math::clamp(std::sqrt(speed2) / SIM_UNITS_PER_METRE_SCALE * attr, 0.05f, 10.0f);
+					} else {
+						const float base = sim->unit_base_walk_speed(i);
+						if (base > 0.001f) pace = Math::clamp(std::sqrt(speed2) / base, 0.3f, 2.5f);
+						if (slot == 1) pace *= walk_cadence_scale(crowd_key_model(civ, key));
+					}
 				}
 			}
 			pace_sum[civ][key][slot][phase] += pace;
@@ -5353,9 +5387,15 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			// locomotion clip by speed over walk speed, so the feet keep up with the ground).
 			float pace = 1.0f;
 			if (!dying && (want.clip == CLIP_WALK || want.clip == CLIP_RUN) && speed2 > 0.05f) {
-				const float base = sim->unit_base_walk_speed(i);
-				if (base > 0.001f) pace = Math::clamp(std::sqrt(speed2) / base, 0.3f, 2.5f);
-				if (want.clip == CLIP_WALK) pace *= walk_cadence_scale(utype_str.utf8().get_data());
+				const float attr = walk_rate_attr(utype_str.utf8().get_data(), want.clip == CLIP_RUN);
+				if (attr > 0.0f) {
+					// 0 A.D. 0.28: rate = metres a second x the clip's speed attribute / 100.
+					pace = Math::clamp(std::sqrt(speed2) / SIM_UNITS_PER_METRE_SCALE * attr, 0.05f, 10.0f);
+				} else {
+					const float base = sim->unit_base_walk_speed(i);
+					if (base > 0.001f) pace = Math::clamp(std::sqrt(speed2) / base, 0.3f, 2.5f);
+					if (want.clip == CLIP_WALK) pace *= walk_cadence_scale(utype_str.utf8().get_data());
+				}
 			}
 			v.anim->set_speed_scale(pace);
 		} else {
