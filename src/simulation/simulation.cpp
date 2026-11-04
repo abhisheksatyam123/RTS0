@@ -24709,6 +24709,12 @@ void Simulation::petra_join_trained_plan(uint8_t pid, uint8_t order_plan, uint8_
 // queue lasts, so a civic centre of ours rallying to itself is training emergency units: its
 // other unstarted items are stopped as 0 A.D. does, and no worker is queued there meanwhile.
 bool Simulation::petra_train_emergency_units(const std::vector<std::pair<float, float>> &positions) {
+	// headquarters.js trainEmergencyUnits: nothing while an emergency plan still waits to start
+	// (queues.emergency.hasQueuedUnits); a plan leaves that queue once its unit starts training.
+	for (const Building &b : buildings_)
+		if (b.team == petra_pid_)
+			for (const ProductionOrder &o : b.queue)
+				if (!o.started && o.timer <= 0.0f && o.petra_plan == PETRA_ORDER_EMERGENCY) return false;
 	uint16_t home = 0;
 	const bool naval = petra_classified_topo(home).naval_map;
 	const uint8_t civ = petra_ps().civ;
