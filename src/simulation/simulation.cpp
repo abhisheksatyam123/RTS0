@@ -14417,14 +14417,6 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 	float *wsz = arena.alloc_array<float>(N);
 	uint8_t *mov = arena.alloc_array<uint8_t>(N); // PushUnit::moving, which the grids' packed units carry (PACKED_FLAG; see the pair loop)
 	if (!pu || !frx || !frz || !wsx || !wsz || !mov) return;
-	// Each entity's pushing square, from where it stood when the tick began (frx, frz).
-	int32_t *sqx = arena.alloc_array<int32_t>(N);
-	int32_t *sqz = arena.alloc_array<int32_t>(N);
-	if (!sqx || !sqz) return;
-	for (size_t i = 0; i < N; ++i) {
-		sqx[i] = (int32_t)std::floor((frx[i] + map_half_) / PUSH_SQUARE);
-		sqz[i] = (int32_t)std::floor((frz[i] + map_half_) / PUSH_SQUARE);
-	}
 	// With animals in the pass (see the pair loop): the unit or animal each attacks (0 for none),
 	// whether it is an animal standing at its target in COMBAT ATTACKING (swing), and the unit or
 	// animal its move heads for, whose shape never obstructs it (CCmpUnitMotion.h:1231-1237
@@ -14526,6 +14518,14 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 		}
 		step_max = std::max({step_max, std::fabs(epx[i] - frx[i]), std::fabs(epz[i] - frz[i])});
 		mov[i] = u.moving;
+	}
+	// Each entity's pushing square, from where it stood when the tick began (frx, frz, filled above).
+	int32_t *sqx = arena.alloc_array<int32_t>(N);
+	int32_t *sqz = arena.alloc_array<int32_t>(N);
+	if (!sqx || !sqz) return;
+	for (size_t i = 0; i < N; ++i) {
+		sqx[i] = (int32_t)std::floor((frx[i] + map_half_) / PUSH_SQUARE);
+		sqz[i] = (int32_t)std::floor((frz[i] + map_half_) / PUSH_SQUARE);
 	}
 	const float min_push = PUSH_MIN_FORCE * dt / PUSH_TURN;
 	if (n_big) {
