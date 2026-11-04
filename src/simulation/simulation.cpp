@@ -27069,8 +27069,10 @@ void Simulation::petra_check_hunt_drift(PetraHuntScan &scan) {
 		if (fauna_.food_amount[fit->second] <= 0) continue; // only food supplies
 		const float tx = fauna_.pos_x[fit->second], tz = fauna_.pos_z[fit->second];
 		const int terr = territory_owner_at(tx, tz);
-		bool drifted = petra_foe(terr);
-		if (!drifted && terr < 0) {
+		// worker.js: territoryOwner 0 (neutral) is Gaia, an enemy, so the hunt is retried; only land
+		// of a player that is neither ally nor enemy takes the food-dropsite distance check.
+		bool drifted = terr < 0 || petra_foe(terr);
+		if (!drifted && !is_ally((uint8_t)petra_pid_, (uint8_t)terr)) {
 			const float d2 = (gcls == GATHER_CAVALRY ? 90000.0f : 30000.0f) / 16.0f;
 			auto [cx, cz] = nav_grid_.world_to_cell(tx, tz); // getLandAccess(target)
 			drifted = !petra_food_drop_near(scan, nav_grid_.global_region_at(cx, cz, PASS_INFANTRY), tx, tz, d2);
@@ -41758,6 +41760,10 @@ void Simulation::tick_hunters() {
 		if (it == fauna_id_to_idx_.end()) continue;
 		const size_t f = it->second;
 		if (st == ACTION_MOVE) continue; // herding: order_herd walks the herder over
+		if (fauna_.alive[f] && fauna_.hp[f] <= 0.0f && fauna_.behavior[f] != FAUNA_CORRALLED) {
+			fauna_killed(f, i); // Health.js CreateCorpse: the hunters' orders go to the carcass
+			continue;
+		}
 		if (!fauna_.alive[f] || fauna_.hp[f] <= 0.0f || fauna_.behavior[f] == FAUNA_CORRALLED) {
 			units_.target_unit_id[i] = 0;
 			units_.action_state[i] = ACTION_IDLE; // tick_unit_ai resumes an interrupted order
@@ -41776,7 +41782,7 @@ void Simulation::tick_hunters() {
 		const bool slaughter = finfo.is_domestic() && unit_has_slaughter(ut, units_.tmpl[i]);
 		const float dx = units_.pos_x[i] - fx, dz = units_.pos_z[i] - fz;
 		// The animal's footprint. Slaughter's MaxRange is 2 m even for archers, who walk up to it.
-		const float reach = (slaughter ? SLAUGHTER_RANGE : units_.attack_range[i]) + 1.0f;
+		const float reach = (slaughter ? SLAUGHTER_RANGE : units_.attack_range[i]) + finfo.footprint;
 		const bool in_reach = dx * dx + dz * dz <= reach * reach;
 		if (in_reach) units_.chase_target[i] = tid; // COMBAT.ATTACKING: CHASING follows it from here
 		if (!attack_ready(i, in_reach, slaughter ? SLAUGHTER_PREPARE : unit_combat_at(i).prepare)) continue;
