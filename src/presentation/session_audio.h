@@ -36,6 +36,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <functional>
 #include <random>
 #include <string>
@@ -91,6 +92,25 @@ inline const char *voice_language(uint8_t civ) {
 
 enum class VoiceKind : uint8_t { NONE, MALE, FEMALE, DOG, HORSE, ELEPHANT };
 
+// 0.28 roster templates whose own Phenotype is female (units/<civ>/hero_boudicca.xml,
+// support_healer_b, champion_healer, champion_maiden, hero_amanirenas, hero_cleopatra_vii).
+// Their voice is the female group, whatever their UnitType (heroes and healers are UNIT_HERO
+// and UNIT_HEALER, which speak male otherwise).
+inline bool female_voice_template(uint16_t tmpl) {
+	static const char *const kFemale[] = {
+		"brit/hero_boudicca", "brit/hero_boudicca_cavalry_javelineer", "brit/hero_boudicca_sword",
+		"cart/support_healer_b", "germ/champion_healer", "iber/support_healer_b",
+		"kush/hero_amanirenas", "kush/hero_amanirenas_infantry",
+		"maur/champion_maiden", "maur/champion_maiden_archer",
+		"ptol/hero_cleopatra_vii",
+	};
+	if (tmpl >= CIV_UNIT_TEMPLATE_COUNT) return false;
+	const char *id = civ_unit_template(tmpl).id;
+	for (const char *f : kFemale)
+		if (std::strcmp(id, f) == 0) return true;
+	return false;
+}
+
 // Phenotype of a unit type: template_unit_support_female_citizen and archer
 // maidens are female; siege and ships have no voice in 0 A.D. (traders say
 // order_trade too, template_unit_support_trader.xml).
@@ -141,7 +161,7 @@ inline const std::vector<godot::String> &voice_group_clips(const char *lang, boo
 // a human's {phenotype}_death by its phenotype (voice_kind).
 inline uint8_t unit_death_sound(uint16_t tmpl, uint8_t unit_type) {
 	const uint8_t g = tmpl < ATTACK_SOUND_ROSTER_ROWS ? roster_death_sound(tmpl) : generic_death_sound(unit_type);
-	return g == ATTACK_SOUND_PHENOTYPE ? phenotype_death_sound(voice_kind(unit_type) == VoiceKind::FEMALE) : g;
+	return g == ATTACK_SOUND_PHENOTYPE ? phenotype_death_sound(voice_kind(unit_type) == VoiceKind::FEMALE || female_voice_template(tmpl)) : g;
 }
 
 // A unit's attack_melee, attack_ranged and attack_impact_ranged groups: its roster
@@ -152,10 +172,10 @@ inline EntityAttackSounds unit_attack_sounds(uint16_t tmpl, uint8_t unit_type) {
 	return {ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE};
 }
 
-// One Sound of group g at random (RandOrder) and its pitch (RandPitch); empty for
-// ATTACK_SOUND_NONE.
+// One Sound of group g at random (RandOrder), its gain (RandGain) and its pitch (RandPitch);
+// empty for ATTACK_SOUND_NONE.
 template <class Rng>
-inline godot::String pick_attack_sound(uint8_t g, Rng &rng, float *pitch) {
+inline godot::String pick_attack_sound(uint8_t g, Rng &rng, float *pitch, float *gain) {
 	*pitch = 1.0f;
 	if (g == ATTACK_SOUND_NONE || g >= ATTACK_SOUND_GROUP_COUNT) return godot::String();
 	const AttackSoundGroup &grp = attack_sound_group(g);
@@ -164,6 +184,8 @@ inline godot::String pick_attack_sound(uint8_t g, Rng &rng, float *pitch) {
 	if (n == 0) return godot::String();
 	const float u = (float)(rng() % 1000) / 1000.0f;
 	*pitch = grp.pitch_lo + (grp.pitch_hi - grp.pitch_lo) * u;
+	const float v = (float)(rng() % 1000) / 1000.0f;
+	*gain = grp.gain_lo + (grp.gain_hi - grp.gain_lo) * v;
 	return godot::String(kAudioRoot) + grp.dir + "/" + grp.files[rng() % n];
 }
 
@@ -180,6 +202,37 @@ public:
 		rng_.seed(std::random_device{}());
 	}
 	void set_spatial(SpatialFn fn) { spatial_ = std::move(fn); }
+
+	// 0.28's positional gain (SoundManager.cpp alDistanceModel(AL_LINEAR_DISTANCE); SoundGroup.cpp
+	// SetRollOff with sound.mindistance 1 m, sound.maxdistance 350 m and the default rolloff 0.5):
+	// the gain falls linearly from 1 at 1 m to 1 - rolloff at 350 m from the listener and stays
+	// there beyond. A sim unit is 4 m. The listener is the camera's focus point (0.28 uses the
+	// camera origin).
+	// rolloff is 0.5 in view and 0.7 when the sound is off screen (0.28 SoundGroup.cpp MAX_ROLLOFF).
+	static float falloff_gain(float dist_units, float rolloff = 0.5f) {
+		const float d = std::clamp(dist_units * 4.0f, 1.0f, 350.0f);
+		return 1.0f - rolloff * (d - 1.0f) / (350.0f - 1.0f);
+	}
+	// 0.28 SoundGroup::RadiansOffCenter and UploadPropertiesAndPlay. Given a sound's world position,
+	// returns false when 0.28 wouldn't play it (off screen beyond its buffers). Otherwise heard_at is
+	// where the emitter is placed so Godot pans it to the screen angle (capped at pi/6), dist is the
+	// distance from the camera origin in sim units, and max_rolloff is set when the sound is partly
+	// off screen.
+	using ScreenPanFn = std::function<bool(godot::Vector3 pos, godot::Vector3 &heard_at, float &dist, bool &max_rolloff)>;
+	void set_screen_pan(ScreenPanFn fn) { screen_pan_ = std::move(fn); }
+	// A positional sound at pos with its 0.28 falloff and stereo placement, then the spatial callback.
+	void spatial_at(const godot::Ref<godot::AudioStream> &s, godot::Vector3 pos, float volume_db, float pitch) {
+		godot::Vector3 heard = pos;
+		float dist = 0.0f;
+		bool max_rolloff = false;
+		if (screen_pan_) {
+			if (!screen_pan_(pos, heard, dist, max_rolloff)) return;
+		} else {
+			const float dx = pos.x - listener_x_, dz = pos.z - listener_z_;
+			dist = std::sqrt(dx * dx + dz * dz);
+		}
+		spatial_(s, heard, volume_db + 20.0f * std::log10(falloff_gain(dist, max_rolloff ? 0.7f : 0.5f)), pitch);
+	}
 
 	// Plays a random member of a sound group, omnipresent (0 A.D. Omnipresent /
 	// Distanceless sound groups). gain is the group's linear Gain.
@@ -204,7 +257,7 @@ public:
 		const godot::String path = g[rng_() % g.size()];
 		godot::Ref<godot::AudioStream> s = stream(path);
 		if (s.is_null()) return false;
-		spatial_(s, godot::Vector3(x, 0.5f, z), gain > 0.001f ? 20.0f * std::log10(gain) : -80.0f, 1.0f);
+		spatial_at(s, godot::Vector3(x, 0.5f, z), gain > 0.001f ? 20.0f * std::log10(gain) : -80.0f, 1.0f);
 		last_played_ = path;
 		return true;
 	}
@@ -225,7 +278,7 @@ public:
 
 	// The unit's own voice line for a 0 A.D. sound group (select, order_*,
 	// trained). One voice at a time, like 0 A.D.'s Priority-ordered voice.
-	bool play_voice(uint8_t civ, uint8_t unit_type, const std::string &action) {
+	bool play_voice(uint8_t civ, uint8_t unit_type, const std::string &action, bool female_phenotype = false) {
 		// Ships, siege engines, elephants, dogs, wagons and the catafalque answer with
 		// their templates' own SoundGroups (template_unit_ship, _siege, _siege_ram,
 		// _champion_elephant, _support_elephant, _dog, _support_wagon, _catafalque),
@@ -272,7 +325,7 @@ public:
 				return false;
 			default: break;
 		}
-		const VoiceKind kind = voice_kind(unit_type);
+		const VoiceKind kind = female_phenotype ? VoiceKind::FEMALE : voice_kind(unit_type);
 		if (kind == VoiceKind::NONE) return false;
 		if (kind == VoiceKind::HORSE) {
 			const char *pre = action == "select" ? "horse_select" : action == "attack" ? "horse_attack" : "horse_select";
@@ -286,7 +339,7 @@ public:
 	}
 
 	// sel_<structure> (interface/select/building).
-	void play_building_select(uint8_t type) { play_group("interface/select/building", building_sound_name(type, true), 1.0f); }
+	void play_building_select(uint8_t type, uint8_t civ) { play_group("interface/select/building", building_sound_name(type, true, civ), 1.0f); }
 
 	// template_player.xml SoundGroups, played by Player.OnGlobalPlayerDefeated to
 	// each player: "defeated" when it falls, "defeated_ally" when an ally does,
@@ -317,16 +370,24 @@ public:
 
 		// Structures finished (owner hears complete_<structure>).
 		std::unordered_map<uint32_t, float> progress;
+		std::unordered_map<uint32_t, uint8_t> types;
 		for (const auto &b : sim->buildings()) {
 			if (b.wrecked) continue;
 			if (b.team == me) {
 				progress[b.id] = b.build_progress;
 				auto it = bld_progress_.find(b.id);
 				if (fire && it != bld_progress_.end() && it->second < 1.0f && b.build_progress >= 1.0f)
-					play_group("interface/complete/building", building_sound_name(b.type, false), 1.0f);
+					play_group("interface/complete/building", building_sound_name(b.type, false, b.civ), 1.0f);
+				// Upgrade.js PlaySound("upgraded") on the new entity: the structure's type changed
+				// in place (finish_upgrade keeps the id), and the new template's group plays.
+				auto ty = bld_type_.find(b.id);
+				if (fire && ty != bld_type_.end() && ty->second != b.type && b.build_progress >= 1.0f)
+					if (const char *n = upgraded_sound_name(b.type)) play_group("interface/complete/building", n, 1.0f);
+				types[b.id] = b.type;
 			}
 		}
 		bld_progress_.swap(progress);
+		bld_type_.swap(types);
 
 		// Gate.js gate_opening / gate_closing (actor/gate/stonegate_open, _close) where a
 		// gate the viewer sees opens or closes.
@@ -523,7 +584,20 @@ public:
 	bool in_battle() const { return battle_.in_battle(); }
 	godot::String last_played() const { return last_played_; }
 
-	static const char *building_sound_name(uint8_t type, bool select) {
+	// The "upgraded" sound group of the structure an upgrade turns it into (0.28 declares one
+	// only on the civic centre, the gate, the Han academy, the Germans' wagon encampment and the
+	// Persian tachara). nullptr for the rest.
+	static const char *upgraded_sound_name(uint8_t type) {
+		switch (building_research_base(type)) {
+			case BLD_TOWN_CENTER: case BLD_WAGON_ENCAMPMENT: return "complete_civ_center";
+			case BLD_GATE: case BLD_PALISADE_GATE: case BLD_SIEGE_WALL_GATE: return "complete_gate";
+			case BLD_ACADEMY: return "complete_tholos";
+			case BLD_TACHARA: return "complete_greek_theater";
+			default: return nullptr;
+		}
+	}
+
+	static const char *building_sound_name(uint8_t type, bool select, uint8_t civ) {
 		const char *n = "universal";
 		switch (building_research_base(type)) {
 			case BLD_TOWN_CENTER: n = "civ_center"; break;
@@ -533,16 +607,39 @@ public:
 			case BLD_TOWER: case BLD_SENTRY_TOWER: case BLD_OUTPOST: n = "tower"; break;
 			case BLD_FARMSTEAD: n = "farmstead"; break;
 			case BLD_MARKET: n = "market"; break;
-			case BLD_FORTRESS: n = "fortress"; break;
+			// 0.28: the Britons' and Germans' fortresses are brochs (brit/fortress, germ/fortress); the Gauls' is a fortress.
+			case BLD_FORTRESS: n = (civ == CIV_BRITONS || civ == CIV_GERMANS) ? "broch" : "fortress"; break;
 			case BLD_GATE: case BLD_PALISADE_GATE: case BLD_SIEGE_WALL_GATE: n = "gate"; break;
 			case BLD_TEMPLE: n = "temple"; break;
 			case BLD_WONDER: n = "wonder"; break;
 			case BLD_DOCK: n = "dock"; break;
-			case BLD_WALL_SEGMENT: case BLD_PALISADE: case BLD_WALL_TOWER: case BLD_SIEGE_WALL: n = "wall"; break;
+			case BLD_WALL_SEGMENT: case BLD_PALISADE: case BLD_SIEGE_WALL: n = "wall"; break;
 			case BLD_CORRAL: n = "corral"; break;
 			case BLD_FIELD: n = "field"; break;
 			case BLD_STABLE: n = "stable"; break;
-			case BLD_RANGE: n = select ? "universal" : "range"; break;
+			// 0.28 structure templates (template_structure_*.xml, structures/<civ>/*.xml): the group
+			// each building's Sound/SoundGroups names. The range selects with sel_gymnasium.
+			case BLD_RANGE: n = select ? "gymnasium" : "range"; break;
+			case BLD_WALL_TOWER: case BLD_TOWER_GREAT: case BLD_TOWER_BOLT: case BLD_TOWER_ARTILLERY: case BLD_TOWER_DOUBLE:
+				n = "tower"; break;
+			case BLD_GYMNASIUM: case BLD_SYSSITON: case BLD_MERCENARY_CAMP: case BLD_EMBASSY: case BLD_GREAT_HALL:
+				n = "gymnasium"; break;
+			case BLD_PRYTANEION: case BLD_GEROUSIA: case BLD_ASSEMBLY: case BLD_AMPHITHEATER: case BLD_ACADEMY:
+				n = "tholos"; break;
+			case BLD_ARMY_CAMP: case BLD_PALACE: case BLD_HALL: n = "broch"; break;
+			case BLD_MONUMENT: case BLD_PILLAR: n = "iber_monument"; break;
+			// kush/pyramid_*: constructed iber_monument, selected temple_10 (sel_temple_10.ogg).
+			case BLD_PYRAMID_LARGE: case BLD_PYRAMID_SMALL: n = select ? "temple_10" : "iber_monument"; break;
+			case BLD_LIGHTHOUSE: case BLD_TEMPLE_AMUN: case BLD_TEMPLE_VESTA: case BLD_TEMPLE_MARS: case BLD_TEMPLE_ISIS:
+			case BLD_EPIC_TEMPLE: n = "temple"; break;
+			case BLD_TACHARA: n = "greek_theater"; break;
+			case BLD_TRIUMPHAL_ARCH: n = "theater"; break;
+			case BLD_LIBRARY: n = "library"; break;
+			case BLD_KENNEL: n = "kennel"; break;
+			case BLD_ARSENAL: n = "barracks"; break;
+			case BLD_ICE_HOUSE: n = "farmstead"; break;
+			case BLD_SUPER_DOCK: n = "dock"; break;
+			case BLD_MILL: n = "ffactri"; break;
 			case BLD_FORGE: n = "forge"; break;
 			case BLD_ELEPHANT_STABLE: n = "elephant_stable"; break;
 			case BLD_THEATER: n = "theater"; break;
@@ -657,7 +754,7 @@ private:
 							if (!g.empty()) {
 								godot::Ref<godot::AudioStream> snd = stream(g[rng_() % g.size()]);
 								if (snd.is_valid()) {
-									spatial_(snd, godot::Vector3(uv.pos_x[i], 0.5f, uv.pos_z[i]), -8.0f, 1.0f);
+									spatial_at(snd, godot::Vector3(uv.pos_x[i], 0.5f, uv.pos_z[i]), -8.0f, 1.0f);
 									++work_in_window_;
 									++work_sounds_;
 								}
@@ -701,13 +798,12 @@ private:
 			return false;
 		}
 		if (!sim->is_entity_visible_to_viewer(x, z, team, me)) return false;
-		float pitch = 1.0f;
-		const godot::String path = pick_attack_sound(g, rng_, &pitch);
+		float pitch = 1.0f, gain = 1.0f;
+		const godot::String path = pick_attack_sound(g, rng_, &pitch, &gain);
 		if (path.is_empty()) return false;
 		godot::Ref<godot::AudioStream> s = stream(path);
 		if (s.is_null()) return false;
-		const float gain = attack_sound_group(g).gain;
-		spatial_(s, godot::Vector3(x, y, z), gain > 0.001f ? 20.0f * std::log10(gain) : -80.0f, pitch);
+		spatial_at(s, godot::Vector3(x, y, z), gain > 0.001f ? 20.0f * std::log10(gain) : -80.0f, pitch);
 		++combat_in_window_;
 		++combat_sounds_;
 		last_played_ = path;
@@ -771,13 +867,12 @@ private:
 	// Health.js PlaySound("death"): group g where the entity died, while the viewer sees it.
 	void play_death(const Simulation *sim, uint8_t me, uint8_t g, uint8_t team, float x, float z) {
 		if (!spatial_ || g == ATTACK_SOUND_NONE || !sim->is_entity_visible_to_viewer(x, z, team, me)) return;
-		float pitch = 1.0f;
-		const godot::String path = pick_attack_sound(g, rng_, &pitch);
+		float pitch = 1.0f, gain = 1.0f;
+		const godot::String path = pick_attack_sound(g, rng_, &pitch, &gain);
 		if (path.is_empty()) return;
 		godot::Ref<godot::AudioStream> s = stream(path);
 		if (s.is_null()) return;
-		const float gain = attack_sound_group(g).gain;
-		spatial_(s, godot::Vector3(x, 0.5f, z), gain > 0.001f ? 20.0f * std::log10(gain) : -80.0f, pitch);
+		spatial_at(s, godot::Vector3(x, 0.5f, z), gain > 0.001f ? 20.0f * std::log10(gain) : -80.0f, pitch);
 		last_played_ = path;
 	}
 
@@ -785,6 +880,7 @@ private:
 	unsigned next_ = 0;
 	std::unordered_map<std::string, godot::Ref<godot::AudioStream>> streams_;
 	std::unordered_map<uint32_t, float> bld_progress_;
+	std::unordered_map<uint32_t, uint8_t> bld_type_; // the owner's structures' types last frame
 	std::unordered_map<uint32_t, bool> gate_open_; // gate id -> open last frame
 	std::unordered_map<uint32_t, bool> chicken_fleeing_; // chicken id -> fleeing last frame
 	std::vector<uint32_t> seen_, seen_next_; // living unit ids last frame (ascending) and its scratch
@@ -797,6 +893,7 @@ private:
 	BattleDetection battle_;
 	double battle_dealt_ = 0.0; // Simulation::battle_damage_dealt(seat_) at the last frame
 	SpatialFn spatial_;
+	ScreenPanFn screen_pan_;
 	std::mt19937 rng_;
 	godot::String last_played_;
 };
