@@ -152,10 +152,10 @@ inline EntityAttackSounds unit_attack_sounds(uint16_t tmpl, uint8_t unit_type) {
 	return {ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE};
 }
 
-// One Sound of group g at random (RandOrder) and its pitch (RandPitch); empty for
-// ATTACK_SOUND_NONE.
+// One Sound of group g at random (RandOrder), its gain (RandGain) and its pitch (RandPitch);
+// empty for ATTACK_SOUND_NONE.
 template <class Rng>
-inline godot::String pick_attack_sound(uint8_t g, Rng &rng, float *pitch) {
+inline godot::String pick_attack_sound(uint8_t g, Rng &rng, float *pitch, float *gain) {
 	*pitch = 1.0f;
 	if (g == ATTACK_SOUND_NONE || g >= ATTACK_SOUND_GROUP_COUNT) return godot::String();
 	const AttackSoundGroup &grp = attack_sound_group(g);
@@ -164,6 +164,8 @@ inline godot::String pick_attack_sound(uint8_t g, Rng &rng, float *pitch) {
 	if (n == 0) return godot::String();
 	const float u = (float)(rng() % 1000) / 1000.0f;
 	*pitch = grp.pitch_lo + (grp.pitch_hi - grp.pitch_lo) * u;
+	const float v = (float)(rng() % 1000) / 1000.0f;
+	*gain = grp.gain_lo + (grp.gain_hi - grp.gain_lo) * v;
 	return godot::String(kAudioRoot) + grp.dir + "/" + grp.files[rng() % n];
 }
 
@@ -180,6 +182,26 @@ public:
 		rng_.seed(std::random_device{}());
 	}
 	void set_spatial(SpatialFn fn) { spatial_ = std::move(fn); }
+
+	// 0.28's positional gain (SoundManager.cpp alDistanceModel(AL_LINEAR_DISTANCE); SoundGroup.cpp
+	// SetRollOff with sound.mindistance 1 m, sound.maxdistance 350 m and the default rolloff 0.5):
+	// the gain falls linearly from 1 at 1 m to 1 - rolloff at 350 m from the listener and stays
+	// there beyond. A sim unit is 4 m. The listener is the camera's focus point (0.28 uses the
+	// camera origin).
+	// rolloff is 0.5 for a sound in view and 0.7 off screen (0.28 SoundGroup.cpp MAX_ROLLOFF).
+	static float falloff_gain(float dist_units, float rolloff = 0.5f) {
+		const float d = std::clamp(dist_units * 4.0f, 1.0f, 350.0f);
+		return 1.0f - rolloff * (d - 1.0f) / (350.0f - 1.0f);
+	}
+	// Whether a point is on the camera's screen. Without one, every point counts as on screen.
+	using OnScreenFn = std::function<bool(godot::Vector3)>;
+	void set_on_screen(OnScreenFn fn) { on_screen_ = std::move(fn); }
+	// A positional sound at pos with its 0.28 falloff from the listener, then the spatial callback.
+	void spatial_at(const godot::Ref<godot::AudioStream> &s, godot::Vector3 pos, float volume_db, float pitch) {
+		const float dx = pos.x - listener_x_, dz = pos.z - listener_z_;
+		const bool visible = !on_screen_ || on_screen_(pos);
+		spatial_(s, pos, volume_db + 20.0f * std::log10(falloff_gain(std::sqrt(dx * dx + dz * dz), visible ? 0.5f : 0.7f)), pitch);
+	}
 
 	// Plays a random member of a sound group, omnipresent (0 A.D. Omnipresent /
 	// Distanceless sound groups). gain is the group's linear Gain.
@@ -204,7 +226,7 @@ public:
 		const godot::String path = g[rng_() % g.size()];
 		godot::Ref<godot::AudioStream> s = stream(path);
 		if (s.is_null()) return false;
-		spatial_(s, godot::Vector3(x, 0.5f, z), gain > 0.001f ? 20.0f * std::log10(gain) : -80.0f, 1.0f);
+		spatial_at(s, godot::Vector3(x, 0.5f, z), gain > 0.001f ? 20.0f * std::log10(gain) : -80.0f, 1.0f);
 		last_played_ = path;
 		return true;
 	}
@@ -678,7 +700,7 @@ private:
 							if (!g.empty()) {
 								godot::Ref<godot::AudioStream> snd = stream(g[rng_() % g.size()]);
 								if (snd.is_valid()) {
-									spatial_(snd, godot::Vector3(uv.pos_x[i], 0.5f, uv.pos_z[i]), -8.0f, 1.0f);
+									spatial_at(snd, godot::Vector3(uv.pos_x[i], 0.5f, uv.pos_z[i]), -8.0f, 1.0f);
 									++work_in_window_;
 									++work_sounds_;
 								}
@@ -722,13 +744,12 @@ private:
 			return false;
 		}
 		if (!sim->is_entity_visible_to_viewer(x, z, team, me)) return false;
-		float pitch = 1.0f;
-		const godot::String path = pick_attack_sound(g, rng_, &pitch);
+		float pitch = 1.0f, gain = 1.0f;
+		const godot::String path = pick_attack_sound(g, rng_, &pitch, &gain);
 		if (path.is_empty()) return false;
 		godot::Ref<godot::AudioStream> s = stream(path);
 		if (s.is_null()) return false;
-		const float gain = attack_sound_group(g).gain;
-		spatial_(s, godot::Vector3(x, y, z), gain > 0.001f ? 20.0f * std::log10(gain) : -80.0f, pitch);
+		spatial_at(s, godot::Vector3(x, y, z), gain > 0.001f ? 20.0f * std::log10(gain) : -80.0f, pitch);
 		++combat_in_window_;
 		++combat_sounds_;
 		last_played_ = path;
@@ -792,13 +813,12 @@ private:
 	// Health.js PlaySound("death"): group g where the entity died, while the viewer sees it.
 	void play_death(const Simulation *sim, uint8_t me, uint8_t g, uint8_t team, float x, float z) {
 		if (!spatial_ || g == ATTACK_SOUND_NONE || !sim->is_entity_visible_to_viewer(x, z, team, me)) return;
-		float pitch = 1.0f;
-		const godot::String path = pick_attack_sound(g, rng_, &pitch);
+		float pitch = 1.0f, gain = 1.0f;
+		const godot::String path = pick_attack_sound(g, rng_, &pitch, &gain);
 		if (path.is_empty()) return;
 		godot::Ref<godot::AudioStream> s = stream(path);
 		if (s.is_null()) return;
-		const float gain = attack_sound_group(g).gain;
-		spatial_(s, godot::Vector3(x, 0.5f, z), gain > 0.001f ? 20.0f * std::log10(gain) : -80.0f, pitch);
+		spatial_at(s, godot::Vector3(x, 0.5f, z), gain > 0.001f ? 20.0f * std::log10(gain) : -80.0f, pitch);
 		last_played_ = path;
 	}
 
@@ -819,6 +839,7 @@ private:
 	BattleDetection battle_;
 	double battle_dealt_ = 0.0; // Simulation::battle_damage_dealt(seat_) at the last frame
 	SpatialFn spatial_;
+	OnScreenFn on_screen_;
 	std::mt19937 rng_;
 	godot::String last_played_;
 };
