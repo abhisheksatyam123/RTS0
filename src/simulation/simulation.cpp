@@ -36358,7 +36358,9 @@ void Simulation::petra_manage_defense(float dt) {
 	// of our structures, to a cooperative ally's civic centre, or (an ally attacked by
 	// several enemies) to that ally's structures. Enemy land is never ours to defend.
 	auto dangerous_outside_at = [&](float x, float z, float reach, int owner) {
-		if (owner == petra_pid_ || (owner >= 0 && !is_ally(petra_pid_, (uint8_t)owner))) return false;
+		// isDangerous (DM:152-162) has no territory test for an exclusive ally's civic centre, so
+		// the ally CC check also covers our own land (the own-structure test came first).
+		if (owner >= 0 && owner != petra_pid_ && !is_ally(petra_pid_, (uint8_t)owner)) return false;
 		if (near_own_structure_at(x, z, reach)) return true;
 		const bool help_ally = owner >= 0 && attacked_allies[owner] > 1 && cooperation((uint8_t)owner) > 0.7f;
 		for (const auto &b : buildings_) {
