@@ -936,8 +936,8 @@ static_assert(sizeof(UnitOrder) == 24, "UnitOrder is saved raw");
 inline constexpr float FLEE_DISTANCE = 12.0f * 0.28f;
 inline constexpr float NEARBY_SEARCH_RANGE = 64.0f * 0.28f;
 // Attack.js Capture: template_unit_*.xml Capture MaxRange 4, RepeatTime 1000. 0 A.D.
-// measures edge to edge; RTS0 melee reach is ~0.28 x R plus the radii, so Capture
-// MaxRange 4 is the spearman's reach, as in 0 A.D. (Melee MaxRange 4): 2.4.
+// measures edge to edge. RTS0 scales melee ranges by 0.6 (tools/extract_0ad_rosters.py),
+// so Capture MaxRange 4 becomes 4 x 0.6 = 2.4, the same value as a spearman's Melee MaxRange 4.
 inline constexpr float CAPTURE_RANGE = 2.4f;
 inline constexpr float CAPTURE_REPEAT_S = 1.0f;
 // template_unit_catafalque.xml Capturable: CapturePoints 250, RegenRate 10 a second.
