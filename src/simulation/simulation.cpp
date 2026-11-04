@@ -31986,6 +31986,9 @@ void Simulation::petra_attack_units(AttackPlan &plan) {
 			if (siege_unit && b.build_progress <= 0.0f) continue;
 			const float dx = b.x - units_.pos_x[i], dz = b.z - units_.pos_z[i];
 			if (dx * dx + dz * dz > range2 || petra_building_land(b) != land) continue;
+			if (!unit_can_target_building((size_t)i, b.type)) continue; // canAttackTarget (attackPlan.js:1632, 1752)
+			// isBlocked: while a blocker holds the plan, only its target is picked (attackPlan.js:1750).
+			if (!siege_unit && blocked && b.id != plan.target_building_id) continue;
 			c.push_back({-building_value(i, b, siege_unit), bi});
 		}
 		if (c.empty()) return -1;
@@ -32064,6 +32067,9 @@ void Simulation::petra_attack_units(AttackPlan &plan) {
 			if (dist2 > range2) continue;
 			if (chases_fleeing && (cls((int32_t)j) & TC_FEMALECITIZEN) && units_.action_state[j] == ACTION_FLEE) continue;
 			if (petra_land_at(units_.pos_x[j], units_.pos_z[j]) != land) continue;
+			// attackPlan.js:1684 canAttackTarget. The Animal test (:1686) holds by construction:
+			// animals are fauna_ entries, never in this unit scan.
+			if (!unit_can_target((size_t)i, j)) continue;
 			const bool vetoed = veto.count(units_.id[j]) != 0;
 			if (vetoed && far_from_target) continue;
 			float v = petra_is_support_unit(units_.unit_type[j]) ? 50.0f : 0.0f;
@@ -33027,11 +33033,16 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 
 				// No siege-only plan focusing the target (0.28 has none): siege engines go with
 				// the rest and pick the best structure near them (petra_attack_units).
-				order_attack_move(squad.data(), squad.size(), tx, tz, false, false, true, petra_attack_avoid(plan, false));
-
+				// attackPlan.js ARRIVED: stopMoving, then the per-unit loop runs on the same update with
+				// startingAttack, which checks every unit. Idle units get their own targets there
+				// (counters, supports, the 10% pick), and the far ones get the attack-move from that loop.
+				// A squad-wide attack-move here left every unit walking with no target, which the idle
+				// test of that loop then skips.
+				cmd_stop(squad.data(), squad.size());
 				plan.state = AttackPlan::ATTACKED;
 				plan.state_timer = 0.0f;
 				petra_strike_force_.state = PetraStrikeForce::ENGAGE;
+				petra_attack_units(plan);
 			}
 			break;
 		}
@@ -36359,7 +36370,8 @@ void Simulation::petra_manage_defense(float dt) {
 			if ((is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY) && coop >= 0.3f &&
 			    (coop >= 0.6f || b.build_progress >= 1.0f))
 				return true;
-			if (help_ally && b.team == owner) return true;
+				// defenseManager.js:189: a help-ally structure on blinking (disconnected) land is not defended.
+				if (help_ally && b.team == owner && territory_connected_at(b.x, b.z)) return true;
 		}
 		return false;
 	};
@@ -36460,6 +36472,7 @@ void Simulation::petra_manage_defense(float dt) {
 		}
 		bool has_dest = false;
 		float dest_x = 0.0f, dest_z = 0.0f;
+		float dest_r = 0.0f; // defenseArmy.js radius: 0 for a unit centre, the structure's obstruction radius
 		if (n[0] > 0 || n[1] > 0) {
 			const int k = n[0] > 0 ? 0 : 1;
 			dest_x = sum[k][0] / (float)n[k];
@@ -36481,6 +36494,7 @@ void Simulation::petra_manage_defense(float dt) {
 				dist_min = d;
 				dest_x = b.x;
 				dest_z = b.z;
+				dest_r = det::hypot(b.half_size, b.half_d);
 				has_dest = true;
 			}
 		}
@@ -36493,8 +36507,23 @@ void Simulation::petra_manage_defense(float dt) {
 				if (incoming.empty()) incoming = petra_garrison_incoming();
 				if (petra_garrison_attacked_unit((size_t)idx, false, incoming)) continue;
 			}
-			if (has_dest && !mutual_land(units_.pos_x[idx], units_.pos_z[idx])) order_walk(&uid, 1, dest_x, dest_z, false);
-			else cmd_stop(&uid, 1); // stopMoving: a Stop order, which drops what it had queued too
+			if (has_dest && !mutual_land(units_.pos_x[idx], units_.pos_z[idx])) {
+				// moveToRange(x, z, radius, radius + 5 m) (defenseArmy.js:284-286): walk to the band
+				// from the structure's obstruction edge out to 5 m past it, not to its centre. A unit
+				// already in the band is done (the order finishes), so it stops where it is.
+				const float min_r = dest_r, max_r = dest_r + 5.0f / 4.0f; // 5 m in 4 m units
+				const float dx = units_.pos_x[idx] - dest_x, dz = units_.pos_z[idx] - dest_z;
+				const float d = det::hypot(dx, dz);
+				if (d >= min_r && d <= max_r) {
+					cmd_stop(&uid, 1);
+				} else {
+					const float t = std::clamp(d, min_r, max_r);
+					const float ux = d > 1e-3f ? dx / d : 1.0f, uz = d > 1e-3f ? dz / d : 0.0f;
+					order_walk(&uid, 1, dest_x + ux * t, dest_z + uz * t, false);
+				}
+			} else {
+				cmd_stop(&uid, 1); // stopMoving: a Stop order, which drops what it had queued too
+			}
 		}
 		a.defender_ids.clear();
 		a.foe_ids.clear();
