@@ -3002,6 +3002,41 @@ void RtsoWorldView::hide_unit_vis(UnitVis &v) {
 		v.anim->set_active(false);
 }
 
+// Authored walk and run speed of a unit model, in sim units a second (data/gait_speed.json,
+// tools/gait_speed.py, from the clip's own stride). A locomotion clip plays at speed / authored,
+// so its feet keep pace with the ground, as 0 A.D. syncs a clip to its distance covered.
+struct GaitSpeed { float walk = 0.0f, run = 0.0f; };
+static const GaitSpeed *gait_speed_of(const char *model) {
+	static std::unordered_map<std::string, GaitSpeed> &table = *new std::unordered_map<std::string, GaitSpeed>();
+	static bool loaded = false;
+	if (!loaded) {
+		loaded = true;
+		Ref<FileAccess> f = FileAccess::open("res://data/gait_speed.json", FileAccess::READ);
+		if (f.is_valid()) {
+			Dictionary root = JSON::parse_string(f->get_as_text());
+			Array keys = root.keys();
+			for (int i = 0; i < keys.size(); ++i) {
+				Dictionary e = root[keys[i]];
+				GaitSpeed g;
+				g.walk = (float)(double)e.get("walk", 0.0);
+				g.run = (float)(double)e.get("run", 0.0);
+				table[String(keys[i]).utf8().get_data()] = g;
+			}
+		}
+	}
+	auto it = model ? table.find(model) : table.end();
+	return it != table.end() ? &it->second : nullptr;
+}
+
+// The pace of a walk or run clip for a unit moving at `speed` (sim units a second): over the
+// model's authored speed, or over the template's base walk speed when the model has none.
+static float locomotion_pace(const GaitSpeed *g, bool run, float speed, float base) {
+	const float authored = g ? (run ? g->run : g->walk) : 0.0f;
+	if (authored > 0.001f) return Math::clamp(speed / authored, 0.2f, 6.0f);
+	if (base > 0.001f) return Math::clamp(speed / base, 0.3f, 2.5f);
+	return 1.0f;
+}
+
 // Crowd clip slots. 0 A.D. plays the real clip for every unit (gather_*,
 // build, carry, heal...); the crowd keeps one baked MultiMesh per slot.
 // The formation variant clips take the slots after CROWD_FORM_SLOT, in kFormClips order.
@@ -4943,10 +4978,9 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 				const float ux = uview.vel_x[i], uz = uview.vel_z[i];
 				const float speed2 = ux * ux + uz * uz;
 				pace = 0.3f; // standing still in a walk pose: the clock barely moves
-				if (speed2 > 0.05f) {
-					const float base = sim->unit_base_walk_speed(i);
-					if (base > 0.001f) pace = Math::clamp(std::sqrt(speed2) / base, 0.3f, 2.5f);
-				}
+				if (speed2 > 0.05f)
+					pace = locomotion_pace(gait_speed_of(crowd_key_model(civ, key)), slot == 4, std::sqrt(speed2),
+							sim->unit_base_walk_speed(i));
 			}
 			pace_sum[civ][key][slot][phase] += pace;
 			if (lod_tier == 1) {
@@ -5290,10 +5324,9 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			// Walk and run cycles play at the pace of the ground covered (0 A.D. scales a
 			// locomotion clip by speed over walk speed, so the feet keep up with the ground).
 			float pace = 1.0f;
-			if (!dying && (want.clip == CLIP_WALK || want.clip == CLIP_RUN) && speed2 > 0.05f) {
-				const float base = sim->unit_base_walk_speed(i);
-				if (base > 0.001f) pace = Math::clamp(std::sqrt(speed2) / base, 0.3f, 2.5f);
-			}
+			if (!dying && (want.clip == CLIP_WALK || want.clip == CLIP_RUN) && speed2 > 0.05f)
+				pace = locomotion_pace(gait_speed_of(utype_str.utf8().get_data()), want.clip == CLIP_RUN,
+						std::sqrt(speed2), sim->unit_base_walk_speed(i));
 			v.anim->set_speed_scale(pace);
 		} else {
 			v.anim = nullptr;

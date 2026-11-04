@@ -1,0 +1,1381 @@
+{
+ "archer": {
+  "run": 2.0692,
+  "walk": 1.7096
+ },
+ "archer_maiden": {
+  "run": 2.0692,
+  "walk": 1.7484
+ },
+ "athen_archer": {
+  "run": 2.0692,
+  "walk": 1.7096
+ },
+ "athen_archer_maiden": {
+  "run": 2.0692,
+  "walk": 1.7096
+ },
+ "athen_champion_infantry": {
+  "run": 2.0502,
+  "walk": 1.7104
+ },
+ "athen_female_citizen": {
+  "run": 2.0509,
+  "walk": 1.3049
+ },
+ "athen_healer": {
+  "run": 0.8425,
+  "walk": 0.677
+ },
+ "athen_hero": {
+  "run": 2.0509,
+  "walk": 1.7458
+ },
+ "athen_hero_hippocrates": {
+  "run": 0.8425,
+  "walk": 0.677
+ },
+ "athen_hero_iphicrates": {
+  "walk": 2.0501
+ },
+ "athen_hero_pericles": {
+  "run": 2.0502,
+  "walk": 1.0087
+ },
+ "athen_hero_xenophon": {
+  "walk": 2.0501
+ },
+ "athen_infantry_archer_b": {
+  "run": 2.0692,
+  "walk": 1.7096
+ },
+ "athen_infantry_archer_e": {
+  "run": 2.0692,
+  "walk": 1.7096
+ },
+ "athen_infantry_javelineer_a": {
+  "walk": 2.0501
+ },
+ "athen_infantry_javelineer_b": {
+  "walk": 2.0501
+ },
+ "athen_infantry_javelineer_e": {
+  "walk": 2.0501
+ },
+ "athen_infantry_slinger_a": {
+  "run": 1.7483,
+  "walk": 1.7096
+ },
+ "athen_infantry_slinger_b": {
+  "run": 1.7483,
+  "walk": 1.7096
+ },
+ "athen_infantry_slinger_e": {
+  "run": 1.7483,
+  "walk": 1.7096
+ },
+ "athen_infantry_spearman_a": {
+  "run": 2.0502,
+  "walk": 1.0087
+ },
+ "athen_infantry_spearman_e": {
+  "run": 2.0502,
+  "walk": 1.0087
+ },
+ "athen_spearman": {
+  "run": 2.0502,
+  "walk": 1.0087
+ },
+ "athen_swordsman": {
+  "run": 2.0509,
+  "walk": 1.7095
+ },
+ "athen_villager": {
+  "run": 2.0509,
+  "walk": 0.8368
+ },
+ "brit_archer": {
+  "run": 1.7483,
+  "walk": 1.7096
+ },
+ "brit_female_citizen": {
+  "run": 2.0509,
+  "walk": 1.3049
+ },
+ "brit_healer": {
+  "run": 0.8425,
+  "walk": 0.677
+ },
+ "brit_hero": {
+  "run": 2.0693,
+  "walk": 0.8279
+ },
+ "brit_hero_caratacos": {
+  "run": 2.0693,
+  "walk": 0.8279
+ },
+ "brit_hero_cunobelin_infantry": {
+  "walk": 2.2268
+ },
+ "brit_infantry_javelineer_a": {
+  "walk": 2.0501
+ },
+ "brit_infantry_javelineer_b": {
+  "walk": 2.0501
+ },
+ "brit_infantry_javelineer_e": {
+  "walk": 2.0501
+ },
+ "brit_infantry_slinger_a": {
+  "run": 1.7483,
+  "walk": 1.7096
+ },
+ "brit_infantry_slinger_e": {
+  "run": 1.7483,
+  "walk": 1.7096
+ },
+ "brit_infantry_spearman_a": {
+  "run": 2.0693,
+  "walk": 0.8368
+ },
+ "brit_infantry_spearman_b": {
+  "run": 2.0693,
+  "walk": 0.8368
+ },
+ "brit_infantry_spearman_e": {
+  "run": 2.0693,
+  "walk": 0.8368
+ },
+ "brit_spearman": {
+  "run": 2.0693,
+  "walk": 2.0693
+ },
+ "brit_swordsman": {
+  "run": 2.0693,
+  "walk": 0.8279
+ },
+ "brit_villager": {
+  "run": 2.0509,
+  "walk": 0.8368
+ },
+ "carnyx": {
+  "run": 1.7458,
+  "walk": 1.7096
+ },
+ "cart_archer": {
+  "run": 2.0692,
+  "walk": 1.7096
+ },
+ "cart_archer_maiden": {
+  "run": 2.0692,
+  "walk": 1.7096
+ },
+ "cart_champion_pikeman": {
+  "run": 1.7095,
+  "walk": 0.8279
+ },
+ "cart_female_citizen": {
+  "run": 2.0509,
+  "walk": 1.3049
+ },
+ "cart_healer": {
+  "walk": 1.3049
+ },
+ "cart_hero": {
+  "run": 2.0693,
+  "walk": 0.8279
+ },
+ "cart_infantry_archer_a": {
+  "run": 2.0692,
+  "walk": 1.7096
+ },
+ "cart_infantry_archer_e": {
+  "run": 2.0692,
+  "walk": 1.7096
+ },
+ "cart_infantry_javelineer_iber_a": {
+  "walk": 2.0501
+ },
+ "cart_infantry_javelineer_iber_b": {
+  "walk": 2.0501
+ },
+ "cart_infantry_javelineer_iber_e": {
+  "walk": 2.0501
+ },
+ "cart_infantry_slinger_iber_a": {
+  "run": 1.7483,
+  "walk": 1.7096
+ },
+ "cart_infantry_slinger_iber_e": {
+  "run": 1.7483,
+  "walk": 1.7096
+ },
+ "cart_infantry_spearman_a": {
+  "run": 2.0502,
+  "walk": 1.0087
+ },
+ "cart_infantry_spearman_b": {
+  "run": 2.0502,
+  "walk": 1.0087
+ },
+ "cart_infantry_spearman_e": {
+  "run": 2.0502,
+  "walk": 1.0087
+ },
+ "cart_infantry_spearman_ital_a": {
+  "run": 2.0502,
+  "walk": 1.0087
+ },
+ "cart_infantry_spearman_ital_b": {
+  "run": 2.0502,
+  "walk": 1.0087
+ },
+ "cart_infantry_spearman_ital_e": {
+  "run": 2.0502,
+  "walk": 1.0087
+ },
+ "cart_infantry_swordsman_gaul_a": {
+  "run": 2.0693,
+  "walk": 0.8279
+ },
+ "cart_infantry_swordsman_gaul_b": {
+  "run": 2.0693,
+  "walk": 0.8279
+ },
+ "cart_infantry_swordsman_gaul_e": {
+  "run": 2.0693,
+  "walk": 0.8279
+ },
+ "cart_infantry_swordsman_ital_e": {
+  "run": 2.0693,
+  "walk": 0.8279
+ },
+ "cart_spearman": {
+  "run": 2.0502,
+  "walk": 1.7104
+ },
+ "cart_swordsman": {
+  "run": 2.0693,
+  "walk": 0.8279
+ },
+ "cart_villager": {
+  "run": 2.0509,
+  "walk": 0.8368
+ },
+ "female_citizen": {
+  "run": 2.0509,
+  "walk": 1.3049
+ },
+ "gaul_archer": {
+  "run": 1.7483,
+  "walk": 1.7096
+ },
+ "gaul_carnyx": {
+  "run": 1.7458,
+  "walk": 1.7096
+ },
+ "gaul_female_citizen": {
+  "run": 2.0509,
+  "walk": 1.3049
+ },
+ "gaul_healer": {
+  "run": 0.8425,
+  "walk": 0.677
+ },
+ "gaul_hero": {
+  "run": 2.0693,
+  "walk": 0.8279
+ },
+ "gaul_hero_brennus": {
+  "walk": 2.2268
+ },
+ "gaul_hero_viridomarus": {
+  "run": 2.0693,
+  "walk": 2.0693
+ },
+ "gaul_infantry_javelineer_a": {
+  "walk": 2.0501
+ },
+ "gaul_infantry_javelineer_b": {
+  "walk": 2.0501
+ },
+ "gaul_infantry_javelineer_e": {
+  "walk": 2.0501
+ },
+ "gaul_infantry_slinger_a": {
+  "run": 1.7483,
+  "walk": 1.7096
+ },
+ "gaul_infantry_slinger_e": {
+  "run": 1.7483,
+  "walk": 1.7096
+ },
+ "gaul_infantry_spearman_a": {
+  "run": 2.0693,
+  "walk": 0.8368
+ },
+ "gaul_infantry_spearman_b": {
+  "run": 2.0693,
+  "walk": 0.8368
+ },
+ "gaul_infantry_spearman_e": {
+  "run": 2.0693,
+  "walk": 0.8368
+ },
+ "gaul_spearman": {
+  "run": 2.0693,
+  "walk": 2.0693
+ },
+ "gaul_swordsman": {
+  "walk": 2.2268
+ },
+ "gaul_villager": {
+  "run": 2.0509,
+  "walk": 0.8368
+ },
+ "germ_archer": {
+  "run": 1.7483,
+  "walk": 1.7096
+ },
+ "germ_champion_healer": {
+  "walk": 1.3049
+ },
+ "germ_champion_infantry_maceman": {
+  "run": 2.0693,
+  "walk": 1.7096
+ },
+ "germ_female_citizen": {
+  "run": 2.0509,
+  "walk": 1.3049
+ },
+ "germ_forger": {
+  "run": 0.1631
+ },
+ "germ_healer": {
+  "run": 0.8425,
+  "walk": 0.677
+ },
+ "germ_hero": {
+  "walk": 2.2268
+ },
+ "germ_infantry_javelineer_a": {
+  "walk": 2.0501
+ },
+ "germ_infantry_javelineer_b": {
+  "walk": 2.0501
+ },
+ "germ_infantry_javelineer_e": {
+  "walk": 2.0501
+ },
+ "germ_infantry_slinger_a": {
+  "run": 1.7483,
+  "walk": 1.7096
+ },
+ "germ_infantry_slinger_e": {
+  "run": 1.7483,
+  "walk": 1.7096
+ },
+ "germ_infantry_spearman_e": {
+  "run": 2.0693,
+  "walk": 1.7096
+ },
+ "germ_infantry_swordsman_e": {
+  "run": 2.0693,
+  "walk": 0.8279
+ },
+ "germ_siege_ram_siege_ram_pivot": {
+  "run": 0.9303,
+  "walk": 0.9303
+ },
+ "germ_spearman": {
+  "run": 2.0693,
+  "walk": 1.7096
+ },
+ "germ_swordsman": {
+  "run": 2.0693,
+  "walk": 0.8279
+ },
+ "germ_villager": {
+  "run": 2.0509,
+  "walk": 1.3049
+ },
+ "han_archer": {
+  "run": 2.0692,
+  "walk": 1.7484
+ },
+ "han_chariot_archer": {
+  "run": 0.544,
+  "walk": 0.544
+ },
+ "han_citizen_female": {
+  "run": 2.0509,
+  "walk": 1.3049
+ },
+ "han_crossbowman": {
+  "run": 2.18,
+  "walk": 2.18
+ },
+ "han_fisherman": {
+  "run": 0.6865,
+  "walk": 0.6865
+ },
+ "han_halberdman": {
+  "run": 1.7095,
+  "walk": 0.8279
+ },
+ "han_healer": {
+  "run": 0.8425,
+  "walk": 0.677
+ },
+ "han_hero": {
+  "run": 2.0693,
+  "walk": 0.8368
+ },
+ "han_hero_chariot_han": {
+  "run": 0.544,
+  "walk": 0.544
+ },
+ "han_hero_han_xin": {
+  "run": 2.0693,
+  "walk": 0.8368
+ },
+ "han_hero_liu_bang": {
+  "run": 2.0509,
+  "walk": 1.7096
+ },
+ "han_hero_wei_qing": {
+  "run": 3.0128,
+  "walk": 2.2268
+ },
+ "han_infantry_archer_a": {
+  "run": 2.0692,
+  "walk": 1.7096
+ },
+ "han_infantry_archer_b": {
+  "run": 2.0692,
+  "walk": 1.7096
+ },
+ "han_infantry_archer_e": {
+  "run": 2.0692,
+  "walk": 1.7096
+ },
+ "han_infantry_crossbowman_a": {
+  "run": 3.0128,
+  "walk": 2.2268
+ },
+ "han_infantry_crossbowman_b": {
+  "run": 3.0128,
+  "walk": 2.2268
+ },
+ "han_infantry_crossbowman_e": {
+  "run": 3.0128,
+  "walk": 2.2268
+ },
+ "han_infantry_pikeman_a": {
+  "run": 1.7095,
+  "walk": 0.8279
+ },
+ "han_infantry_pikeman_e": {
+  "run": 1.7095,
+  "walk": 0.8279
+ },
+ "han_infantry_spearman_a": {
+  "run": 2.0693,
+  "walk": 0.8368
+ },
+ "han_infantry_spearman_b": {
+  "run": 2.0693,
+  "walk": 0.8368
+ },
+ "han_infantry_spearman_e": {
+  "run": 2.0693,
+  "walk": 0.8368
+ },
+ "han_merchant_ship": {
+  "run": 0.6865,
+  "walk": 0.6865
+ },
+ "han_minister": {
+  "walk": 0.855
+ },
+ "han_siege_mangonel_pivot": {
+  "run": 2.0509,
+  "walk": 0.8368
+ },
+ "han_spearman": {
+  "run": 2.0693,
+  "walk": 0.8368
+ },
+ "han_swordsman": {
+  "run": 2.0509,
+  "walk": 0.677
+ },
+ "han_villager": {
+  "run": 2.0509,
+  "walk": 0.8368
+ },
+ "han_villager_female": {
+  "run": 2.0509,
+  "walk": 1.3049
+ },
+ "han_villager_male": {
+  "run": 2.0509,
+  "walk": 0.8368
+ },
+ "healer": {
+  "run": 0.8425,
+  "walk": 0.677
+ },
+ "hero": {
+  "run": 2.0502,
+  "walk": 1.0087
+ },
+ "iber_archer": {
+  "run": 1.7483,
+  "walk": 1.7096
+ },
+ "iber_female_citizen": {
+  "run": 2.0509,
+  "walk": 1.3049
+ },
+ "iber_healer": {
+  "walk": 1.3049
+ },
+ "iber_hero": {
+  "run": 2.0509,
+  "walk": 1.7458
+ },
+ "iber_hero_caros": {
+  "run": 2.0693,
+  "walk": 1.7096
+ },
+ "iber_hero_indibil_infantry": {
+  "run": 2.0693,
+  "walk": 0.8368
+ },
+ "iber_infantry_javelineer_a": {
+  "walk": 2.0501
+ },
+ "iber_infantry_javelineer_b": {
+  "walk": 2.0501
+ },
+ "iber_infantry_javelineer_e": {
+  "walk": 2.0501
+ },
+ "iber_infantry_spearman_e": {
+  "run": 2.0693,
+  "walk": 0.8368
+ },
+ "iber_infantry_swordsman_a": {
+  "run": 2.0693,
+  "walk": 1.7096
+ },
+ "iber_infantry_swordsman_b": {
+  "run": 2.0693,
+  "walk": 1.7096
+ },
+ "iber_infantry_swordsman_e": {
+  "run": 2.0693,
+  "walk": 1.7096
+ },
+ "iber_spearman": {
+  "run": 2.0693,
+  "walk": 0.8368
+ },
+ "iber_swordsman": {
+  "walk": 2.2268
+ },
+ "iber_villager": {
+  "run": 2.0509,
+  "walk": 0.8368
+ },
+ "kush_archer": {
+  "run": 2.0692,
+  "walk": 1.7096
+ },
+ "kush_archer_a": {
+  "run": 2.0692,
+  "walk": 1.7096
+ },
+ "kush_archer_b": {
+  "run": 2.0692,
+  "walk": 1.7096
+ },
+ "kush_archer_e": {
+  "run": 2.0692,
+  "walk": 1.7096
+ },
+ "kush_archer_maiden": {
+  "run": 2.0692,
+  "walk": 1.7096
+ },
+ "kush_champion_infantry_apedemak": {
+  "run": 2.0693,
+  "walk": 0.8279
+ },
+ "kush_female_citizen": {
+  "run": 2.0509,
+  "walk": 1.3049
+ },
+ "kush_healer": {
+  "run": 0.8425,
+  "walk": 0.677
+ },
+ "kush_hero": {
+  "run": 1.7096,
+  "walk": 1.3049
+ },
+ "kush_infantry_archer_a": {
+  "run": 2.0692,
+  "walk": 1.7096
+ },
+ "kush_infantry_archer_e": {
+  "run": 2.0692,
+  "walk": 1.7096
+ },
+ "kush_infantry_javelineer_merc_a": {
+  "walk": 2.0501
+ },
+ "kush_infantry_javelineer_merc_e": {
+  "walk": 2.0501
+ },
+ "kush_infantry_maceman_merc_a": {
+  "run": 2.0693,
+  "walk": 1.7096
+ },
+ "kush_infantry_maceman_merc_e": {
+  "run": 2.0693,
+  "walk": 1.7096
+ },
+ "kush_infantry_pikeman_a": {
+  "run": 1.7095,
+  "walk": 0.8279
+ },
+ "kush_infantry_pikeman_e": {
+  "run": 1.7095,
+  "walk": 0.8279
+ },
+ "kush_infantry_spearman_e": {
+  "run": 2.0693,
+  "walk": 0.8368
+ },
+ "kush_infantry_swordsman_a": {
+  "run": 2.0693,
+  "walk": 0.8279
+ },
+ "kush_infantry_swordsman_e": {
+  "run": 2.0693,
+  "walk": 0.8279
+ },
+ "kush_javelinist_a": {
+  "walk": 2.0501
+ },
+ "kush_javelinist_b": {
+  "walk": 2.0501
+ },
+ "kush_javelinist_e": {
+  "walk": 2.0501
+ },
+ "kush_maceman_a": {
+  "run": 2.0693,
+  "walk": 1.7096
+ },
+ "kush_maceman_b": {
+  "run": 2.0693,
+  "walk": 1.7096
+ },
+ "kush_maceman_e": {
+  "run": 2.0693,
+  "walk": 1.7096
+ },
+ "kush_pikeman_a": {
+  "run": 1.7095,
+  "walk": 0.8279
+ },
+ "kush_pikeman_b": {
+  "run": 1.7095,
+  "walk": 0.8279
+ },
+ "kush_pikeman_e": {
+  "run": 1.7095,
+  "walk": 0.8279
+ },
+ "kush_spearman": {
+  "run": 2.0693,
+  "walk": 0.8368
+ },
+ "kush_spearman_a": {
+  "run": 2.0693,
+  "walk": 0.8368
+ },
+ "kush_spearman_e": {
+  "run": 2.0693,
+  "walk": 0.8368
+ },
+ "kush_swordsman": {
+  "run": 2.0693,
+  "walk": 0.8279
+ },
+ "kush_swordsman_a": {
+  "run": 2.0693,
+  "walk": 0.8279
+ },
+ "kush_swordsman_b": {
+  "run": 2.0693,
+  "walk": 0.8279
+ },
+ "kush_swordsman_e": {
+  "run": 2.0693,
+  "walk": 0.8279
+ },
+ "kush_villager": {
+  "run": 2.0509,
+  "walk": 0.8368
+ },
+ "mace_archer": {
+  "run": 2.0692,
+  "walk": 1.7096
+ },
+ "mace_archer_maiden": {
+  "run": 2.0692,
+  "walk": 1.7096
+ },
+ "mace_champion_infantry_crossbowman": {
+  "run": 2.18,
+  "walk": 2.18
+ },
+ "mace_champion_infantry_spearman": {
+  "run": 2.0502,
+  "walk": 1.0087
+ },
+ "mace_champion_infantry_spearman_02": {
+  "run": 2.0502,
+  "walk": 1.0087
+ },
+ "mace_female_citizen": {
+  "run": 2.0509,
+  "walk": 1.3049
+ },
+ "mace_healer": {
+  "run": 0.8425,
+  "walk": 0.677
+ },
+ "mace_hero": {
+  "run": 2.0693,
+  "walk": 0.8279
+ },
+ "mace_hero_craterus": {
+  "run": 2.0509,
+  "walk": 1.7458
+ },
+ "mace_hero_demetrius_i": {
+  "run": 2.0693,
+  "walk": 0.8279
+ },
+ "mace_hero_philip_ii_pike": {
+  "run": 1.7095,
+  "walk": 0.8279
+ },
+ "mace_infantry_archer_a": {
+  "run": 2.0692,
+  "walk": 1.7096
+ },
+ "mace_infantry_archer_e": {
+  "run": 2.0692,
+  "walk": 1.7096
+ },
+ "mace_infantry_javelineer_a": {
+  "walk": 2.0501
+ },
+ "mace_infantry_javelineer_b": {
+  "walk": 2.0501
+ },
+ "mace_infantry_javelineer_e": {
+  "walk": 2.0501
+ },
+ "mace_infantry_pikeman_a": {
+  "run": 1.7095,
+  "walk": 0.8279
+ },
+ "mace_infantry_pikeman_e": {
+  "run": 1.7095,
+  "walk": 0.8279
+ },
+ "mace_infantry_slinger_a": {
+  "run": 1.7483,
+  "walk": 1.7096
+ },
+ "mace_infantry_slinger_b": {
+  "run": 1.7483,
+  "walk": 1.7096
+ },
+ "mace_infantry_slinger_e": {
+  "run": 1.7483,
+  "walk": 1.7096
+ },
+ "mace_spearman": {
+  "run": 1.7095,
+  "walk": 0.8279
+ },
+ "mace_swordsman": {
+  "run": 2.0509,
+  "walk": 1.7096
+ },
+ "mace_villager": {
+  "run": 2.0509,
+  "walk": 1.3049
+ },
+ "maur_archer": {
+  "run": 2.0692,
+  "walk": 1.7484
+ },
+ "maur_archer_a": {
+  "run": 2.0692,
+  "walk": 1.7096
+ },
+ "maur_archer_b": {
+  "run": 2.0692,
+  "walk": 1.7096
+ },
+ "maur_archer_e": {
+  "run": 2.0692,
+  "walk": 1.7096
+ },
+ "maur_archer_fire": {
+  "run": 2.0692,
+  "walk": 1.7484
+ },
+ "maur_archer_maiden": {
+  "run": 2.0692,
+  "walk": 1.7484
+ },
+ "maur_chariot_archer_c": {
+  "run": 0.544,
+  "walk": 0.544
+ },
+ "maur_citizen_female": {
+  "run": 2.0509,
+  "walk": 1.3049
+ },
+ "maur_eleph_archer_r1": {
+  "run": 0.1762,
+  "walk": 0.1762
+ },
+ "maur_female_citizen": {
+  "run": 2.0509,
+  "walk": 1.3049
+ },
+ "maur_fisherman": {
+  "run": 0.6524,
+  "walk": 0.6524
+ },
+ "maur_healer": {
+  "run": 0.8425,
+  "walk": 0.677
+ },
+ "maur_hero": {
+  "run": 2.0692,
+  "walk": 1.7484
+ },
+ "maur_hero_ashoka": {
+  "run": 2.0692,
+  "walk": 1.7484
+ },
+ "maur_hero_bindusara": {
+  "run": 2.0693,
+  "walk": 0.8279
+ },
+ "maur_hero_chanakya": {
+  "run": 0.8425,
+  "walk": 0.677
+ },
+ "maur_hero_chandragupta": {
+  "run": 2.0693,
+  "walk": 0.8279
+ },
+ "maur_hero_chariot": {
+  "run": 0.544,
+  "walk": 0.544
+ },
+ "maur_infantry_archer_a": {
+  "run": 2.0692,
+  "walk": 1.7096
+ },
+ "maur_infantry_archer_e": {
+  "run": 2.0692,
+  "walk": 1.7096
+ },
+ "maur_infantry_swordsman_a": {
+  "run": 2.0693,
+  "walk": 0.8279
+ },
+ "maur_infantry_swordsman_e": {
+  "run": 2.0693,
+  "walk": 0.8279
+ },
+ "maur_mace_inf": {
+  "walk": 2.2268
+ },
+ "maur_spearman": {
+  "run": 2.0693,
+  "walk": 0.8368
+ },
+ "maur_spearman_a": {
+  "run": 2.0693,
+  "walk": 0.8368
+ },
+ "maur_spearman_e": {
+  "run": 2.0693,
+  "walk": 0.8368
+ },
+ "maur_swordsman": {
+  "walk": 2.2268
+ },
+ "maur_swordsman_a": {
+  "run": 2.0693,
+  "walk": 0.8279
+ },
+ "maur_swordsman_b": {
+  "run": 2.0693,
+  "walk": 0.8279
+ },
+ "maur_swordsman_e": {
+  "run": 2.0693,
+  "walk": 0.8279
+ },
+ "maur_villager": {
+  "run": 2.0509,
+  "walk": 0.8368
+ },
+ "merc_thorakites": {
+  "run": 2.0693,
+  "walk": 0.8279
+ },
+ "merc_thureophoros": {
+  "walk": 2.0501
+ },
+ "pers_archer": {
+  "run": 2.0692,
+  "walk": 1.7096
+ },
+ "pers_archer_maiden": {
+  "run": 2.0692,
+  "walk": 1.7096
+ },
+ "pers_female_citizen": {
+  "run": 2.0509,
+  "walk": 1.3049
+ },
+ "pers_healer": {
+  "run": 0.8425,
+  "walk": 0.677
+ },
+ "pers_hero": {
+  "run": 2.0692,
+  "walk": 1.7484
+ },
+ "pers_infantry_archer_a": {
+  "run": 2.0692,
+  "walk": 1.7096
+ },
+ "pers_infantry_archer_b": {
+  "run": 2.0692,
+  "walk": 1.7096
+ },
+ "pers_infantry_archer_e": {
+  "run": 2.0692,
+  "walk": 1.7096
+ },
+ "pers_infantry_javelineer_a": {
+  "walk": 2.0501
+ },
+ "pers_infantry_javelineer_b": {
+  "walk": 2.0501
+ },
+ "pers_infantry_javelineer_e": {
+  "walk": 2.0501
+ },
+ "pers_infantry_spearman_a": {
+  "run": 2.0693,
+  "walk": 0.8368
+ },
+ "pers_infantry_spearman_b": {
+  "run": 2.0693,
+  "walk": 0.8368
+ },
+ "pers_infantry_spearman_e": {
+  "run": 2.0693,
+  "walk": 0.8368
+ },
+ "pers_kardakes_hoplite": {
+  "run": 2.0502,
+  "walk": 1.7104
+ },
+ "pers_kardakes_skirmisher": {
+  "walk": 2.0501
+ },
+ "pers_spearman": {
+  "run": 2.0693,
+  "walk": 0.8368
+ },
+ "pers_villager": {
+  "run": 2.0509,
+  "walk": 0.8368
+ },
+ "ptol_archer": {
+  "run": 2.0692,
+  "walk": 1.7096
+ },
+ "ptol_archer_maiden": {
+  "run": 2.0692,
+  "walk": 1.7096
+ },
+ "ptol_female_citizen": {
+  "run": 2.0509,
+  "walk": 1.3049
+ },
+ "ptol_healer": {
+  "run": 0.8425,
+  "walk": 0.677
+ },
+ "ptol_hero": {
+  "run": 1.7096,
+  "walk": 1.3049
+ },
+ "ptol_infantry_archer_e": {
+  "run": 2.0692,
+  "walk": 1.7096
+ },
+ "ptol_infantry_javelineer_a": {
+  "walk": 2.0501
+ },
+ "ptol_infantry_javelineer_b": {
+  "walk": 2.0501
+ },
+ "ptol_infantry_javelineer_e": {
+  "walk": 2.0501
+ },
+ "ptol_infantry_pikeman_a": {
+  "run": 1.7095,
+  "walk": 0.8279
+ },
+ "ptol_infantry_pikeman_b": {
+  "run": 1.7095,
+  "walk": 0.8279
+ },
+ "ptol_infantry_pikeman_e": {
+  "run": 1.7095,
+  "walk": 0.8279
+ },
+ "ptol_infantry_slinger_a": {
+  "run": 1.7483,
+  "walk": 1.7096
+ },
+ "ptol_infantry_slinger_b": {
+  "run": 1.7483,
+  "walk": 1.7096
+ },
+ "ptol_infantry_slinger_e": {
+  "run": 1.7483,
+  "walk": 1.7096
+ },
+ "ptol_infantry_spearman_merc_a": {
+  "run": 2.0693,
+  "walk": 0.7955
+ },
+ "ptol_infantry_spearman_merc_b": {
+  "run": 2.0693,
+  "walk": 0.7955
+ },
+ "ptol_infantry_spearman_merc_e": {
+  "run": 2.0693,
+  "walk": 0.7955
+ },
+ "ptol_infantry_swordsman_merc_a": {
+  "run": 2.0693,
+  "walk": 0.8279
+ },
+ "ptol_infantry_swordsman_merc_e": {
+  "run": 2.0693,
+  "walk": 0.8279
+ },
+ "ptol_spearman": {
+  "run": 1.7095,
+  "walk": 0.8279
+ },
+ "ptol_swordsman": {
+  "run": 2.0693,
+  "walk": 0.8279
+ },
+ "ptol_villager": {
+  "run": 2.0509,
+  "walk": 0.8368
+ },
+ "rome_archer": {
+  "walk": 2.0501
+ },
+ "rome_champion_infantry_spear_gladiator": {
+  "run": 2.0693,
+  "walk": 1.7096
+ },
+ "rome_champion_infantry_sword_gladiator": {
+  "run": 2.0693,
+  "walk": 1.7096
+ },
+ "rome_champion_infantry_swordsman_03": {
+  "run": 2.0693,
+  "walk": 0.8279
+ },
+ "rome_champion_infantry_swordsman_04": {
+  "walk": 2.2268
+ },
+ "rome_champion_infantry_swordsman_05": {
+  "run": 2.0693,
+  "walk": 1.7096
+ },
+ "rome_champion_infantry_swordsman_centurion": {
+  "walk": 2.2268
+ },
+ "rome_champion_infantry_swordsman_first": {
+  "walk": 2.2268
+ },
+ "rome_female_citizen": {
+  "run": 2.0509,
+  "walk": 1.3049
+ },
+ "rome_healer": {
+  "run": 0.8425,
+  "walk": 0.677
+ },
+ "rome_hero": {
+  "run": 2.0693,
+  "walk": 0.8279
+ },
+ "rome_hero_marcellus_infantry": {
+  "run": 2.0693,
+  "walk": 0.8279
+ },
+ "rome_hero_maximus_infantry": {
+  "run": 2.0693,
+  "walk": 0.8279
+ },
+ "rome_infantry_antesignanus": {
+  "run": 2.0456,
+  "walk": 0.8425
+ },
+ "rome_infantry_legionary": {
+  "run": 2.0693,
+  "walk": 0.8279
+ },
+ "rome_infantry_spearman_conscript": {
+  "run": 2.0693,
+  "walk": 0.8368
+ },
+ "rome_infantry_swordsman_a": {
+  "run": 2.0693,
+  "walk": 0.8279
+ },
+ "rome_infantry_swordsman_b": {
+  "run": 2.0693,
+  "walk": 0.8279
+ },
+ "rome_infantry_swordsman_e": {
+  "run": 2.0693,
+  "walk": 0.8279
+ },
+ "rome_infantry_swordsman_slave": {
+  "run": 2.0693,
+  "walk": 0.8279
+ },
+ "rome_spearman": {
+  "run": 2.0693,
+  "walk": 0.8368
+ },
+ "rome_swordsman": {
+  "walk": 2.2268
+ },
+ "rome_villager": {
+  "run": 2.0509,
+  "walk": 0.8368
+ },
+ "samnite_skirmisher": {
+  "walk": 2.0501
+ },
+ "samnite_spearman": {
+  "run": 2.0502,
+  "walk": 1.0087
+ },
+ "sele_archer": {
+  "run": 2.0692,
+  "walk": 1.7096
+ },
+ "sele_archer_maiden": {
+  "run": 2.0692,
+  "walk": 1.7096
+ },
+ "sele_female_citizen": {
+  "run": 2.0509,
+  "walk": 1.3049
+ },
+ "sele_healer": {
+  "run": 0.8425,
+  "walk": 0.677
+ },
+ "sele_hero": {
+  "run": 2.0502,
+  "walk": 1.0087
+ },
+ "sele_infantry_archer_merc_e": {
+  "run": 2.0692,
+  "walk": 1.7096
+ },
+ "sele_infantry_javelineer_a": {
+  "walk": 2.0501
+ },
+ "sele_infantry_javelineer_b": {
+  "walk": 2.0501
+ },
+ "sele_infantry_javelineer_e": {
+  "walk": 2.0501
+ },
+ "sele_infantry_pikeman_a": {
+  "run": 1.7095,
+  "walk": 0.8279
+ },
+ "sele_infantry_pikeman_b": {
+  "run": 1.7095,
+  "walk": 0.8279
+ },
+ "sele_infantry_pikeman_e": {
+  "run": 1.7095,
+  "walk": 0.8279
+ },
+ "sele_infantry_spearman_a": {
+  "run": 2.0693,
+  "walk": 0.7955
+ },
+ "sele_infantry_spearman_b": {
+  "run": 2.0693,
+  "walk": 0.7955
+ },
+ "sele_infantry_spearman_e": {
+  "run": 2.0693,
+  "walk": 0.7955
+ },
+ "sele_infantry_swordsman_merc_a": {
+  "run": 2.0509,
+  "walk": 1.7096
+ },
+ "sele_infantry_swordsman_merc_b": {
+  "run": 2.0509,
+  "walk": 1.7096
+ },
+ "sele_infantry_swordsman_merc_e": {
+  "run": 2.0509,
+  "walk": 1.7096
+ },
+ "sele_spearman": {
+  "run": 1.7095,
+  "walk": 0.8279
+ },
+ "sele_swordsman": {
+  "walk": 2.2268
+ },
+ "sele_villager": {
+  "run": 2.0509,
+  "walk": 0.8368
+ },
+ "spart_archer": {
+  "run": 1.7483,
+  "walk": 1.7096
+ },
+ "spart_champion_infantry_pike": {
+  "run": 1.7095,
+  "walk": 0.8279
+ },
+ "spart_champion_infantry_spear_olympian": {
+  "run": 2.0502,
+  "walk": 1.0087
+ },
+ "spart_female_citizen": {
+  "run": 2.0509,
+  "walk": 1.3049
+ },
+ "spart_healer": {
+  "run": 0.8425,
+  "walk": 0.677
+ },
+ "spart_hero": {
+  "run": 2.0502,
+  "walk": 1.0087
+ },
+ "spart_hero_agis": {
+  "run": 2.0502,
+  "walk": 1.0087
+ },
+ "spart_hero_brasidas": {
+  "run": 2.0693,
+  "walk": 1.7096
+ },
+ "spart_hero_leonidas_300": {
+  "run": 2.0502,
+  "walk": 1.7104
+ },
+ "spart_infantry_javelineer_a": {
+  "walk": 2.0501
+ },
+ "spart_infantry_javelineer_b": {
+  "walk": 2.0501
+ },
+ "spart_infantry_javelineer_e": {
+  "walk": 2.0501
+ },
+ "spart_infantry_spearman_a": {
+  "run": 2.0502,
+  "walk": 1.0087
+ },
+ "spart_infantry_spearman_b": {
+  "run": 2.0502,
+  "walk": 1.0087
+ },
+ "spart_infantry_spearman_e": {
+  "run": 2.0502,
+  "walk": 1.0087
+ },
+ "spart_infantry_spearman_neodamodes": {
+  "run": 2.0502,
+  "walk": 1.0087
+ },
+ "spart_spearman": {
+  "run": 2.0502,
+  "walk": 1.0087
+ },
+ "spart_swordsman": {
+  "run": 2.0509,
+  "walk": 1.7095
+ },
+ "spart_villager": {
+  "run": 2.0509,
+  "walk": 0.8368
+ },
+ "spearman": {
+  "run": 2.0502,
+  "walk": 1.0087
+ },
+ "swordsman": {
+  "run": 2.0509,
+  "walk": 1.7095
+ },
+ "theb_sacred_band": {
+  "run": 2.0502,
+  "walk": 1.0087
+ },
+ "thesp_melanochitones": {
+  "run": 2.0509,
+  "walk": 1.7095
+ },
+ "villager": {
+  "run": 2.0509,
+  "walk": 1.3049
+ }
+}
