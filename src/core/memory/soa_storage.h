@@ -23,11 +23,14 @@ struct UnitSoA {
 	float *pos_z = nullptr;
 	float *vel_x = nullptr;
 	float *vel_z = nullptr;
-	// CCmpPosition m_PrevX/m_PrevZ: each unit's position at the end of the previous
-	// lockstep turn, so ranged aim predicts with the last turn's average velocity
-	// (Attack.js targetVelocity), not the instantaneous one.
+	// CCmpPosition m_PrevX/m_PrevZ: each unit's position at the start of the previous
+	// lockstep turn, from which the turn-start snapshot takes its velocity.
 	float *prev_x = nullptr;
 	float *prev_z = nullptr;
+	// The velocity over the last full lockstep turn (Attack.js targetVelocity = (position -
+	// GetPreviousPosition()) / turnLength, sampled at each turn start), the lead ranged aim uses.
+	float *aim_vx = nullptr;
+	float *aim_vz = nullptr;
 	float *target_x = nullptr;
 	float *target_z = nullptr;
 	float *anchor_x = nullptr;
@@ -114,6 +117,7 @@ struct UnitSoA {
 	void free_all() {
 		#define FREE(p) if(p){ aligned_free(p); p=nullptr; }
 		FREE(pos_x); FREE(pos_z); FREE(vel_x); FREE(vel_z); FREE(prev_x); FREE(prev_z);
+		FREE(aim_vx); FREE(aim_vz);
 		FREE(target_x); FREE(target_z); FREE(anchor_x); FREE(anchor_z); FREE(has_order); FREE(alive);
 		FREE(hp); FREE(max_hp); FREE(id); FREE(team);
 		FREE(unit_type); FREE(tmpl); FREE(action_state); FREE(res_type_carried);
@@ -151,6 +155,8 @@ struct UnitSoA {
 		realloc_aligned(vel_z, c * sizeof(float));
 		realloc_aligned(prev_x, c * sizeof(float));
 		realloc_aligned(prev_z, c * sizeof(float));
+		realloc_aligned(aim_vx, c * sizeof(float));
+		realloc_aligned(aim_vz, c * sizeof(float));
 		realloc_aligned(target_x, c * sizeof(float));
 		realloc_aligned(target_z, c * sizeof(float));
 		realloc_aligned(anchor_x, c * sizeof(float));
@@ -222,6 +228,7 @@ struct UnitSoA {
 		pos_x[i] = x; pos_z[i] = z;
 		vel_x[i] = vel_z[i] = 0;
 		prev_x[i] = x; prev_z[i] = z;
+		aim_vx[i] = aim_vz[i] = 0;
 		target_x[i] = x; target_z[i] = z;
 		anchor_x[i] = x; anchor_z[i] = z;
 		has_order[i] = 0; alive[i] = 1;
@@ -286,6 +293,7 @@ struct UnitSoA {
 			pos_x[idx] = pos_x[last]; pos_z[idx] = pos_z[last];
 			vel_x[idx] = vel_x[last]; vel_z[idx] = vel_z[last];
 			prev_x[idx] = prev_x[last]; prev_z[idx] = prev_z[last];
+			aim_vx[idx] = aim_vx[last]; aim_vz[idx] = aim_vz[last];
 			target_x[idx] = target_x[last]; target_z[idx] = target_z[last];
 			anchor_x[idx] = anchor_x[last]; anchor_z[idx] = anchor_z[last];
 			has_order[idx] = has_order[last]; alive[idx] = alive[last];
