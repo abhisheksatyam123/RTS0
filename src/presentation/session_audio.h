@@ -36,6 +36,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <functional>
 #include <random>
 #include <string>
@@ -91,6 +92,25 @@ inline const char *voice_language(uint8_t civ) {
 
 enum class VoiceKind : uint8_t { NONE, MALE, FEMALE, DOG, HORSE, ELEPHANT };
 
+// 0.28 roster templates whose own Phenotype is female (units/<civ>/hero_boudicca.xml,
+// support_healer_b, champion_healer, champion_maiden, hero_amanirenas, hero_cleopatra_vii).
+// Their voice is the female group, whatever their UnitType (heroes and healers are UNIT_HERO
+// and UNIT_HEALER, which speak male otherwise).
+inline bool female_voice_template(uint16_t tmpl) {
+	static const char *const kFemale[] = {
+		"brit/hero_boudicca", "brit/hero_boudicca_cavalry_javelineer", "brit/hero_boudicca_sword",
+		"cart/support_healer_b", "germ/champion_healer", "iber/support_healer_b",
+		"kush/hero_amanirenas", "kush/hero_amanirenas_infantry",
+		"maur/champion_maiden", "maur/champion_maiden_archer",
+		"ptol/hero_cleopatra_vii",
+	};
+	if (tmpl >= CIV_UNIT_TEMPLATE_COUNT) return false;
+	const char *id = civ_unit_template(tmpl).id;
+	for (const char *f : kFemale)
+		if (std::strcmp(id, f) == 0) return true;
+	return false;
+}
+
 // Phenotype of a unit type: template_unit_support_female_citizen and archer
 // maidens are female; siege and ships have no voice in 0 A.D. (traders say
 // order_trade too, template_unit_support_trader.xml).
@@ -141,7 +161,7 @@ inline const std::vector<godot::String> &voice_group_clips(const char *lang, boo
 // a human's {phenotype}_death by its phenotype (voice_kind).
 inline uint8_t unit_death_sound(uint16_t tmpl, uint8_t unit_type) {
 	const uint8_t g = tmpl < ATTACK_SOUND_ROSTER_ROWS ? roster_death_sound(tmpl) : generic_death_sound(unit_type);
-	return g == ATTACK_SOUND_PHENOTYPE ? phenotype_death_sound(voice_kind(unit_type) == VoiceKind::FEMALE) : g;
+	return g == ATTACK_SOUND_PHENOTYPE ? phenotype_death_sound(voice_kind(unit_type) == VoiceKind::FEMALE || female_voice_template(tmpl)) : g;
 }
 
 // A unit's attack_melee, attack_ranged and attack_impact_ranged groups: its roster
@@ -258,7 +278,7 @@ public:
 
 	// The unit's own voice line for a 0 A.D. sound group (select, order_*,
 	// trained). One voice at a time, like 0 A.D.'s Priority-ordered voice.
-	bool play_voice(uint8_t civ, uint8_t unit_type, const std::string &action) {
+	bool play_voice(uint8_t civ, uint8_t unit_type, const std::string &action, bool female_phenotype = false) {
 		// Ships, siege engines, elephants, dogs, wagons and the catafalque answer with
 		// their templates' own SoundGroups (template_unit_ship, _siege, _siege_ram,
 		// _champion_elephant, _support_elephant, _dog, _support_wagon, _catafalque),
@@ -305,7 +325,7 @@ public:
 				return false;
 			default: break;
 		}
-		const VoiceKind kind = voice_kind(unit_type);
+		const VoiceKind kind = female_phenotype ? VoiceKind::FEMALE : voice_kind(unit_type);
 		if (kind == VoiceKind::NONE) return false;
 		if (kind == VoiceKind::HORSE) {
 			const char *pre = action == "select" ? "horse_select" : action == "attack" ? "horse_attack" : "horse_select";
@@ -592,11 +612,31 @@ public:
 			case BLD_TEMPLE: n = "temple"; break;
 			case BLD_WONDER: n = "wonder"; break;
 			case BLD_DOCK: n = "dock"; break;
-			case BLD_WALL_SEGMENT: case BLD_PALISADE: case BLD_WALL_TOWER: case BLD_SIEGE_WALL: n = "wall"; break;
+			case BLD_WALL_SEGMENT: case BLD_PALISADE: case BLD_SIEGE_WALL: n = "wall"; break;
 			case BLD_CORRAL: n = "corral"; break;
 			case BLD_FIELD: n = "field"; break;
 			case BLD_STABLE: n = "stable"; break;
-			case BLD_RANGE: n = select ? "universal" : "range"; break;
+			// 0.28 structure templates (template_structure_*.xml, structures/<civ>/*.xml): the group
+			// each building's Sound/SoundGroups names. The range selects with sel_gymnasium.
+			case BLD_RANGE: n = select ? "gymnasium" : "range"; break;
+			case BLD_WALL_TOWER: case BLD_TOWER_GREAT: case BLD_TOWER_BOLT: case BLD_TOWER_ARTILLERY: case BLD_TOWER_DOUBLE:
+				n = "tower"; break;
+			case BLD_GYMNASIUM: case BLD_SYSSITON: case BLD_MERCENARY_CAMP: case BLD_EMBASSY: case BLD_GREAT_HALL:
+				n = "gymnasium"; break;
+			case BLD_PRYTANEION: case BLD_GEROUSIA: case BLD_ASSEMBLY: case BLD_AMPHITHEATER: case BLD_ACADEMY:
+				n = "tholos"; break;
+			case BLD_ARMY_CAMP: case BLD_PALACE: case BLD_HALL: n = "broch"; break;
+			case BLD_MONUMENT: case BLD_PILLAR: case BLD_PYRAMID_LARGE: case BLD_PYRAMID_SMALL: n = "iber_monument"; break;
+			case BLD_LIGHTHOUSE: case BLD_TEMPLE_AMUN: case BLD_TEMPLE_VESTA: case BLD_TEMPLE_MARS: case BLD_TEMPLE_ISIS:
+			case BLD_EPIC_TEMPLE: n = "temple"; break;
+			case BLD_TACHARA: n = "greek_theater"; break;
+			case BLD_TRIUMPHAL_ARCH: n = "theater"; break;
+			case BLD_LIBRARY: n = "library"; break;
+			case BLD_KENNEL: n = "kennel"; break;
+			case BLD_ARSENAL: n = "barracks"; break;
+			case BLD_ICE_HOUSE: n = "farmstead"; break;
+			case BLD_SUPER_DOCK: n = "dock"; break;
+			case BLD_MILL: n = "ffactri"; break;
 			case BLD_FORGE: n = "forge"; break;
 			case BLD_ELEPHANT_STABLE: n = "elephant_stable"; break;
 			case BLD_THEATER: n = "theater"; break;
