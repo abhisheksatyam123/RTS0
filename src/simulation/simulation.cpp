@@ -36640,6 +36640,11 @@ void Simulation::petra_manage_defense(float dt) {
 				const int32_t idx = lookup_unit(uid);
 				if (idx < 0) continue;
 				const bool on_it = units_.action_state[idx] == ACTION_ATTACK && units_.target_building_id[idx] == bid;
+				// defenseArmy.js update / assignUnit: only a unit with no order is given the foe. A
+				// defender busy on another target (another structure, a unit, a tower) keeps it.
+				const bool idle = units_.action_state[idx] == ACTION_IDLE && !units_.has_order[idx] &&
+				                  (!order_queues_.count(uid) || order_queues_.at(uid).empty());
+				if (!on_it && !idle) continue;
 				// defenseArmy.js update: one capturing what allowCapture no longer allows damages it.
 				if (on_it && !(units_.order_flags[idx] & ORDER_FLAG_ALLOW_CAPTURE)) continue;
 				const bool capture = petra_allow_capture(army.defender_ids, uid, b);
