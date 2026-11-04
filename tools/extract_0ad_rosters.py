@@ -946,7 +946,7 @@ BUILDING_CLASS = {
     "Economic": ["BLD_STOREHOUSE", "BLD_FARMSTEAD", "BLD_MARKET", "BLD_CORRAL", "BLD_HOUSE"] + MAP_HOUSES + [
                  "BLD_TRADING_POST",  # trading_post_* inherit template_structure_economic_market
                  "BLD_MILL"],  # mill_greek: rotary_mill|template_structure_economic_farmstead
-    "CivCentre": ["BLD_TOWN_CENTER", "BLD_IMPERIAL_COURT", "BLD_CRANNOG", "BLD_MILITARY_COLONY"], "Naval": ["BLD_DOCK"], "Wonder": ["BLD_WONDER"],
+    "CivCentre": ["BLD_TOWN_CENTER", "BLD_IMPERIAL_COURT", "BLD_CRANNOG", "BLD_MILITARY_COLONY"], "Naval": ["BLD_DOCK", "BLD_SUPER_DOCK", "BLD_CRANNOG"],  # cart/super_dock and brit/crannog: VisibleClasses Naval (G115) "Wonder": ["BLD_WONDER"],
     # military_colony inherits template_structure_civic_civil_centre; the temples of Vesta, Mars,
     # Amun and Isis (ptol/temple_2) template_structure_civic_temple; han/academy and the
     # mercenary camps template_structure_military_barracks.

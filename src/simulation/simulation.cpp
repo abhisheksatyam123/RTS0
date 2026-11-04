@@ -28500,9 +28500,10 @@ int Simulation::petra_transport_ships_on(uint16_t sea) const {
 	return n;
 }
 
-// navalManager.js getBestShip: for "transport" the most GarrisonHolder room,
-// +50 when it carries siege engines (no RTS0 ship has BuildingAI arrows, as in
-// 0 A.D. now); for "fishing" the fishing boat. Ties go to the later template.
+// navalManager.js getBestShip: for "transport" the most GarrisonHolder room among every trainable
+// ship at the dock with room for 2 or more, skipping categories at their EntityLimits, +50 for a
+// trireme that carries siege engines (no RTS0 ship has BuildingAI arrows, as in 0 A.D. now); for
+// "fishing" the fishing boat, under the same limit. Ties go to the later template.
 uint16_t Simulation::petra_best_ship(bool fishing) const {
 	const uint8_t pid = petra_pid_;
 	uint16_t best_tmpl = CIV_UNIT_TEMPLATE_NONE;
@@ -28511,11 +28512,14 @@ uint16_t Simulation::petra_best_ship(bool fishing) const {
 		const CivUnitTemplate &t = civ_unit_template(tmpl);
 		if (t.civ != players_[pid].civ || t.phase > players_[pid].phase || !unit_is_ship(t.unit_type)) continue;
 		if (!can_train_at(pid, t.unit_type, BLD_DOCK, tmpl)) continue;
+		// getBestShip: a category at its EntityLimits (queued ones count) is skipped.
+		if (!match_limit_allows(pid, tmpl, 1)) continue;
 		if (fishing) {
 			if (t.unit_type == UNIT_FISHING_BOAT) best_tmpl = tmpl;
 			continue;
 		}
-		if (t.unit_type != UNIT_TRIREME && t.unit_type != UNIT_MERCHANT_SHIP) continue;
+		// Every ship that can hold two passengers (the fishing boat holds one).
+		if (t.unit_type == UNIT_FISHING_BOAT) continue;
 		int capacity = ship_template_capacity(t.unit_type, tmpl);
 		if (capacity < 2) continue;
 		if (t.unit_type == UNIT_TRIREME && capacity != 10) capacity += 50; // List Siege (not the scout ship)
@@ -31863,6 +31867,7 @@ void Simulation::petra_attack_units(AttackPlan &plan) {
 	const bool blocked = petra_plan_blocked(plan);
 	std::unordered_set<int32_t> reacted;
 	auto hit = [&](int32_t j, int32_t a) {
+		if (!unit_can_target((size_t)j, (size_t)a)) return; // canAttackTarget (attackPlan.js:1406-1477): leave it alone
 		const uint32_t uid = units_.id[j];
 		order_attack(&uid, 1, units_.id[a]);
 		reacted.insert(j);
@@ -35882,8 +35887,14 @@ void Simulation::petra_scuttle_undefendable() {
 	// The Attacked events since our last turn (DM:608-622): any hit or capture attempt,
 	// from a unit, a structure's arrows or a siege engine out of sight.
 	std::vector<uint32_t> attacked;
+	// defenseManager.js:585: an ally hitting it (recovering its own capture points) is no reason to react.
+	auto by_ally = [&](uint32_t who) {
+		if (const int32_t k = lookup_unit(who); k >= 0) return units_.team[k] < MAX_PLAYERS && is_ally(petra_pid_, units_.team[k]);
+		const auto it = building_id_to_idx_.find(who);
+		return it != building_id_to_idx_.end() && buildings_[it->second].team < MAX_PLAYERS && is_ally(petra_pid_, buildings_[it->second].team);
+	};
 	for (const auto &[target, attacker] : petra_turn_attacks_)
-		if (building_id_to_idx_.count(target)) attacked.push_back(target);
+		if (building_id_to_idx_.count(target) && !(attacker && by_ally(attacker))) attacked.push_back(target);
 	if (attacked.empty()) return;
 	std::sort(attacked.begin(), attacked.end());
 	attacked.erase(std::unique(attacked.begin(), attacked.end()), attacked.end());
@@ -36678,9 +36689,9 @@ void Simulation::petra_manage_defense(float dt) {
 				if (b.hp <= 0.0f || b.team >= MAX_PLAYERS || (b.team != petra_pid_ && !is_ally(petra_pid_, b.team))) continue;
 				float reach = 0.0f;
 				if (is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY) {
-					if (b.team == petra_pid_ || cooperation(b.team) >= 0.3f) reach = 56.0f;
+					if (b.team == petra_pid_ || cooperation(b.team) >= 0.3f) reach = 50.0f; // 200 m (40000 m^2, defenseManager.js:370), 4 m a unit
 				} else if (b.type == BLD_DOCK && b.team == petra_pid_) {
-					reach = 28.0f;
+					reach = 25.0f; // 100 m (10000 m^2, defenseManager.js:382)
 				}
 				const float dx = ax - b.x, dz = az - b.z;
 				keep = reach > 0.0f && dx * dx + dz * dz <= reach * reach;
@@ -36850,8 +36861,9 @@ void Simulation::petra_manage_defense(float dt) {
 					const float dx = units_.pos_x[i] - needs[k].x, dz = units_.pos_z[i] - needs[k].z;
 					if (dx * dx + dz * dz < best_d2) { best_d2 = dx * dx + dz * dz; best = (int)k; }
 				}
-				// A unit with no army it can reach also goes to the backup while there is room.
-				if (backup < 12 && (best < 0 || (best_d2 > 56.0f * 56.0f && needs[best].terr != petra_pid_))) {
+				// A unit with no army it can reach also goes to the backup while there is room
+				// (beyond 200 m = 2500 units^2, defenseManager.js:493).
+				if (backup < 12 && (best < 0 || (best_d2 > 2500.0f && needs[best].terr != petra_pid_))) {
 					++backup;
 					c.second = SIZE_MAX;
 					continue;
@@ -36887,6 +36899,13 @@ void Simulation::petra_manage_defense(float dt) {
 				const int32_t idx = lookup_unit(uid);
 				if (idx < 0) continue;
 				const bool on_it = units_.action_state[idx] == ACTION_ATTACK && units_.target_building_id[idx] == bid;
+				// defenseArmy.js update / assignUnit: only a unit with no order is given the foe. A
+				// defender busy on another target (another structure, a unit, a tower) keeps it.
+				const bool idle = units_.action_state[idx] == ACTION_IDLE && !units_.has_order[idx] &&
+				                  (!order_queues_.count(uid) || order_queues_.at(uid).empty());
+				// A defender just drafted is assigned at once (assignDefenders), whatever its order.
+				const bool just_drafted = std::find(drafted.begin(), drafted.end(), uid) != drafted.end();
+				if (!on_it && !idle && !just_drafted) continue;
 				// defenseArmy.js update: one capturing what allowCapture no longer allows damages it.
 				if (on_it && !(units_.order_flags[idx] & ORDER_FLAG_ALLOW_CAPTURE)) continue;
 				const bool capture = petra_allow_capture(army.defender_ids, uid, b);
