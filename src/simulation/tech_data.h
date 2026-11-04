@@ -144,8 +144,9 @@ enum TechnologyId : uint8_t {
 	TECH_RESETTLEMENT = 135, // resettlement
 	TECH_CELTIC_AUXILIARIES = 136, // celtic_auxiliaries (hand-added: Loot/<res> of the unit)
 	TECH_WAGON_TRAINS = 137, // wagon_trains
-	TECH_PHEIDIAN_WORKSHOP = 138, // pheidian_workshop (hand-added: no 0.28 template researches it, so civ_mask is 0)
-	TECH_COUNT = 139
+	TECH_UNLOCK_FEMALES_HOUSE = 138, // unlock_females_house
+	TECH_PHEIDIAN_WORKSHOP = 139, // pheidian_workshop (hand-added: no 0.28 template researches it, so civ_mask is 0)
+	TECH_COUNT = 140
 };
 
 // A set of 0 A.D. classes (TechClass bits 0..63 in lo, 64..127 in hi).
@@ -691,6 +692,7 @@ inline const TechInfo &tech_info(uint8_t tech_id) {
 		{"Migratory Resettlement", "All Structures except for walls do not decay to neutral or enemy territory.", 0, 200, 200, 200, 40.0f, 2, BLD_TOWN_CENTER, TECH_NONE, 0x8000, 188, 1, "resettlement"},
 		{"Celtic Auxiliaries", "Mercenaries −50% metal cost but +50 food cost.", 0, 0, 550, 0, 45.0f, 3, BLD_EMBASSY, TECH_NONE, 0x0010, 189, 4, "celtic_auxiliaries"},
 		{"Wagon Trains", "Supply Wagons +5 population space and Wagon Encampments +10 population space. Training Germanic Workers unlocked from the Supply Wagon as well.", 0, 400, 100, 0, 40.0f, 2, BLD_WAGON_ENCAMPMENT, TECH_NONE, 0x8000, 199, 1, "wagon_trains"},
+		{"Fertility Festival", "Unlock the ability to train women from houses.", 200, 100, 100, 0, 40.0f, 1, BLD_HOUSE, TECH_NONE, 0xbff7, 126, 0, "unlock_females_house"},
 		{"Pheidian Workshop", "Temples and Wonder −50% stone cost and build time.", 0, 0, 0, 300, 40.0f, 2, BLD_TEMPLE, TECH_PHASE_TOWN, 0x0000, 200, 2, "pheidian_workshop"},
 	};
 	if (tech_id >= TECH_COUNT) return kTable[TECH_NONE];
