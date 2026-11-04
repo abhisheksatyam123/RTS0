@@ -14423,6 +14423,16 @@ constexpr float PUSH_EPSILON = 10.0f / 65536.0f * PUSH_SCALE; // fixed::Epsilon(
 constexpr float PUSH_TURN = 0.2f;                         // 0 A.D. turn length, s
 constexpr int PUSH_MAX_PRESSURE = 255;                    // CCmpUnitMotionManager::MAX_PRESSURE
 constexpr int PUSH_MAX_DAMPING_PRESSURE = 160;            // MAX_PUSH_DAMPING_PRESSURE
+// 0 A.D. bins each unit once a turn, by its turn-start position, into a PUSHING_GRID_SIZE (20 m) square
+// (CCmpUnitMotion_System.cpp:75 and 458-480, 0ad-android checkout), and its pair loop (584-591) pairs a
+// unit only with the units in its own square and its four orthogonal neighbours (consider list 536-547), so
+// a pair across a square's corner never pushes. At the
+// crowd scale the square is 20 m times PUSH_SCALE, with the map's corner as its origin, as 0 A.D.'s
+// squares start at its map's corner. Not ported: 0 A.D. builds each bin's neighbour list round the cell
+// its first unit ends the turn in (513-514, after Move), a quirk RTS0 can't reproduce while it pushes every tick.
+// RTS0 bins a stepping unit by where it stood before its first step this turn, and a standing unit by its
+// tick-start position, so a standing unit that a push moves can change square up to a turn early.
+constexpr float PUSH_SQUARE = 20.0f * PUSH_SCALE;
 constexpr int PUSH_MIN_PRESSURE_IF_OBSTRUCTED = 80;       // MIN_PRESSURE_IF_OBSTRUCTED
 constexpr float PUSH_PRESSURE_STATIC = 2.0f;              // PRESSURE_STATIC_FACTOR
 constexpr float PUSH_PRESSURE_DISTANCE = 5.0f;            // PRESSURE_DISTANCE_FACTOR
@@ -14575,14 +14585,15 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 	if (n_big && !big.build(arena, N, epx, epz, qbig, map_half_, grid.res)) return;
 
 	// The pair loop's inputs, gathered once: twice the average of where each unit stood before and
-	// after move_units (the pushes compare that), where it stood when the turn began (the crossing
-	// test compares that, as 0 A.D. pushes once a turn: over one tick two walkers can't get far
+	// after move_units (the pushes compare that), where a stepping unit stood before its first step this
+	// turn, else where it stood at the tick's start (the crossing test compares that, as 0 A.D. pushes once
+	// a turn: over one tick two walkers can't get far
 	// enough past each other to pass PERPENDICULAR_NUDGE_THRESHOLD), and its pushing data. The
 	// widest clearance this tick bounds every pair's reach: none pushes beyond its clearances times
 	// Radius plus the moving extension.
 	struct PushUnit {
 		float sx, sz;
-		float ix, iz; // where it stood when the turn began: before its first step of the turn, if any
+		float ix, iz; // where a stepping unit stood before its first step this turn, else where it stood at the tick's start
 		float r; // unit_collision_radius, or an animal's FAUNA_PUSH_RADIUS; its push clearance is r * PUSH_CLEARANCE_PER_RADIUS
 		uint32_t id, group; // group: its formation, 0 for none
 		uint16_t w; // unit_push_weight, or an animal's UnitMotion Weight
@@ -14698,6 +14709,17 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 		step_max = std::max({step_max, std::fabs(epx[i] - frx[i]), std::fabs(epz[i] - frz[i])});
 		mov[i] = u.moving;
 	}
+	// Each entity's pushing square, from pu[i].ix, iz (see PushUnit): 0 A.D. bins
+	// every unit once a turn, at its turn-start position; RTS0 bins a standing unit at its tick-start one.
+	// A unit that doesn't push is never looked at.
+	int32_t *sqx = arena.alloc_array<int32_t>(N);
+	int32_t *sqz = arena.alloc_array<int32_t>(N);
+	if (!sqx || !sqz) return;
+	for (size_t i = 0; i < N; ++i) {
+		const bool pushing = i >= n || pushes[i];
+		sqx[i] = pushing ? (int32_t)std::floor((pu[i].ix + map_half_) / PUSH_SQUARE) : 0;
+		sqz[i] = pushing ? (int32_t)std::floor((pu[i].iz + map_half_) / PUSH_SQUARE) : 0;
+	}
 	const float min_push = PUSH_MIN_FORCE * dt / PUSH_TURN;
 	if (n_big) {
 		if (!grid.pack(arena, N, epx, epz, mov) || !grid.alloc_split_flagged(arena)) return;
@@ -14784,6 +14806,16 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 				const float rr = ri + b.r;
 				const float bdx = pxi - epx[j], bdz = pzi - epz[j];
 				if (bdx * bdx + bdz * bdz < rr * rr) body_overlap = true;
+			}
+			// The square gate (0 A.D. pushes a pair only from one pushing square to the same or an orthogonal
+			// neighbour, consider list 536-547 in CCmpUnitMotion_System.cpp). It covers every pair that moves alike (both walking or
+			// both standing) and every same-group pair. A walker and an idle unit outside one group never push:
+			// they slide below, RTS0's own nudge off a standing body (avoid_idle_units keeps a steered walker out of it).
+			// It runs after the bodies' overlap above, so a pair across a square's corner still exempts an
+			// overlapping body from MinimalForce; only its own push is skipped.
+			if (same_group || mi == mj) {
+				const int32_t dsx = sqx[i] - sqx[j], dsz = sqz[i] - sqz[j];
+				if (dsx > 1 || dsx < -1 || dsz > 1 || dsz < -1 || (dsx != 0 && dsz != 0)) return;
 			}
 			// Half the offset of the averages; no pair pushes beyond `reach`.
 			const float hx = (a.sx - b.sx) * 0.5f, hz = (a.sz - b.sz) * 0.5f;
@@ -14926,7 +14958,11 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 			pressure = (uint8_t)std::min(PUSH_MAX_PRESSURE, (int)((PUSH_PRESSURE_DECAY * pressure) >> 16) + added_pressure);
 		// MinimalForce lets crowds settle, but it can also hold idle units that were put on top of
 		// one another (a siege engine's forced eject at its centre): an idle unit whose body overlaps
-		// another idle unit's is always pushed.
+		// another idle unit's is exempt, so its total push is always applied, even where its pair across a
+		// square's corner is skipped by the gate. 0 A.D. has no such exemption (PushAdjust, CCmpUnitMotion_System.cpp:622
+		// in the 0ad-android checkout zeroes any total under MinimalPushing): this is a deliberate RTS0 deviation
+		// (REMAINING_GAPS G124). It stays because without it a corner pair with a third idle unit nearby froze 0.46
+		// units apart after 60 ticks, against 1.54 with it (test_unit_pushing scenario 45).
 		if (!body_overlap && ax * ax + az * az <= min_push * min_push) {
 			ax = az = 0.0f;
 		} else {
@@ -21415,7 +21451,14 @@ std::vector<uint32_t> Simulation::split_queued(const uint32_t *ids, size_t count
 		for (FormationController &fc : formations_) {
 			if (std::find(fids.begin(), fids.end(), fc.id) == fids.end()) continue;
 			if (!queued) {
-				if (!push_front_order_) fc.queue.clear(); // pushed to the front, the queue carries on after
+				if (!push_front_order_) {
+					fc.queue.clear();
+				} else {
+					// UnitAI PushOrderFront: the walk the controller was on resumes after the new
+					// order, ahead of the rest of the queue.
+					UnitOrder carry;
+					if (formation_current_order(fc, carry) && fc.queue.size() < 64) fc.queue.insert(fc.queue.begin(), carry);
+				}
 				continue;
 			}
 			UnitOrder q = o;
@@ -24709,6 +24752,12 @@ void Simulation::petra_join_trained_plan(uint8_t pid, uint8_t order_plan, uint8_
 // queue lasts, so a civic centre of ours rallying to itself is training emergency units: its
 // other unstarted items are stopped as 0 A.D. does, and no worker is queued there meanwhile.
 bool Simulation::petra_train_emergency_units(const std::vector<std::pair<float, float>> &positions) {
+	// headquarters.js trainEmergencyUnits: nothing while an emergency plan still waits to start
+	// (queues.emergency.hasQueuedUnits); a plan leaves that queue once its unit starts training.
+	for (const Building &b : buildings_)
+		if (b.team == petra_pid_)
+			for (const ProductionOrder &o : b.queue)
+				if (!o.started && o.timer <= 0.0f && o.petra_plan == PETRA_ORDER_EMERGENCY) return false;
 	uint16_t home = 0;
 	const bool naval = petra_classified_topo(home).naval_map;
 	const uint8_t civ = petra_ps().civ;
@@ -28494,9 +28543,10 @@ int Simulation::petra_transport_ships_on(uint16_t sea) const {
 	return n;
 }
 
-// navalManager.js getBestShip: for "transport" the most GarrisonHolder room,
-// +50 when it carries siege engines (no RTS0 ship has BuildingAI arrows, as in
-// 0 A.D. now); for "fishing" the fishing boat. Ties go to the later template.
+// navalManager.js getBestShip: for "transport" the most GarrisonHolder room among every trainable
+// ship at the dock with room for 2 or more, skipping categories at their EntityLimits, +50 for a
+// trireme that carries siege engines (no RTS0 ship has BuildingAI arrows, as in 0 A.D. now); for
+// "fishing" the fishing boat, under the same limit. Ties go to the later template.
 uint16_t Simulation::petra_best_ship(bool fishing) const {
 	const uint8_t pid = petra_pid_;
 	uint16_t best_tmpl = CIV_UNIT_TEMPLATE_NONE;
@@ -28505,11 +28555,14 @@ uint16_t Simulation::petra_best_ship(bool fishing) const {
 		const CivUnitTemplate &t = civ_unit_template(tmpl);
 		if (t.civ != players_[pid].civ || t.phase > players_[pid].phase || !unit_is_ship(t.unit_type)) continue;
 		if (!can_train_at(pid, t.unit_type, BLD_DOCK, tmpl)) continue;
+		// getBestShip: a category at its EntityLimits (queued ones count) is skipped.
+		if (!match_limit_allows(pid, tmpl, 1)) continue;
 		if (fishing) {
 			if (t.unit_type == UNIT_FISHING_BOAT) best_tmpl = tmpl;
 			continue;
 		}
-		if (t.unit_type != UNIT_TRIREME && t.unit_type != UNIT_MERCHANT_SHIP) continue;
+		// Every ship that can hold two passengers (the fishing boat holds one).
+		if (t.unit_type == UNIT_FISHING_BOAT) continue;
 		int capacity = ship_template_capacity(t.unit_type, tmpl);
 		if (capacity < 2) continue;
 		if (t.unit_type == UNIT_TRIREME && capacity != 10) capacity += 50; // List Siege (not the scout ship)
@@ -31857,6 +31910,7 @@ void Simulation::petra_attack_units(AttackPlan &plan) {
 	const bool blocked = petra_plan_blocked(plan);
 	std::unordered_set<int32_t> reacted;
 	auto hit = [&](int32_t j, int32_t a) {
+		if (!unit_can_target((size_t)j, (size_t)a)) return; // canAttackTarget (attackPlan.js:1406-1477): leave it alone
 		const uint32_t uid = units_.id[j];
 		order_attack(&uid, 1, units_.id[a]);
 		reacted.insert(j);
@@ -35876,8 +35930,14 @@ void Simulation::petra_scuttle_undefendable() {
 	// The Attacked events since our last turn (DM:608-622): any hit or capture attempt,
 	// from a unit, a structure's arrows or a siege engine out of sight.
 	std::vector<uint32_t> attacked;
+	// defenseManager.js:585: an ally hitting it (recovering its own capture points) is no reason to react.
+	auto by_ally = [&](uint32_t who) {
+		if (const int32_t k = lookup_unit(who); k >= 0) return units_.team[k] < MAX_PLAYERS && is_ally(petra_pid_, units_.team[k]);
+		const auto it = building_id_to_idx_.find(who);
+		return it != building_id_to_idx_.end() && buildings_[it->second].team < MAX_PLAYERS && is_ally(petra_pid_, buildings_[it->second].team);
+	};
 	for (const auto &[target, attacker] : petra_turn_attacks_)
-		if (building_id_to_idx_.count(target)) attacked.push_back(target);
+		if (building_id_to_idx_.count(target) && !(attacker && by_ally(attacker))) attacked.push_back(target);
 	if (attacked.empty()) return;
 	std::sort(attacked.begin(), attacked.end());
 	attacked.erase(std::unique(attacked.begin(), attacked.end()), attacked.end());
@@ -36672,9 +36732,9 @@ void Simulation::petra_manage_defense(float dt) {
 				if (b.hp <= 0.0f || b.team >= MAX_PLAYERS || (b.team != petra_pid_ && !is_ally(petra_pid_, b.team))) continue;
 				float reach = 0.0f;
 				if (is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY) {
-					if (b.team == petra_pid_ || cooperation(b.team) >= 0.3f) reach = 56.0f;
+					if (b.team == petra_pid_ || cooperation(b.team) >= 0.3f) reach = 50.0f; // 200 m (40000 m^2, defenseManager.js:370), 4 m a unit
 				} else if (b.type == BLD_DOCK && b.team == petra_pid_) {
-					reach = 28.0f;
+					reach = 25.0f; // 100 m (10000 m^2, defenseManager.js:382)
 				}
 				const float dx = ax - b.x, dz = az - b.z;
 				keep = reach > 0.0f && dx * dx + dz * dz <= reach * reach;
@@ -36844,8 +36904,9 @@ void Simulation::petra_manage_defense(float dt) {
 					const float dx = units_.pos_x[i] - needs[k].x, dz = units_.pos_z[i] - needs[k].z;
 					if (dx * dx + dz * dz < best_d2) { best_d2 = dx * dx + dz * dz; best = (int)k; }
 				}
-				// A unit with no army it can reach also goes to the backup while there is room.
-				if (backup < 12 && (best < 0 || (best_d2 > 56.0f * 56.0f && needs[best].terr != petra_pid_))) {
+				// A unit with no army it can reach also goes to the backup while there is room
+				// (beyond 200 m = 2500 units^2, defenseManager.js:493).
+				if (backup < 12 && (best < 0 || (best_d2 > 2500.0f && needs[best].terr != petra_pid_))) {
 					++backup;
 					c.second = SIZE_MAX;
 					continue;
@@ -36881,6 +36942,13 @@ void Simulation::petra_manage_defense(float dt) {
 				const int32_t idx = lookup_unit(uid);
 				if (idx < 0) continue;
 				const bool on_it = units_.action_state[idx] == ACTION_ATTACK && units_.target_building_id[idx] == bid;
+				// defenseArmy.js update / assignUnit: only a unit with no order is given the foe. A
+				// defender busy on another target (another structure, a unit, a tower) keeps it.
+				const bool idle = units_.action_state[idx] == ACTION_IDLE && !units_.has_order[idx] &&
+				                  (!order_queues_.count(uid) || order_queues_.at(uid).empty());
+				// A defender just drafted is assigned at once (assignDefenders), whatever its order.
+				const bool just_drafted = std::find(drafted.begin(), drafted.end(), uid) != drafted.end();
+				if (!on_it && !idle && !just_drafted) continue;
 				// defenseArmy.js update: one capturing what allowCapture no longer allows damages it.
 				if (on_it && !(units_.order_flags[idx] & ORDER_FLAG_ALLOW_CAPTURE)) continue;
 				const bool capture = petra_allow_capture(army.defender_ids, uid, b);
