@@ -12,7 +12,7 @@ const ORDER := ["special", "programming", "art", "audio", "maps", "history",
 	"balancing", "community", "translators", "donators"]
 const RTS0_CREDITS := "[font_size=16][b]RTS0[/b][/font_size]\nA Godot 4.3 and C++ GDExtension port of 0 A.D.: Empires Ascendant\n\n" + \
 	"[font_size=16][b]0 A.D.: Empires Ascendant[/b][/font_size]\nOriginal game by Wildfire Games and the 0 A.D. community.\n" + \
-	"Code GPL-2.0-or-later; art, audio, maps and texts CC BY-SA 3.0.\nThe other tabs are 0 A.D.'s own credits.\n\n" + \
+	"Code GPL-2.0-or-later; art, audio, maps and texts CC BY-SA 3.0.\nSource: https://github.com/abhisheksatyam123/RTS0\nThe other tabs are 0 A.D.'s own credits.\n\n" + \
 	"[font_size=16][b]RTS0 engine port[/b][/font_size]\nLead architecture and implementation: Abhi\nDeterministic netcode and SoA simulation: RTS0 Team\n"
 
 ## [{label, content}] per tab.
