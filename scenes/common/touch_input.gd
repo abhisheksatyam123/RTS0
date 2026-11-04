@@ -289,7 +289,8 @@ func _on_touch(e: InputEventScreenTouch) -> void:
 		elif is_placing_building():
 			_button(MOUSE_BUTTON_LEFT, true, e.position)
 			_button(MOUSE_BUTTON_LEFT, false, e.position)
-		elif has_selection():
+		elif has_selection() and not dbl:
+			# A double tap is never an order: its second tap selects the units of that type.
 			_button(MOUSE_BUTTON_RIGHT, true, e.position)
 			_button(MOUSE_BUTTON_RIGHT, false, e.position)
 			Input.vibrate_handheld(15)

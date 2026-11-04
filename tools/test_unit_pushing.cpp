@@ -3347,6 +3347,34 @@ int main() {
 		CHECK(ended > 0 && first2 > 0 && (ended - first2) * DT <= 15.0f,
 		      "and it ends within 15 s of his failed count reaching 2 (base holds it at 2 past 60 s)");
 	}
+	// Two rams walking past a pair of trees 1 world unit (4 m) apart, toward a point round them (scratch
+	// sweep's loop layouts). The second ram is obstructed on the north side of the trees, turns back over the
+	// same spot, and comes on again. Each free turn starts its failed count afresh, so counts alone never reach
+	// MoveFailed: the third reversal over one span fails the walk instead (loop_reversal).
+	{
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(4242);
+		s->reset();
+		s->spawn_resource_world(0.0f, 0.0f, RES_WOOD, 5000);
+		s->spawn_resource_world(1.0f, 0.0f, RES_WOOD, 5000);
+		s->rebuild_nav_grid();
+		const uint32_t ram = s->spawn_unit(2.75f, -0.6f, 0, UNIT_SIEGE_RAM, 0.0f);
+		const uint32_t ram2 = s->spawn_unit(2.75f, -1.2f, 0, UNIT_SIEGE_RAM, 0.0f);
+		uint32_t both[2] = {ram, ram2};
+		const float GX = -4.5f, GZ = 4.0f;
+		s->order_walk(both, 2, GX, GZ);
+		int ended = -1;
+		for (int t = 1; t <= 60 * 20 && ended < 0; ++t) {
+			s->tick(DT);
+			if (!s->units_.has_order[idx(*s, ram2)]) ended = t;
+		}
+		const int bi = idx(*s, ram2);
+		const float dgoal = std::hypot(s->units_.pos_x[bi] - GX, s->units_.pos_z[bi] - GZ);
+		std::printf("  rams round two trees: the second ram's order %s, %.2f world units from the point\n",
+		            ended < 0 ? "never ended (60 s)" : ("ended at " + std::to_string(ended * DT) + " s").c_str(), dgoal);
+		CHECK(ended > 0 && ended * DT <= 30.0f && dgoal > 3.0f,
+		      "a walk that keeps turning back over one spot fails within 30 s (MoveFailed), and the ram stands short of the point");
+	}
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }
