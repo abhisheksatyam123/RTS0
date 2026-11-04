@@ -28494,9 +28494,10 @@ int Simulation::petra_transport_ships_on(uint16_t sea) const {
 	return n;
 }
 
-// navalManager.js getBestShip: for "transport" the most GarrisonHolder room,
-// +50 when it carries siege engines (no RTS0 ship has BuildingAI arrows, as in
-// 0 A.D. now); for "fishing" the fishing boat. Ties go to the later template.
+// navalManager.js getBestShip: for "transport" the most GarrisonHolder room among every trainable
+// ship at the dock with room for 2 or more, skipping categories at their EntityLimits, +50 for a
+// trireme that carries siege engines (no RTS0 ship has BuildingAI arrows, as in 0 A.D. now); for
+// "fishing" the fishing boat, under the same limit. Ties go to the later template.
 uint16_t Simulation::petra_best_ship(bool fishing) const {
 	const uint8_t pid = petra_pid_;
 	uint16_t best_tmpl = CIV_UNIT_TEMPLATE_NONE;
@@ -28505,11 +28506,14 @@ uint16_t Simulation::petra_best_ship(bool fishing) const {
 		const CivUnitTemplate &t = civ_unit_template(tmpl);
 		if (t.civ != players_[pid].civ || t.phase > players_[pid].phase || !unit_is_ship(t.unit_type)) continue;
 		if (!can_train_at(pid, t.unit_type, BLD_DOCK, tmpl)) continue;
+		// getBestShip: a category at its EntityLimits (queued ones count) is skipped.
+		if (!match_limit_allows(pid, tmpl, 1)) continue;
 		if (fishing) {
 			if (t.unit_type == UNIT_FISHING_BOAT) best_tmpl = tmpl;
 			continue;
 		}
-		if (t.unit_type != UNIT_TRIREME && t.unit_type != UNIT_MERCHANT_SHIP) continue;
+		// Every ship that can hold two passengers (the fishing boat holds one).
+		if (t.unit_type == UNIT_FISHING_BOAT) continue;
 		int capacity = ship_template_capacity(t.unit_type, tmpl);
 		if (capacity < 2) continue;
 		if (t.unit_type == UNIT_TRIREME && capacity != 10) capacity += 50; // List Siege (not the scout ship)
