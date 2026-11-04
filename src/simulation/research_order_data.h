@@ -4,7 +4,7 @@
 #pragma once
 #include <cstdint>
 
-inline constexpr uint16_t TECH_RESEARCH_RANK_ROWS = 138;
+inline constexpr uint16_t TECH_RESEARCH_RANK_ROWS = 139;
 inline constexpr uint8_t kTechResearchRank[TECH_RESEARCH_RANK_ROWS] = {
 	255, 0, 1, 2, 0, 6, 0, 7, 3, 0, 2, 1, 0, 2, 1, 0,
 	0, 9, 11, 10, 9, 5, 6, 10, 7, 3, 4, 8, 2, 1, 4, 3,
@@ -14,5 +14,5 @@ inline constexpr uint8_t kTechResearchRank[TECH_RESEARCH_RANK_ROWS] = {
 	11, 14, 10, 13, 12, 5, 255, 9, 9, 9, 4, 9, 0, 15, 0, 1,
 	7, 6, 0, 1, 6, 3, 7, 0, 0, 0, 1, 1, 0, 0, 8, 8,
 	6, 3, 255, 4, 7, 8, 0, 0, 13, 4, 8, 0, 7, 1, 3, 2,
-	5, 2, 2, 0, 0, 16, 7, 9, 0, 6,
+	5, 2, 2, 0, 0, 16, 7, 9, 0, 6, 255,
 };
