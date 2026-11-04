@@ -36400,8 +36400,8 @@ void Simulation::petra_manage_defense(float dt) {
 			if ((is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY) && coop >= 0.3f &&
 			    (coop >= 0.6f || b.build_progress >= 1.0f))
 				return true;
-				// defenseManager.js:189: a help-ally structure on blinking (disconnected) land is not defended.
-				if (help_ally && b.team == owner && territory_connected_at(b.x, b.z)) return true;
+			// defenseManager.js:189: a help-ally structure on blinking (disconnected) land is not defended.
+			if (help_ally && b.team == owner && territory_connected_at(b.x, b.z)) return true;
 		}
 		return false;
 	};
