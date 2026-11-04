@@ -1164,6 +1164,8 @@ uint32_t TurnManager::compute_sim_hash(const Simulation &sim) const {
 		mix_float(uview.vel_z[i]);
 		mix_float(uview.prev_x[i]);
 		mix_float(uview.prev_z[i]);
+		mix_float(uview.aim_vx[i]);
+		mix_float(uview.aim_vz[i]);
 		mix_float(uview.target_x[i]);
 		mix_float(uview.target_z[i]);
 		mix_float(uview.hp[i]);

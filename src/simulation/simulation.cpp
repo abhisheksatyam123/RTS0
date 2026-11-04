@@ -1428,6 +1428,7 @@ void Simulation::set_fauna_position(uint32_t fauna_id, float x, float z) {
 	if (it == fauna_id_to_idx_.end()) return;
 	fauna_.pos_x[it->second] = fauna_.home_x[it->second] = x;
 	fauna_.pos_z[it->second] = fauna_.home_z[it->second] = z;
+	fauna_jumped(it->second);
 }
 
 void Simulation::set_resource_amount(uint32_t res_id, int32_t amount) {
@@ -9484,6 +9485,7 @@ void Simulation::tick_siege_garrisons() {
 			}
 			units_.pos_x[p] = ex;
 			units_.pos_z[p] = ez;
+			unit_jumped(p);
 			units_.alive[p] = 1;
 			units_.action_state[p] = ACTION_IDLE;
 			units_.has_order[p] = 0;
@@ -9524,6 +9526,7 @@ void Simulation::unload_sunk_ship(size_t ship) {
 		if (shore && holder_ejects(ship, (size_t)p) && ship_unload_point(ship, lx, lz, (size_t)p, &taken)) {
 			units_.pos_x[p] = lx;
 			units_.pos_z[p] = lz;
+			unit_jumped(p);
 			units_.alive[p] = 1;
 			units_.action_state[p] = ACTION_IDLE;
 			units_.has_order[p] = 0;
@@ -9914,6 +9917,7 @@ void Simulation::occupy_turret(size_t i, Building &b) {
 	set_order(i, ORDER_NONE, 0, 0, x, z); // up there: the garrison order is done
 	units_.pos_x[i] = units_.target_x[i] = units_.anchor_x[i] = x;
 	units_.pos_z[i] = units_.target_z[i] = units_.anchor_z[i] = z;
+	unit_jumped(i);
 	units_.vel_x[i] = units_.vel_z[i] = 0.0f;
 	units_.has_order[i] = 0;
 	units_.waypoint_count[i] = 0;
@@ -9940,6 +9944,7 @@ bool Simulation::leave_turret(size_t i, const Building &b, bool forced) {
 	}
 	units_.pos_x[i] = sx;
 	units_.pos_z[i] = sz;
+	unit_jumped(i);
 	face_away_from(i, b.x, b.z);
 	auto it = turret_prev_stance_.find(units_.id[i]);
 	units_.stance[i] = it != turret_prev_stance_.end() ? it->second : unit_default_stance(units_.unit_type[i], units_.tmpl[i]);
@@ -10788,6 +10793,7 @@ void Simulation::order_ungarrison(uint32_t building_id, bool forced_turrets) {
 		if (!turret) {
 			units_.pos_x[idx] = ex;
 			units_.pos_z[idx] = ez;
+			unit_jumped(idx);
 			face_away_from((size_t)idx, b.x, b.z);
 		}
 		units_.alive[idx] = 1;
@@ -10866,6 +10872,7 @@ void Simulation::order_ungarrison_single(uint32_t building_id, uint32_t unit_id)
 				if (!pick_spawn_point(b, units_.unit_type[idx], unit_id, ex, ez, units_.tmpl[idx])) return;
 				units_.pos_x[idx] = ex;
 				units_.pos_z[idx] = ez;
+				unit_jumped(idx);
 				face_away_from((size_t)idx, b.x, b.z);
 			}
 			units_.alive[idx] = 1;
@@ -11386,6 +11393,7 @@ void Simulation::order_disembark(uint32_t transport_id, float target_x, float ta
 		}
 		units_.pos_x[idx] = x;
 		units_.pos_z[idx] = z;
+		unit_jumped(idx);
 		units_.alive[idx] = 1;
 		units_.action_state[idx] = ACTION_IDLE;
 		units_.has_order[idx] = 0;
@@ -11428,6 +11436,7 @@ void Simulation::order_disembark_single(uint32_t transport_id, uint32_t unit_id)
 			}
 			units_.pos_x[idx] = land_x;
 			units_.pos_z[idx] = land_z;
+			unit_jumped(idx);
 			units_.alive[idx] = 1;
 			units_.action_state[idx] = ACTION_IDLE;
 			units_.has_order[idx] = 0;
@@ -12001,28 +12010,128 @@ float Simulation::projectile_speed_of(uint32_t source_id, uint8_t visual) const 
 	return p ? p->proj_speed * COMBAT_DISTANCE_SCALE : projectile_speed(visual);
 }
 
+// The last full turn's velocity of unit t, taken at the turn start (see the snapshot in tick()).
 void Simulation::aim_velocity_unit(size_t t, float &vx, float &vz) const {
-	vx = (units_.pos_x[t] - units_.prev_x[t]) / (4 * FIXED_STEP);
-	vz = (units_.pos_z[t] - units_.prev_z[t]) / (4 * FIXED_STEP);
+	vx = units_.aim_vx[t];
+	vz = units_.aim_vz[t];
 }
 
-// PositionHelper.PredictTimeToTarget: the smallest non-negative time t at which a projectile
-// of horizontal `speed` from (sx, sz) meets a target at (tx, tz) moving at (vx, vz), from
-// a t^2 + 2 b t + c = 0; 0 (aim where it stands) when there is none.
-float Simulation::predict_time_to_target(float sx, float sz, float speed, float tx, float tz, float vx, float vz) {
+void Simulation::aim_velocity_fauna(size_t f, float &vx, float &vz) const {
+	vx = fauna_aim_vx_[f];
+	vz = fauna_aim_vz_[f];
+}
+
+// PositionHelper.PredictTimeToTarget (helpers/Position.js): whether an arrow of `speed` from (sx, sz)
+// meets the target at (tx, tz) moving at (vx, vz), and the smallest non-negative time t of that meeting,
+// from a t^2 + 2 b t + c = 0. It stands on the spot (t = 0) when c is 0. False when it never meets.
+bool Simulation::time_to_target(float sx, float sz, float speed, float tx, float tz, float vx, float vz, float &t) {
 	const float rx = tx - sx, rz = tz - sz;
 	const float a = vx * vx + vz * vz - speed * speed;
 	const float b = rx * vx + rz * vz;
 	const float c = rx * rx + rz * rz;
-	if (c == 0.0f) return 0.0f;
+	if (c == 0.0f) {
+		t = 0.0f;
+		return true;
+	}
 	const float disc = b * b - a * c;
-	if (a < 0.0f || (b < 0.0f && disc >= 0.0f)) return c / (std::sqrt(std::max(0.0f, disc)) - b);
-	return 0.0f;
+	if (a < 0.0f || (b < 0.0f && disc >= 0.0f)) {
+		t = c / (std::sqrt(std::max(0.0f, disc)) - b);
+		return true;
+	}
+	t = 0.0f;
+	return false;
 }
 
-void Simulation::aim_velocity_fauna(size_t f, float &vx, float &vz) const {
-	vx = (fauna_.pos_x[f] - fauna_.prev_x[f]) / (4 * FIXED_STEP);
-	vz = (fauna_.pos_z[f] - fauna_.prev_z[f]) / (4 * FIXED_STEP);
+float Simulation::predict_time_to_target(float sx, float sz, float speed, float tx, float tz, float vx, float vz) {
+	float t = 0.0f;
+	time_to_target(sx, sz, speed, tx, tz, vx, vz, t);
+	return t;
+}
+
+// splitmix64 of the key, as a uniform draw in [0, 1) from its top 24 bits: Attack.js randBool(p), but a pure
+// function of the shot, so the parallel ranged pass draws the same as a sequential one and the sim RNG is untouched.
+float Simulation::aim_draw(uint64_t key) {
+	uint64_t z = key + 0x9E3779B97F4A7C15ull;
+	z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ull;
+	z = (z ^ (z >> 27)) * 0x94D049BB133111EBull;
+	z ^= z >> 31;
+	return (float)(z >> 40) * (1.0f / 16777216.0f);
+}
+
+uint64_t Simulation::aim_key(uint32_t shooter, uint32_t target) const {
+	uint64_t k = ticks_;
+	k = k * 0x9E3779B97F4A7C15ull + shooter;
+	k = k * 0x9E3779B97F4A7C15ull + target;
+	return k;
+}
+
+// Attack.js PerformAttack's target: a unit that is a formation member has no UnitMotion lead (it is
+// not "a UnitMotion target" in 0.28's check), so it is led linearly.
+Simulation::AimTarget Simulation::unit_aim_target(size_t t) const {
+	const bool member = !formations_.empty() && t < formation_group_.size() && formation_group_[t] != 0;
+	return AimTarget{units_.pos_x[t], units_.pos_z[t], units_.aim_vx[t], units_.aim_vz[t], units_.id[t], t, false, !member};
+}
+
+// An animal has no path in RTS0, so its future position is linear (the same as its straight-line
+// motion at constant velocity), and it never takes the UnitMotion branch.
+Simulation::AimTarget Simulation::fauna_aim_target(size_t f) const {
+	return AimTarget{fauna_.pos_x[f], fauna_.pos_z[f], fauna_aim_vx_[f], fauna_aim_vz_[f], fauna_.id[f], f, true, false};
+}
+
+void Simulation::aim_point(float sx, float sz, float speed, const AimTarget &tg, uint64_t key, float &ax, float &az) const {
+	float t = 0.0f;
+	if (!time_to_target(sx, sz, speed, tg.x, tg.z, tg.vx, tg.vz, t)) {
+		ax = tg.x;
+		az = tg.z;
+		return;
+	}
+	// Don't predict too far ahead: after 0.75 / (1 / 1.333) s of flight the linear prediction is always used.
+	if (tg.motion && aim_draw(key) < std::max(0.0f, 0.75f - t / 1.333f)) {
+		unit_future_position(tg.idx, t, ax, az);
+		return;
+	}
+	ax = tg.x + tg.vx * t;
+	az = tg.z + tg.vz * t;
+}
+
+void Simulation::unit_future_position(size_t t, float dt, float &x, float &z) const {
+	x = units_.pos_x[t];
+	z = units_.pos_z[t];
+	const float vx = units_.vel_x[t], vz = units_.vel_z[t];
+	const float s = std::sqrt(vx * vx + vz * vz);
+	// The distance it covers in dt, accelerating from its speed to its walk speed (accelerate).
+	float speed = 0.0f;
+	float left = accelerate(t, s, unit_move_speed(t), dt, &speed);
+	const float *xs = nullptr, *zs = nullptr;
+	const int n = unit_waypoints_left(t, &xs, &zs);
+	if (n > 0) {
+		// Along the long path it is walking: its remaining waypoints in order.
+		for (int k = 0; k < n && left > 0.0f; ++k) {
+			const float dx = xs[k] - x, dz = zs[k] - z;
+			const float d = std::sqrt(dx * dx + dz * dz);
+			if (d <= left) {
+				left -= d;
+				x = xs[k];
+				z = zs[k];
+			} else {
+				x += dx * (left / d);
+				z += dz * (left / d);
+				left = 0.0f;
+			}
+		}
+		return;
+	}
+	// Moving without a path: straight at its move goal. Standing still it stays.
+	if (!units_.has_order[t] || s <= 0.0f) return;
+	const float dx = units_.target_x[t] - x, dz = units_.target_z[t] - z;
+	const float d = std::sqrt(dx * dx + dz * dz);
+	if (d <= left) {
+		x = units_.target_x[t];
+		z = units_.target_z[t];
+	} else if (d > 0.0f) {
+		x += dx * (left / d);
+		z += dz * (left / d);
+	}
 }
 
 // 0 A.D. globalscripts randomNormal2D: two independent standard normals (Box-Muller)
@@ -12213,18 +12322,23 @@ void Simulation::tick(float dt) {
 	frame_arena_.flip();
 	auto t1 = std::chrono::high_resolution_clock::now();
 	tick_us_ += std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count();
-	// CCmpPosition m_PrevX/m_PrevZ at MT_TurnStart: each unit's and animal's position
-	// at the end of the last lockstep turn (4 FIXED_STEP ticks, turn_manager.h
-	// TICKS_PER_TURN), whatever dt each tick ran with, so ranged aim divides by a
-	// full turn below.
+	// CCmpPosition m_PrevX/m_PrevZ at each lockstep turn start (4 FIXED_STEP ticks, turn_manager.h
+	// TICKS_PER_TURN, whatever dt each tick ran with): the position a turn ago. The velocity over the last
+	// full turn, (position - prev) / (4 FIXED_STEP), is Attack.js targetVelocity; it is taken here at the
+	// boundary, before prev moves on, and kept for the whole next turn. Shots then lead by that velocity
+	// whatever tick of the turn they fall in (0 A.D.'s shots fire at the turn start, so this is its lead).
 	aim_clock_ += dt;
-	if (aim_clock_ >= 4 * FIXED_STEP) {
+	if (aim_clock_ >= 4 * FIXED_STEP - 0.5f * FIXED_STEP) { // half a tick of slack for float sums
 		aim_clock_ = 0.0f;
 		for (size_t u = 0; u < units_.count; ++u) {
+			units_.aim_vx[u] = (units_.pos_x[u] - units_.prev_x[u]) / (4 * FIXED_STEP);
+			units_.aim_vz[u] = (units_.pos_z[u] - units_.prev_z[u]) / (4 * FIXED_STEP);
 			units_.prev_x[u] = units_.pos_x[u];
 			units_.prev_z[u] = units_.pos_z[u];
 		}
 		for (size_t f = 0; f < fauna_.count; ++f) {
+			fauna_aim_vx_[f] = (fauna_.pos_x[f] - fauna_.prev_x[f]) / (4 * FIXED_STEP);
+			fauna_aim_vz_[f] = (fauna_.pos_z[f] - fauna_.prev_z[f]) / (4 * FIXED_STEP);
 			fauna_.prev_x[f] = fauna_.pos_x[f];
 			fauna_.prev_z[f] = fauna_.pos_z[f];
 		}
@@ -18085,13 +18199,11 @@ void Simulation::tick_combat(float dt) {
 			p.effect = status_effect_bit(unit_combat_at(i).status);
 			const float arrow_sy = (u_att == UNIT_TRIREME) ? 3.0f : (u_att == UNIT_BOLT_SHOOTER ? 1.0f : (maur_elephant_archer ? 3.4f : 1.4f));
 			p.proj_vis = (u_att == UNIT_CATAPULT) ? 2 : ((u_att == UNIT_TRIREME || u_att == UNIT_BOLT_SHOOTER) ? 1 : 0);
-			const float dist = std::sqrt(d2);
-			float lead_x = 0.0f, lead_z = 0.0f;
-			aim_velocity_unit((size_t)t, lead_x, lead_z);
-			const float flight = predict_time_to_target(units_.pos_x[i], units_.pos_z[i], projectile_speed_of(units_.id[i], p.proj_vis),
-					units_.pos_x[t], units_.pos_z[t], lead_x, lead_z);
-			p.aim_x = units_.pos_x[t] + lead_x * flight;
-			p.aim_z = units_.pos_z[t] + lead_z * flight;
+			aim_point(units_.pos_x[i], units_.pos_z[i], projectile_speed_of(units_.id[i], p.proj_vis), unit_aim_target((size_t)t),
+					aim_key(units_.id[i], units_.id[t]), p.aim_x, p.aim_z);
+			// The spread is taken from the shooter to the aim point (Attack.js predictedPosition.horizDistanceTo).
+			const float dist = std::sqrt((p.aim_x - units_.pos_x[i]) * (p.aim_x - units_.pos_x[i]) +
+					(p.aim_z - units_.pos_z[i]) * (p.aim_z - units_.pos_z[i]));
 			const float tech_spread = units_.team[i] < MAX_PLAYERS ? unit_tech_mods(units_.team[i], units_.unit_type[i], units_.tmpl[i]).spread : 1.0f;
 			p.sigma = unit_combat_at(i).spread * spread_rank_multiplier(units_.rank[i]) * tech_spread * dist / 100.0f;
 			p.launch_y = unit_height(i) + arrow_sy;
@@ -18428,13 +18540,10 @@ void Simulation::tick_combat(float dt) {
 			const size_t t = (size_t)tu;
 			units_.attacked_by[t] = units_.id[i]; // UnitAI "Attacked"
 			const float dmg = unit_attack_damage(i, t);
-			const float dist = det::hypot(units_.pos_x[t] - sx, units_.pos_z[t] - sz);
-			float lead_x = 0.0f, lead_z = 0.0f;
-			aim_velocity_unit(t, lead_x, lead_z);
-			const float flight = predict_time_to_target(sx, sz, projectile_speed_of(units_.id[i], 0),
-					units_.pos_x[t], units_.pos_z[t], lead_x, lead_z);
-			const float aim_x = units_.pos_x[t] + lead_x * flight;
-			const float aim_z = units_.pos_z[t] + lead_z * flight;
+			float aim_x = 0.0f, aim_z = 0.0f;
+			aim_point(sx, sz, projectile_speed_of(units_.id[i], 0), unit_aim_target(t), aim_key(units_.id[i], units_.id[t]), aim_x, aim_z);
+			// The spread is taken from the shooter to the aim point (Attack.js predictedPosition.horizDistanceTo).
+			const float dist = det::hypot(aim_x - sx, aim_z - sz);
 			const float sigma = spread * dist / 100.0f;
 			const float land_y = (unit_is_ship(units_.unit_type[t]) ? unit_height(t)
 					: get_terrain_height(aim_x, aim_z) + unit_height_offset(t)) + 0.8f;
@@ -18642,12 +18751,10 @@ void Simulation::tick_combat(float dt) {
 				const FaunaTypeInfo &fi = fauna_type_info(fauna_.fauna_type[f]);
 				const float dmg = hack * det::pow(0.9f, fi.hack_armor) + pierce * det::pow(0.9f, fi.pierce_armor) +
 						crush * det::pow(0.9f, fi.crush_armor);
-				const float fx = fauna_.pos_x[f], fz = fauna_.pos_z[f];
-				const float dist = det::hypot(fx - b.x, fz - b.z);
-				float lead_x = 0.0f, lead_z = 0.0f;
-				aim_velocity_fauna(f, lead_x, lead_z);
-				const float flight = predict_time_to_target(b.x, b.z, projectile_speed_of(b.id, 0), fx, fz, lead_x, lead_z);
-				const float lx = fx + lead_x * flight, lz = fz + lead_z * flight;
+				float lx = 0.0f, lz = 0.0f;
+				aim_point(b.x, b.z, projectile_speed_of(b.id, 0), fauna_aim_target(f), aim_key(b.id, fauna_.id[f]), lx, lz);
+				// The spread is taken from the shooter to the aim point (Attack.js predictedPosition.horizDistanceTo).
+				const float dist = det::hypot(lx - b.x, lz - b.z);
 				const float sigma = spread * dist / 100.0f;
 				float disp_x = 0.0f, disp_z = 0.0f;
 				random_normal_2d(disp_x, disp_z);
@@ -18673,14 +18780,10 @@ void Simulation::tick_combat(float dt) {
 			float armor[3];
 			unit_resistance(u, armor);
 			const float dmg = hack * det::pow(0.9f, armor[0]) + pierce * det::pow(0.9f, armor[1]) + crush * det::pow(0.9f, armor[2]);
-			const float dx = units_.pos_x[u] - b.x, dz = units_.pos_z[u] - b.z;
-			const float dist = sqrtf(dx * dx + dz * dz);
-			float lead_x = 0.0f, lead_z = 0.0f;
-			aim_velocity_unit(u, lead_x, lead_z);
-			const float flight = predict_time_to_target(b.x, b.z, projectile_speed_of(b.id, 0), // at its own Projectile/Speed
-					units_.pos_x[u], units_.pos_z[u], lead_x, lead_z);
-			const float aim_x = units_.pos_x[u] + lead_x * flight;
-			const float aim_z = units_.pos_z[u] + lead_z * flight;
+			float aim_x = 0.0f, aim_z = 0.0f; // at its own Projectile/Speed
+			aim_point(b.x, b.z, projectile_speed_of(b.id, 0), unit_aim_target(u), aim_key(b.id, units_.id[u]), aim_x, aim_z);
+			// The spread is taken from the shooter to the aim point (Attack.js predictedPosition.horizDistanceTo).
+			const float dist = sqrtf((aim_x - b.x) * (aim_x - b.x) + (aim_z - b.z) * (aim_z - b.z));
 			const float sigma = spread * dist / 100.0f;
 			float disp_x = 0.0f, disp_z = 0.0f;
 			random_normal_2d(disp_x, disp_z);
@@ -20433,6 +20536,8 @@ Simulation::UnitView Simulation::units() const {
 	v.vel_z = units_.vel_z;
 	v.prev_x = units_.prev_x;
 	v.prev_z = units_.prev_z;
+	v.aim_vx = units_.aim_vx;
+	v.aim_vz = units_.aim_vz;
 	v.target_x = units_.target_x;
 	v.target_z = units_.target_z;
 	v.hp = units_.hp;
@@ -20637,6 +20742,7 @@ void Simulation::eject_corral_animals(const Building &b, bool unallied_only) {
 		pick_spawn_point(b, UNIT_FEMALE_CITIZEN, 0, ex, ez);
 		fauna_.pos_x[f] = ex + 0.3f * (float)(k % 3 - 1); // spread the herd over the spawn point
 		fauna_.pos_z[f] = ez + 0.3f * (float)(k / 3 % 3 - 1);
+		fauna_jumped(f);
 		++k;
 		fauna_.vel_x[f] = fauna_.vel_z[f] = 0.0f;
 		fauna_.behavior[f] = FAUNA_IDLE_GRAZE;
@@ -38349,6 +38455,8 @@ bool Simulation::save_state(const char *filepath) const {
 		out.write((const char *)&units_.pos_z[u], sizeof(float));
 		out.write((const char *)&units_.prev_x[u], sizeof(float)); // v98: previous-turn position
 		out.write((const char *)&units_.prev_z[u], sizeof(float));
+		out.write((const char *)&units_.aim_vx[u], sizeof(float)); // v143: the last full turn's velocity (aim)
+		out.write((const char *)&units_.aim_vz[u], sizeof(float));
 		out.write((const char *)&units_.target_x[u], sizeof(float));
 		out.write((const char *)&units_.target_z[u], sizeof(float));
 		out.write((const char *)&units_.hp[u], sizeof(float));
@@ -38729,6 +38837,11 @@ bool Simulation::load_state(const char *filepath) {
 			in.read((char *)&pvx, sizeof(pvx));
 			in.read((char *)&pvz, sizeof(pvz));
 		}
+		float avx = 0.0f, avz = 0.0f; // v143: the last full turn's velocity; older saves start at rest
+		if (version >= SAVE_VERSION_AIM_VELOCITY) {
+			in.read((char *)&avx, sizeof(avx));
+			in.read((char *)&avz, sizeof(avz));
+		}
 		in.read((char *)&tx, sizeof(tx));
 		in.read((char *)&tz, sizeof(tz));
 		in.read((char *)&hp, sizeof(hp));
@@ -38770,6 +38883,8 @@ bool Simulation::load_state(const char *filepath) {
 		units_.pos_z[idx] = pz;
 		units_.prev_x[idx] = pvx;
 		units_.prev_z[idx] = pvz;
+		units_.aim_vx[idx] = avx;
+		units_.aim_vz[idx] = avz;
 		units_.vel_x[idx] = 0;
 		units_.vel_z[idx] = 0;
 		units_.target_x[idx] = tx;
@@ -39573,6 +39688,15 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		for (size_t f = 0; f < s.fauna_.count && f < S::FaunaStorage::MAX_FAUNA; ++f) ar.pod(s.fauna_queued_target_[f]);
 	} else if constexpr (Ar::loading) {
 		std::fill(std::begin(s.fauna_queued_target_), std::end(s.fauna_queued_target_), 0u); // older saves: none set aside
+	}
+	if (ar.version >= S::SAVE_VERSION_AIM_VELOCITY) {
+		for (size_t f = 0; f < s.fauna_.count && f < S::FaunaStorage::MAX_FAUNA; ++f) {
+			ar.pod(s.fauna_aim_vx_[f]);
+			ar.pod(s.fauna_aim_vz_[f]);
+		}
+	} else if constexpr (Ar::loading) {
+		std::fill(std::begin(s.fauna_aim_vx_), std::end(s.fauna_aim_vx_), 0.0f); // older saves: at rest
+		std::fill(std::begin(s.fauna_aim_vz_), std::end(s.fauna_aim_vz_), 0.0f);
 	}
 	if constexpr (Ar::loading) {
 		if (s.fauna_.count > S::FaunaStorage::MAX_FAUNA) { ar.ok = false; return; }
@@ -41070,7 +41194,7 @@ Simulation::FaunaView Simulation::fauna() const {
 	return {fauna_.count, fauna_.id, fauna_.pos_x, fauna_.pos_z,
 	        fauna_.vel_x, fauna_.vel_z, fauna_.rot_y,
 	        fauna_.hp, fauna_.max_hp, fauna_.food_amount,
-	        fauna_.fauna_type, fauna_.behavior, fauna_.alive, fauna_owner_};
+	        fauna_.fauna_type, fauna_.behavior, fauna_.alive, fauna_owner_, fauna_aim_vx_, fauna_aim_vz_};
 }
 
 uint32_t Simulation::spawn_fauna(float x, float z, uint8_t ftype, uint8_t owner) {
@@ -41085,6 +41209,7 @@ uint32_t Simulation::spawn_fauna(float x, float z, uint8_t ftype, uint8_t owner)
 	fauna_.vel_z[idx] = 0.0f;
 	fauna_.prev_x[idx] = fauna_.pos_x[idx];
 	fauna_.prev_z[idx] = fauna_.pos_z[idx];
+	fauna_aim_vx_[idx] = fauna_aim_vz_[idx] = 0.0f;
 	fauna_.rot_y[idx] = (float)sim_rng_.range_int(0, 359) * 0.0174533f;
 	fauna_.hp[idx] = info.max_hp;
 	fauna_.max_hp[idx] = info.max_hp;
@@ -41597,13 +41722,12 @@ void Simulation::tick_hunters() {
 // Unit i launches its ranged attack at animal f (Attack.js PerformAttack, as at units).
 void Simulation::fire_at_fauna(size_t i, size_t f) {
 	const uint8_t ut = units_.unit_type[i];
-	const float fx = fauna_.pos_x[f], fz = fauna_.pos_z[f];
-	const float dist = det::hypot(fx - units_.pos_x[i], fz - units_.pos_z[i]);
 	const uint8_t vis = ut == UNIT_CATAPULT ? 2 : ((ut == UNIT_TRIREME || ut == UNIT_BOLT_SHOOTER) ? 1 : 0);
-	float lead_x = 0.0f, lead_z = 0.0f;
-	aim_velocity_fauna(f, lead_x, lead_z);
-	const float flight = predict_time_to_target(units_.pos_x[i], units_.pos_z[i], projectile_speed_of(units_.id[i], vis), fx, fz, lead_x, lead_z);
-	const float aim_x = fx + lead_x * flight, aim_z = fz + lead_z * flight;
+	float aim_x = 0.0f, aim_z = 0.0f;
+	aim_point(units_.pos_x[i], units_.pos_z[i], projectile_speed_of(units_.id[i], vis), fauna_aim_target(f),
+			aim_key(units_.id[i], fauna_.id[f]), aim_x, aim_z);
+	// The spread is taken from the shooter to the aim point (Attack.js predictedPosition.horizDistanceTo).
+	const float dist = det::hypot(aim_x - units_.pos_x[i], aim_z - units_.pos_z[i]);
 	const float tech_spread = units_.team[i] < MAX_PLAYERS ? unit_tech_mods(units_.team[i], ut, units_.tmpl[i]).spread : 1.0f;
 	const float sigma = unit_combat_at(i).spread * spread_rank_multiplier(units_.rank[i]) * tech_spread * dist / 100.0f;
 	float disp_x = 0.0f, disp_z = 0.0f;
@@ -41983,7 +42107,7 @@ void Simulation::tick_fauna(float dt) {
 			// DefaultRelaxedMaxRange (12 m, UnitAI.js:4967) of its point, which Order.Walk marks
 			// relaxed (:326). A walk into a corral is a Garrison order, which goes on until it
 			// garrisons (or the corral fills).
-			if (!stop && !corral && aim_clock_ + dt >= 4 * FIXED_STEP) {
+			if (!stop && !corral && aim_clock_ + dt >= 4 * FIXED_STEP - 0.5f * FIXED_STEP) { // the tick() turn start
 				constexpr float OBSTRUCTED_PROGRESS = 0.15f, FREE_PROGRESS = 0.5f, RELAXED_RANGE = 12.0f / 4.0f;
 				constexpr uint8_t OBSTRUCTED_AT = 2, FAILED_AT = 35;
 				// The turn's steps: from where it stood when the turn began (prev_x/z, snapshot at the
@@ -42231,6 +42355,7 @@ void Simulation::tick_fauna(float dt) {
 				fauna_.target_unit_id[w] = fauna_.target_unit_id[r]; fauna_.corral_id[w] = fauna_.corral_id[r];
 				fauna_.flee_distance[w] = fauna_.flee_distance[r]; fauna_.home_x[w] = fauna_.home_x[r]; fauna_.home_z[w] = fauna_.home_z[r];
 				fauna_.prev_x[w] = fauna_.prev_x[r]; fauna_.prev_z[w] = fauna_.prev_z[r];
+				fauna_aim_vx_[w] = fauna_aim_vx_[r]; fauna_aim_vz_[w] = fauna_aim_vz_[r];
 				fauna_owner_[w] = fauna_owner_[r];
 				fauna_roam_angle_[w] = fauna_roam_angle_[r];
 				fauna_start_angle_[w] = fauna_start_angle_[r];
@@ -46152,6 +46277,7 @@ void Simulation::set_water_level(float h, float drown_depth) {
 			units_.action_state[u] = ACTION_DYING;
 			units_.pos_x[u] = b.x;
 			units_.pos_z[u] = b.z;
+			unit_jumped(u);
 		}
 		b.garrisoned_units.clear();
 		reset_production_queue(b);

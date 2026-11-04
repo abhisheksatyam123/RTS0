@@ -60,6 +60,7 @@
 #include "simulation/simulation.h"
 #undef private
 
+#include <algorithm>
 #include <cmath>
 #include <set>
 #include <cstdio>
@@ -1590,35 +1591,37 @@ static void test_p14_invulnerable_fallthrough() {
 	check(s.units_.hp[idx(s, a)] == a0, "the invulnerable aimed target takes nothing");
 }
 
-// Aim predicts with the last turn's average velocity ((position - previous position) /
-// turn, CCmpPosition m_PrevX/m_PrevZ), not the instantaneous one.
+// Aim predicts with the last full turn's average velocity ((position - previous position) / turn,
+// CCmpPosition m_PrevX/m_PrevZ at each turn start), the same at every tick of the turn, not the
+// instantaneous one and not a fraction of it that depends on where in the turn the shot falls.
 static void test_p14_aim_velocity() {
-	std::printf("30. aim uses the last turn's velocity (P14)\n");
+	std::printf("30. aim uses the last full turn's velocity at every phase of the turn (P14)\n");
 	Simulation s;
 	setup(s);
 	uint32_t w = s.spawn_unit(0.0f, 0.0f, 0, UNIT_SWORDSMAN);
 	const int wi = idx(s, w);
 	s.order_walk(&w, 1, 60.0f, 0.0f);
-	float px = 0.0f, cruise = 0.0f;
-	for (int k = 0; k < 10; ++k) {
-		s.tick(DT);
-		if (k == 5) px = s.units_.pos_x[wi];
-	}
-	cruise = (s.units_.pos_x[wi] - px) / 0.2f; // two lockstep turns of steady walking
+	for (int k = 0; k < 20; ++k) s.tick(DT); // accelerate to a steady walk
+	const float cruise = s.units_.vel_x[wi];
 	check(cruise > 0.5f, "the walker cruises");
-	// Stop mid-turn: the instantaneous velocity is zero at once, but the aim velocity
-	// still reports the last turn's until the turn boundary snapshots it.
+	// Every tick of three turns: once a turn has passed, the aim is the cruise speed, whichever tick
+	// of the turn it is read on (the old partial-window aim read 1/4 .. 4/4 of it by phase).
+	float worst = 0.0f;
+	for (int k = 0; k < 12; ++k) {
+		s.tick(DT);
+		float vx = 0.0f, vz = 0.0f;
+		s.aim_velocity_unit((size_t)wi, vx, vz);
+		if (k >= 4) worst = std::max(worst, std::fabs(vx - cruise) / cruise);
+	}
+	std::printf("      cruising %.2f u/s, worst aim error over the phases %.1f%%\n", cruise, 100.0f * worst);
+	check(worst < 0.1f, "aim leads with the last full turn's velocity on every tick of the turn");
+	// Stop: the first boundary after it averages the walk and the stop, the next one is at rest.
 	s.cmd_stop(&w, 1);
-	s.tick(DT);
+	for (int k = 0; k < 8; ++k) s.tick(DT);
 	float vx = 0.0f, vz = 0.0f;
 	s.aim_velocity_unit((size_t)wi, vx, vz);
-	std::printf("      cruising %.2f u/s, after one stopped tick aim says %.2f, instant %.2f\n",
-			cruise, vx, s.units_.vel_x[wi]);
 	check(std::fabs(s.units_.vel_x[wi]) < 1e-3f, "the stopped unit's instantaneous velocity is zero");
-	check(std::fabs(vx - 0.5f * cruise) < 0.35f * cruise, "aim still leads with the last turn's velocity");
-	for (int k = 0; k < 4; ++k) s.tick(DT); // cross the turn boundary
-	s.aim_velocity_unit((size_t)wi, vx, vz);
-	check(std::fabs(vx) < 1e-3f && std::fabs(vz) < 1e-3f, "past the boundary, aim knows it stopped");
+	check(std::fabs(vx) < 1e-3f && std::fabs(vz) < 1e-3f, "once a whole turn has passed at rest, aim knows it stopped");
 }
 
 // What main's P14 left: PredictTimeToTarget's lead, ApplyStatus carried by the arrow, and
