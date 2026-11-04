@@ -5,7 +5,7 @@
 
 // Included from sim_types.h after tech_data.h and civ_roster_data.h.
 
-constexpr int RELIC_AURA_MAX_ALTS = 5;
+constexpr int RELIC_AURA_MAX_ALTS = 15;
 
 // Global auras whose modifications are player modifiers (Simulation::compute_tech_mods):
 // Capture the Relic catafalques while a relic is owned, and heroes' cost and research
@@ -50,15 +50,15 @@ inline const RelicAuraModifier *relic_aura_modifiers() {
 		{TSTAT_HEALTH, TOP_MUL, 1.05f, 1, {{TC_STRUCTURE, 0}}}, // pers_catafalque
 		{TSTAT_COST_FOOD, TOP_MUL, 0.8f, 1, {{TC_CIVILIAN | TC_WORKER, TC_FEMALECITIZEN}}}, // rome_catafalque_1
 		{TSTAT_GATHER_ALL, TOP_MUL, 1.1f, 1, {{TC_CIVILIAN | TC_WORKER, TC_FEMALECITIZEN}}}, // rome_catafalque_1
-		{TSTAT_ARMOR_HACK, TOP_ADD, 1.0f, 2, {{TC_UNIT, TC_SIEGE | TC_SHIP}, {TC_SIEGE, 0}}}, // rome_catafalque_2
-		{TSTAT_ARMOR_PIERCE, TOP_ADD, 1.0f, 2, {{TC_UNIT, TC_SIEGE | TC_SHIP}, {TC_SIEGE, 0}}}, // rome_catafalque_2
-		{TSTAT_ARMOR_CRUSH, TOP_ADD, 1.0f, 2, {{TC_UNIT, TC_SIEGE | TC_SHIP}, {TC_SIEGE, 0}}}, // rome_catafalque_2
+		{TSTAT_ARMOR_HACK, TOP_ADD, 1.0f, 13, {{TC_INFANTRY, 0}, {TC_CAVALRY, 0}, {TC_CHAMPION, 0}, {TC_HERO, 0}, {TC_ELEPHANT, 0}, {TC_DOG, 0}, {TC_CITIZEN, 0}, {TC_FEMALECITIZEN, 0}, {TC_CIVILIAN | TC_WORKER, TC_FEMALECITIZEN}, {TC_WORKER, 0}, {TC_TRADER, 0}, {TC_HEALER, 0}, {TC_SIEGE, 0}}}, // rome_catafalque_2
+		{TSTAT_ARMOR_PIERCE, TOP_ADD, 1.0f, 13, {{TC_INFANTRY, 0}, {TC_CAVALRY, 0}, {TC_CHAMPION, 0}, {TC_HERO, 0}, {TC_ELEPHANT, 0}, {TC_DOG, 0}, {TC_CITIZEN, 0}, {TC_FEMALECITIZEN, 0}, {TC_CIVILIAN | TC_WORKER, TC_FEMALECITIZEN}, {TC_WORKER, 0}, {TC_TRADER, 0}, {TC_HEALER, 0}, {TC_SIEGE, 0}}}, // rome_catafalque_2
+		{TSTAT_ARMOR_CRUSH, TOP_ADD, 1.0f, 13, {{TC_INFANTRY, 0}, {TC_CAVALRY, 0}, {TC_CHAMPION, 0}, {TC_HERO, 0}, {TC_ELEPHANT, 0}, {TC_DOG, 0}, {TC_CITIZEN, 0}, {TC_FEMALECITIZEN, 0}, {TC_CIVILIAN | TC_WORKER, TC_FEMALECITIZEN}, {TC_WORKER, 0}, {TC_TRADER, 0}, {TC_HEALER, 0}, {TC_SIEGE, 0}}}, // rome_catafalque_2
 		{TSTAT_HEALTH, TOP_MUL, 1.1f, 1, {{TC_MELEE | TC_CAVALRY, 0}}}, // cart_catafalque
 		{TSTAT_ARMOR_HACK, TOP_ADD, 1.0f, 1, {{TC_MELEE | TC_CAVALRY, 0}}}, // cart_catafalque
 		{TSTAT_ARMOR_PIERCE, TOP_ADD, 1.0f, 1, {{TC_MELEE | TC_CAVALRY, 0}}}, // cart_catafalque
 		{TSTAT_ARMOR_CRUSH, TOP_ADD, 1.0f, 1, {{TC_MELEE | TC_CAVALRY, 0}}}, // cart_catafalque
-		{TSTAT_LOOT_FOOD, TOP_ADD, 5.0f, 4, {{TC_UNIT, TC_SIEGE | TC_SHIP}, {TC_SIEGE, 0}, {TC_SHIP, 0}, {TC_STRUCTURE, 0}}}, // mace_catafalque_1
-		{TSTAT_LOOT_WOOD, TOP_ADD, 5.0f, 4, {{TC_UNIT, TC_SIEGE | TC_SHIP}, {TC_SIEGE, 0}, {TC_SHIP, 0}, {TC_STRUCTURE, 0}}}, // mace_catafalque_1
+		{TSTAT_LOOT_FOOD, TOP_ADD, 5.0f, 15, {{TC_INFANTRY, 0}, {TC_CAVALRY, 0}, {TC_CHAMPION, 0}, {TC_HERO, 0}, {TC_ELEPHANT, 0}, {TC_DOG, 0}, {TC_CITIZEN, 0}, {TC_FEMALECITIZEN, 0}, {TC_CIVILIAN | TC_WORKER, TC_FEMALECITIZEN}, {TC_WORKER, 0}, {TC_TRADER, 0}, {TC_HEALER, 0}, {TC_SIEGE, 0}, {TC_SHIP, 0}, {TC_STRUCTURE, 0}}}, // mace_catafalque_1
+		{TSTAT_LOOT_WOOD, TOP_ADD, 5.0f, 15, {{TC_INFANTRY, 0}, {TC_CAVALRY, 0}, {TC_CHAMPION, 0}, {TC_HERO, 0}, {TC_ELEPHANT, 0}, {TC_DOG, 0}, {TC_CITIZEN, 0}, {TC_FEMALECITIZEN, 0}, {TC_CIVILIAN | TC_WORKER, TC_FEMALECITIZEN}, {TC_WORKER, 0}, {TC_TRADER, 0}, {TC_HEALER, 0}, {TC_SIEGE, 0}, {TC_SHIP, 0}, {TC_STRUCTURE, 0}}}, // mace_catafalque_1
 		{TSTAT_TRICKLE_METAL, TOP_ADD, 1.0f, 0, {{0, 0}}}, // mace_catafalque_2
 		{TSTAT_SPEED, TOP_MUL, 1.15f, 1, {{TC_SOLDIER, 0}}}, // brit_catafalque_1
 		{TSTAT_VISION, TOP_MUL, 1.15f, 1, {{TC_SOLDIER, 0}}}, // brit_catafalque_1
@@ -189,10 +189,9 @@ inline const RelicGlobalAura *relic_global_auras() {
 
 // Range auras multiplying Promotion/RequiredXp (AURA_REQUIRED_XP sources).
 struct RequiredXpRangeAura { const char *id; float multiply; };
-constexpr uint16_t REQUIRED_XP_RANGE_AURA_COUNT = 4;
+constexpr uint16_t REQUIRED_XP_RANGE_AURA_COUNT = 3;
 inline const RequiredXpRangeAura *required_xp_range_auras() {
-	static const RequiredXpRangeAura kAuras[4] = {
-		{"centurion", 0.75f},
+	static const RequiredXpRangeAura kAuras[3] = {
 		{"centurion_1", 0.75f},
 		{"germ_seer_2", 0.8f},
 		{"han_hero_han_xin_1", 0.8f},

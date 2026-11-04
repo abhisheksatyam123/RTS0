@@ -191,7 +191,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 141; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 143; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_AIM_VELOCITY = 143; // each unit's and animal's last-turn velocity (aim_vx/aim_vz; fauna beside fauna_)
 	static constexpr uint32_t SAVE_VERSION_PETRA_ROUTE_CACHE = 139; // Petra's last checkRoutes result (tradeRoute kept between trade events)
 	static constexpr uint32_t SAVE_VERSION_FAUNA_QUEUED_TARGET = 137; // each animal's set-aside attack target (fauna_queued_target_)
 	static constexpr uint32_t SAVE_VERSION_PETRA_IDLE_CHECKS = 136; // each Petra base's next gatherer balance check (timeNextIdleCheck)
@@ -233,6 +234,7 @@ public:
 	static constexpr uint32_t SAVE_VERSION_PETRA_PROSPECT = 100; // Petra's routeProspection and the Trade structures it last saw
 	static constexpr uint32_t SAVE_VERSION_TRADE_ROUTE = 99; // each trader's route waypoints and leg progress (SetupTradeRoute route, reversed on the way back)
 	static constexpr uint32_t SAVE_VERSION_PROJECTILE_DAMAGE = 98; // each projectile's fire-time strengths and shooter (GetTotalAttackEffects at impact); each unit's and animal's previous-turn position (aim velocity); each player's control-all-units flag
+	static constexpr uint32_t SAVE_VERSION_MOTION_SPAN = 142; // each unit's reversal watch (MotionTurn way_*, span_*, 48 bytes); a 141 save reads the 20-byte MotionTurn
 	static constexpr uint32_t SAVE_VERSION_PETRA_ASSIGNED_AGAINST = 141; // each defense army's assignedTo and assignedAgainst (kept across turns)
 	static constexpr uint32_t SAVE_VERSION_PETRA_BLOCKED = 140; // each Petra attack plan's isBlocked (its target is a blocker on the way)
 	static constexpr uint32_t SAVE_VERSION_RALLY_EMERGENCY = 138; // Petra's autogarrison rally flag (rally_emergency)
@@ -1981,7 +1983,8 @@ public:
 	struct UnitView {
 		const float *pos_x, *pos_z;
 		const float *vel_x, *vel_z;
-		const float *prev_x, *prev_z; // previous-turn positions (CCmpPosition m_PrevX/m_PrevZ)
+		const float *prev_x, *prev_z; // turn-start positions (CCmpPosition m_PrevX/m_PrevZ)
+		const float *aim_vx, *aim_vz; // the last full turn's velocity (Attack.js targetVelocity)
 		const float *target_x, *target_z;
 		const float *hp, *max_hp;
 		const uint32_t *id;
@@ -2466,6 +2469,7 @@ public:
 		const uint8_t *behavior;
 		const uint8_t *alive;
 		const uint8_t *owner; // GAIA_PLAYER, or the player whose corral trained it
+		const float *aim_vx, *aim_vz; // the last full turn's velocity (Attack.js targetVelocity)
 	};
 	FaunaView fauna() const;
 
@@ -3303,11 +3307,53 @@ private:
 	static float projectile_speed(uint8_t visual);
 	const CombatProfile *projectile_profile(uint32_t source_id) const;
 	float projectile_speed_of(uint32_t source_id, uint8_t visual) const;
-	// Attack.js targetVelocity at fire: the target's average velocity over the last
-	// lockstep turn ((position - GetPreviousPosition()) / turnLength, CCmpPosition
-	// m_PrevX/m_PrevZ; a 0.2 s turn here, TICKS_PER_TURN FIXED_STEP ticks).
+	// Attack.js targetVelocity at fire: the target's average velocity over the last full lockstep
+	// turn ((position - GetPreviousPosition()) / turnLength with CCmpPosition m_PrevX/m_PrevZ), taken at
+	// each turn start, so it does not depend on where in the turn the shot falls. A 0.2 s turn here,
+	// TICKS_PER_TURN FIXED_STEP ticks.
 	void aim_velocity_unit(size_t t, float &vx, float &vz) const;
 	void aim_velocity_fauna(size_t f, float &vx, float &vz) const;
+	// Attack.js PerformAttack's target as the aim leads it: where the target stands, its last-turn
+	// velocity, and whether its future position comes from its UnitMotion (a unit that is not a
+	// formation member; animals keep no path, so their lead stays linear).
+	struct AimTarget {
+		float x, z, vx, vz;
+		uint32_t id;
+		size_t idx;
+		bool fauna, motion;
+	};
+	// CCmpPosition::JumpTo (a teleport: a garrison exit, a landing, a set position): the turn-start position
+	// becomes where the unit landed (m_LastX = m_PrevX = m_X), so GetPreviousPosition is the landing point and
+	// Attack.js's targetVelocity is zero until the next turn starts. The last turn's velocity goes with it.
+	void unit_jumped(size_t i) { unit_reset_prev(i); units_.aim_vx[i] = units_.aim_vz[i] = 0.0f; }
+	void fauna_jumped(size_t f) { fauna_reset_prev(f); fauna_aim_vx_[f] = fauna_aim_vz_[f] = 0.0f; }
+	// The turn-start position alone: a move 0 A.D. makes by MoveTo (UpdateTurretPosition, an occupied turret),
+	// which keeps the walk's velocity as the lead.
+	void unit_reset_prev(size_t i) { units_.prev_x[i] = units_.pos_x[i]; units_.prev_z[i] = units_.pos_z[i]; }
+	void fauna_reset_prev(size_t f) { fauna_.prev_x[f] = fauna_.pos_x[f]; fauna_.prev_z[f] = fauna_.pos_z[f]; }
+	AimTarget unit_aim_target(size_t t) const;
+	AimTarget fauna_aim_target(size_t f) const;
+	// The aim point of an arrow of `speed` from (sx, sz) at `tg` (Attack.js PerformAttack):
+	// PredictTimeToTarget gives the flight time t, and with probability max(0, 0.75 - t / 1.333)
+	// the target's UnitMotion.EstimateFuturePosition(t) is the point, else tg's velocity * t ahead.
+	// Without a flight time the aim is where the target stands. `key` picks the probability's draw
+	// (aim_draw), so the aim stays a pure function of the tick and does not touch the sim RNG.
+	void aim_point(float sx, float sz, float speed, const AimTarget &tg, uint64_t key, float &ax, float &az) const;
+	// UnitMotion.EstimateFuturePosition(dt) of unit t: its position dt on along the path it walks
+	// (its remaining long-path waypoints, or straight at its move goal when it is moving without one),
+	// at its speed with its acceleration (no turn or pushing terms); it stands still otherwise.
+	float attack_stop_distance(size_t i) const;
+		// Whether move_units walks the unit's waypoints now: a move, attack move or patrol, or a task path to its
+		// task's target (a gather, build, return, trade or attack chase path). A stale path is not walked.
+		bool unit_walks_path(size_t t) const;
+		void unit_future_position(size_t t, float dt, float &x, float &z) const;
+	// A uniform draw in [0, 1) from a 64-bit key (splitmix64): the Attack.js randBool, as a pure
+	// function of the shot so the parallel ranged pass draws the same as a sequential one.
+	static float aim_draw(uint64_t key);
+	// The key of one shot's draw: the tick, the shooter and the target.
+	uint64_t aim_key(uint32_t shooter, uint32_t target) const;
+	// PositionHelper.PredictTimeToTarget: whether an arrow of `speed` meets the target, and the time.
+	static bool time_to_target(float sx, float sz, float speed, float tx, float tz, float vx, float vz, float &t);
 	int32_t projectile_hit_unit(const Projectile &p) const;
 	// helpers/Attack.js GetTotalAttackEffects at impact: the projectile's fire-time
 	// strengths against the victim's current Resistance, times the shooter's
@@ -3421,9 +3467,8 @@ private:
 		float flee_distance[MAX_FAUNA] = {}; // UnitAI FLEEING distanceToFlee (was the unused fatten timer)
 		float home_x[MAX_FAUNA] = {}; // UnitAI heldPosition: where a hold-ground animal returns
 		float home_z[MAX_FAUNA] = {};
-		// Each animal's position at the end of the previous lockstep turn, for the
-		// same last-turn aim velocity as units (CCmpPosition m_PrevX/m_PrevZ). At the
-		// end, so saves before v98 are a prefix of the struct.
+		// Each animal's position at the start of the previous lockstep turn (CCmpPosition
+		// m_PrevX/m_PrevZ). At the end, so saves before v98 are a prefix of the struct.
 		float prev_x[MAX_FAUNA] = {};
 		float prev_z[MAX_FAUNA] = {};
 	} fauna_;
@@ -3444,6 +3489,10 @@ private:
 	// The target of the Attack order an animal set aside when it turned on a melee attacker
 	// (UnitAI COMBAT.Attacked PushOrderFront): it goes back to it once that fight ends (0 = none).
 	uint32_t fauna_queued_target_[FaunaStorage::MAX_FAUNA] = {};
+	// Each animal's velocity over the last full lockstep turn (Attack.js targetVelocity, sampled at
+	// each turn start like the units'), beside fauna_ like fauna_owner_; save v143 adds it.
+	float fauna_aim_vx_[FaunaStorage::MAX_FAUNA] = {};
+	float fauna_aim_vz_[FaunaStorage::MAX_FAUNA] = {};
 	IdIndex fauna_id_to_idx_;
 	std::unordered_map<uint32_t, std::vector<uint32_t>> transport_passengers_;
 	// UnitMotionFlying.js state of each flying unit (units/plane), by unit id, so it saves and

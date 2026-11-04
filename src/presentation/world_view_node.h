@@ -444,6 +444,9 @@ private:
 		int baked_count = 0;
 		int last_frame[CROWD_PHASES] = {-1, -1, -1};
 		int last_lod_frame[CROWD_PHASES] = {-1, -1, -1};
+		// Walk and run cycles: the pose clock of each sub-batch, advanced by the ground the
+		// units in it cover (presentation only), so the feet keep pace with the ground.
+		float loco_clock[CROWD_PHASES] = {0.0f, 0.0f, 0.0f};
 	};
 	struct CrowdBatch {
 		MultiMeshInstance3D *mmi[CROWD_CLIP_COUNT][CROWD_PHASES] = {};
@@ -661,6 +664,12 @@ public:
 
 	void play_spatial_sound(const Ref<AudioStream> &stream, Vector3 pos, float volume_db = 0.0f, float max_dist = 75.0f, float pitch_scale = 1.0f);
 	void play_spatial_sound_path(const String &path, Vector3 pos, float volume_db = 0.0f, float max_dist = 75.0f, float pitch_scale = 1.0f);
+	// 0.28 SoundGroup::RadiansOffCenter: where a positional sound at pos is heard from the camera.
+	// Returns false when it is off screen beyond 0.28's buffers (10% of the width, 15 px), so 0.28
+	// doesn't play it. heard_at is the emitter spot that Godot pans to the screen angle (linear in
+	// screen x, capped at pi/6), dist is the distance from the camera origin, and max_rolloff is set
+	// when the point is partly off screen.
+	bool screen_pan(Vector3 pos, Vector3 &heard_at, float &dist, bool &max_rolloff) const;
 
 	// The building model a structure of this civ, type and (WallSet) half length draws; the
 	// wall placement ghost previews its pieces with it.

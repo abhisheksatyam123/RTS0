@@ -184,20 +184,24 @@ func _now() -> float:
 	return Time.get_ticks_msec() / 1000.0
 
 func _is_over_gui(pos: Vector2) -> bool:
+	# Rect test only: the viewport's hovered control lags the touch (its motion is queued, not yet
+	# processed), so a tap in the world could read the control the pointer last sat over.
 	var vp := get_viewport()
 	if vp == null:
 		return false
-	var c := vp.gui_get_hovered_control()
-	if c != null and c.is_visible_in_tree() and c.mouse_filter != Control.MOUSE_FILTER_IGNORE:
-		var cls_name := c.get_class()
-		if cls_name != "SubViewportContainer" and c.name != "WorldView" and c.name != "Background" and cls_name != "RtsoSelectionRect":
-			return true
-	return _check_gui_at(vp, pos)
+	return _check_gui_at(vp, _to_canvas(pos))
+
+# A touch is in window pixels, but control rects are in the viewport's canvas units (the
+# window is stretched over them): the touch's own mouse events take window pixels, the
+# rect tests take canvas units.
+func _to_canvas(window_pos: Vector2) -> Vector2:
+	return get_viewport().get_final_transform().affine_inverse() * window_pos
 
 # The visible control group icon under a point, if any (control_groups_view.h names them).
 func _group_button_at(pos: Vector2) -> Button:
+	var canvas := _to_canvas(pos)
 	for n in get_tree().root.find_children("UnitGroupButton*", "Button", true, false):
-		if (n as Button).is_visible_in_tree() and (n as Button).get_global_rect().has_point(pos):
+		if (n as Button).is_visible_in_tree() and (n as Button).get_global_rect().has_point(canvas):
 			return n
 	return null
 
@@ -209,6 +213,9 @@ func _ctrl_click(pos: Vector2) -> void:
 	_mods[KEY_CTRL] = was
 
 func _check_gui_at(node: Node, pos: Vector2) -> bool:
+	# A hidden node hides its whole subtree: its children are not on screen.
+	if node is CanvasItem and not node.visible:
+		return false
 	if node is Control and node.visible:
 		var cls_name := node.get_class()
 		if cls_name != "SubViewportContainer" and node.name != "WorldView" and node.name != "Background" and cls_name != "RtsoSelectionRect":
@@ -282,7 +289,8 @@ func _on_touch(e: InputEventScreenTouch) -> void:
 		elif is_placing_building():
 			_button(MOUSE_BUTTON_LEFT, true, e.position)
 			_button(MOUSE_BUTTON_LEFT, false, e.position)
-		elif has_selection():
+		elif has_selection() and not dbl:
+			# A double tap is never an order: its second tap selects the units of that type.
 			_button(MOUSE_BUTTON_RIGHT, true, e.position)
 			_button(MOUSE_BUTTON_RIGHT, false, e.position)
 			Input.vibrate_handheld(15)
