@@ -1530,10 +1530,9 @@ void RtsoWorldView::play_spatial_sound(const Ref<AudioStream> &stream, Vector3 p
 static void play_structure_death(RtsoWorldView &view, uint8_t type, Vector3 pos) {
 	static std::mt19937 rng(std::random_device{}());
 	const uint8_t g = rtso::building_attack_sounds(type).c;
-	float pitch = 1.0f;
-	const String path = rtso::pick_attack_sound(g, rng, &pitch);
+	float pitch = 1.0f, gain = 1.0f;
+	const String path = rtso::pick_attack_sound(g, rng, &pitch, &gain);
 	if (path.is_empty()) return;
-	const float gain = rtso::attack_sound_group(g).gain;
 	view.play_spatial_sound(rtso::load_audio(path), pos, gain > 0.001f ? 20.0f * std::log10(gain) : -80.0f, 95.0f, pitch);
 }
 
