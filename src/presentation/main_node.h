@@ -232,7 +232,7 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	// the bound handler methods below delegate into them.
 	RtsoChatWindow chat_window_;
 	// Multiplayer lobby panel leaf (lobby_dialog.h); RtsoMain keeps its logic.
-	RtsoLobbyDialog lobby_dialog_;
+	Ref<RtsoLobbyDialog> lobby_dialog_;
 	RtsoDiplomacyDialog diplo_dialog_;
 	rtso::RtsoObjectivesDialog objectives_dialog_;
 	rtso::RtsoTutorialPanel tutorial_panel_;

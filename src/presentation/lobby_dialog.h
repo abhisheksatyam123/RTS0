@@ -15,6 +15,8 @@
 #include <godot_cpp/classes/label.hpp>
 #include <godot_cpp/classes/line_edit.hpp>
 #include <godot_cpp/classes/panel.hpp>
+#include <godot_cpp/classes/ref_counted.hpp>
+#include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/classes/text_server.hpp>
 #include <godot_cpp/classes/v_box_container.hpp>
 #include <godot_cpp/core/memory.hpp>
@@ -25,8 +27,30 @@
 
 using namespace godot;
 
-class RtsoLobbyDialog {
+class RtsoLobbyDialog : public RefCounted {
+	GDCLASS(RtsoLobbyDialog, RefCounted)
+
+protected:
+	static void _bind_methods() {
+		ADD_SIGNAL(MethodInfo("host_requested"));
+		ADD_SIGNAL(MethodInfo("join_requested"));
+		ADD_SIGNAL(MethodInfo("start_requested"));
+		ADD_SIGNAL(MethodInfo("refresh_requested"));
+		ADD_SIGNAL(MethodInfo("observe_toggled", PropertyInfo(Variant::BOOL, "on")));
+		ClassDB::bind_method(D_METHOD("press_host"), &RtsoLobbyDialog::press_host);
+		ClassDB::bind_method(D_METHOD("press_join"), &RtsoLobbyDialog::press_join);
+		ClassDB::bind_method(D_METHOD("press_start"), &RtsoLobbyDialog::press_start);
+		ClassDB::bind_method(D_METHOD("press_refresh"), &RtsoLobbyDialog::press_refresh);
+		ClassDB::bind_method(D_METHOD("toggle_observe", "on"), &RtsoLobbyDialog::toggle_observe);
+	}
+
 public:
+	void press_host() { emit_signal("host_requested"); }
+	void press_join() { emit_signal("join_requested"); }
+	void press_start() { emit_signal("start_requested"); }
+	void press_refresh() { emit_signal("refresh_requested"); }
+	void toggle_observe(bool on) { emit_signal("observe_toggled", on); }
+
 	// The widgets RtsoMain keeps pointers to (session_lobby.cpp reads and writes them).
 	struct Widgets {
 		Panel *panel = nullptr;
@@ -127,14 +151,19 @@ public:
 		return w_;
 	}
 
-	// Connects each button to the RtsoMain method it always called. Run once after
-	// build(), so the connections exist before the first input, as before.
+	// Each button emits one of the leaf's signals; bind_signals() sends every
+	// signal to the RtsoMain method that handles it, the one it always called.
 	void bind_signals(Object *owner) {
-		host_b_->connect("pressed", Callable(owner, "_on_lobby_host_pressed"));
-		join_b_->connect("pressed", Callable(owner, "_on_lobby_join_pressed"));
-		w_.observe->connect("toggled", Callable(owner, "_on_lobby_observe_toggled"));
-		refresh_b_->connect("pressed", Callable(owner, "_on_lobby_refresh_pressed"));
-		w_.start->connect("pressed", Callable(owner, "_on_lobby_start_pressed"));
+		host_b_->connect("pressed", Callable(this, "press_host"));
+		join_b_->connect("pressed", Callable(this, "press_join"));
+		w_.observe->connect("toggled", Callable(this, "toggle_observe"));
+		refresh_b_->connect("pressed", Callable(this, "press_refresh"));
+		w_.start->connect("pressed", Callable(this, "press_start"));
+		connect("host_requested", Callable(owner, "_on_lobby_host_pressed"));
+		connect("join_requested", Callable(owner, "_on_lobby_join_pressed"));
+		connect("start_requested", Callable(owner, "_on_lobby_start_pressed"));
+		connect("refresh_requested", Callable(owner, "_on_lobby_refresh_pressed"));
+		connect("observe_toggled", Callable(owner, "_on_lobby_observe_toggled"));
 	}
 
 	const Widgets &widgets() const { return w_; }

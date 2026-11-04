@@ -14,6 +14,7 @@
 #include "presentation/asset_viewer.h"
 #include "presentation/safe_select.h"
 #include "presentation/hotkey_config.h"
+#include "presentation/lobby_dialog.h"
 #include "presentation/reference_data.h"
 #include "presentation/user_config.h"
 #include "graphics/assets/model_library.h"
@@ -40,6 +41,7 @@ void initialize_rtso_module(ModuleInitializationLevel p_level) {
 	GDREGISTER_CLASS(RtsoAssetViewer);
 	GDREGISTER_CLASS(RtsoSafeSelect);
 	GDREGISTER_CLASS(RtsoHotkeyConfig);
+	GDREGISTER_CLASS(RtsoLobbyDialog);
 	GDREGISTER_CLASS(RtsoReference);
 	GDREGISTER_CLASS(RtsoUserConfig);
 
