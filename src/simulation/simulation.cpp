@@ -33033,11 +33033,16 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 
 				// No siege-only plan focusing the target (0.28 has none): siege engines go with
 				// the rest and pick the best structure near them (petra_attack_units).
-				order_attack_move(squad.data(), squad.size(), tx, tz, false, false, true, petra_attack_avoid(plan, false));
-
+				// attackPlan.js ARRIVED: stopMoving, then the per-unit loop runs on the same update with
+				// startingAttack, which checks every unit. Idle units get their own targets there
+				// (counters, supports, the 10% pick), and the far ones get the attack-move from that loop.
+				// A squad-wide attack-move here left every unit walking with no target, which the idle
+				// test of that loop then skips.
+				cmd_stop(squad.data(), squad.size());
 				plan.state = AttackPlan::ATTACKED;
 				plan.state_timer = 0.0f;
 				petra_strike_force_.state = PetraStrikeForce::ENGAGE;
+				petra_attack_units(plan);
 			}
 			break;
 		}
