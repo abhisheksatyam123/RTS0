@@ -20,7 +20,7 @@ struct PrefProfile { uint8_t count; PrefTerm term[4]; }; // terms by index, over
 // A unit's PreferredClasses and its own preference classes as a target.
 struct PrefUnitRow { PrefProfile prefs; uint8_t classes; };
 
-inline constexpr uint16_t PREF_TEMPLATE_COUNT = 548; // = CIV_UNIT_TEMPLATE_COUNT
+inline constexpr uint16_t PREF_TEMPLATE_COUNT = 517; // = CIV_UNIT_TEMPLATE_COUNT
 inline const PrefUnitRow *pref_template_table() {
 	static const PrefUnitRow kTable[PREF_TEMPLATE_COUNT] = {
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // athen/cavalry_javelineer_b
@@ -37,6 +37,7 @@ inline const PrefUnitRow *pref_template_table() {
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // athen/infantry_archer_b_dock
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // athen/infantry_javelineer_b
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // athen/infantry_slinger_b
+		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // athen/infantry_spearman_a
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // athen/infantry_spearman_b
 		{{2, {{0, 0x02, 0x00}, {1, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}}}, 0x32}, // athen/ship_arrow
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x12}, // athen/ship_fishing
@@ -46,9 +47,10 @@ inline const PrefUnitRow *pref_template_table() {
 		{{1, {{0, 0x04, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // athen/siege_lithobolos_packed
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // athen/siege_oxybeles_packed
 		{{1, {{0, 0x04, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // athen/siege_ram
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // athen/support_female_citizen
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // athen/support_female_citizen_house
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // athen/support_civilian
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // athen/support_civilian_house
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // athen/support_healer_b
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // athen/support_healer_e
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x19}, // athen/support_trader
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // athen/rts0_villager
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // spart/cavalry_javelineer_b
@@ -59,6 +61,7 @@ inline const PrefUnitRow *pref_template_table() {
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // spart/hero_brasidas
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // spart/hero_leonidas
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // spart/infantry_javelineer_b
+		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // spart/infantry_spearman_a
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // spart/infantry_spearman_b
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // spart/infantry_spearman_neodamodes
 		{{2, {{0, 0x02, 0x00}, {1, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}}}, 0x32}, // spart/ship_arrow
@@ -68,9 +71,10 @@ inline const PrefUnitRow *pref_template_table() {
 		{{1, {{0, 0x02, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x32}, // spart/ship_scout
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // spart/siege_oxybeles_packed
 		{{1, {{0, 0x04, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // spart/siege_ram
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // spart/support_female_citizen
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // spart/support_female_citizen_house
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // spart/support_civilian
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // spart/support_civilian_house
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // spart/support_healer_b
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // spart/support_healer_e
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x19}, // spart/support_trader
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // spart/rts0_villager
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // pers/cavalry_archer_b
@@ -82,11 +86,13 @@ inline const PrefUnitRow *pref_template_table() {
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // pers/champion_chariot
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // pers/champion_elephant
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // pers/champion_infantry
+		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // pers/champion_infantry_archer_upgrade
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // pers/hero_cyrus_ii
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // pers/hero_darius_i
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // pers/hero_xerxes_i
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // pers/infantry_archer_b
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // pers/infantry_javelineer_b
+		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // pers/infantry_spearman_a
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // pers/infantry_spearman_b
 		{{2, {{0, 0x02, 0x00}, {1, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}}}, 0x32}, // pers/ship_arrow
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x12}, // pers/ship_fishing
@@ -94,9 +100,10 @@ inline const PrefUnitRow *pref_template_table() {
 		{{1, {{0, 0x20, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x32}, // pers/ship_ram
 		{{1, {{0, 0x02, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x32}, // pers/ship_scout
 		{{1, {{0, 0x04, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // pers/siege_ram
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // pers/support_female_citizen
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // pers/support_female_citizen_house
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // pers/support_civilian
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // pers/support_civilian_house
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // pers/support_healer_b
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // pers/support_healer_e
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x19}, // pers/support_trader
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // pers/rts0_villager
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // rome/cavalry_javelineer_b
@@ -109,10 +116,11 @@ inline const PrefUnitRow *pref_template_table() {
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // rome/hero_marcellus
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // rome/hero_maximus
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // rome/hero_scipio
+		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // rome/infantry_antesignanus
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // rome/infantry_javelineer_b
-		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // rome/infantry_legionary
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // rome/infantry_spearman_a
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // rome/infantry_spearman_b
+		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // rome/infantry_spearman_conscript
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // rome/infantry_swordsman_a
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // rome/infantry_swordsman_b
 		{{2, {{0, 0x02, 0x00}, {1, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}}}, 0x32}, // rome/ship_arrow
@@ -125,15 +133,15 @@ inline const PrefUnitRow *pref_template_table() {
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // rome/siege_onager_packed
 		{{1, {{0, 0x04, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // rome/siege_ram
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // rome/siege_scorpio_packed
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // rome/support_female_citizen
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // rome/support_female_citizen_house
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // rome/support_civilian
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // rome/support_civilian_house
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // rome/support_healer_b
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // rome/support_healer_e
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x19}, // rome/support_trader
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // rome/rts0_villager
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // cart/cavalry_javelineer_b
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // cart/cavalry_spearman_ital_b
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // cart/cavalry_swordsman_gaul_b
-		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // cart/cavalry_swordsman_iber_b
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // cart/champion_cavalry
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // cart/champion_elephant
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // cart/champion_infantry
@@ -143,9 +151,10 @@ inline const PrefUnitRow *pref_template_table() {
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // cart/infantry_archer_b
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // cart/infantry_javelineer_iber_b
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // cart/infantry_slinger_iber_b
+		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // cart/infantry_spearman_a
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // cart/infantry_spearman_b
+		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // cart/infantry_spearman_ital_b
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // cart/infantry_swordsman_gaul_b
-		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // cart/infantry_swordsman_ital_b
 		{{2, {{0, 0x02, 0x00}, {1, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}}}, 0x32}, // cart/ship_arrow
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x12}, // cart/ship_fishing
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x1a}, // cart/ship_merchant
@@ -155,9 +164,10 @@ inline const PrefUnitRow *pref_template_table() {
 		{{1, {{0, 0x04, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // cart/siege_ballista_packed
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // cart/siege_oxybeles_packed
 		{{1, {{0, 0x04, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // cart/siege_ram
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // cart/support_female_citizen
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // cart/support_female_citizen_house
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // cart/support_civilian
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // cart/support_civilian_house
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // cart/support_healer_b
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // cart/support_healer_e
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x19}, // cart/support_trader
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // cart/rts0_villager
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // mace/cavalry_javelineer_b
@@ -171,6 +181,7 @@ inline const PrefUnitRow *pref_template_table() {
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // mace/hero_philip_ii
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // mace/infantry_archer_b
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // mace/infantry_javelineer_b
+		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // mace/infantry_pikeman_a
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // mace/infantry_pikeman_b
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // mace/infantry_slinger_b
 		{{2, {{0, 0x02, 0x00}, {1, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}}}, 0x32}, // mace/ship_arrow
@@ -182,9 +193,10 @@ inline const PrefUnitRow *pref_template_table() {
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // mace/siege_oxybeles_packed
 		{{1, {{0, 0x04, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // mace/siege_ram
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // mace/siege_tower
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // mace/support_female_citizen
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // mace/support_female_citizen_house
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // mace/support_civilian
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // mace/support_civilian_house
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // mace/support_healer_b
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // mace/support_healer_e
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x19}, // mace/support_trader
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // mace/rts0_villager
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // brit/cavalry_javelineer_b
@@ -196,6 +208,7 @@ inline const PrefUnitRow *pref_template_table() {
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // brit/hero_cunobelin
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // brit/infantry_javelineer_b
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // brit/infantry_slinger_b
+		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // brit/infantry_spearman_a
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // brit/infantry_spearman_b
 		{{2, {{0, 0x02, 0x00}, {1, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}}}, 0x32}, // brit/ship_arrow
 		{{1, {{0, 0x02, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x32}, // brit/ship_fire
@@ -203,9 +216,10 @@ inline const PrefUnitRow *pref_template_table() {
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x1a}, // brit/ship_merchant
 		{{1, {{0, 0x02, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x32}, // brit/ship_scout
 		{{1, {{0, 0x04, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // brit/siege_ram
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // brit/support_female_citizen
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // brit/support_female_citizen_house
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // brit/support_civilian
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // brit/support_civilian_house
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // brit/support_healer_b
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // brit/support_healer_e
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x19}, // brit/support_trader
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // brit/war_dog
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // brit/rts0_villager
@@ -220,6 +234,7 @@ inline const PrefUnitRow *pref_template_table() {
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // gaul/hero_viridomarus
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // gaul/infantry_javelineer_b
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // gaul/infantry_slinger_b
+		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // gaul/infantry_spearman_a
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // gaul/infantry_spearman_b
 		{{2, {{0, 0x02, 0x00}, {1, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}}}, 0x32}, // gaul/ship_arrow
 		{{1, {{0, 0x02, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x32}, // gaul/ship_fire
@@ -227,9 +242,10 @@ inline const PrefUnitRow *pref_template_table() {
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x1a}, // gaul/ship_merchant
 		{{1, {{0, 0x02, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x32}, // gaul/ship_scout
 		{{1, {{0, 0x04, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // gaul/siege_ram
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // gaul/support_female_citizen
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // gaul/support_female_citizen_house
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // gaul/support_civilian
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // gaul/support_civilian_house
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // gaul/support_healer_b
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // gaul/support_healer_e
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x19}, // gaul/support_trader
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // gaul/rts0_villager
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // iber/cavalry_javelineer_b
@@ -241,7 +257,9 @@ inline const PrefUnitRow *pref_template_table() {
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // iber/hero_viriato
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // iber/infantry_javelineer_b
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // iber/infantry_slinger_b
+		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // iber/infantry_spearman_a
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // iber/infantry_spearman_b
+		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // iber/infantry_swordsman_a
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // iber/infantry_swordsman_b
 		{{2, {{0, 0x02, 0x00}, {1, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}}}, 0x32}, // iber/ship_arrow
 		{{1, {{0, 0x02, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x32}, // iber/ship_fire
@@ -249,9 +267,10 @@ inline const PrefUnitRow *pref_template_table() {
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x1a}, // iber/ship_merchant
 		{{1, {{0, 0x02, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x32}, // iber/ship_scout
 		{{1, {{0, 0x04, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // iber/siege_ram
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // iber/support_female_citizen
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // iber/support_female_citizen_house
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // iber/support_civilian
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // iber/support_civilian_house
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // iber/support_healer_b
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // iber/support_healer_e
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x19}, // iber/support_trader
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // iber/rts0_villager
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // maur/cavalry_javelineer_b
@@ -266,17 +285,20 @@ inline const PrefUnitRow *pref_template_table() {
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // maur/hero_chanakya
 		{{1, {{0, 0x00, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // maur/hero_chandragupta
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // maur/infantry_archer_b
+		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // maur/infantry_spearman_a
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // maur/infantry_spearman_b
+		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // maur/infantry_swordsman_a
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // maur/infantry_swordsman_b
 		{{2, {{0, 0x02, 0x00}, {1, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}}}, 0x32}, // maur/ship_arrow
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x12}, // maur/ship_fishing
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x1a}, // maur/ship_merchant
 		{{1, {{0, 0x02, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x32}, // maur/ship_scout
 		{{1, {{0, 0x04, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // maur/siege_ram
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // maur/support_civilian
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // maur/support_civilian_house
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // maur/support_elephant
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // maur/support_female_citizen
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // maur/support_female_citizen_house
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // maur/support_healer_b
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // maur/support_healer_e
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x19}, // maur/support_trader
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // maur/rts0_villager
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // kush/cavalry_javelineer_b
@@ -293,8 +315,11 @@ inline const PrefUnitRow *pref_template_table() {
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // kush/infantry_archer_b
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // kush/infantry_javelineer_merc_b
 		{{1, {{0, 0x00, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // kush/infantry_maceman_merc_b
+		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // kush/infantry_pikeman_a
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // kush/infantry_pikeman_b
+		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // kush/infantry_spearman_a
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // kush/infantry_spearman_b
+		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // kush/infantry_swordsman_a
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // kush/infantry_swordsman_b
 		{{2, {{0, 0x02, 0x00}, {1, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}}}, 0x32}, // kush/ship_arrow
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x12}, // kush/ship_fishing
@@ -302,8 +327,8 @@ inline const PrefUnitRow *pref_template_table() {
 		{{1, {{0, 0x02, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x32}, // kush/ship_scout
 		{{1, {{0, 0x04, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // kush/siege_ram
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // kush/siege_tower
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // kush/support_female_citizen
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // kush/support_female_citizen_house
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // kush/support_civilian
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // kush/support_civilian_house
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // kush/support_healer_b
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // kush/support_healer_e
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x19}, // kush/support_trader
@@ -319,6 +344,7 @@ inline const PrefUnitRow *pref_template_table() {
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // ptol/hero_ptolemy_iv
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // ptol/infantry_archer_b
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // ptol/infantry_javelineer_b
+		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // ptol/infantry_pikeman_a
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // ptol/infantry_pikeman_b
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // ptol/infantry_slinger_b
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // ptol/infantry_spearman_merc_b
@@ -333,9 +359,10 @@ inline const PrefUnitRow *pref_template_table() {
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // ptol/siege_polybolos_packed
 		{{1, {{0, 0x04, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // ptol/siege_ram
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // ptol/siege_tower
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // ptol/support_female_citizen
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // ptol/support_female_citizen_house
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // ptol/support_civilian
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // ptol/support_civilian_house
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // ptol/support_healer_b
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // ptol/support_healer_e
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x19}, // ptol/support_trader
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // ptol/rts0_villager
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // sele/cavalry_archer_b
@@ -351,7 +378,9 @@ inline const PrefUnitRow *pref_template_table() {
 		{{1, {{0, 0x00, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // sele/hero_seleucus_i
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // sele/infantry_archer_merc_b
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // sele/infantry_javelineer_b
+		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // sele/infantry_pikeman_a
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // sele/infantry_pikeman_b
+		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // sele/infantry_spearman_a
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // sele/infantry_spearman_b
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // sele/infantry_swordsman_merc_b
 		{{2, {{0, 0x02, 0x00}, {1, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}}}, 0x32}, // sele/ship_arrow
@@ -363,9 +392,10 @@ inline const PrefUnitRow *pref_template_table() {
 		{{1, {{0, 0x04, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // sele/siege_lithobolos_packed
 		{{1, {{0, 0x04, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // sele/siege_ram
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // sele/siege_tower
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // sele/support_female_citizen
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // sele/support_female_citizen_house
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // sele/support_civilian
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // sele/support_civilian_house
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // sele/support_healer_b
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // sele/support_healer_e
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x19}, // sele/support_trader
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // sele/rts0_villager
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // han/cavalry_archer_b
@@ -380,7 +410,9 @@ inline const PrefUnitRow *pref_template_table() {
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // han/hero_wei_qing_chariot
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // han/infantry_archer_b
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // han/infantry_crossbowman_b
+		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // han/infantry_pikeman_a
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // han/infantry_pikeman_b
+		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // han/infantry_spearman_a
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // han/infantry_spearman_b
 		{{2, {{0, 0x02, 0x00}, {1, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}}}, 0x32}, // han/ship_arrow
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x12}, // han/ship_fishing
@@ -390,62 +422,13 @@ inline const PrefUnitRow *pref_template_table() {
 		{{1, {{0, 0x04, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // han/siege_mangonel_packed
 		{{1, {{0, 0x04, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // han/siege_ram
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // han/siege_tower
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // han/support_female_citizen
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // han/support_female_citizen_house
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // han/support_healer_b
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x19}, // han/support_trader
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // han/rts0_villager
-		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // spart/champion_infantry_spear_olympian
-		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // rome/cavalry_auxiliary_b
-		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // rome/infantry_antesignanus
-		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // mace/champion_infantry_spearman_02
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // han/support_minister
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // athen/catafalque
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // spart/catafalque
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // pers/catafalque
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // rome/catafalque
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // cart/catafalque
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // mace/catafalque
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // brit/catafalque
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // gaul/catafalque
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // iber/catafalque
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // maur/catafalque
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // kush/catafalque
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // ptol/catafalque
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // sele/catafalque
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // han/catafalque
-		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // pers/champion_infantry_archer_upgrade
-		{{1, {{0, 0x02, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x32}, // brit/ship_fire_fire
-		{{1, {{0, 0x02, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x32}, // gaul/ship_fire_fire
-		{{1, {{0, 0x02, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x32}, // iber/ship_fire_fire
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // athen/support_civilian
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // athen/support_civilian_house
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // spart/support_civilian
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // spart/support_civilian_house
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // pers/support_civilian
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // pers/support_civilian_house
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // rome/support_civilian
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // rome/support_civilian_house
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // cart/support_civilian
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // cart/support_civilian_house
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // mace/support_civilian
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // mace/support_civilian_house
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // brit/support_civilian
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // brit/support_civilian_house
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // gaul/support_civilian
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // gaul/support_civilian_house
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // iber/support_civilian
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // iber/support_civilian_house
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // maur/support_civilian
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // maur/support_civilian_house
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // kush/support_civilian
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // kush/support_civilian_house
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // ptol/support_civilian
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // ptol/support_civilian_house
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // sele/support_civilian
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // sele/support_civilian_house
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // han/support_civilian
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // han/support_civilian_house
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // han/support_healer_b
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // han/support_healer_e
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // han/support_minister
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x19}, // han/support_trader
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // han/rts0_villager
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // germ/cavalry_javelineer_b
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // germ/cavalry_spearman_b
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // germ/champion_cavalry
@@ -457,7 +440,9 @@ inline const PrefUnitRow *pref_template_table() {
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // germ/hero_teutobod
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // germ/infantry_javelineer_b
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // germ/infantry_slinger_b
+		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // germ/infantry_spearman_a
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // germ/infantry_spearman_b
+		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // germ/infantry_swordsman_a
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // germ/infantry_swordsman_b
 		{{2, {{0, 0x02, 0x00}, {1, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}}}, 0x32}, // germ/ship_arrow
 		{{1, {{0, 0x02, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x32}, // germ/ship_fire
@@ -469,108 +454,92 @@ inline const PrefUnitRow *pref_template_table() {
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // germ/support_civilian
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // germ/support_civilian_house
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // germ/support_healer_b
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // germ/support_healer_e
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x19}, // germ/support_trader
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // germ/rts0_villager
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // germ/catafalque
-		{{1, {{0, 0x02, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x32}, // germ/ship_fire_fire
-		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // rome/infantry_spearman_conscript
-		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // cart/infantry_spearman_ital_b
-		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // rome/cavalry_javelineer_auxiliary_b
-		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // rome/cavalry_spearman_auxiliary_b
-		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // rome/champion_infantry_swordsman_first
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // germ/support_wagon
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // germ/support_wagon_house
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // pers/support_healer_e
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // rome/support_healer_e
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // mace/support_healer_e
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // gaul/support_healer_e
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // ptol/support_healer_e
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // han/support_healer_e
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // germ/rts0_villager
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // athen/catafalque
+		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // athen/hero_xenophon
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // athen/infantry_marine_archer_b
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // spart/catafalque
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // spart/champion_infantry_pike
+		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // spart/champion_infantry_spear_olympian
+		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // spart/hero_leonidas_300
+		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // pers/arstibara
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // pers/catafalque
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // pers/hero_xerxes_i_chariot
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // pers/kardakes_hoplite
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // pers/kardakes_skirmisher
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // rome/catafalque
+		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // rome/cavalry_javelineer_auxiliary_b
+		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // rome/cavalry_spearman_auxiliary_b
+		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // rome/champion_infantry_swordsman_02
+		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // rome/champion_infantry_swordsman_03
+		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // rome/champion_infantry_swordsman_04
+		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // rome/champion_infantry_swordsman_05
+		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // rome/champion_infantry_swordsman_first
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // rome/hero_marcellus_infantry
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // rome/hero_maximus_infantry
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // rome/hero_scipio_infantry
+		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // rome/infantry_legionary
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // rome/infantry_swordsman_slave
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // cart/catafalque
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // cart/champion_pikeman
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // mace/catafalque
+		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // mace/champion_infantry_spearman_02
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // mace/hero_craterus
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // mace/hero_philip_ii_pike
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // mace/hero_pyrrhus_i
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // brit/catafalque
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // brit/hero_boudicca_cavalry_javelineer
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // brit/hero_boudicca_sword
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // brit/hero_cunobelin_infantry
+		{{1, {{0, 0x02, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x32}, // brit/ship_fire_fire
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // gaul/catafalque
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // gaul/hero_vercingetorix_infantry
+		{{1, {{0, 0x02, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x32}, // gaul/ship_fire_fire
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // iber/catafalque
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // iber/hero_indibil_infantry
+		{{1, {{0, 0x02, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x32}, // iber/ship_fire_fire
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // maur/catafalque
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // maur/hero_ashoka_infantry
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // maur/hero_bindusara_infantry
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // maur/hero_chandragupta_infantry
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // kush/catafalque
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // kush/hero_amanirenas_infantry
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // kush/hero_harsiotef
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // ptol/catafalque
 		{{3, {{0, 0x02, 0x00}, {1, 0x01, 0x00}, {2, 0x04, 0x00}, {0, 0, 0}}}, 0x32}, // ptol/champion_juggernaut
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // sele/catafalque
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // han/catafalque
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // han/cavalry_crossbowman_b
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // han/champion_infantry_archer_academy
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // han/hero_han_xin
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // han/hero_liu_bang
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // han/hero_wei_qing
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // han/hero_wei_qing_horse
+		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // han/siege_shoushe
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // germ/catafalque
+		{{1, {{0, 0x02, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x32}, // germ/ship_fire_fire
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // germ/support_wagon_house
+		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // campaigns/army_mace_hero_alexander
+		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // campaigns/army_mace_standard
+		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // campaigns/army_spart_hero_leonidas
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // merc_black_cloak
+		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // merc_thorakites
+		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // merc_thureophoros
 		{{2, {{0, 0x02, 0x00}, {1, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}}}, 0x32}, // noldor_warship
 		{{3, {{0, 0x02, 0x00}, {1, 0x01, 0x00}, {2, 0x08, 0x00}, {0, 0, 0}}}, 0x32}, // pirates/ship_arrow
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x1a}, // pirates/ship_merchant
 		{{2, {{0, 0x02, 0x00}, {1, 0x08, 0x00}, {0, 0, 0}, {0, 0, 0}}}, 0x32}, // pirates/ship_scout
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // plane
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // samnite_skirmisher
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // samnite_spearman
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // samnite_swordsman
-		{{2, {{0, 0x02, 0x00}, {1, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}}}, 0x32}, // viking_longship
-		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // merc_thorakites
-		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // merc_thureophoros
 		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // theb_sacred_band
-		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // thesp_melanochitones
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // theb_siege_fireraiser
-		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // rome/champion_infantry_swordsman_02
-		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // rome/champion_infantry_swordsman_03
-		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // rome/champion_infantry_swordsman_04
-		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // rome/champion_infantry_swordsman_05
-		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // athen/hero_xenophon
-		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // spart/hero_leonidas_300
-		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // pers/arstibara
-		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // han/siege_shoushe
-		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // athen/infantry_spearman_a
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // athen/support_healer_e
-		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // spart/infantry_spearman_a
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // spart/support_healer_e
-		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // pers/infantry_spearman_a
-		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // cart/infantry_spearman_a
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // cart/support_healer_e
-		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // mace/infantry_pikeman_a
-		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // brit/infantry_spearman_a
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // brit/support_healer_e
-		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // gaul/infantry_spearman_a
-		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // iber/infantry_spearman_a
-		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // iber/infantry_swordsman_a
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // iber/support_healer_e
-		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // maur/infantry_spearman_a
-		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // maur/infantry_swordsman_a
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // maur/support_healer_e
-		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // kush/infantry_pikeman_a
-		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // kush/infantry_spearman_a
-		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // kush/infantry_swordsman_a
-		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // ptol/infantry_pikeman_a
-		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // sele/infantry_pikeman_a
-		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // sele/infantry_spearman_a
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // sele/support_healer_e
-		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // han/infantry_pikeman_a
-		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // han/infantry_spearman_a
-		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // germ/infantry_spearman_a
-		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // germ/infantry_swordsman_a
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // germ/support_healer_e
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x10}, // plane
-		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // campaigns/army_mace_hero_alexander
-		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // campaigns/army_mace_standard
-		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // campaigns/army_spart_hero_leonidas
+		{{1, {{0, 0x10, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // thesp_melanochitones
+		{{2, {{0, 0x02, 0x00}, {1, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}}}, 0x32}, // viking_longship
 	};
 	return kTable;
 }

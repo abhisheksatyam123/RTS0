@@ -96,12 +96,12 @@ inline constexpr LimitChanger LIMIT_CHANGERS[] = {
 	{CIV_IBERIANS, LIMIT_GLADIATOR, BLD_AMPHITHEATER, CIV_UNIT_TEMPLATE_NONE, 15},
 	{CIV_IBERIANS, LIMIT_WAR_DOG, BLD_KENNEL, CIV_UNIT_TEMPLATE_NONE, 10},
 	{CIV_MAURYANS, LIMIT_GLADIATOR, BLD_AMPHITHEATER, CIV_UNIT_TEMPLATE_NONE, 15},
-	{CIV_MAURYANS, LIMIT_PILLAR, BLD_TYPE_COUNT, 239, 5}, // maur/hero_ashoka
+	{CIV_MAURYANS, LIMIT_PILLAR, BLD_TYPE_COUNT, 258, 5}, // maur/hero_ashoka
 	{CIV_MAURYANS, LIMIT_WAR_DOG, BLD_KENNEL, CIV_UNIT_TEMPLATE_NONE, 10},
 	{CIV_KUSHITES, LIMIT_GLADIATOR, BLD_AMPHITHEATER, CIV_UNIT_TEMPLATE_NONE, 15},
 	{CIV_KUSHITES, LIMIT_WAR_DOG, BLD_KENNEL, CIV_UNIT_TEMPLATE_NONE, 10},
 	{CIV_PTOLEMIES, LIMIT_GLADIATOR, BLD_AMPHITHEATER, CIV_UNIT_TEMPLATE_NONE, 15},
-	{CIV_PTOLEMIES, LIMIT_JUGGERNAUT, BLD_TYPE_COUNT, 293, 4}, // ptol/hero_ptolemy_iv
+	{CIV_PTOLEMIES, LIMIT_JUGGERNAUT, BLD_TYPE_COUNT, 318, 4}, // ptol/hero_ptolemy_iv
 	{CIV_PTOLEMIES, LIMIT_WAR_DOG, BLD_KENNEL, CIV_UNIT_TEMPLATE_NONE, 10},
 	{CIV_SELEUCIDS, LIMIT_GLADIATOR, BLD_AMPHITHEATER, CIV_UNIT_TEMPLATE_NONE, 15},
 	{CIV_SELEUCIDS, LIMIT_WAR_DOG, BLD_KENNEL, CIV_UNIT_TEMPLATE_NONE, 10},
@@ -162,6 +162,7 @@ inline constexpr UnitLimit UNIT_LIMITS[] = {
 	{LIMIT_NONE, 0}, // athen/infantry_archer_b_dock
 	{LIMIT_NONE, 0}, // athen/infantry_javelineer_b
 	{LIMIT_NONE, 0}, // athen/infantry_slinger_b
+	{LIMIT_NONE, 0}, // athen/infantry_spearman_a
 	{LIMIT_NONE, 0}, // athen/infantry_spearman_b
 	{LIMIT_NONE, 0}, // athen/ship_arrow
 	{LIMIT_NONE, 0}, // athen/ship_fishing
@@ -171,9 +172,10 @@ inline constexpr UnitLimit UNIT_LIMITS[] = {
 	{LIMIT_NONE, 0}, // athen/siege_lithobolos_packed
 	{LIMIT_NONE, 0}, // athen/siege_oxybeles_packed
 	{LIMIT_NONE, 0}, // athen/siege_ram
-	{LIMIT_NONE, 0}, // athen/support_female_citizen
-	{LIMIT_NONE, 0}, // athen/support_female_citizen_house
+	{LIMIT_NONE, 0}, // athen/support_civilian
+	{LIMIT_NONE, 0}, // athen/support_civilian_house
 	{LIMIT_NONE, 0}, // athen/support_healer_b
+	{LIMIT_NONE, 0}, // athen/support_healer_e
 	{LIMIT_NONE, 0}, // athen/support_trader
 	{LIMIT_NONE, 0}, // athen/rts0_villager
 	{LIMIT_NONE, 0}, // spart/cavalry_javelineer_b
@@ -184,6 +186,7 @@ inline constexpr UnitLimit UNIT_LIMITS[] = {
 	{LIMIT_HERO, 1}, // spart/hero_brasidas
 	{LIMIT_HERO, 1}, // spart/hero_leonidas
 	{LIMIT_NONE, 0}, // spart/infantry_javelineer_b
+	{LIMIT_NONE, 0}, // spart/infantry_spearman_a
 	{LIMIT_NONE, 0}, // spart/infantry_spearman_b
 	{LIMIT_NONE, 0}, // spart/infantry_spearman_neodamodes
 	{LIMIT_NONE, 0}, // spart/ship_arrow
@@ -193,9 +196,10 @@ inline constexpr UnitLimit UNIT_LIMITS[] = {
 	{LIMIT_NONE, 0}, // spart/ship_scout
 	{LIMIT_NONE, 0}, // spart/siege_oxybeles_packed
 	{LIMIT_NONE, 0}, // spart/siege_ram
-	{LIMIT_NONE, 0}, // spart/support_female_citizen
-	{LIMIT_NONE, 0}, // spart/support_female_citizen_house
+	{LIMIT_NONE, 0}, // spart/support_civilian
+	{LIMIT_NONE, 0}, // spart/support_civilian_house
 	{LIMIT_NONE, 0}, // spart/support_healer_b
+	{LIMIT_NONE, 0}, // spart/support_healer_e
 	{LIMIT_NONE, 0}, // spart/support_trader
 	{LIMIT_NONE, 0}, // spart/rts0_villager
 	{LIMIT_NONE, 0}, // pers/cavalry_archer_b
@@ -207,11 +211,13 @@ inline constexpr UnitLimit UNIT_LIMITS[] = {
 	{LIMIT_NONE, 0}, // pers/champion_chariot
 	{LIMIT_NONE, 0}, // pers/champion_elephant
 	{LIMIT_NONE, 0}, // pers/champion_infantry
+	{LIMIT_NONE, 0}, // pers/champion_infantry_archer_upgrade
 	{LIMIT_HERO, 1}, // pers/hero_cyrus_ii
 	{LIMIT_HERO, 1}, // pers/hero_darius_i
 	{LIMIT_HERO, 1}, // pers/hero_xerxes_i
 	{LIMIT_NONE, 0}, // pers/infantry_archer_b
 	{LIMIT_NONE, 0}, // pers/infantry_javelineer_b
+	{LIMIT_NONE, 0}, // pers/infantry_spearman_a
 	{LIMIT_NONE, 0}, // pers/infantry_spearman_b
 	{LIMIT_NONE, 0}, // pers/ship_arrow
 	{LIMIT_NONE, 0}, // pers/ship_fishing
@@ -219,9 +225,10 @@ inline constexpr UnitLimit UNIT_LIMITS[] = {
 	{LIMIT_NONE, 0}, // pers/ship_ram
 	{LIMIT_NONE, 0}, // pers/ship_scout
 	{LIMIT_NONE, 0}, // pers/siege_ram
-	{LIMIT_NONE, 0}, // pers/support_female_citizen
-	{LIMIT_NONE, 0}, // pers/support_female_citizen_house
+	{LIMIT_NONE, 0}, // pers/support_civilian
+	{LIMIT_NONE, 0}, // pers/support_civilian_house
 	{LIMIT_NONE, 0}, // pers/support_healer_b
+	{LIMIT_NONE, 0}, // pers/support_healer_e
 	{LIMIT_NONE, 0}, // pers/support_trader
 	{LIMIT_NONE, 0}, // pers/rts0_villager
 	{LIMIT_NONE, 0}, // rome/cavalry_javelineer_b
@@ -234,10 +241,11 @@ inline constexpr UnitLimit UNIT_LIMITS[] = {
 	{LIMIT_HERO, 1}, // rome/hero_marcellus
 	{LIMIT_HERO, 1}, // rome/hero_maximus
 	{LIMIT_HERO, 1}, // rome/hero_scipio
+	{LIMIT_NONE, 0}, // rome/infantry_antesignanus
 	{LIMIT_NONE, 0}, // rome/infantry_javelineer_b
-	{LIMIT_NONE, 0}, // rome/infantry_legionary
 	{LIMIT_NONE, 0}, // rome/infantry_spearman_a
 	{LIMIT_NONE, 0}, // rome/infantry_spearman_b
+	{LIMIT_NONE, 0}, // rome/infantry_spearman_conscript
 	{LIMIT_NONE, 0}, // rome/infantry_swordsman_a
 	{LIMIT_NONE, 0}, // rome/infantry_swordsman_b
 	{LIMIT_NONE, 0}, // rome/ship_arrow
@@ -250,15 +258,15 @@ inline constexpr UnitLimit UNIT_LIMITS[] = {
 	{LIMIT_NONE, 0}, // rome/siege_onager_packed
 	{LIMIT_NONE, 0}, // rome/siege_ram
 	{LIMIT_NONE, 0}, // rome/siege_scorpio_packed
-	{LIMIT_NONE, 0}, // rome/support_female_citizen
-	{LIMIT_NONE, 0}, // rome/support_female_citizen_house
+	{LIMIT_NONE, 0}, // rome/support_civilian
+	{LIMIT_NONE, 0}, // rome/support_civilian_house
 	{LIMIT_NONE, 0}, // rome/support_healer_b
+	{LIMIT_NONE, 0}, // rome/support_healer_e
 	{LIMIT_NONE, 0}, // rome/support_trader
 	{LIMIT_NONE, 0}, // rome/rts0_villager
 	{LIMIT_NONE, 0}, // cart/cavalry_javelineer_b
 	{LIMIT_NONE, 0}, // cart/cavalry_spearman_ital_b
 	{LIMIT_NONE, 0}, // cart/cavalry_swordsman_gaul_b
-	{LIMIT_NONE, 0}, // cart/cavalry_swordsman_iber_b
 	{LIMIT_NONE, 0}, // cart/champion_cavalry
 	{LIMIT_NONE, 0}, // cart/champion_elephant
 	{LIMIT_NONE, 0}, // cart/champion_infantry
@@ -268,9 +276,10 @@ inline constexpr UnitLimit UNIT_LIMITS[] = {
 	{LIMIT_NONE, 0}, // cart/infantry_archer_b
 	{LIMIT_NONE, 0}, // cart/infantry_javelineer_iber_b
 	{LIMIT_NONE, 0}, // cart/infantry_slinger_iber_b
+	{LIMIT_NONE, 0}, // cart/infantry_spearman_a
 	{LIMIT_NONE, 0}, // cart/infantry_spearman_b
+	{LIMIT_NONE, 0}, // cart/infantry_spearman_ital_b
 	{LIMIT_NONE, 0}, // cart/infantry_swordsman_gaul_b
-	{LIMIT_NONE, 0}, // cart/infantry_swordsman_ital_b
 	{LIMIT_NONE, 0}, // cart/ship_arrow
 	{LIMIT_NONE, 0}, // cart/ship_fishing
 	{LIMIT_NONE, 0}, // cart/ship_merchant
@@ -280,9 +289,10 @@ inline constexpr UnitLimit UNIT_LIMITS[] = {
 	{LIMIT_NONE, 0}, // cart/siege_ballista_packed
 	{LIMIT_NONE, 0}, // cart/siege_oxybeles_packed
 	{LIMIT_NONE, 0}, // cart/siege_ram
-	{LIMIT_NONE, 0}, // cart/support_female_citizen
-	{LIMIT_NONE, 0}, // cart/support_female_citizen_house
+	{LIMIT_NONE, 0}, // cart/support_civilian
+	{LIMIT_NONE, 0}, // cart/support_civilian_house
 	{LIMIT_NONE, 0}, // cart/support_healer_b
+	{LIMIT_NONE, 0}, // cart/support_healer_e
 	{LIMIT_NONE, 0}, // cart/support_trader
 	{LIMIT_NONE, 0}, // cart/rts0_villager
 	{LIMIT_NONE, 0}, // mace/cavalry_javelineer_b
@@ -296,6 +306,7 @@ inline constexpr UnitLimit UNIT_LIMITS[] = {
 	{LIMIT_HERO, 1}, // mace/hero_philip_ii
 	{LIMIT_NONE, 0}, // mace/infantry_archer_b
 	{LIMIT_NONE, 0}, // mace/infantry_javelineer_b
+	{LIMIT_NONE, 0}, // mace/infantry_pikeman_a
 	{LIMIT_NONE, 0}, // mace/infantry_pikeman_b
 	{LIMIT_NONE, 0}, // mace/infantry_slinger_b
 	{LIMIT_NONE, 0}, // mace/ship_arrow
@@ -307,9 +318,10 @@ inline constexpr UnitLimit UNIT_LIMITS[] = {
 	{LIMIT_NONE, 0}, // mace/siege_oxybeles_packed
 	{LIMIT_NONE, 0}, // mace/siege_ram
 	{LIMIT_NONE, 0}, // mace/siege_tower
-	{LIMIT_NONE, 0}, // mace/support_female_citizen
-	{LIMIT_NONE, 0}, // mace/support_female_citizen_house
+	{LIMIT_NONE, 0}, // mace/support_civilian
+	{LIMIT_NONE, 0}, // mace/support_civilian_house
 	{LIMIT_NONE, 0}, // mace/support_healer_b
+	{LIMIT_NONE, 0}, // mace/support_healer_e
 	{LIMIT_NONE, 0}, // mace/support_trader
 	{LIMIT_NONE, 0}, // mace/rts0_villager
 	{LIMIT_NONE, 0}, // brit/cavalry_javelineer_b
@@ -321,6 +333,7 @@ inline constexpr UnitLimit UNIT_LIMITS[] = {
 	{LIMIT_HERO, 1}, // brit/hero_cunobelin
 	{LIMIT_NONE, 0}, // brit/infantry_javelineer_b
 	{LIMIT_NONE, 0}, // brit/infantry_slinger_b
+	{LIMIT_NONE, 0}, // brit/infantry_spearman_a
 	{LIMIT_NONE, 0}, // brit/infantry_spearman_b
 	{LIMIT_NONE, 0}, // brit/ship_arrow
 	{LIMIT_NONE, 0}, // brit/ship_fire
@@ -328,9 +341,10 @@ inline constexpr UnitLimit UNIT_LIMITS[] = {
 	{LIMIT_NONE, 0}, // brit/ship_merchant
 	{LIMIT_NONE, 0}, // brit/ship_scout
 	{LIMIT_NONE, 0}, // brit/siege_ram
-	{LIMIT_NONE, 0}, // brit/support_female_citizen
-	{LIMIT_NONE, 0}, // brit/support_female_citizen_house
+	{LIMIT_NONE, 0}, // brit/support_civilian
+	{LIMIT_NONE, 0}, // brit/support_civilian_house
 	{LIMIT_NONE, 0}, // brit/support_healer_b
+	{LIMIT_NONE, 0}, // brit/support_healer_e
 	{LIMIT_NONE, 0}, // brit/support_trader
 	{LIMIT_WAR_DOG, 0}, // brit/war_dog
 	{LIMIT_NONE, 0}, // brit/rts0_villager
@@ -345,6 +359,7 @@ inline constexpr UnitLimit UNIT_LIMITS[] = {
 	{LIMIT_HERO, 1}, // gaul/hero_viridomarus
 	{LIMIT_NONE, 0}, // gaul/infantry_javelineer_b
 	{LIMIT_NONE, 0}, // gaul/infantry_slinger_b
+	{LIMIT_NONE, 0}, // gaul/infantry_spearman_a
 	{LIMIT_NONE, 0}, // gaul/infantry_spearman_b
 	{LIMIT_NONE, 0}, // gaul/ship_arrow
 	{LIMIT_NONE, 0}, // gaul/ship_fire
@@ -352,9 +367,10 @@ inline constexpr UnitLimit UNIT_LIMITS[] = {
 	{LIMIT_NONE, 0}, // gaul/ship_merchant
 	{LIMIT_NONE, 0}, // gaul/ship_scout
 	{LIMIT_NONE, 0}, // gaul/siege_ram
-	{LIMIT_NONE, 0}, // gaul/support_female_citizen
-	{LIMIT_NONE, 0}, // gaul/support_female_citizen_house
+	{LIMIT_NONE, 0}, // gaul/support_civilian
+	{LIMIT_NONE, 0}, // gaul/support_civilian_house
 	{LIMIT_NONE, 0}, // gaul/support_healer_b
+	{LIMIT_NONE, 0}, // gaul/support_healer_e
 	{LIMIT_NONE, 0}, // gaul/support_trader
 	{LIMIT_NONE, 0}, // gaul/rts0_villager
 	{LIMIT_NONE, 0}, // iber/cavalry_javelineer_b
@@ -366,7 +382,9 @@ inline constexpr UnitLimit UNIT_LIMITS[] = {
 	{LIMIT_HERO, 1}, // iber/hero_viriato
 	{LIMIT_NONE, 0}, // iber/infantry_javelineer_b
 	{LIMIT_NONE, 0}, // iber/infantry_slinger_b
+	{LIMIT_NONE, 0}, // iber/infantry_spearman_a
 	{LIMIT_NONE, 0}, // iber/infantry_spearman_b
+	{LIMIT_NONE, 0}, // iber/infantry_swordsman_a
 	{LIMIT_NONE, 0}, // iber/infantry_swordsman_b
 	{LIMIT_NONE, 0}, // iber/ship_arrow
 	{LIMIT_NONE, 0}, // iber/ship_fire
@@ -374,9 +392,10 @@ inline constexpr UnitLimit UNIT_LIMITS[] = {
 	{LIMIT_NONE, 0}, // iber/ship_merchant
 	{LIMIT_NONE, 0}, // iber/ship_scout
 	{LIMIT_NONE, 0}, // iber/siege_ram
-	{LIMIT_NONE, 0}, // iber/support_female_citizen
-	{LIMIT_NONE, 0}, // iber/support_female_citizen_house
+	{LIMIT_NONE, 0}, // iber/support_civilian
+	{LIMIT_NONE, 0}, // iber/support_civilian_house
 	{LIMIT_NONE, 0}, // iber/support_healer_b
+	{LIMIT_NONE, 0}, // iber/support_healer_e
 	{LIMIT_NONE, 0}, // iber/support_trader
 	{LIMIT_NONE, 0}, // iber/rts0_villager
 	{LIMIT_NONE, 0}, // maur/cavalry_javelineer_b
@@ -391,17 +410,20 @@ inline constexpr UnitLimit UNIT_LIMITS[] = {
 	{LIMIT_HERO, 1}, // maur/hero_chanakya
 	{LIMIT_HERO, 1}, // maur/hero_chandragupta
 	{LIMIT_NONE, 0}, // maur/infantry_archer_b
+	{LIMIT_NONE, 0}, // maur/infantry_spearman_a
 	{LIMIT_NONE, 0}, // maur/infantry_spearman_b
+	{LIMIT_NONE, 0}, // maur/infantry_swordsman_a
 	{LIMIT_NONE, 0}, // maur/infantry_swordsman_b
 	{LIMIT_NONE, 0}, // maur/ship_arrow
 	{LIMIT_NONE, 0}, // maur/ship_fishing
 	{LIMIT_NONE, 0}, // maur/ship_merchant
 	{LIMIT_NONE, 0}, // maur/ship_scout
 	{LIMIT_NONE, 0}, // maur/siege_ram
+	{LIMIT_NONE, 0}, // maur/support_civilian
+	{LIMIT_NONE, 0}, // maur/support_civilian_house
 	{LIMIT_NONE, 0}, // maur/support_elephant
-	{LIMIT_NONE, 0}, // maur/support_female_citizen
-	{LIMIT_NONE, 0}, // maur/support_female_citizen_house
 	{LIMIT_NONE, 0}, // maur/support_healer_b
+	{LIMIT_NONE, 0}, // maur/support_healer_e
 	{LIMIT_NONE, 0}, // maur/support_trader
 	{LIMIT_NONE, 0}, // maur/rts0_villager
 	{LIMIT_NONE, 0}, // kush/cavalry_javelineer_b
@@ -418,8 +440,11 @@ inline constexpr UnitLimit UNIT_LIMITS[] = {
 	{LIMIT_NONE, 0}, // kush/infantry_archer_b
 	{LIMIT_NONE, 0}, // kush/infantry_javelineer_merc_b
 	{LIMIT_NONE, 0}, // kush/infantry_maceman_merc_b
+	{LIMIT_NONE, 0}, // kush/infantry_pikeman_a
 	{LIMIT_NONE, 0}, // kush/infantry_pikeman_b
+	{LIMIT_NONE, 0}, // kush/infantry_spearman_a
 	{LIMIT_NONE, 0}, // kush/infantry_spearman_b
+	{LIMIT_NONE, 0}, // kush/infantry_swordsman_a
 	{LIMIT_NONE, 0}, // kush/infantry_swordsman_b
 	{LIMIT_NONE, 0}, // kush/ship_arrow
 	{LIMIT_NONE, 0}, // kush/ship_fishing
@@ -427,8 +452,8 @@ inline constexpr UnitLimit UNIT_LIMITS[] = {
 	{LIMIT_NONE, 0}, // kush/ship_scout
 	{LIMIT_NONE, 0}, // kush/siege_ram
 	{LIMIT_NONE, 0}, // kush/siege_tower
-	{LIMIT_NONE, 0}, // kush/support_female_citizen
-	{LIMIT_NONE, 0}, // kush/support_female_citizen_house
+	{LIMIT_NONE, 0}, // kush/support_civilian
+	{LIMIT_NONE, 0}, // kush/support_civilian_house
 	{LIMIT_NONE, 0}, // kush/support_healer_b
 	{LIMIT_NONE, 0}, // kush/support_healer_e
 	{LIMIT_NONE, 0}, // kush/support_trader
@@ -444,6 +469,7 @@ inline constexpr UnitLimit UNIT_LIMITS[] = {
 	{LIMIT_HERO, 1}, // ptol/hero_ptolemy_iv
 	{LIMIT_NONE, 0}, // ptol/infantry_archer_b
 	{LIMIT_NONE, 0}, // ptol/infantry_javelineer_b
+	{LIMIT_NONE, 0}, // ptol/infantry_pikeman_a
 	{LIMIT_NONE, 0}, // ptol/infantry_pikeman_b
 	{LIMIT_NONE, 0}, // ptol/infantry_slinger_b
 	{LIMIT_NONE, 0}, // ptol/infantry_spearman_merc_b
@@ -458,9 +484,10 @@ inline constexpr UnitLimit UNIT_LIMITS[] = {
 	{LIMIT_NONE, 0}, // ptol/siege_polybolos_packed
 	{LIMIT_NONE, 0}, // ptol/siege_ram
 	{LIMIT_NONE, 0}, // ptol/siege_tower
-	{LIMIT_NONE, 0}, // ptol/support_female_citizen
-	{LIMIT_NONE, 0}, // ptol/support_female_citizen_house
+	{LIMIT_NONE, 0}, // ptol/support_civilian
+	{LIMIT_NONE, 0}, // ptol/support_civilian_house
 	{LIMIT_NONE, 0}, // ptol/support_healer_b
+	{LIMIT_NONE, 0}, // ptol/support_healer_e
 	{LIMIT_NONE, 0}, // ptol/support_trader
 	{LIMIT_NONE, 0}, // ptol/rts0_villager
 	{LIMIT_NONE, 0}, // sele/cavalry_archer_b
@@ -476,7 +503,9 @@ inline constexpr UnitLimit UNIT_LIMITS[] = {
 	{LIMIT_HERO, 1}, // sele/hero_seleucus_i
 	{LIMIT_NONE, 0}, // sele/infantry_archer_merc_b
 	{LIMIT_NONE, 0}, // sele/infantry_javelineer_b
+	{LIMIT_NONE, 0}, // sele/infantry_pikeman_a
 	{LIMIT_NONE, 0}, // sele/infantry_pikeman_b
+	{LIMIT_NONE, 0}, // sele/infantry_spearman_a
 	{LIMIT_NONE, 0}, // sele/infantry_spearman_b
 	{LIMIT_NONE, 0}, // sele/infantry_swordsman_merc_b
 	{LIMIT_NONE, 0}, // sele/ship_arrow
@@ -488,9 +517,10 @@ inline constexpr UnitLimit UNIT_LIMITS[] = {
 	{LIMIT_NONE, 0}, // sele/siege_lithobolos_packed
 	{LIMIT_NONE, 0}, // sele/siege_ram
 	{LIMIT_NONE, 0}, // sele/siege_tower
-	{LIMIT_NONE, 0}, // sele/support_female_citizen
-	{LIMIT_NONE, 0}, // sele/support_female_citizen_house
+	{LIMIT_NONE, 0}, // sele/support_civilian
+	{LIMIT_NONE, 0}, // sele/support_civilian_house
 	{LIMIT_NONE, 0}, // sele/support_healer_b
+	{LIMIT_NONE, 0}, // sele/support_healer_e
 	{LIMIT_NONE, 0}, // sele/support_trader
 	{LIMIT_NONE, 0}, // sele/rts0_villager
 	{LIMIT_NONE, 0}, // han/cavalry_archer_b
@@ -505,7 +535,9 @@ inline constexpr UnitLimit UNIT_LIMITS[] = {
 	{LIMIT_HERO, 1}, // han/hero_wei_qing_chariot
 	{LIMIT_NONE, 0}, // han/infantry_archer_b
 	{LIMIT_NONE, 0}, // han/infantry_crossbowman_b
+	{LIMIT_NONE, 0}, // han/infantry_pikeman_a
 	{LIMIT_NONE, 0}, // han/infantry_pikeman_b
+	{LIMIT_NONE, 0}, // han/infantry_spearman_a
 	{LIMIT_NONE, 0}, // han/infantry_spearman_b
 	{LIMIT_NONE, 0}, // han/ship_arrow
 	{LIMIT_NONE, 0}, // han/ship_fishing
@@ -515,62 +547,13 @@ inline constexpr UnitLimit UNIT_LIMITS[] = {
 	{LIMIT_NONE, 0}, // han/siege_mangonel_packed
 	{LIMIT_NONE, 0}, // han/siege_ram
 	{LIMIT_NONE, 0}, // han/siege_tower
-	{LIMIT_NONE, 0}, // han/support_female_citizen
-	{LIMIT_NONE, 0}, // han/support_female_citizen_house
-	{LIMIT_NONE, 0}, // han/support_healer_b
-	{LIMIT_NONE, 0}, // han/support_trader
-	{LIMIT_NONE, 0}, // han/rts0_villager
-	{LIMIT_NONE, 0}, // spart/champion_infantry_spear_olympian
-	{LIMIT_NONE, 0}, // rome/cavalry_auxiliary_b
-	{LIMIT_NONE, 0}, // rome/infantry_antesignanus
-	{LIMIT_NONE, 0}, // mace/champion_infantry_spearman_02
-	{LIMIT_MINISTER, 0}, // han/support_minister
-	{LIMIT_NONE, 0}, // athen/catafalque
-	{LIMIT_NONE, 0}, // spart/catafalque
-	{LIMIT_NONE, 0}, // pers/catafalque
-	{LIMIT_NONE, 0}, // rome/catafalque
-	{LIMIT_NONE, 0}, // cart/catafalque
-	{LIMIT_NONE, 0}, // mace/catafalque
-	{LIMIT_NONE, 0}, // brit/catafalque
-	{LIMIT_NONE, 0}, // gaul/catafalque
-	{LIMIT_NONE, 0}, // iber/catafalque
-	{LIMIT_NONE, 0}, // maur/catafalque
-	{LIMIT_NONE, 0}, // kush/catafalque
-	{LIMIT_NONE, 0}, // ptol/catafalque
-	{LIMIT_NONE, 0}, // sele/catafalque
-	{LIMIT_NONE, 0}, // han/catafalque
-	{LIMIT_NONE, 0}, // pers/champion_infantry_archer_upgrade
-	{LIMIT_NONE, 0}, // brit/ship_fire_fire
-	{LIMIT_NONE, 0}, // gaul/ship_fire_fire
-	{LIMIT_NONE, 0}, // iber/ship_fire_fire
-	{LIMIT_NONE, 0}, // athen/support_civilian
-	{LIMIT_NONE, 0}, // athen/support_civilian_house
-	{LIMIT_NONE, 0}, // spart/support_civilian
-	{LIMIT_NONE, 0}, // spart/support_civilian_house
-	{LIMIT_NONE, 0}, // pers/support_civilian
-	{LIMIT_NONE, 0}, // pers/support_civilian_house
-	{LIMIT_NONE, 0}, // rome/support_civilian
-	{LIMIT_NONE, 0}, // rome/support_civilian_house
-	{LIMIT_NONE, 0}, // cart/support_civilian
-	{LIMIT_NONE, 0}, // cart/support_civilian_house
-	{LIMIT_NONE, 0}, // mace/support_civilian
-	{LIMIT_NONE, 0}, // mace/support_civilian_house
-	{LIMIT_NONE, 0}, // brit/support_civilian
-	{LIMIT_NONE, 0}, // brit/support_civilian_house
-	{LIMIT_NONE, 0}, // gaul/support_civilian
-	{LIMIT_NONE, 0}, // gaul/support_civilian_house
-	{LIMIT_NONE, 0}, // iber/support_civilian
-	{LIMIT_NONE, 0}, // iber/support_civilian_house
-	{LIMIT_NONE, 0}, // maur/support_civilian
-	{LIMIT_NONE, 0}, // maur/support_civilian_house
-	{LIMIT_NONE, 0}, // kush/support_civilian
-	{LIMIT_NONE, 0}, // kush/support_civilian_house
-	{LIMIT_NONE, 0}, // ptol/support_civilian
-	{LIMIT_NONE, 0}, // ptol/support_civilian_house
-	{LIMIT_NONE, 0}, // sele/support_civilian
-	{LIMIT_NONE, 0}, // sele/support_civilian_house
 	{LIMIT_NONE, 0}, // han/support_civilian
 	{LIMIT_NONE, 0}, // han/support_civilian_house
+	{LIMIT_NONE, 0}, // han/support_healer_b
+	{LIMIT_NONE, 0}, // han/support_healer_e
+	{LIMIT_MINISTER, 0}, // han/support_minister
+	{LIMIT_NONE, 0}, // han/support_trader
+	{LIMIT_NONE, 0}, // han/rts0_villager
 	{LIMIT_NONE, 0}, // germ/cavalry_javelineer_b
 	{LIMIT_NONE, 0}, // germ/cavalry_spearman_b
 	{LIMIT_NONE, 0}, // germ/champion_cavalry
@@ -582,7 +565,9 @@ inline constexpr UnitLimit UNIT_LIMITS[] = {
 	{LIMIT_HERO, 1}, // germ/hero_teutobod
 	{LIMIT_NONE, 0}, // germ/infantry_javelineer_b
 	{LIMIT_NONE, 0}, // germ/infantry_slinger_b
+	{LIMIT_NONE, 0}, // germ/infantry_spearman_a
 	{LIMIT_NONE, 0}, // germ/infantry_spearman_b
+	{LIMIT_NONE, 0}, // germ/infantry_swordsman_a
 	{LIMIT_NONE, 0}, // germ/infantry_swordsman_b
 	{LIMIT_NONE, 0}, // germ/ship_arrow
 	{LIMIT_NONE, 0}, // germ/ship_fire
@@ -594,108 +579,92 @@ inline constexpr UnitLimit UNIT_LIMITS[] = {
 	{LIMIT_NONE, 0}, // germ/support_civilian
 	{LIMIT_NONE, 0}, // germ/support_civilian_house
 	{LIMIT_NONE, 0}, // germ/support_healer_b
+	{LIMIT_NONE, 0}, // germ/support_healer_e
 	{LIMIT_NONE, 0}, // germ/support_trader
-	{LIMIT_NONE, 0}, // germ/rts0_villager
-	{LIMIT_NONE, 0}, // germ/catafalque
-	{LIMIT_NONE, 0}, // germ/ship_fire_fire
-	{LIMIT_NONE, 0}, // rome/infantry_spearman_conscript
-	{LIMIT_NONE, 0}, // cart/infantry_spearman_ital_b
-	{LIMIT_NONE, 0}, // rome/cavalry_javelineer_auxiliary_b
-	{LIMIT_NONE, 0}, // rome/cavalry_spearman_auxiliary_b
-	{LIMIT_NONE, 0}, // rome/champion_infantry_swordsman_first
 	{LIMIT_NONE, 0}, // germ/support_wagon
-	{LIMIT_NONE, 0}, // germ/support_wagon_house
-	{LIMIT_NONE, 0}, // pers/support_healer_e
-	{LIMIT_NONE, 0}, // rome/support_healer_e
-	{LIMIT_NONE, 0}, // mace/support_healer_e
-	{LIMIT_NONE, 0}, // gaul/support_healer_e
-	{LIMIT_NONE, 0}, // ptol/support_healer_e
-	{LIMIT_NONE, 0}, // han/support_healer_e
+	{LIMIT_NONE, 0}, // germ/rts0_villager
+	{LIMIT_NONE, 0}, // athen/catafalque
+	{LIMIT_HERO, 1}, // athen/hero_xenophon
 	{LIMIT_NONE, 0}, // athen/infantry_marine_archer_b
+	{LIMIT_NONE, 0}, // spart/catafalque
 	{LIMIT_NONE, 0}, // spart/champion_infantry_pike
+	{LIMIT_NONE, 0}, // spart/champion_infantry_spear_olympian
+	{LIMIT_HERO, 1}, // spart/hero_leonidas_300
+	{LIMIT_NONE, 0}, // pers/arstibara
+	{LIMIT_NONE, 0}, // pers/catafalque
 	{LIMIT_HERO, 1}, // pers/hero_xerxes_i_chariot
 	{LIMIT_NONE, 0}, // pers/kardakes_hoplite
 	{LIMIT_NONE, 0}, // pers/kardakes_skirmisher
+	{LIMIT_NONE, 0}, // rome/catafalque
+	{LIMIT_NONE, 0}, // rome/cavalry_javelineer_auxiliary_b
+	{LIMIT_NONE, 0}, // rome/cavalry_spearman_auxiliary_b
+	{LIMIT_NONE, 0}, // rome/champion_infantry_swordsman_02
+	{LIMIT_NONE, 0}, // rome/champion_infantry_swordsman_03
+	{LIMIT_NONE, 0}, // rome/champion_infantry_swordsman_04
+	{LIMIT_NONE, 0}, // rome/champion_infantry_swordsman_05
+	{LIMIT_NONE, 0}, // rome/champion_infantry_swordsman_first
 	{LIMIT_HERO, 1}, // rome/hero_marcellus_infantry
 	{LIMIT_HERO, 1}, // rome/hero_maximus_infantry
 	{LIMIT_HERO, 1}, // rome/hero_scipio_infantry
+	{LIMIT_NONE, 0}, // rome/infantry_legionary
 	{LIMIT_NONE, 0}, // rome/infantry_swordsman_slave
+	{LIMIT_NONE, 0}, // cart/catafalque
 	{LIMIT_NONE, 0}, // cart/champion_pikeman
+	{LIMIT_NONE, 0}, // mace/catafalque
+	{LIMIT_NONE, 0}, // mace/champion_infantry_spearman_02
 	{LIMIT_HERO, 1}, // mace/hero_craterus
 	{LIMIT_HERO, 1}, // mace/hero_philip_ii_pike
 	{LIMIT_HERO, 1}, // mace/hero_pyrrhus_i
+	{LIMIT_NONE, 0}, // brit/catafalque
 	{LIMIT_HERO, 1}, // brit/hero_boudicca_cavalry_javelineer
 	{LIMIT_HERO, 1}, // brit/hero_boudicca_sword
 	{LIMIT_HERO, 1}, // brit/hero_cunobelin_infantry
+	{LIMIT_NONE, 0}, // brit/ship_fire_fire
+	{LIMIT_NONE, 0}, // gaul/catafalque
 	{LIMIT_HERO, 1}, // gaul/hero_vercingetorix_infantry
+	{LIMIT_NONE, 0}, // gaul/ship_fire_fire
+	{LIMIT_NONE, 0}, // iber/catafalque
 	{LIMIT_HERO, 1}, // iber/hero_indibil_infantry
+	{LIMIT_NONE, 0}, // iber/ship_fire_fire
+	{LIMIT_NONE, 0}, // maur/catafalque
 	{LIMIT_HERO, 1}, // maur/hero_ashoka_infantry
 	{LIMIT_HERO, 1}, // maur/hero_bindusara_infantry
 	{LIMIT_HERO, 1}, // maur/hero_chandragupta_infantry
+	{LIMIT_NONE, 0}, // kush/catafalque
 	{LIMIT_HERO, 1}, // kush/hero_amanirenas_infantry
 	{LIMIT_HERO, 1}, // kush/hero_harsiotef
+	{LIMIT_NONE, 0}, // ptol/catafalque
 	{LIMIT_JUGGERNAUT, 0}, // ptol/champion_juggernaut
+	{LIMIT_NONE, 0}, // sele/catafalque
+	{LIMIT_NONE, 0}, // han/catafalque
 	{LIMIT_NONE, 0}, // han/cavalry_crossbowman_b
 	{LIMIT_NONE, 0}, // han/champion_infantry_archer_academy
 	{LIMIT_HERO, 1}, // han/hero_han_xin
 	{LIMIT_HERO, 1}, // han/hero_liu_bang
 	{LIMIT_HERO, 1}, // han/hero_wei_qing
 	{LIMIT_HERO, 1}, // han/hero_wei_qing_horse
+	{LIMIT_NONE, 0}, // han/siege_shoushe
+	{LIMIT_NONE, 0}, // germ/catafalque
+	{LIMIT_NONE, 0}, // germ/ship_fire_fire
+	{LIMIT_NONE, 0}, // germ/support_wagon_house
+	{LIMIT_HERO, 1}, // campaigns/army_mace_hero_alexander
+	{LIMIT_NONE, 0}, // campaigns/army_mace_standard
+	{LIMIT_HERO, 1}, // campaigns/army_spart_hero_leonidas
 	{LIMIT_NONE, 0}, // merc_black_cloak
+	{LIMIT_NONE, 0}, // merc_thorakites
+	{LIMIT_NONE, 0}, // merc_thureophoros
 	{LIMIT_NONE, 0}, // noldor_warship
 	{LIMIT_NONE, 0}, // pirates/ship_arrow
 	{LIMIT_NONE, 0}, // pirates/ship_merchant
 	{LIMIT_NONE, 0}, // pirates/ship_scout
+	{LIMIT_NONE, 0}, // plane
 	{LIMIT_NONE, 0}, // samnite_skirmisher
 	{LIMIT_NONE, 0}, // samnite_spearman
 	{LIMIT_NONE, 0}, // samnite_swordsman
-	{LIMIT_NONE, 0}, // viking_longship
-	{LIMIT_NONE, 0}, // merc_thorakites
-	{LIMIT_NONE, 0}, // merc_thureophoros
 	{LIMIT_NONE, 0}, // theb_sacred_band
-	{LIMIT_NONE, 0}, // thesp_melanochitones
 	{LIMIT_NONE, 0}, // theb_siege_fireraiser
-	{LIMIT_NONE, 0}, // rome/champion_infantry_swordsman_02
-	{LIMIT_NONE, 0}, // rome/champion_infantry_swordsman_03
-	{LIMIT_NONE, 0}, // rome/champion_infantry_swordsman_04
-	{LIMIT_NONE, 0}, // rome/champion_infantry_swordsman_05
-	{LIMIT_HERO, 1}, // athen/hero_xenophon
-	{LIMIT_HERO, 1}, // spart/hero_leonidas_300
-	{LIMIT_NONE, 0}, // pers/arstibara
-	{LIMIT_NONE, 0}, // han/siege_shoushe
-	{LIMIT_NONE, 0}, // athen/infantry_spearman_a
-	{LIMIT_NONE, 0}, // athen/support_healer_e
-	{LIMIT_NONE, 0}, // spart/infantry_spearman_a
-	{LIMIT_NONE, 0}, // spart/support_healer_e
-	{LIMIT_NONE, 0}, // pers/infantry_spearman_a
-	{LIMIT_NONE, 0}, // cart/infantry_spearman_a
-	{LIMIT_NONE, 0}, // cart/support_healer_e
-	{LIMIT_NONE, 0}, // mace/infantry_pikeman_a
-	{LIMIT_NONE, 0}, // brit/infantry_spearman_a
-	{LIMIT_NONE, 0}, // brit/support_healer_e
-	{LIMIT_NONE, 0}, // gaul/infantry_spearman_a
-	{LIMIT_NONE, 0}, // iber/infantry_spearman_a
-	{LIMIT_NONE, 0}, // iber/infantry_swordsman_a
-	{LIMIT_NONE, 0}, // iber/support_healer_e
-	{LIMIT_NONE, 0}, // maur/infantry_spearman_a
-	{LIMIT_NONE, 0}, // maur/infantry_swordsman_a
-	{LIMIT_NONE, 0}, // maur/support_healer_e
-	{LIMIT_NONE, 0}, // kush/infantry_pikeman_a
-	{LIMIT_NONE, 0}, // kush/infantry_spearman_a
-	{LIMIT_NONE, 0}, // kush/infantry_swordsman_a
-	{LIMIT_NONE, 0}, // ptol/infantry_pikeman_a
-	{LIMIT_NONE, 0}, // sele/infantry_pikeman_a
-	{LIMIT_NONE, 0}, // sele/infantry_spearman_a
-	{LIMIT_NONE, 0}, // sele/support_healer_e
-	{LIMIT_NONE, 0}, // han/infantry_pikeman_a
-	{LIMIT_NONE, 0}, // han/infantry_spearman_a
-	{LIMIT_NONE, 0}, // germ/infantry_spearman_a
-	{LIMIT_NONE, 0}, // germ/infantry_swordsman_a
-	{LIMIT_NONE, 0}, // germ/support_healer_e
-	{LIMIT_NONE, 0}, // plane
-	{LIMIT_HERO, 1}, // campaigns/army_mace_hero_alexander
-	{LIMIT_NONE, 0}, // campaigns/army_mace_standard
-	{LIMIT_HERO, 1}, // campaigns/army_spart_hero_leonidas
+	{LIMIT_NONE, 0}, // thesp_melanochitones
+	{LIMIT_NONE, 0}, // viking_longship
 };
 static_assert(sizeof(UNIT_LIMITS) / sizeof(UNIT_LIMITS[0]) == CIV_UNIT_TEMPLATE_COUNT,
 		"one UnitLimit per roster row: rerun tools/extract_0ad_entity_limits.py");

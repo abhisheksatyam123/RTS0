@@ -75,6 +75,7 @@ inline const FormationUnitInfo *formation_unit_table() {
 		{0x007cfu, 0x130u}, // athen/infantry_archer_b_dock
 		{0x007cfu, 0x130u}, // athen/infantry_javelineer_b
 		{0x007cfu, 0x130u}, // athen/infantry_slinger_b
+		{0x0879fu, 0x0a8u}, // athen/infantry_spearman_a
 		{0x0879fu, 0x128u}, // athen/infantry_spearman_b
 		{0x00000u, 0x010u}, // athen/ship_arrow
 		{0x00000u, 0x000u}, // athen/ship_fishing
@@ -84,9 +85,10 @@ inline const FormationUnitInfo *formation_unit_table() {
 		{0x0078fu, 0x010u}, // athen/siege_lithobolos_packed
 		{0x0078fu, 0x010u}, // athen/siege_oxybeles_packed
 		{0x0078fu, 0x008u}, // athen/siege_ram
-		{0x00000u, 0x000u}, // athen/support_female_citizen
-		{0x00000u, 0x000u}, // athen/support_female_citizen_house
+		{0x00000u, 0x000u}, // athen/support_civilian
+		{0x00000u, 0x000u}, // athen/support_civilian_house
 		{0x0078fu, 0x100u}, // athen/support_healer_b
+		{0x0078fu, 0x040u}, // athen/support_healer_e
 		{0x00000u, 0x000u}, // athen/support_trader
 		{0x00000u, 0x000u}, // athen/rts0_villager (RTS0-only)
 		{0x007efu, 0x114u}, // spart/cavalry_javelineer_b
@@ -97,6 +99,7 @@ inline const FormationUnitInfo *formation_unit_table() {
 		{0x0878fu, 0x029u}, // spart/hero_brasidas
 		{0x0879fu, 0x029u}, // spart/hero_leonidas
 		{0x007cfu, 0x130u}, // spart/infantry_javelineer_b
+		{0x0879fu, 0x0a8u}, // spart/infantry_spearman_a
 		{0x0879fu, 0x128u}, // spart/infantry_spearman_b
 		{0x0879fu, 0x128u}, // spart/infantry_spearman_neodamodes
 		{0x00000u, 0x010u}, // spart/ship_arrow
@@ -106,9 +109,10 @@ inline const FormationUnitInfo *formation_unit_table() {
 		{0x00000u, 0x010u}, // spart/ship_scout
 		{0x0078fu, 0x010u}, // spart/siege_oxybeles_packed
 		{0x0078fu, 0x008u}, // spart/siege_ram
-		{0x00000u, 0x000u}, // spart/support_female_citizen
-		{0x00000u, 0x000u}, // spart/support_female_citizen_house
+		{0x00000u, 0x000u}, // spart/support_civilian
+		{0x00000u, 0x000u}, // spart/support_civilian_house
 		{0x0078fu, 0x100u}, // spart/support_healer_b
+		{0x0078fu, 0x040u}, // spart/support_healer_e
 		{0x00000u, 0x000u}, // spart/support_trader
 		{0x00000u, 0x000u}, // spart/rts0_villager (RTS0-only)
 		{0x007efu, 0x114u}, // pers/cavalry_archer_b
@@ -120,11 +124,13 @@ inline const FormationUnitInfo *formation_unit_table() {
 		{0x007efu, 0x016u}, // pers/champion_chariot
 		{0x0078fu, 0x00au}, // pers/champion_elephant
 		{0x0878fu, 0x02au}, // pers/champion_infantry
+		{0x007cfu, 0x032u}, // pers/champion_infantry_archer_upgrade
 		{0x007afu, 0x00du}, // pers/hero_cyrus_ii
 		{0x007efu, 0x015u}, // pers/hero_darius_i
 		{0x007cfu, 0x031u}, // pers/hero_xerxes_i
 		{0x007cfu, 0x130u}, // pers/infantry_archer_b
 		{0x007cfu, 0x130u}, // pers/infantry_javelineer_b
+		{0x0878fu, 0x0a8u}, // pers/infantry_spearman_a
 		{0x0878fu, 0x128u}, // pers/infantry_spearman_b
 		{0x00000u, 0x010u}, // pers/ship_arrow
 		{0x00000u, 0x000u}, // pers/ship_fishing
@@ -132,9 +138,10 @@ inline const FormationUnitInfo *formation_unit_table() {
 		{0x00000u, 0x008u}, // pers/ship_ram
 		{0x00000u, 0x010u}, // pers/ship_scout
 		{0x0078fu, 0x008u}, // pers/siege_ram
-		{0x00000u, 0x000u}, // pers/support_female_citizen
-		{0x00000u, 0x000u}, // pers/support_female_citizen_house
+		{0x00000u, 0x000u}, // pers/support_civilian
+		{0x00000u, 0x000u}, // pers/support_civilian_house
 		{0x0078fu, 0x100u}, // pers/support_healer_b
+		{0x0078fu, 0x040u}, // pers/support_healer_e
 		{0x00000u, 0x000u}, // pers/support_trader
 		{0x00000u, 0x000u}, // pers/rts0_villager (RTS0-only)
 		{0x007efu, 0x114u}, // rome/cavalry_javelineer_b
@@ -147,10 +154,11 @@ inline const FormationUnitInfo *formation_unit_table() {
 		{0x007afu, 0x00du}, // rome/hero_marcellus
 		{0x007afu, 0x00du}, // rome/hero_maximus
 		{0x007afu, 0x00du}, // rome/hero_scipio
+		{0x007cfu, 0x070u}, // rome/infantry_antesignanus
 		{0x007cfu, 0x130u}, // rome/infantry_javelineer_b
-		{0x0878fu, 0x068u}, // rome/infantry_legionary
 		{0x1878fu, 0x0a8u}, // rome/infantry_spearman_a
 		{0x1878fu, 0x128u}, // rome/infantry_spearman_b
+		{0x1878fu, 0x128u}, // rome/infantry_spearman_conscript
 		{0x0878fu, 0x0a8u}, // rome/infantry_swordsman_a
 		{0x0878fu, 0x128u}, // rome/infantry_swordsman_b
 		{0x00000u, 0x010u}, // rome/ship_arrow
@@ -163,15 +171,15 @@ inline const FormationUnitInfo *formation_unit_table() {
 		{0x0078fu, 0x010u}, // rome/siege_onager_packed
 		{0x0078fu, 0x008u}, // rome/siege_ram
 		{0x0078fu, 0x010u}, // rome/siege_scorpio_packed
-		{0x00000u, 0x000u}, // rome/support_female_citizen
-		{0x00000u, 0x000u}, // rome/support_female_citizen_house
+		{0x00000u, 0x000u}, // rome/support_civilian
+		{0x00000u, 0x000u}, // rome/support_civilian_house
 		{0x0078fu, 0x100u}, // rome/support_healer_b
+		{0x0078fu, 0x040u}, // rome/support_healer_e
 		{0x00000u, 0x000u}, // rome/support_trader
 		{0x00000u, 0x000u}, // rome/rts0_villager (RTS0-only)
 		{0x007efu, 0x114u}, // cart/cavalry_javelineer_b
 		{0x007afu, 0x10cu}, // cart/cavalry_spearman_ital_b
 		{0x007afu, 0x10cu}, // cart/cavalry_swordsman_gaul_b
-		{0x007afu, 0x10cu}, // cart/cavalry_swordsman_iber_b
 		{0x007afu, 0x00eu}, // cart/champion_cavalry
 		{0x0078fu, 0x00au}, // cart/champion_elephant
 		{0x0879fu, 0x02au}, // cart/champion_infantry
@@ -181,9 +189,10 @@ inline const FormationUnitInfo *formation_unit_table() {
 		{0x007cfu, 0x130u}, // cart/infantry_archer_b
 		{0x007cfu, 0x130u}, // cart/infantry_javelineer_iber_b
 		{0x007cfu, 0x130u}, // cart/infantry_slinger_iber_b
+		{0x0879fu, 0x0a8u}, // cart/infantry_spearman_a
 		{0x0879fu, 0x128u}, // cart/infantry_spearman_b
+		{0x0879fu, 0x128u}, // cart/infantry_spearman_ital_b
 		{0x0878fu, 0x128u}, // cart/infantry_swordsman_gaul_b
-		{0x0878fu, 0x128u}, // cart/infantry_swordsman_ital_b
 		{0x00000u, 0x010u}, // cart/ship_arrow
 		{0x00000u, 0x000u}, // cart/ship_fishing
 		{0x00000u, 0x000u}, // cart/ship_merchant
@@ -193,9 +202,10 @@ inline const FormationUnitInfo *formation_unit_table() {
 		{0x0078fu, 0x010u}, // cart/siege_ballista_packed
 		{0x0078fu, 0x010u}, // cart/siege_oxybeles_packed
 		{0x0078fu, 0x008u}, // cart/siege_ram
-		{0x00000u, 0x000u}, // cart/support_female_citizen
-		{0x00000u, 0x000u}, // cart/support_female_citizen_house
+		{0x00000u, 0x000u}, // cart/support_civilian
+		{0x00000u, 0x000u}, // cart/support_civilian_house
 		{0x0078fu, 0x100u}, // cart/support_healer_b
+		{0x0078fu, 0x040u}, // cart/support_healer_e
 		{0x00000u, 0x000u}, // cart/support_trader
 		{0x00000u, 0x000u}, // cart/rts0_villager (RTS0-only)
 		{0x007efu, 0x114u}, // mace/cavalry_javelineer_b
@@ -209,6 +219,7 @@ inline const FormationUnitInfo *formation_unit_table() {
 		{0x007afu, 0x00du}, // mace/hero_philip_ii
 		{0x007cfu, 0x130u}, // mace/infantry_archer_b
 		{0x007cfu, 0x130u}, // mace/infantry_javelineer_b
+		{0x0c78fu, 0x0a8u}, // mace/infantry_pikeman_a
 		{0x0c78fu, 0x128u}, // mace/infantry_pikeman_b
 		{0x007cfu, 0x130u}, // mace/infantry_slinger_b
 		{0x00000u, 0x010u}, // mace/ship_arrow
@@ -220,9 +231,10 @@ inline const FormationUnitInfo *formation_unit_table() {
 		{0x0078fu, 0x010u}, // mace/siege_oxybeles_packed
 		{0x0078fu, 0x008u}, // mace/siege_ram
 		{0x0078fu, 0x010u}, // mace/siege_tower
-		{0x00000u, 0x000u}, // mace/support_female_citizen
-		{0x00000u, 0x000u}, // mace/support_female_citizen_house
+		{0x00000u, 0x000u}, // mace/support_civilian
+		{0x00000u, 0x000u}, // mace/support_civilian_house
 		{0x0078fu, 0x100u}, // mace/support_healer_b
+		{0x0078fu, 0x040u}, // mace/support_healer_e
 		{0x00000u, 0x000u}, // mace/support_trader
 		{0x00000u, 0x000u}, // mace/rts0_villager (RTS0-only)
 		{0x007efu, 0x114u}, // brit/cavalry_javelineer_b
@@ -234,6 +246,7 @@ inline const FormationUnitInfo *formation_unit_table() {
 		{0x007afu, 0x00du}, // brit/hero_cunobelin
 		{0x007cfu, 0x130u}, // brit/infantry_javelineer_b
 		{0x007cfu, 0x130u}, // brit/infantry_slinger_b
+		{0x0878fu, 0x0a8u}, // brit/infantry_spearman_a
 		{0x0878fu, 0x128u}, // brit/infantry_spearman_b
 		{0x00000u, 0x010u}, // brit/ship_arrow
 		{0x00000u, 0x008u}, // brit/ship_fire
@@ -241,9 +254,10 @@ inline const FormationUnitInfo *formation_unit_table() {
 		{0x00000u, 0x000u}, // brit/ship_merchant
 		{0x00000u, 0x010u}, // brit/ship_scout
 		{0x0078fu, 0x008u}, // brit/siege_ram
-		{0x00000u, 0x000u}, // brit/support_female_citizen
-		{0x00000u, 0x000u}, // brit/support_female_citizen_house
+		{0x00000u, 0x000u}, // brit/support_civilian
+		{0x00000u, 0x000u}, // brit/support_civilian_house
 		{0x0078fu, 0x100u}, // brit/support_healer_b
+		{0x0078fu, 0x040u}, // brit/support_healer_e
 		{0x00000u, 0x000u}, // brit/support_trader
 		{0x0078fu, 0x008u}, // brit/war_dog
 		{0x00000u, 0x000u}, // brit/rts0_villager (RTS0-only)
@@ -258,6 +272,7 @@ inline const FormationUnitInfo *formation_unit_table() {
 		{0x0878fu, 0x029u}, // gaul/hero_viridomarus
 		{0x007cfu, 0x130u}, // gaul/infantry_javelineer_b
 		{0x007cfu, 0x130u}, // gaul/infantry_slinger_b
+		{0x0878fu, 0x0a8u}, // gaul/infantry_spearman_a
 		{0x0878fu, 0x128u}, // gaul/infantry_spearman_b
 		{0x00000u, 0x010u}, // gaul/ship_arrow
 		{0x00000u, 0x008u}, // gaul/ship_fire
@@ -265,9 +280,10 @@ inline const FormationUnitInfo *formation_unit_table() {
 		{0x00000u, 0x000u}, // gaul/ship_merchant
 		{0x00000u, 0x010u}, // gaul/ship_scout
 		{0x0078fu, 0x008u}, // gaul/siege_ram
-		{0x00000u, 0x000u}, // gaul/support_female_citizen
-		{0x00000u, 0x000u}, // gaul/support_female_citizen_house
+		{0x00000u, 0x000u}, // gaul/support_civilian
+		{0x00000u, 0x000u}, // gaul/support_civilian_house
 		{0x0078fu, 0x100u}, // gaul/support_healer_b
+		{0x0078fu, 0x040u}, // gaul/support_healer_e
 		{0x00000u, 0x000u}, // gaul/support_trader
 		{0x00000u, 0x000u}, // gaul/rts0_villager (RTS0-only)
 		{0x007efu, 0x114u}, // iber/cavalry_javelineer_b
@@ -279,7 +295,9 @@ inline const FormationUnitInfo *formation_unit_table() {
 		{0x0878fu, 0x029u}, // iber/hero_viriato
 		{0x007cfu, 0x130u}, // iber/infantry_javelineer_b
 		{0x007cfu, 0x130u}, // iber/infantry_slinger_b
+		{0x0878fu, 0x0a8u}, // iber/infantry_spearman_a
 		{0x0878fu, 0x128u}, // iber/infantry_spearman_b
+		{0x0878fu, 0x0a8u}, // iber/infantry_swordsman_a
 		{0x0878fu, 0x128u}, // iber/infantry_swordsman_b
 		{0x00000u, 0x010u}, // iber/ship_arrow
 		{0x00000u, 0x008u}, // iber/ship_fire
@@ -287,9 +305,10 @@ inline const FormationUnitInfo *formation_unit_table() {
 		{0x00000u, 0x000u}, // iber/ship_merchant
 		{0x00000u, 0x010u}, // iber/ship_scout
 		{0x0078fu, 0x008u}, // iber/siege_ram
-		{0x00000u, 0x000u}, // iber/support_female_citizen
-		{0x00000u, 0x000u}, // iber/support_female_citizen_house
+		{0x00000u, 0x000u}, // iber/support_civilian
+		{0x00000u, 0x000u}, // iber/support_civilian_house
 		{0x0078fu, 0x100u}, // iber/support_healer_b
+		{0x0078fu, 0x040u}, // iber/support_healer_e
 		{0x00000u, 0x000u}, // iber/support_trader
 		{0x00000u, 0x000u}, // iber/rts0_villager (RTS0-only)
 		{0x007efu, 0x114u}, // maur/cavalry_javelineer_b
@@ -304,17 +323,20 @@ inline const FormationUnitInfo *formation_unit_table() {
 		{0x0078fu, 0x001u}, // maur/hero_chanakya
 		{0x0078fu, 0x009u}, // maur/hero_chandragupta
 		{0x007cfu, 0x130u}, // maur/infantry_archer_b
+		{0x0878fu, 0x0a8u}, // maur/infantry_spearman_a
 		{0x0878fu, 0x128u}, // maur/infantry_spearman_b
+		{0x0878fu, 0x0a8u}, // maur/infantry_swordsman_a
 		{0x0878fu, 0x128u}, // maur/infantry_swordsman_b
 		{0x00000u, 0x010u}, // maur/ship_arrow
 		{0x00000u, 0x000u}, // maur/ship_fishing
 		{0x00000u, 0x000u}, // maur/ship_merchant
 		{0x00000u, 0x010u}, // maur/ship_scout
 		{0x0078fu, 0x008u}, // maur/siege_ram
+		{0x00000u, 0x000u}, // maur/support_civilian
+		{0x00000u, 0x000u}, // maur/support_civilian_house
 		{0x00000u, 0x000u}, // maur/support_elephant
-		{0x00000u, 0x000u}, // maur/support_female_citizen
-		{0x00000u, 0x000u}, // maur/support_female_citizen_house
 		{0x0078fu, 0x100u}, // maur/support_healer_b
+		{0x0078fu, 0x040u}, // maur/support_healer_e
 		{0x00000u, 0x000u}, // maur/support_trader
 		{0x00000u, 0x000u}, // maur/rts0_villager (RTS0-only)
 		{0x007efu, 0x114u}, // kush/cavalry_javelineer_b
@@ -331,8 +353,11 @@ inline const FormationUnitInfo *formation_unit_table() {
 		{0x007cfu, 0x130u}, // kush/infantry_archer_b
 		{0x007cfu, 0x130u}, // kush/infantry_javelineer_merc_b
 		{0x0878fu, 0x128u}, // kush/infantry_maceman_merc_b
+		{0x0c78fu, 0x0a8u}, // kush/infantry_pikeman_a
 		{0x0c78fu, 0x128u}, // kush/infantry_pikeman_b
+		{0x0878fu, 0x0a8u}, // kush/infantry_spearman_a
 		{0x0878fu, 0x128u}, // kush/infantry_spearman_b
+		{0x0878fu, 0x0a8u}, // kush/infantry_swordsman_a
 		{0x0878fu, 0x128u}, // kush/infantry_swordsman_b
 		{0x00000u, 0x010u}, // kush/ship_arrow
 		{0x00000u, 0x000u}, // kush/ship_fishing
@@ -340,8 +365,8 @@ inline const FormationUnitInfo *formation_unit_table() {
 		{0x00000u, 0x010u}, // kush/ship_scout
 		{0x0078fu, 0x008u}, // kush/siege_ram
 		{0x0078fu, 0x010u}, // kush/siege_tower
-		{0x00000u, 0x000u}, // kush/support_female_citizen
-		{0x00000u, 0x000u}, // kush/support_female_citizen_house
+		{0x00000u, 0x000u}, // kush/support_civilian
+		{0x00000u, 0x000u}, // kush/support_civilian_house
 		{0x0078fu, 0x100u}, // kush/support_healer_b
 		{0x0078fu, 0x040u}, // kush/support_healer_e
 		{0x00000u, 0x000u}, // kush/support_trader
@@ -357,6 +382,7 @@ inline const FormationUnitInfo *formation_unit_table() {
 		{0x007afu, 0x00du}, // ptol/hero_ptolemy_iv
 		{0x007cfu, 0x130u}, // ptol/infantry_archer_b
 		{0x007cfu, 0x130u}, // ptol/infantry_javelineer_b
+		{0x0c78fu, 0x0a8u}, // ptol/infantry_pikeman_a
 		{0x0c78fu, 0x128u}, // ptol/infantry_pikeman_b
 		{0x007cfu, 0x130u}, // ptol/infantry_slinger_b
 		{0x0879fu, 0x128u}, // ptol/infantry_spearman_merc_b
@@ -371,9 +397,10 @@ inline const FormationUnitInfo *formation_unit_table() {
 		{0x0078fu, 0x010u}, // ptol/siege_polybolos_packed
 		{0x0078fu, 0x008u}, // ptol/siege_ram
 		{0x0078fu, 0x010u}, // ptol/siege_tower
-		{0x00000u, 0x000u}, // ptol/support_female_citizen
-		{0x00000u, 0x000u}, // ptol/support_female_citizen_house
+		{0x00000u, 0x000u}, // ptol/support_civilian
+		{0x00000u, 0x000u}, // ptol/support_civilian_house
 		{0x0078fu, 0x100u}, // ptol/support_healer_b
+		{0x0078fu, 0x040u}, // ptol/support_healer_e
 		{0x00000u, 0x000u}, // ptol/support_trader
 		{0x00000u, 0x000u}, // ptol/rts0_villager (RTS0-only)
 		{0x007efu, 0x114u}, // sele/cavalry_archer_b
@@ -389,7 +416,9 @@ inline const FormationUnitInfo *formation_unit_table() {
 		{0x0078fu, 0x009u}, // sele/hero_seleucus_i
 		{0x007cfu, 0x130u}, // sele/infantry_archer_merc_b
 		{0x007cfu, 0x130u}, // sele/infantry_javelineer_b
+		{0x0c78fu, 0x0a8u}, // sele/infantry_pikeman_a
 		{0x0c78fu, 0x128u}, // sele/infantry_pikeman_b
+		{0x0879fu, 0x0a8u}, // sele/infantry_spearman_a
 		{0x0879fu, 0x128u}, // sele/infantry_spearman_b
 		{0x0878fu, 0x128u}, // sele/infantry_swordsman_merc_b
 		{0x00000u, 0x010u}, // sele/ship_arrow
@@ -401,9 +430,10 @@ inline const FormationUnitInfo *formation_unit_table() {
 		{0x0078fu, 0x010u}, // sele/siege_lithobolos_packed
 		{0x0078fu, 0x008u}, // sele/siege_ram
 		{0x0078fu, 0x010u}, // sele/siege_tower
-		{0x00000u, 0x000u}, // sele/support_female_citizen
-		{0x00000u, 0x000u}, // sele/support_female_citizen_house
+		{0x00000u, 0x000u}, // sele/support_civilian
+		{0x00000u, 0x000u}, // sele/support_civilian_house
 		{0x0078fu, 0x100u}, // sele/support_healer_b
+		{0x0078fu, 0x040u}, // sele/support_healer_e
 		{0x00000u, 0x000u}, // sele/support_trader
 		{0x00000u, 0x000u}, // sele/rts0_villager (RTS0-only)
 		{0x007efu, 0x114u}, // han/cavalry_archer_b
@@ -418,7 +448,9 @@ inline const FormationUnitInfo *formation_unit_table() {
 		{0x007efu, 0x015u}, // han/hero_wei_qing_chariot
 		{0x007cfu, 0x130u}, // han/infantry_archer_b
 		{0x007cfu, 0x130u}, // han/infantry_crossbowman_b
+		{0x1c78fu, 0x0a8u}, // han/infantry_pikeman_a
 		{0x1c78fu, 0x128u}, // han/infantry_pikeman_b
+		{0x1878fu, 0x0a8u}, // han/infantry_spearman_a
 		{0x1878fu, 0x128u}, // han/infantry_spearman_b
 		{0x00000u, 0x010u}, // han/ship_arrow
 		{0x00000u, 0x000u}, // han/ship_fishing
@@ -428,62 +460,13 @@ inline const FormationUnitInfo *formation_unit_table() {
 		{0x0078fu, 0x010u}, // han/siege_mangonel_packed
 		{0x0078fu, 0x008u}, // han/siege_ram
 		{0x0078fu, 0x010u}, // han/siege_tower
-		{0x00000u, 0x000u}, // han/support_female_citizen
-		{0x00000u, 0x000u}, // han/support_female_citizen_house
-		{0x0078fu, 0x100u}, // han/support_healer_b
-		{0x00000u, 0x000u}, // han/support_trader
-		{0x00000u, 0x000u}, // han/rts0_villager (RTS0-only)
-		{0x0879fu, 0x02au}, // spart/champion_infantry_spear_olympian
-		{0x007efu, 0x114u}, // rome/cavalry_auxiliary_b
-		{0x007cfu, 0x070u}, // rome/infantry_antesignanus
-		{0x0879fu, 0x02au}, // mace/champion_infantry_spearman_02
-		{0x0078fu, 0x000u}, // han/support_minister
-		{0x00000u, 0x000u}, // athen/catafalque
-		{0x00000u, 0x000u}, // spart/catafalque
-		{0x00000u, 0x000u}, // pers/catafalque
-		{0x00000u, 0x000u}, // rome/catafalque
-		{0x00000u, 0x000u}, // cart/catafalque
-		{0x00000u, 0x000u}, // mace/catafalque
-		{0x00000u, 0x000u}, // brit/catafalque
-		{0x00000u, 0x000u}, // gaul/catafalque
-		{0x00000u, 0x000u}, // iber/catafalque
-		{0x00000u, 0x000u}, // maur/catafalque
-		{0x00000u, 0x000u}, // kush/catafalque
-		{0x00000u, 0x000u}, // ptol/catafalque
-		{0x00000u, 0x000u}, // sele/catafalque
-		{0x00000u, 0x000u}, // han/catafalque
-		{0x007cfu, 0x032u}, // pers/champion_infantry_archer_upgrade
-		{0x00000u, 0x008u}, // brit/ship_fire_fire
-		{0x00000u, 0x008u}, // gaul/ship_fire_fire
-		{0x00000u, 0x008u}, // iber/ship_fire_fire
-		{0x00000u, 0x000u}, // athen/support_civilian
-		{0x00000u, 0x000u}, // athen/support_civilian_house
-		{0x00000u, 0x000u}, // spart/support_civilian
-		{0x00000u, 0x000u}, // spart/support_civilian_house
-		{0x00000u, 0x000u}, // pers/support_civilian
-		{0x00000u, 0x000u}, // pers/support_civilian_house
-		{0x00000u, 0x000u}, // rome/support_civilian
-		{0x00000u, 0x000u}, // rome/support_civilian_house
-		{0x00000u, 0x000u}, // cart/support_civilian
-		{0x00000u, 0x000u}, // cart/support_civilian_house
-		{0x00000u, 0x000u}, // mace/support_civilian
-		{0x00000u, 0x000u}, // mace/support_civilian_house
-		{0x00000u, 0x000u}, // brit/support_civilian
-		{0x00000u, 0x000u}, // brit/support_civilian_house
-		{0x00000u, 0x000u}, // gaul/support_civilian
-		{0x00000u, 0x000u}, // gaul/support_civilian_house
-		{0x00000u, 0x000u}, // iber/support_civilian
-		{0x00000u, 0x000u}, // iber/support_civilian_house
-		{0x00000u, 0x000u}, // maur/support_civilian
-		{0x00000u, 0x000u}, // maur/support_civilian_house
-		{0x00000u, 0x000u}, // kush/support_civilian
-		{0x00000u, 0x000u}, // kush/support_civilian_house
-		{0x00000u, 0x000u}, // ptol/support_civilian
-		{0x00000u, 0x000u}, // ptol/support_civilian_house
-		{0x00000u, 0x000u}, // sele/support_civilian
-		{0x00000u, 0x000u}, // sele/support_civilian_house
 		{0x00000u, 0x000u}, // han/support_civilian
 		{0x00000u, 0x000u}, // han/support_civilian_house
+		{0x0078fu, 0x100u}, // han/support_healer_b
+		{0x0078fu, 0x040u}, // han/support_healer_e
+		{0x0078fu, 0x000u}, // han/support_minister
+		{0x00000u, 0x000u}, // han/support_trader
+		{0x00000u, 0x000u}, // han/rts0_villager (RTS0-only)
 		{0x007efu, 0x114u}, // germ/cavalry_javelineer_b
 		{0x007afu, 0x10cu}, // germ/cavalry_spearman_b
 		{0x007afu, 0x00eu}, // germ/champion_cavalry
@@ -495,7 +478,9 @@ inline const FormationUnitInfo *formation_unit_table() {
 		{0x0878fu, 0x029u}, // germ/hero_teutobod
 		{0x007cfu, 0x130u}, // germ/infantry_javelineer_b
 		{0x007cfu, 0x130u}, // germ/infantry_slinger_b
+		{0x3878fu, 0x0a8u}, // germ/infantry_spearman_a
 		{0x3878fu, 0x128u}, // germ/infantry_spearman_b
+		{0x0878fu, 0x0a8u}, // germ/infantry_swordsman_a
 		{0x0878fu, 0x128u}, // germ/infantry_swordsman_b
 		{0x00000u, 0x010u}, // germ/ship_arrow
 		{0x00000u, 0x008u}, // germ/ship_fire
@@ -507,108 +492,92 @@ inline const FormationUnitInfo *formation_unit_table() {
 		{0x00000u, 0x000u}, // germ/support_civilian
 		{0x00000u, 0x000u}, // germ/support_civilian_house
 		{0x0078fu, 0x100u}, // germ/support_healer_b
+		{0x0078fu, 0x040u}, // germ/support_healer_e
 		{0x00000u, 0x000u}, // germ/support_trader
-		{0x00000u, 0x000u}, // germ/rts0_villager (RTS0-only)
-		{0x00000u, 0x000u}, // germ/catafalque
-		{0x00000u, 0x008u}, // germ/ship_fire_fire
-		{0x1878fu, 0x128u}, // rome/infantry_spearman_conscript
-		{0x0879fu, 0x128u}, // cart/infantry_spearman_ital_b
-		{0x007efu, 0x114u}, // rome/cavalry_javelineer_auxiliary_b
-		{0x007afu, 0x10cu}, // rome/cavalry_spearman_auxiliary_b
-		{0x0878fu, 0x02au}, // rome/champion_infantry_swordsman_first
 		{0x00000u, 0x000u}, // germ/support_wagon
-		{0x00000u, 0x000u}, // germ/support_wagon_house
-		{0x0078fu, 0x040u}, // pers/support_healer_e
-		{0x0078fu, 0x040u}, // rome/support_healer_e
-		{0x0078fu, 0x040u}, // mace/support_healer_e
-		{0x0078fu, 0x040u}, // gaul/support_healer_e
-		{0x0078fu, 0x040u}, // ptol/support_healer_e
-		{0x0078fu, 0x040u}, // han/support_healer_e
+		{0x00000u, 0x000u}, // germ/rts0_villager (RTS0-only)
+		{0x00000u, 0x000u}, // athen/catafalque
+		{0x007cfu, 0x031u}, // athen/hero_xenophon
 		{0x007cfu, 0x130u}, // athen/infantry_marine_archer_b
+		{0x00000u, 0x000u}, // spart/catafalque
 		{0x0478fu, 0x02au}, // spart/champion_infantry_pike
+		{0x0879fu, 0x02au}, // spart/champion_infantry_spear_olympian
+		{0x0879fu, 0x029u}, // spart/hero_leonidas_300
+		{0x0878fu, 0x02au}, // pers/arstibara
+		{0x00000u, 0x000u}, // pers/catafalque
 		{0x007efu, 0x015u}, // pers/hero_xerxes_i_chariot
 		{0x0879fu, 0x02au}, // pers/kardakes_hoplite
 		{0x007cfu, 0x032u}, // pers/kardakes_skirmisher
+		{0x00000u, 0x000u}, // rome/catafalque
+		{0x007efu, 0x114u}, // rome/cavalry_javelineer_auxiliary_b
+		{0x007afu, 0x10cu}, // rome/cavalry_spearman_auxiliary_b
+		{0x0878fu, 0x02au}, // rome/champion_infantry_swordsman_02
+		{0x0878fu, 0x02au}, // rome/champion_infantry_swordsman_03
+		{0x0878fu, 0x02au}, // rome/champion_infantry_swordsman_04
+		{0x0878fu, 0x02au}, // rome/champion_infantry_swordsman_05
+		{0x0878fu, 0x02au}, // rome/champion_infantry_swordsman_first
 		{0x0878fu, 0x029u}, // rome/hero_marcellus_infantry
 		{0x0878fu, 0x029u}, // rome/hero_maximus_infantry
 		{0x0878fu, 0x029u}, // rome/hero_scipio_infantry
+		{0x0878fu, 0x068u}, // rome/infantry_legionary
 		{0x0878fu, 0x128u}, // rome/infantry_swordsman_slave
+		{0x00000u, 0x000u}, // cart/catafalque
 		{0x0478fu, 0x02au}, // cart/champion_pikeman
+		{0x00000u, 0x000u}, // mace/catafalque
+		{0x0879fu, 0x02au}, // mace/champion_infantry_spearman_02
 		{0x0878fu, 0x029u}, // mace/hero_craterus
 		{0x0478fu, 0x029u}, // mace/hero_philip_ii_pike
 		{0x007afu, 0x00du}, // mace/hero_pyrrhus_i
+		{0x00000u, 0x000u}, // brit/catafalque
 		{0x007efu, 0x015u}, // brit/hero_boudicca_cavalry_javelineer
 		{0x0878fu, 0x029u}, // brit/hero_boudicca_sword
 		{0x0878fu, 0x029u}, // brit/hero_cunobelin_infantry
+		{0x00000u, 0x008u}, // brit/ship_fire_fire
+		{0x00000u, 0x000u}, // gaul/catafalque
 		{0x0878fu, 0x029u}, // gaul/hero_vercingetorix_infantry
+		{0x00000u, 0x008u}, // gaul/ship_fire_fire
+		{0x00000u, 0x000u}, // iber/catafalque
 		{0x0878fu, 0x029u}, // iber/hero_indibil_infantry
+		{0x00000u, 0x008u}, // iber/ship_fire_fire
+		{0x00000u, 0x000u}, // maur/catafalque
 		{0x007cfu, 0x031u}, // maur/hero_ashoka_infantry
 		{0x0878fu, 0x029u}, // maur/hero_bindusara_infantry
 		{0x0878fu, 0x029u}, // maur/hero_chandragupta_infantry
+		{0x00000u, 0x000u}, // kush/catafalque
 		{0x007cfu, 0x031u}, // kush/hero_amanirenas_infantry
 		{0x007afu, 0x00du}, // kush/hero_harsiotef
+		{0x00000u, 0x000u}, // ptol/catafalque
 		{0x00000u, 0x800u}, // ptol/champion_juggernaut
+		{0x00000u, 0x000u}, // sele/catafalque
+		{0x00000u, 0x000u}, // han/catafalque
 		{0x007efu, 0x114u}, // han/cavalry_crossbowman_b
 		{0x007cfu, 0x032u}, // han/champion_infantry_archer_academy
 		{0x0478fu, 0x029u}, // han/hero_han_xin
 		{0x0878fu, 0x029u}, // han/hero_liu_bang
 		{0x007cfu, 0x031u}, // han/hero_wei_qing
 		{0x007efu, 0x015u}, // han/hero_wei_qing_horse
+		{0x0078fu, 0x010u}, // han/siege_shoushe
+		{0x00000u, 0x000u}, // germ/catafalque
+		{0x00000u, 0x008u}, // germ/ship_fire_fire
+		{0x00000u, 0x000u}, // germ/support_wagon_house
+		{0x0878fu, 0x029u}, // campaigns/army_mace_hero_alexander
+		{0x0878fu, 0x02au}, // campaigns/army_mace_standard
+		{0x0878fu, 0x029u}, // campaigns/army_spart_hero_leonidas
 		{0x0878fu, 0x02au}, // merc_black_cloak
+		{0x0878fu, 0x02au}, // merc_thorakites
+		{0x007cfu, 0x032u}, // merc_thureophoros
 		{0x00000u, 0x010u}, // noldor_warship
 		{0x00000u, 0x010u}, // pirates/ship_arrow
 		{0x00000u, 0x000u}, // pirates/ship_merchant
 		{0x00000u, 0x010u}, // pirates/ship_scout
+		{0x00000u, 0x000u}, // plane
 		{0x007cfu, 0x032u}, // samnite_skirmisher
 		{0x0879fu, 0x02au}, // samnite_spearman
 		{0x0878fu, 0x02au}, // samnite_swordsman
-		{0x00000u, 0x010u}, // viking_longship
-		{0x0878fu, 0x02au}, // merc_thorakites
-		{0x007cfu, 0x032u}, // merc_thureophoros
 		{0x0879fu, 0x02au}, // theb_sacred_band
-		{0x0878fu, 0x02au}, // thesp_melanochitones
 		{0x0078fu, 0x000u}, // theb_siege_fireraiser
-		{0x0878fu, 0x02au}, // rome/champion_infantry_swordsman_02
-		{0x0878fu, 0x02au}, // rome/champion_infantry_swordsman_03
-		{0x0878fu, 0x02au}, // rome/champion_infantry_swordsman_04
-		{0x0878fu, 0x02au}, // rome/champion_infantry_swordsman_05
-		{0x007cfu, 0x031u}, // athen/hero_xenophon
-		{0x0879fu, 0x029u}, // spart/hero_leonidas_300
-		{0x0878fu, 0x02au}, // pers/arstibara
-		{0x0078fu, 0x010u}, // han/siege_shoushe
-		{0x0879fu, 0x0a8u}, // athen/infantry_spearman_a
-		{0x0078fu, 0x040u}, // athen/support_healer_e
-		{0x0879fu, 0x0a8u}, // spart/infantry_spearman_a
-		{0x0078fu, 0x040u}, // spart/support_healer_e
-		{0x0878fu, 0x0a8u}, // pers/infantry_spearman_a
-		{0x0879fu, 0x0a8u}, // cart/infantry_spearman_a
-		{0x0078fu, 0x040u}, // cart/support_healer_e
-		{0x0c78fu, 0x0a8u}, // mace/infantry_pikeman_a
-		{0x0878fu, 0x0a8u}, // brit/infantry_spearman_a
-		{0x0078fu, 0x040u}, // brit/support_healer_e
-		{0x0878fu, 0x0a8u}, // gaul/infantry_spearman_a
-		{0x0878fu, 0x0a8u}, // iber/infantry_spearman_a
-		{0x0878fu, 0x0a8u}, // iber/infantry_swordsman_a
-		{0x0078fu, 0x040u}, // iber/support_healer_e
-		{0x0878fu, 0x0a8u}, // maur/infantry_spearman_a
-		{0x0878fu, 0x0a8u}, // maur/infantry_swordsman_a
-		{0x0078fu, 0x040u}, // maur/support_healer_e
-		{0x0c78fu, 0x0a8u}, // kush/infantry_pikeman_a
-		{0x0878fu, 0x0a8u}, // kush/infantry_spearman_a
-		{0x0878fu, 0x0a8u}, // kush/infantry_swordsman_a
-		{0x0c78fu, 0x0a8u}, // ptol/infantry_pikeman_a
-		{0x0c78fu, 0x0a8u}, // sele/infantry_pikeman_a
-		{0x0879fu, 0x0a8u}, // sele/infantry_spearman_a
-		{0x0078fu, 0x040u}, // sele/support_healer_e
-		{0x1c78fu, 0x0a8u}, // han/infantry_pikeman_a
-		{0x1878fu, 0x0a8u}, // han/infantry_spearman_a
-		{0x3878fu, 0x0a8u}, // germ/infantry_spearman_a
-		{0x0878fu, 0x0a8u}, // germ/infantry_swordsman_a
-		{0x0078fu, 0x040u}, // germ/support_healer_e
-		{0x00000u, 0x000u}, // plane
-		{0x0878fu, 0x029u}, // campaigns/army_mace_hero_alexander
-		{0x0878fu, 0x02au}, // campaigns/army_mace_standard
-		{0x0878fu, 0x029u}, // campaigns/army_spart_hero_leonidas
+		{0x0878fu, 0x02au}, // thesp_melanochitones
+		{0x00000u, 0x010u}, // viking_longship
 	};
 	return kRows;
 }
