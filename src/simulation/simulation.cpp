@@ -10338,6 +10338,11 @@ bool Simulation::fortress_crosses_steep(float x, float z, float radius, uint32_t
 }
 
 bool Simulation::ring_reach_ok(float x, float z, float radius, uint32_t seed) {
+	const bool log_on = std::getenv("RTS0_RING_LOG") != nullptr;
+	auto dbg = [&](bool ok, const char *why) {
+		if (log_on) std::fprintf(stderr, "ring_reach seed=%u at=(%.1f,%.1f) -> %s (%s)\n", seed, (double)x, (double)z, ok ? "ring" : "towers", why);
+		return ok;
+	};
 	// Trial switches (RTS0_RING_REACH: 1 territory, 2 corridor, 4 cut; 0 none, the towers stand).
 	static const int mask = [] {
 		const char *e = std::getenv("RTS0_RING_REACH");
@@ -10354,7 +10359,7 @@ bool Simulation::ring_reach_ok(float x, float z, float radius, uint32_t seed) {
 	const std::vector<FortressCorner> best =
 			generic_fortress_outline(radius, seed, GENERIC_FORTRESS_IRREGULARITY, GENERIC_FORTRESS_TRIES, overlap, pd);
 	const size_t n = best.size();
-	if (n < 3) return false;
+	if (n < 3) return dbg(false, "outline");
 	// The pieces place_generic_fortress lays (unstyled), in its order; those place_map_wall_piece would leave out are not kept.
 	std::vector<WallPiece> kept;
 	for (size_t i = 0; i < n; ++i) {
@@ -10374,10 +10379,18 @@ bool Simulation::ring_reach_ok(float x, float z, float radius, uint32_t seed) {
 	for (size_t k = 0; k < kept.size(); ++k) {
 		const Building fp = wall_piece_footprint(kept[k]);
 		const nav::Vec2 u = nav::footprint_u(fp);
+		// An unlocked gate (as laid) blocks only its sides; its door lets units through, as in list_structure_tile_obstructions.
+		if (is_gate_type(kept[k].type) && !blocks_pathfinding(fp)) {
+			uint32_t side = 0;
+			for_each_gate_side(fp, [&](float gx, float gz, float ghu, float ghv) {
+				both.push_back(tile_obstruction(K_GATE_SIDE, 0xFFFF0000u + (uint32_t)k, side++, gx, gz, u.x, u.y, ghu, ghv));
+			});
+			continue;
+		}
 		both.push_back(tile_obstruction(K_BUILDING, 0xFFFF0000u + (uint32_t)k, 0, fp.x, fp.z, u.x, u.y, fp.hu, fp.hv));
 	}
 	const int nw = nav_grid_.node_res();
-	if (nw <= 0) return false;
+	if (nw <= 0) return dbg(false, "nodes");
 	const size_t nn = static_cast<size_t>(nw) * static_cast<size_t>(nw);
 	for (int cls = 0; cls < 2; ++cls) {
 		std::vector<uint8_t> terrain;
@@ -10395,7 +10408,7 @@ bool Simulation::ring_reach_ok(float x, float z, float radius, uint32_t seed) {
 				from_d = dx * dx + dz * dz;
 			}
 		}
-		if (from < 0) return false;
+		if (from < 0) return dbg(false, "seed");
 		const std::vector<uint8_t> reach_a = nav_grid_.tile_reach_from(from, open_a);
 		const std::vector<uint8_t> reach_b = nav_grid_.tile_reach_from(from, open_b);
 		size_t land = 0, cut = 0;
@@ -10403,13 +10416,23 @@ bool Simulation::ring_reach_ok(float x, float z, float radius, uint32_t seed) {
 			land += reach_a[k];
 			if (reach_a[k] && !reach_b[k]) ++cut;
 		}
+		if (log_on) std::fprintf(stderr, "  cls=%d land=%zu cut=%zu\n", cls, land, cut);
 		// Cut: the ring cuts off under cut_pct of that ground.
-		if ((mask & 4) && (double)cut * 100.0 >= cut_pct * (double)land) return false;
-		// Territory: each piece stands on ground the base reaches without the ring (else it decays to Gaia).
-		if (mask & 1)
-			for (const WallPiece &p : kept)
-				if (!reach_a[static_cast<size_t>(nav_grid_.node_of(p.z)) * (size_t)nw + (size_t)nav_grid_.node_of(p.x)]) return false;
-		// Corridor: no node the ring leaves with two open neighbours or fewer that had more without it.
+		if ((mask & 4) && (double)cut * 100.0 >= cut_pct * (double)land) return dbg(false, cls ? "cut1" : "cut0");
+		// Territory: each piece lies within a tower's half width (and a node) of ground the base reaches without the ring
+		// (territory is the connected land, not the units' clearance: a piece beside a steep tile still stands on it).
+		if (mask & 1) {
+			const int r = (int)std::ceil(wallset_info(WALLSET_STONE).tower_half / nav_grid_.node_step()) + 1;
+			for (const WallPiece &p : kept) {
+				const int pa = nav_grid_.node_of(p.x), pb = nav_grid_.node_of(p.z);
+				bool on = false;
+				for (int b = std::max(0, pb - r); b <= std::min(nw - 1, pb + r) && !on; ++b)
+					for (int a = std::max(0, pa - r); a <= std::min(nw - 1, pa + r) && !on; ++a)
+						on = reach_a[static_cast<size_t>(b) * (size_t)nw + (size_t)a] != 0;
+				if (!on) return dbg(false, cls ? "terr1" : "terr0");
+			}
+		}
+		// Dead end: no node the ring leaves with one open neighbour (a corridor's blind end) that had more without it.
 		if (mask & 2) {
 			auto open_neighbours = [&](const std::vector<uint8_t> &o, size_t k) {
 				const size_t a = k % (size_t)nw, b = k / (size_t)nw;
@@ -10420,11 +10443,22 @@ bool Simulation::ring_reach_ok(float x, float z, float radius, uint32_t seed) {
 				if (b + 1 < (size_t)nw) c += o[k + (size_t)nw];
 				return c;
 			};
+			if (log_on) {
+				size_t cnt = 0;
+				for (size_t k = 0; k < nn; ++k)
+					if (reach_b[k] && open_neighbours(open_b, k) <= 1 && open_neighbours(open_a, k) > 1) {
+						if (cnt < 6)
+							std::fprintf(stderr, "  dead end cls=%d at (%.1f,%.1f) deg_b=%d deg_a=%d\n", cls, (double)nav_grid_.node_pos((int)(k % (size_t)nw)),
+									(double)nav_grid_.node_pos((int)(k / (size_t)nw)), open_neighbours(open_b, k), open_neighbours(open_a, k));
+						++cnt;
+					}
+				if (cnt) std::fprintf(stderr, "  dead ends cls=%d: %zu\n", cls, cnt);
+			}
 			for (size_t k = 0; k < nn; ++k)
-				if (reach_b[k] && open_neighbours(open_b, k) <= 2 && open_neighbours(open_a, k) > 2) return false;
+				if (reach_b[k] && open_neighbours(open_b, k) <= 1 && open_neighbours(open_a, k) > 1) return dbg(false, cls ? "corr1" : "corr0");
 		}
 	}
-	return true;
+	return dbg(true, "ok");
 }
 
 size_t Simulation::place_generic_fortress(uint8_t player, float x, float z, float radius, uint32_t seed,
