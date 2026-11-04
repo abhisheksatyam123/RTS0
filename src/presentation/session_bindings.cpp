@@ -42,6 +42,8 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("has_selection"), &RtsoMain::has_selection);
 	ClassDB::bind_method(D_METHOD("is_placing_building"), &RtsoMain::is_placing_building);
 	ClassDB::bind_method(D_METHOD("select_all_military"), &RtsoMain::select_all_military);
+	// The touch bar's Idle button (touch_controls.gd) calls this: the Period hotkey's idle-worker cycle.
+	ClassDB::bind_method(D_METHOD("cycle_idle_worker"), &RtsoMain::cycle_idle_worker);
 	ClassDB::bind_method(D_METHOD("_on_minimap_clicked", "world_pos"), &RtsoMain::_on_minimap_clicked);
 	ClassDB::bind_method(D_METHOD("_on_flare_requested", "world_pos"), &RtsoMain::_on_flare_requested);
 	ClassDB::bind_method(D_METHOD("_on_minimap_order", "world_pos"), &RtsoMain::_on_minimap_order);

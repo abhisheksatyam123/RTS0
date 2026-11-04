@@ -65,7 +65,10 @@ func run() -> void:
 		check(tree.civ == c, "%s: the structure tree follows the overview's civ" % civs[i]["name"])
 		var txt: String = civinfo._gameplay.text
 		var info: Dictionary = ref.get_civ_info(c)
-		check(txt.contains("Civilization Bonus") and txt.contains("Team Bonus") and txt.contains("Hero"),
+		# CivInfoPage.js formatHeading: the words are upper-cased after their big first letter,
+		# and tags split them, so compare the text without its tags.
+		var plain := RegEx.create_from_string("\\[[^\\]]*\\]").sub(txt, "", true).to_upper()
+		check(plain.contains("CIVILIZATION BONUS") and plain.contains("TEAM BONUS") and plain.contains("HERO"),
 			"%s: bonuses, team bonuses and heroes" % civs[i]["name"])
 		check(info["heroes"].size() >= 1, "%s: has heroes (%d)" % [civs[i]["name"], info["heroes"].size()])
 		if Common.civ_history(c) == "":
@@ -129,7 +132,8 @@ func run() -> void:
 		if n.get("tip_kind") == "structure" and n.get("tip_id") == 9:
 			temple_tip = n
 			break
-	check(temple_tip != null and temple_tip._tooltip_text().contains("Medical Treatment:") and temple_tip._tooltip_text().contains("Range: 40 meters"),
+	# The unit "meters" is orange (tooltips.js getAurasTooltip), so the plain text reads "Range: 40 meters" once its tags are dropped.
+	check(temple_tip != null and temple_tip._tooltip_text().contains("Medical Treatment:") and temple_tip._tooltip_text().contains("Range: 40 [color=orange]meters"),
 		"the temple's tooltip lists its Medical Treatment aura and range")
 	var hero_auras: Array = ref.get_unit(int(ref.get_civ_info(1)["heroes"][0]["tmpl"]))["auras"]
 	check(hero_auras.size() >= 3 and hero_auras[0]["name"] == "Inspired Defense", "a hero lists Inspired Defense first")
@@ -166,7 +170,7 @@ func run() -> void:
 		"Athenian bonuses: Delian League (tech), Silver Owls (civ json), Democracy (team)")
 	check(athen.contains("[hint=") and athen.contains("Ships −25% construction time."), "entries carry an info hover and the tooltip text")
 	var own: Array = Common.text()["civs"]["athen"]["specific_structures"]
-	check(athen.contains("Specific Structures"), "Athenians have specific structures")
+	check(RegEx.create_from_string("\\[[^\\]]*\\]").sub(athen, "", true).to_upper().contains("SPECIFIC STRUCTURES"), "Athenians have specific structures")
 	check(athen.contains("Long Walls") and not athen.contains("Wicker Baskets"), "specific technologies only")
 	check(athen.contains("Gymnasium") and athen.count("[url=structure:") == own.size(), "specific structures only (%d)" % own.size())
 	# 0.28 structree: the civ header, a production row per phase under each box, the
@@ -213,7 +217,7 @@ func run() -> void:
 	await frames(2)
 	check(v._stats.text.contains("Health") and v._stats.text.contains("Attack") and v._stats.text.contains("Resistance"),
 		"a hero shows health, attack and resistance")
-	check(v._info.text.contains("Auras"), "a hero shows its auras")
+	check(v._info.text.contains("Range:"), "a hero shows its auras")
 	check(v._info.text.contains("Trained by"), "a hero shows where it is trained")
 	# Follow a link, then go back.
 	var tc_name: String = ref.get_structure(0, 0)["name"]

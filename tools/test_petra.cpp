@@ -1074,7 +1074,7 @@ static void test_slot_config() {
 	// AI 1's edit comes first and must not leak into AI 2's slot.
 	s->set_petra_behavior(1, PETRA_BEHAVIOR_DEFENSIVE);
 	s->set_petra_difficulty(2, PETRA_EASY);
-	CHECK(s->petra_config_for(2).behavior == PETRA_BEHAVIOR_BALANCED, "one AI's setting doesn't leak into another slot");
+	CHECK(s->petra_config_for(2).behavior == PETRA_BEHAVIOR_RANDOM, "the default (config.js: random) and one AI's setting doesn't leak into another slot");
 	s->set_petra_behavior(1, PETRA_BEHAVIOR_BALANCED);
 	s->set_petra_difficulty(1, PETRA_VERY_EASY);
 	s->set_petra_difficulty(2, PETRA_VERY_HARD);
@@ -3841,6 +3841,16 @@ static void test_attack_blocked_by_walls() {
 	// The house in the open is reached as it is.
 	const uint32_t open = s->spawn_building_world(ox + 6.0f, oz, BLD_HOUSE, 0, 1.0f);
 	CHECK(s->petra_target_obstruction(open, ox, oz, bx, bz) == open, "an open target stays the target");
+	// isBlocked (attackPlan.js checkTargetObstruction): set by a blocker, any structure, not only a wall piece.
+	CHECK(!s->petra_pick_blocked(), "an open target leaves isBlocked off");
+	s->petra_target_obstruction(house, ox, oz, bx, bz);
+	CHECK(s->petra_pick_blocked(), "a walled-in target sets isBlocked");
+	Simulation::AttackPlan blocked_plan;
+	blocked_plan.target_building_id = house;
+	blocked_plan.blocked = true;
+	CHECK(s->petra_plan_blocked(blocked_plan), "a plan blocked on its pick is blocked, whatever its target (a house is not a wall piece)");
+	blocked_plan.blocked = false;
+	CHECK(!s->petra_plan_blocked(blocked_plan), "a plan not blocked on its pick is not blocked");
 	// Spearmen with the wall as target attack it.
 	std::vector<uint32_t> squad;
 	for (int k = 0; k < 4; ++k) {
@@ -3853,6 +3863,7 @@ static void test_attack_blocked_by_walls() {
 	plan.initial_squad_size = squad.size();
 	plan.target_player = 0;
 	plan.target_building_id = to;
+	plan.blocked = s->petra_pick_blocked(); // the pick that chose `to` set isBlocked
 	plan.target_x = bx; plan.target_z = bz;
 	plan.state = Simulation::AttackPlan::ATTACKED;
 	plan.state_timer = 0.0f;
@@ -3936,6 +3947,27 @@ static void test_attack_maybe_update() {
 // attackPlan.js getNearestTarget runs checkTargetObstruction for a rush too: a house of the
 // enemy it prefers, walled in by another enemy's palisade, gives way to the piece in its path,
 // and the palisade's owner becomes the enemy ("Obstruction also can change the enemy target").
+// defenseArmy.js assignedAgainst: the entries persist across turns, a reassignment leaves the old
+// one (assignUnit), and removeOwn takes the defender's entry out of its foe's list.
+static void test_defense_assigned_against() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(9);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 9, 2, 64.0f);
+	for (uint8_t p = 0; p < 2; ++p) s->set_player_active(p, true, p == 1);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	PetraDefenseArmy army;
+	army.defender_ids = {11, 12};
+	army.foe_ids = {21, 22};
+	army.assigned_to = {{11, 21}, {12, 22}};
+	army.assigned_against = {{21, 11}, {22, 12}};
+	s->petra_defense_armies_.push_back(army);
+	s->petra_remove_defender(11);
+	const auto &a = s->petra_defense_armies_[0];
+	CHECK(a.assigned_to.size() == 1 && a.assigned_to[0] == std::make_pair(12u, 22u), "removeOwn drops the defender's assignedTo");
+	CHECK(a.assigned_against.size() == 1 && a.assigned_against[0] == std::make_pair(22u, 12u), "removeOwn takes its entry out of the foe's list");
+}
+
 static void test_rush_target_obstruction() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(5);
@@ -8825,25 +8857,25 @@ static void test_building_plan_028() {
 	CHECK(count(BLD_HOUSE) == houses, "the opening lays no houses");
 	CHECK(count(BLD_STOREHOUSE) >= 1, "the opening lays the first wood dropsite");
 
-	// A house next to a barracks loses 40 at its foundation: the spot a house picks with no
-	// barracks around, a barracks there pushes the next pick away.
+	// A house next to a gate loses 40 at its foundation (QueuePlanBuilding ["Gate", "!Wall"]); a
+	// barracks does not push houses in 0.28, so only the gate sets the distance here.
 	int cx = 0, cz = 0;
 	CHECK(s->petra_find_position(BLD_HOUSE, nullptr, nullptr, false, cx, cz), "a house finds room");
 	const float hx = ((float)cx + 1.0f) * Simulation::GRID, hz = ((float)cz + 1.0f) * Simulation::GRID;
-	const uint32_t bar = s->spawn_building_world(hx, hz, BLD_BARRACKS, 1, 1.0f);
-	CHECK(bar != 0, "a barracks stands where the house would have gone");
+	const uint32_t gate = s->spawn_building_world(hx, hz, BLD_GATE, 1, 1.0f);
+	CHECK(gate != 0, "a gate stands where the house would have gone");
 	int cx2 = 0, cz2 = 0;
 	CHECK(s->petra_find_position(BLD_HOUSE, nullptr, nullptr, false, cx2, cz2), "a house still finds room");
 	const float d = std::hypot(((float)cx2 + 1.0f) * Simulation::GRID - hx, ((float)cz2 + 1.0f) * Simulation::GRID - hz);
-	std::printf("  building plan: house %.1f m from the barracks\n", d);
-	CHECK(d > 12.0f, "a house keeps away from a barracks");
+	std::printf("  building plan: house %.1f m from the gate\n", d);
+	CHECK(d > 12.0f, "a house keeps away from a gate");
 	// requireHouses: with every influence dropped the house takes the first free tile of the base.
 	s->petra_kept_.require_houses = true;
 	int cx3 = 0, cz3 = 0;
 	CHECK(s->petra_find_position(BLD_HOUSE, nullptr, nullptr, false, cx3, cz3), "requireHouses still finds room");
 	s->petra_kept_.require_houses = false;
 	const float d3 = std::hypot(((float)cx3 + 1.0f) * Simulation::GRID - hx, ((float)cz3 + 1.0f) * Simulation::GRID - hz);
-	std::printf("  building plan: requireHouses house %.1f m from the barracks\n", d3);
+	std::printf("  building plan: requireHouses house %.1f m from the gate\n", d3);
 	CHECK(d3 < d, "requireHouses lets the house come closer");
 
 	// findGoodPosition's gap: none for dropsites, fields and markets, one cell for houses (their
@@ -8857,13 +8889,7 @@ static void test_building_plan_028() {
 	      "most structures keep 4 m");
 	CHECK(Simulation::petra_clearance(BLD_FORTRESS) == 2 && Simulation::petra_clearance(BLD_ARSENAL) == 2 &&
 	      Simulation::petra_clearance(BLD_ELEPHANT_STABLE) == 2, "fortresses, arsenals and elephant stables keep 8 m");
-	// Right beside the barracks a house fits where a temple doesn't.
-	bool beside = false;
-	const int bcx = (int)std::floor(hx / Simulation::GRID), bcz = (int)std::floor(hz / Simulation::GRID);
-	for (int dz = -4; dz <= 4 && !beside; ++dz)
-		for (int dx = -4; dx <= 4 && !beside; ++dx)
-			beside = s->petra_ring_clear(bcx + dx, bcz + dz, 1, 0) && !s->petra_ring_clear(bcx + dx, bcz + dz, 1, 1);
-	CHECK(beside, "a house may stand right beside a barracks, a temple may not");
+	// Houses and temples share the one-cell gap (checked above), so no spot separates them.
 
 	// checkResourceLevels counts GATHER.GATHERING units only: one walking out to its trees counts
 	// as neither used nor lost.
@@ -10561,6 +10587,7 @@ int main(int argc, char **argv) {
 	RUN(test_attack_maybe_update);
 	RUN(test_attack_helps_other_attack);
 	RUN(test_attack_maybe_cadence);
+	RUN(test_defense_assigned_against);
 	RUN(test_rush_target_obstruction);
 	RUN(test_capture_helper_is_a_capturer);
 	RUN(test_scuttle_undefendable);
