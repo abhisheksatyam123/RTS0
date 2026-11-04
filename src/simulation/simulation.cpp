@@ -10119,8 +10119,7 @@ size_t Simulation::place_starting_walls(uint8_t player, float x, float z, int ma
 		uint32_t seed, bool off_steep) {
 	if (player >= MAX_PLAYERS || civ_of(player) != CIV_IBERIANS || map_tiles <= 128) return 0;
 	if (walls == STARTING_WALLS_FORTRESS) {
-		if (!off_steep || !fortress_crosses_steep(x, z, 20.0f, seed) || ring_reach_ok(x, z, 20.0f, seed))
-			return place_generic_fortress(player, x, z, 20.0f, seed);
+		if (!off_steep || !fortress_crosses_steep(x, z, 20.0f, seed)) return place_generic_fortress(player, x, z, 20.0f, seed);
 		walls = STARTING_WALLS_TOWERS;
 	}
 	if (walls != STARTING_WALLS_TOWERS) return 0;
@@ -10335,130 +10334,6 @@ bool Simulation::fortress_crosses_steep(float x, float z, float radius, uint32_t
 		if (wall && nav_grid_.segment_near_steep_tile(a.x, a.z, b.x, b.z, rs)) return true;
 	}
 	return false;
-}
-
-bool Simulation::ring_reach_ok(float x, float z, float radius, uint32_t seed) {
-	const bool log_on = std::getenv("RTS0_RING_LOG") != nullptr;
-	auto dbg = [&](bool ok, const char *why) {
-		if (log_on) std::fprintf(stderr, "ring_reach seed=%u at=(%.1f,%.1f) -> %s (%s)\n", seed, (double)x, (double)z, ok ? "ring" : "towers", why);
-		return ok;
-	};
-	// Trial switches (RTS0_RING_REACH: 1 territory, 2 corridor, 4 cut; 0 none, the towers stand).
-	static const int mask = [] {
-		const char *e = std::getenv("RTS0_RING_REACH");
-		return e ? std::atoi(e) : 7;
-	}();
-	static const double cut_pct = [] {
-		const char *e = std::getenv("RTS0_RING_CUT");
-		return e ? std::atof(e) : 1.0;
-	}();
-	if (mask == 0) return false;
-	const WallSetInfo &ws = wallset_info(WALLSET_STONE);
-	float overlap, pd;
-	generic_fortress_lengths(WALL_STYLE_COUNT, overlap, pd);
-	const std::vector<FortressCorner> best =
-			generic_fortress_outline(radius, seed, GENERIC_FORTRESS_IRREGULARITY, GENERIC_FORTRESS_TRIES, overlap, pd);
-	const size_t n = best.size();
-	if (n < 3) return dbg(false, "outline");
-	// The pieces place_generic_fortress lays (unstyled), in its order; those place_map_wall_piece would leave out are not kept.
-	std::vector<WallPiece> kept;
-	for (size_t i = 0; i < n; ++i) {
-		const FortressCorner a{x + best[i].x, z + best[i].z}, b{x + best[(i + 1) % n].x, z + best[(i + 1) % n].z};
-		const FortressCorner prev{x + best[(i + n - 1) % n].x, z + best[(i + n - 1) % n].z};
-		const FortressCorner mid = fortress_wall_mid(a, b);
-		const bool gate = GENERIC_FORTRESS_GATE_EVERY > 0 && (int)((i + 1) % (size_t)GENERIC_FORTRESS_GATE_EVERY) == 0;
-		const float wa = det::atan2(b.z - a.z, b.x - a.x);
-		const WallPiece seg{gate ? (uint8_t)BLD_GATE : ws.segment, mid.x, mid.z, -wa, 0.5f * ws.lengths[0]};
-		const WallPiece tower{ws.tower, a.x, a.z, -det::atan2(b.z - prev.z, b.x - prev.x), ws.tower_half};
-		if (map_wall_site_ok(seg.x, seg.z)) kept.push_back(seg);
-		if (map_wall_site_ok(tower.x, tower.z)) kept.push_back(tower);
-	}
-	std::vector<NavGrid::TileObstruction> base, both;
-	list_structure_tile_obstructions(base);
-	both = base;
-	for (size_t k = 0; k < kept.size(); ++k) {
-		const Building fp = wall_piece_footprint(kept[k]);
-		const nav::Vec2 u = nav::footprint_u(fp);
-		// An unlocked gate (as laid) blocks only its sides; its door lets units through, as in list_structure_tile_obstructions.
-		if (is_gate_type(kept[k].type) && !blocks_pathfinding(fp)) {
-			uint32_t side = 0;
-			for_each_gate_side(fp, [&](float gx, float gz, float ghu, float ghv) {
-				both.push_back(tile_obstruction(K_GATE_SIDE, 0xFFFF0000u + (uint32_t)k, side++, gx, gz, u.x, u.y, ghu, ghv));
-			});
-			continue;
-		}
-		both.push_back(tile_obstruction(K_BUILDING, 0xFFFF0000u + (uint32_t)k, 0, fp.x, fp.z, u.x, u.y, fp.hu, fp.hv));
-	}
-	const int nw = nav_grid_.node_res();
-	if (nw <= 0) return dbg(false, "nodes");
-	const size_t nn = static_cast<size_t>(nw) * static_cast<size_t>(nw);
-	for (int cls = 0; cls < 2; ++cls) {
-		std::vector<uint8_t> terrain;
-		nav_grid_.nodes_terrain_open(cls, terrain);
-		const std::vector<uint8_t> open_a = nav_grid_.tile_open_nodes(base, cls, terrain);
-		const std::vector<uint8_t> open_b = nav_grid_.tile_open_nodes(both, cls, terrain);
-		// The base's ground: the open node nearest the civic centre (its own footprint covers the middle).
-		int from = -1;
-		float from_d = 0.0f;
-		for (size_t k = 0; k < nn; ++k) {
-			if (!open_a[k]) continue;
-			const float dx = nav_grid_.node_pos((int)(k % (size_t)nw)) - x, dz = nav_grid_.node_pos((int)(k / (size_t)nw)) - z;
-			if (from < 0 || dx * dx + dz * dz < from_d) {
-				from = (int)k;
-				from_d = dx * dx + dz * dz;
-			}
-		}
-		if (from < 0) return dbg(false, "seed");
-		const std::vector<uint8_t> reach_a = nav_grid_.tile_reach_from(from, open_a);
-		const std::vector<uint8_t> reach_b = nav_grid_.tile_reach_from(from, open_b);
-		size_t land = 0, cut = 0;
-		for (size_t k = 0; k < nn; ++k) {
-			land += reach_a[k];
-			if (reach_a[k] && !reach_b[k]) ++cut;
-		}
-		if (log_on) std::fprintf(stderr, "  cls=%d land=%zu cut=%zu\n", cls, land, cut);
-		// Cut: the ring cuts off under cut_pct of that ground.
-		if ((mask & 4) && (double)cut * 100.0 >= cut_pct * (double)land) return dbg(false, cls ? "cut1" : "cut0");
-		// Territory: each piece lies within a tower's half width (and a node) of ground the base reaches without the ring
-		// (territory is the connected land, not the units' clearance: a piece beside a steep tile still stands on it).
-		if (mask & 1) {
-			const int r = (int)std::ceil(wallset_info(WALLSET_STONE).tower_half / nav_grid_.node_step()) + 1;
-			for (const WallPiece &p : kept) {
-				const int pa = nav_grid_.node_of(p.x), pb = nav_grid_.node_of(p.z);
-				bool on = false;
-				for (int b = std::max(0, pb - r); b <= std::min(nw - 1, pb + r) && !on; ++b)
-					for (int a = std::max(0, pa - r); a <= std::min(nw - 1, pa + r) && !on; ++a)
-						on = reach_a[static_cast<size_t>(b) * (size_t)nw + (size_t)a] != 0;
-				if (!on) return dbg(false, cls ? "terr1" : "terr0");
-			}
-		}
-		// Dead end: no node the ring leaves with one open neighbour (a corridor's blind end) that had more without it.
-		if (mask & 2) {
-			auto open_neighbours = [&](const std::vector<uint8_t> &o, size_t k) {
-				const size_t a = k % (size_t)nw, b = k / (size_t)nw;
-				int c = 0;
-				if (a > 0) c += o[k - 1];
-				if (a + 1 < (size_t)nw) c += o[k + 1];
-				if (b > 0) c += o[k - (size_t)nw];
-				if (b + 1 < (size_t)nw) c += o[k + (size_t)nw];
-				return c;
-			};
-			if (log_on) {
-				size_t cnt = 0;
-				for (size_t k = 0; k < nn; ++k)
-					if (reach_b[k] && open_neighbours(open_b, k) <= 1 && open_neighbours(open_a, k) > 1) {
-						if (cnt < 6)
-							std::fprintf(stderr, "  dead end cls=%d at (%.1f,%.1f) deg_b=%d deg_a=%d\n", cls, (double)nav_grid_.node_pos((int)(k % (size_t)nw)),
-									(double)nav_grid_.node_pos((int)(k / (size_t)nw)), open_neighbours(open_b, k), open_neighbours(open_a, k));
-						++cnt;
-					}
-				if (cnt) std::fprintf(stderr, "  dead ends cls=%d: %zu\n", cls, cnt);
-			}
-			for (size_t k = 0; k < nn; ++k)
-				if (reach_b[k] && open_neighbours(open_b, k) <= 1 && open_neighbours(open_a, k) > 1) return dbg(false, cls ? "corr1" : "corr0");
-		}
-	}
-	return dbg(true, "ok");
 }
 
 size_t Simulation::place_generic_fortress(uint8_t player, float x, float z, float radius, uint32_t seed,
