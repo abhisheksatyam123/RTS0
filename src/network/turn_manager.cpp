@@ -569,12 +569,18 @@ void TurnManager::serve_rejoin(uint32_t client_id, Simulation &sim) {
 		for (char &ch : n) ch = (char)std::tolower((unsigned char)ch);
 		return n;
 	};
+	// Behind the lobby a name carries its rating ("name (1500)"); 0 A.D.
+	// NetServer compares the name without it (usernameWithoutRating) for the
+	// buddy test and for a known observer, so do the same here.
+	auto bare = [&](const std::string &n) {
+		return net_host_->lobbyAuth() ? n.substr(0, n.find(" (")) : n;
+	};
 	const NetPeer *asker = net_host_->getPeer(client_id);
-	const std::string name = lower(asker ? asker->player_name : std::string());
+	const std::string name = lower(bare(asker ? asker->player_name : std::string()));
 	uint8_t seat = 0xFF;
 	bool known_observer = false;
 	for (const auto &cn : client_names_) {
-		if (cn.first == client_id || cn.first == 0 || peer_active(cn.first) || lower(cn.second) != name) continue;
+		if (cn.first == client_id || cn.first == 0 || peer_active(cn.first) || lower(bare(cn.second)) != name) continue;
 		auto cp = client_player_.find(cn.first);
 		if (cp == client_player_.end() || cp->second >= MAX_PLAYERS) { known_observer = true; continue; }
 		bool held = false;
@@ -1007,8 +1013,11 @@ void TurnManager::set_net_host(NetHost *net_host, uint32_t client_id) {
 				if (NetPacketSerializer::parse_client_paused(msg.payload.data(), msg.payload.size(), cpm))
 					this->receive_client_paused(peer_id, cpm);
 			} else if (msg.type == static_cast<uint8_t>(NetMessageType::NMT_GAME_START)) {
+				// 0 A.D. NetServer: only the controller may start the game
+				// (GetGUID() != m_ControllerGUID is refused). A joiner's
+				// NMT_GAME_START would otherwise set the match's settings and seats.
 				GameStartMsg gsm;
-				if (NetPacketSerializer::parse_game_start(msg.payload.data(), msg.payload.size(), gsm)) {
+				if (peer_id == 0 && NetPacketSerializer::parse_game_start(msg.payload.data(), msg.payload.size(), gsm)) {
 					GameSetupParams setup;
 					if (parse_game_start_full(gsm.init_attributes, setup)) {
 						this->has_pending_game_start_ = true;

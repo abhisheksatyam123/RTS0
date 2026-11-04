@@ -518,16 +518,21 @@ static bool run_late_join_game_start_resend(const char *ph) {
 	host.sendGameStart(attrs);
 	CHECK(host.game_start_sent(), "sending GAME_START records the authoritative setup", ph);
 	// The host's TurnManager keeps the validated attributes for the resend.
+	// The host records the setup it sent (session_lobby / match_archive do this
+	// beside sendGameStart). A joiner's GAME_START is not the host's: it must not
+	// replace the setup, since only the controller may start the game.
+	th.remember_sent_game_start(attrs);
+	CHECK(th.last_game_start_attributes() == attrs, "TurnManager kept the verbatim attributes", ph);
 	{
 		GameStartMsg gsm;
-		gsm.init_attributes = attrs;
+		gsm.init_attributes = "map=bogus\n";
 		std::vector<uint8_t> payload = NetPacketSerializer::frame_game_start(gsm);
 		std::vector<uint8_t> wire = NetPacketSerializer::pack_message(NetMessageType::NMT_GAME_START, 0, payload);
 		NetMessage rx;
-		if (!check(NetPacketSerializer::unpack_message(wire.data(), wire.size(), rx), "host GAME_START frames", ph)) return false;
-		host.dispatchMessage(1, rx); // host receives the echo through its own relay path
+		if (!check(NetPacketSerializer::unpack_message(wire.data(), wire.size(), rx), "joiner GAME_START frames", ph)) return false;
+		host.dispatchMessage(1, rx); // a joiner (peer 1) sends its own start
 	}
-	CHECK(th.last_game_start_attributes() == attrs, "TurnManager kept the verbatim attributes", ph);
+	CHECK(th.last_game_start_attributes() == attrs, "a joiner's GAME_START does not replace the host's setup", ph);
 
 	// The host world the joiner will rebuild. No turn has run yet, so the BOOT hash
 	// (pre-command, pre-sim-step) is exactly the state the resend reproduces.
@@ -631,15 +636,7 @@ static bool run_late_join_game_start_resend(const char *ph) {
 	TurnManager th_late(&host, 0);
 	th_late.mark_game_started();
 	host.sendGameStart(attrs);
-	{
-		GameStartMsg gsm;
-		gsm.init_attributes = attrs;
-		std::vector<uint8_t> payload = NetPacketSerializer::frame_game_start(gsm);
-		std::vector<uint8_t> wire = NetPacketSerializer::pack_message(NetMessageType::NMT_GAME_START, 0, payload);
-		NetMessage rx;
-		NetPacketSerializer::unpack_message(wire.data(), wire.size(), rx);
-		host.dispatchMessage(1, rx);
-	}
+	th_late.remember_sent_game_start(attrs); // the host records the setup it sent
 	CHECK(th_late.join_sync_turn_window() == 0, "the late-join window is closed by default", ph);
 	TurnManager tj_late(&joiner, 1);
 	CHECK(th_late.tick(TurnManager::TURN_DURATION, sh2), "host advanced past turn 0", ph);
