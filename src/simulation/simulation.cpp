@@ -14238,11 +14238,12 @@ constexpr float PUSH_EPSILON = 10.0f / 65536.0f * PUSH_SCALE; // fixed::Epsilon(
 constexpr float PUSH_TURN = 0.2f;                         // 0 A.D. turn length, s
 constexpr int PUSH_MAX_PRESSURE = 255;                    // CCmpUnitMotionManager::MAX_PRESSURE
 constexpr int PUSH_MAX_DAMPING_PRESSURE = 160;            // MAX_PUSH_DAMPING_PRESSURE
-// 0 A.D. bins each moving unit by its tick-start position into a PUSHING_GRID_SIZE (20 m) square, and
-// Push runs only for a pair in the same square or in one of its four orthogonal neighbours
-// (CCmpUnitMotion_System.cpp:42-50, 505-523), so a pair across a square's corner never pushes. At the
+// 0 A.D. bins each unit once a turn, by its turn-start position, into a PUSHING_GRID_SIZE (20 m) square
+// (CCmpUnitMotion_System.cpp:64-73, 446-468), and Push runs only for a pair in the same square or in one
+// of its four orthogonal neighbours (505-523), so a pair across a square's corner never pushes. At the
 // crowd scale the square is 20 m times PUSH_SCALE, with the map's corner as its origin, as 0 A.D.'s
-// squares start at its map's corner.
+// squares start at its map's corner. Not ported: 0 A.D. builds each bin's neighbour list round the cell
+// its first unit ends the turn in (513-514, after Move), a quirk RTS0 can't reproduce while it pushes every tick.
 constexpr float PUSH_SQUARE = 20.0f * PUSH_SCALE;
 constexpr int PUSH_MIN_PRESSURE_IF_OBSTRUCTED = 80;       // MIN_PRESSURE_IF_OBSTRUCTED
 constexpr float PUSH_PRESSURE_STATIC = 2.0f;              // PRESSURE_STATIC_FACTOR
@@ -14519,13 +14520,15 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 		step_max = std::max({step_max, std::fabs(epx[i] - frx[i]), std::fabs(epz[i] - frz[i])});
 		mov[i] = u.moving;
 	}
-	// Each entity's pushing square, from where it stood when the tick began (frx, frz, filled above).
+	// Each entity's pushing square, from where it stood when its turn began (pu[i].ix, iz): 0 A.D. bins
+	// every unit once a turn, at its turn-start position. A unit that doesn't push is never looked at.
 	int32_t *sqx = arena.alloc_array<int32_t>(N);
 	int32_t *sqz = arena.alloc_array<int32_t>(N);
 	if (!sqx || !sqz) return;
 	for (size_t i = 0; i < N; ++i) {
-		sqx[i] = (int32_t)std::floor((frx[i] + map_half_) / PUSH_SQUARE);
-		sqz[i] = (int32_t)std::floor((frz[i] + map_half_) / PUSH_SQUARE);
+		const bool pushing = i >= n || pushes[i];
+		sqx[i] = pushing ? (int32_t)std::floor((pu[i].ix + map_half_) / PUSH_SQUARE) : 0;
+		sqz[i] = pushing ? (int32_t)std::floor((pu[i].iz + map_half_) / PUSH_SQUARE) : 0;
 	}
 	const float min_push = PUSH_MIN_FORCE * dt / PUSH_TURN;
 	if (n_big) {
@@ -14592,6 +14595,15 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 			// closer than clearances, where 0 A.D.'s footprints keep them wider.
 			const bool same_group = my_group && b.group == my_group;
 			if (same_group && a.slot && b.slot) return;
+			// The square gate (0 A.D. pushes a pair only from one pushing square to the same or an orthogonal
+			// neighbour, CCmpUnitMotion_System.cpp:505-523). It covers every pair but a walker and an idle unit,
+			// which 0 A.D. never pushes: those slide below, RTS0's own nudge off a standing body (CheckMovement
+			// keeps a walker out of it). Checked before the bodies' overlap below, so a pair across a square's
+			// corner doesn't overlap or exempt either body from MinimalForce.
+			if (same_group || mi == mj) {
+				const int32_t dsx = sqx[i] - sqx[j], dsz = sqz[i] - sqz[j];
+				if (dsx > 1 || dsx < -1 || dsz > 1 || dsz < -1 || (dsx != 0 && dsz != 0)) return;
+			}
 			if (!mi && !mj) {
 				// 0.28 measures a melee attack's range between the two obstructions' squares
 				// (Attack.js:773-783, CCmpObstructionManager.cpp:791-810), and static pushing holds two
@@ -14633,14 +14645,6 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 				if (!mi || (is_unit && !steps.want_x) || bdx * bdx + bdz * bdz >= r_overlap * r_overlap) return;
 				if ((!is_unit || (size_t)j >= n) && b.id == own_target) return;
 				slide = true;
-			}
-			// 0 A.D. pushes a pair only from one pushing square to the same or an orthogonal neighbour
-			// (CCmpUnitMotion_System.cpp:505-523), so a pair across a square's corner never pushes. The
-			// walker's slide above is RTS0's own nudge off a standing body (0 A.D.'s CheckMovement keeps a
-			// walker out of it), not a push, so it stays.
-			if (!slide) {
-				const int32_t dsx = sqx[i] - sqx[j], dsz = sqz[i] - sqz[j];
-				if (dsx > 1 || dsx < -1 || dsz > 1 || dsz < -1 || (dsx != 0 && dsz != 0)) return;
 			}
 			float combined = (ci + b.r * PUSH_CLEARANCE_PER_RADIUS) * PUSH_CORRECTION;
 			const float max_dist = same_group ? combined
