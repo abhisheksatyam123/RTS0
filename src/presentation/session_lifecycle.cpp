@@ -773,6 +773,7 @@ void RtsoMain::_ready() {
 	session_audio_.set_spatial([this](const Ref<AudioStream> &s, Vector3 pos, float db, float pitch) {
 		if (view) view->play_spatial_sound(s, pos, db, 75.0f, pitch);
 	});
+	session_audio_.set_on_screen([this](Vector3 pos) { return !view || view->is_position_on_screen(pos); });
 
 	// gui/session/Ambient.js: one looping dayscape track ("TODO: Let the map decide the tracks"),
 	// played by PlayAmbientSound at a constant sound.ambientgain. 0.28 plays it at 0.6 beside
@@ -795,8 +796,10 @@ void RtsoMain::_ready() {
 
 	spatial_sfx_player = memnew(AudioStreamPlayer3D);
 	spatial_sfx_player->set_bus("Action");
-	spatial_sfx_player->set_max_distance(75.0f);
-	spatial_sfx_player->set_unit_size(10.0f);
+	// 0.28's linear falloff, as session_audio.h spatial_at: Godot attenuation is off, and the
+	// volume is set per play in main_node.cpp play_spatial_sfx.
+	spatial_sfx_player->set_attenuation_model(AudioStreamPlayer3D::ATTENUATION_DISABLED);
+	spatial_sfx_player->set_max_distance(1.0e6f);
 	spatial_sfx_player->set_volume_db(0.0f);
 	add_child(spatial_sfx_player);
 

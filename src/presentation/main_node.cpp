@@ -245,7 +245,12 @@ void RtsoMain::play_spatial_sfx(const char *path, Vector3 pos) {
 	if (ResourceLoader::get_singleton()->exists(path)) {
 		Ref<AudioStream> s = ResourceLoader::get_singleton()->load(path);
 		if (s.is_valid()) {
+			// No world view means no camera, so the sound counts as on screen (0.5 rolloff).
+			const Vector2 l = session_audio_.listener();
+			const float dx = pos.x - l.x, dz = pos.z - l.y;
+			const float g = rtso::RtsoSessionAudio::falloff_gain(std::sqrt(dx * dx + dz * dz));
 			spatial_sfx_player->set_position(pos);
+			spatial_sfx_player->set_volume_db(20.0f * std::log10(g));
 			spatial_sfx_player->set_stream(s);
 			spatial_sfx_player->play();
 		}

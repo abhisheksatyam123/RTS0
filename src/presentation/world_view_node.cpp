@@ -1538,6 +1538,12 @@ static void play_structure_death(RtsoWorldView &view, uint8_t type, Vector3 pos)
 	view.play_spatial_sound(rtso::load_audio(path), pos, gain > 0.001f ? 20.0f * std::log10(gain) : -80.0f, 95.0f, pitch);
 }
 
+bool RtsoWorldView::is_position_on_screen(Vector3 pos) const {
+	const Viewport *vp = get_viewport();
+	Camera3D *cam = vp ? vp->get_camera_3d() : nullptr;
+	return !cam || cam->is_position_in_frustum(pos);
+}
+
 void RtsoWorldView::play_spatial_sound_path(const String &path, Vector3 pos, float volume_db, float max_dist, float pitch_scale) {
 	String res_path = path;
 	if (!res_path.begins_with("res://")) {
