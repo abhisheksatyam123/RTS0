@@ -3377,7 +3377,7 @@ int main() {
 	}
 	// 44. Pushing squares (0 A.D.'s PUSHING_GRID_SIZE, 20 m, at the crowd scale: 16.7 units, from the map's corner).
 	// 0 A.D. pushes a pair only from one square to the same or an orthogonal neighbour
-	// (CCmpUnitMotion_System.cpp:505-523), so two idle spearmen 0.7 apart across a square's corner never push
+	// (consider list 536-547 in CCmpUnitMotion_System.cpp), so two idle spearmen 0.7 apart across a square's corner never push
 	// each other, while the same pair inside one square, or split across one edge, do.
 	{
 		const float H = 64.0f;                  // the default map's half-size (simulation.h map_half_)
@@ -3411,7 +3411,8 @@ int main() {
 	// 45. The square gate runs after the bodies' overlap, so it keeps RTS0's exemption: an idle unit whose body
 	// overlaps another idle unit's is never held by MinimalForce. A and B straddle a square's corner 0.71 apart
 	// with overlapping bodies, so their own pair never pushes; a third idle spearman 1.0 off A (210 degrees) pushes
-	// A, and A's total push is applied, so A and B part. Run before the overlap, the gate froze them 0.46 apart.
+	// A, and A's total push is applied, so A and B part. Run before the overlap, the gate froze them 0.46 apart. 0 A.D. has no
+		// such exemption: this is RTS0's deliberate deviation (REMAINING_GAPS G124).
 	{
 		const float H = 64.0f;                  // the default map's half-size (simulation.h map_half_)
 		const float Q = 20.0f * (5.0f / 6.0f);  // a pushing square in RTS0 units (PUSH_SQUARE)
@@ -3432,6 +3433,36 @@ int main() {
 		std::printf("  overlapping pair across a square's corner, a third unit pushing one: %.3f -> %.3f units apart\n", d0, d1);
 		CHECK(d1 > 1.0f, "an overlapping pair across a square's corner still parts when a third unit pushes one of them");
 	}
-	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
+	// 46. Walkers across a square's corner: the gate skips a diagonal pair whether or not either is moving, so two walkers
+		// that start diagonal across the corner and walk away from it each keep the track they walk alone.
+		{
+			const float H = 64.0f;                  // the default map's half-size (simulation.h map_half_)
+			const float Q = 20.0f * (5.0f / 6.0f);  // a pushing square in RTS0 units (PUSH_SQUARE)
+			const float cx = -H + 3.0f * Q, cz = -H + 3.0f * Q; // the same corner as scenario 44
+			// Walker a (from the corner's lower side) and walker b (from its upper side) walk away from the corner for
+			// 20 ticks; each one's position afterwards. Only the walkers flagged are spawned.
+			auto walk_away = [&](bool with_a, bool with_b, float &ax, float &az, float &bx, float &bz) {
+				auto s = std::make_unique<Simulation>();
+				setup(*s);
+				uint32_t a = 0, b = 0;
+				if (with_a) a = s->spawn_unit(cx - 0.25f, cz - 0.25f, 0, UNIT_SPEARMAN, 150.0f);
+				if (with_b) b = s->spawn_unit(cx + 0.25f, cz + 0.25f, 0, UNIT_SPEARMAN, 150.0f);
+				if (with_a) s->order_walk(&a, 1, cx - 30.0f, cz - 30.0f);
+				if (with_b) s->order_walk(&b, 1, cx + 30.0f, cz + 30.0f);
+				for (int t = 0; t < 20; ++t) s->tick(DT);
+				if (with_a) { const int ia = idx(*s, a); ax = s->units_.pos_x[ia]; az = s->units_.pos_z[ia]; }
+				if (with_b) { const int ib = idx(*s, b); bx = s->units_.pos_x[ib]; bz = s->units_.pos_z[ib]; }
+			};
+			float sax = 0.0f, saz = 0.0f, sbx = 0.0f, sbz = 0.0f, pax = 0.0f, paz = 0.0f, pbx = 0.0f, pbz = 0.0f, unused = 0.0f;
+			walk_away(true, false, sax, saz, unused, unused);   // a alone
+			walk_away(false, true, unused, unused, sbx, sbz);   // b alone
+			walk_away(true, true, pax, paz, pbx, pbz);          // the pair, diagonal across the corner
+			const float moved = std::hypot(sax - (cx - 0.25f), saz - (cz - 0.25f)) + std::hypot(sbx - (cx + 0.25f), sbz - (cz + 0.25f));
+			const float da = std::hypot(pax - sax, paz - saz), db = std::hypot(pbx - sbx, pbz - sbz);
+			std::printf("  walkers across a square's corner, 1 s of walking away: %.3f and %.3f units off their solo tracks\n", da, db);
+			CHECK(moved > 0.5f, "the walkers do walk away from the corner, so the tracks compared are real");
+			CHECK(da < 0.05f && db < 0.05f, "two walkers diagonal across a pushing square's corner keep the tracks they walk alone");
+		}
+		std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }

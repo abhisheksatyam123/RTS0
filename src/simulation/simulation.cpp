@@ -14424,8 +14424,9 @@ constexpr float PUSH_TURN = 0.2f;                         // 0 A.D. turn length,
 constexpr int PUSH_MAX_PRESSURE = 255;                    // CCmpUnitMotionManager::MAX_PRESSURE
 constexpr int PUSH_MAX_DAMPING_PRESSURE = 160;            // MAX_PUSH_DAMPING_PRESSURE
 // 0 A.D. bins each unit once a turn, by its turn-start position, into a PUSHING_GRID_SIZE (20 m) square
-// (CCmpUnitMotion_System.cpp:64-73, 446-468), and Push runs only for a pair in the same square or in one
-// of its four orthogonal neighbours (505-523), so a pair across a square's corner never pushes. At the
+// (CCmpUnitMotion_System.cpp:75 and 458-480, 0ad-android checkout), and its pair loop (584-591) pairs a
+// unit only with the units in its own square and its four orthogonal neighbours (consider list 536-547), so
+// a pair across a square's corner never pushes. At the
 // crowd scale the square is 20 m times PUSH_SCALE, with the map's corner as its origin, as 0 A.D.'s
 // squares start at its map's corner. Not ported: 0 A.D. builds each bin's neighbour list round the cell
 // its first unit ends the turn in (513-514, after Move), a quirk RTS0 can't reproduce while it pushes every tick.
@@ -14807,9 +14808,9 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 				if (bdx * bdx + bdz * bdz < rr * rr) body_overlap = true;
 			}
 			// The square gate (0 A.D. pushes a pair only from one pushing square to the same or an orthogonal
-			// neighbour, CCmpUnitMotion_System.cpp:505-523). It covers every pair that moves alike (both walking or
+			// neighbour, consider list 536-547 in CCmpUnitMotion_System.cpp). It covers every pair that moves alike (both walking or
 			// both standing) and every same-group pair. A walker and an idle unit outside one group never push:
-			// they slide below, RTS0's own nudge off a standing body (CheckMovement keeps a walker out of it).
+			// they slide below, RTS0's own nudge off a standing body (avoid_idle_units keeps a steered walker out of it).
 			// It runs after the bodies' overlap above, so a pair across a square's corner still exempts an
 			// overlapping body from MinimalForce; only its own push is skipped.
 			if (same_group || mi == mj) {
@@ -14958,7 +14959,10 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 		// MinimalForce lets crowds settle, but it can also hold idle units that were put on top of
 		// one another (a siege engine's forced eject at its centre): an idle unit whose body overlaps
 		// another idle unit's is exempt, so its total push is always applied, even where its pair across a
-		// square's corner is skipped by the gate.
+		// square's corner is skipped by the gate. 0 A.D. has no such exemption (PushAdjust, CCmpUnitMotion_System.cpp:622
+		// in the 0ad-android checkout zeroes any total under MinimalPushing): this is a deliberate RTS0 deviation
+		// (REMAINING_GAPS G124). It stays because without it a corner pair with a third idle unit nearby froze 0.46
+		// units apart after 60 ticks, against 1.54 with it (test_unit_pushing scenario 45).
 		if (!body_overlap && ax * ax + az * az <= min_push * min_push) {
 			ax = az = 0.0f;
 		} else {
