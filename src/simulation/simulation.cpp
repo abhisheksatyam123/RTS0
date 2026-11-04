@@ -4374,12 +4374,14 @@ Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, ui
 	}
 
 	// 4. Distance from the player's own structures (foundations included) of the
-	// same class, measured between footprint edges.
+	// same class: centre to centre, less the new structure's half size. 0 A.D.
+	// BuildRestrictions subtracts the new template's obstructionRadius.min; RTS0 has
+	// no per-template obstruction radius yet, so its footprint half stands in.
 	if (rule.distance_class != DIST_NONE) {
 		const float half = rect ? rect->half_size : 0.5f * (x1 - x0);
 		for (const Building &b : buildings_) {
 			if (b.team != player || b.hp <= 0.0f || distance_class_of(b.type) != rule.distance_class) continue;
-			const float d = det::hypot(b.x - cxw, b.z - czw) - half - b.half_size;
+			const float d = det::hypot(b.x - cxw, b.z - czw) - half;
 			if (d < rule.min_distance) return PLACE_DISTANCE;
 		}
 	}
@@ -4815,6 +4817,10 @@ uint8_t Simulation::train_unlock_tech(uint8_t player_id, uint8_t unit_type, uint
 		// A civ without the unlock trains the unit outright, as in 0 A.D.
 		return tech_available_to_civ(tech, civ) ? tech : (uint8_t)TECH_NONE;
 	};
+	// Female citizen houses (units/<civ>/support_female_citizen_house.xml) are gated on
+	// unlock_females_house (Fertility Festival, 200 food, 40 s), not the civilians' tech.
+	if (tmpl < CIV_UNIT_TEMPLATE_COUNT && civ_unit_template(tmpl).unlock_tech == TECH_UNLOCK_FEMALES_HOUSE)
+		return gate(TECH_UNLOCK_FEMALES_HOUSE);
 	if (house_trains_citizens(bld_type)) {
 		uint8_t tech = tech_available_to_civ(TECH_UNLOCK_CIVILIANS_HOUSE_KUSH, civ)
 				? (uint8_t)TECH_UNLOCK_CIVILIANS_HOUSE_KUSH : (uint8_t)TECH_UNLOCK_CIVILIANS_HOUSE_GENERIC;
