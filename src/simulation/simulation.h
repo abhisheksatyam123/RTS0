@@ -2705,6 +2705,11 @@ public:
 	// the others don't count. The sides are sampled (NavGrid::segment_near_steep_tile) with the half
 	// width grown by steep_sample_pad, so a steep tile between two samples is not missed.
 	bool fortress_crosses_steep(float x, float z, float radius, uint32_t seed) const;
+	// G99 round 3 (place_starting_walls): whether the ring of fortress_crosses_steep's outline, judged on
+	// the structures standing, keeps the base's reach: each piece on ground the base reaches without it,
+	// the ring cutting off under 1% of that ground, and no corridor it leaves with two open neighbours
+	// or fewer. Trial: RTS0_RING_REACH (a bitmask of the three checks, 0 for none) and RTS0_RING_CUT.
+	bool ring_reach_ok(float x, float z, float radius, uint32_t seed);
 	// placeGenericFortress's defaults (wall_builder.js), place_generic_fortress's and the ones
 	// fortress_crosses_steep draws its outline with.
 	static constexpr float GENERIC_FORTRESS_IRREGULARITY = 0.5f;

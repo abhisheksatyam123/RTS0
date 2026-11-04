@@ -998,6 +998,40 @@ struct NavGrid {
             if (want[e] && without[e] < 0) flood(e, false, groups++, without, want, left, open_part);
         return groups < parts_of();
     }
+    // The open nodes of class cls, by node index (node_res() a side): those terrain (nodes_terrain_open's)
+    // leaves open and no obstruction in obs covers (tile_obs_raster), as the tile pass would find them.
+    std::vector<uint8_t> tile_open_nodes(const std::vector<TileObstruction> &obs, int cls, const std::vector<uint8_t> &terrain) const {
+        const int nw = node_res();
+        const size_t n = nw > 0 ? static_cast<size_t>(nw) * static_cast<size_t>(nw) : 0;
+        std::vector<uint8_t> open(n, 0);
+        if (n == 0 || cells.blank() || terrain.size() != n) return open;
+        std::vector<uint16_t> cover(n, 0);
+        for (const TileObstruction &q : obs) tile_obs_raster(q, cls, 1, nullptr, cover);
+        for (size_t k = 0; k < n; ++k) open[k] = terrain[k] && !cover[k] ? 1 : 0;
+        return open;
+    }
+    // The nodes reached from node `from` over open nodes, a step being to one of the four neighbours, as flags.
+    std::vector<uint8_t> tile_reach_from(int from, const std::vector<uint8_t> &open) const {
+        const uint32_t w = static_cast<uint32_t>(std::max(node_res(), 0));
+        std::vector<uint8_t> reached(open.size(), 0);
+        if (w == 0 || from < 0 || static_cast<size_t>(from) >= open.size() || !open[static_cast<size_t>(from)]) return reached;
+        std::vector<uint32_t> queue(1, static_cast<uint32_t>(from));
+        reached[static_cast<size_t>(from)] = 1;
+        auto visit = [&](uint32_t j) {
+            if (open[j] && !reached[j]) {
+                reached[j] = 1;
+                queue.push_back(j);
+            }
+        };
+        for (size_t h = 0; h < queue.size(); ++h) {
+            const uint32_t k = queue[h], a = k % w, b = k / w;
+            if (a > 0) visit(k - 1);
+            if (a + 1 < w) visit(k + 1);
+            if (b > 0) visit(k - w);
+            if (b + 1 < w) visit(k + w);
+        }
+        return reached;
+    }
 
     // Calls f on the index of each bucket (tile_obs_buckets_) that obstruction o's box, grown by the
     // large clearance, reaches into.
