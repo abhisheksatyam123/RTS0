@@ -191,7 +191,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 138; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 142; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_PETRA_ROUTE_CACHE = 139; // Petra's last checkRoutes result (tradeRoute kept between trade events)
 	static constexpr uint32_t SAVE_VERSION_FAUNA_QUEUED_TARGET = 137; // each animal's set-aside attack target (fauna_queued_target_)
 	static constexpr uint32_t SAVE_VERSION_PETRA_IDLE_CHECKS = 136; // each Petra base's next gatherer balance check (timeNextIdleCheck)
 	static constexpr uint32_t SAVE_VERSION_PETRA_HOLDER_TIME = 135; // each Petra garrison holder's holderTimeUpdate
@@ -232,6 +233,9 @@ public:
 	static constexpr uint32_t SAVE_VERSION_PETRA_PROSPECT = 100; // Petra's routeProspection and the Trade structures it last saw
 	static constexpr uint32_t SAVE_VERSION_TRADE_ROUTE = 99; // each trader's route waypoints and leg progress (SetupTradeRoute route, reversed on the way back)
 	static constexpr uint32_t SAVE_VERSION_PROJECTILE_DAMAGE = 98; // each projectile's fire-time strengths and shooter (GetTotalAttackEffects at impact); each unit's and animal's previous-turn position (aim velocity); each player's control-all-units flag
+	static constexpr uint32_t SAVE_VERSION_MOTION_SPAN = 142; // each unit's reversal watch (MotionTurn way_*, span_*, 48 bytes); a 141 save reads the 20-byte MotionTurn
+	static constexpr uint32_t SAVE_VERSION_PETRA_ASSIGNED_AGAINST = 141; // each defense army's assignedTo and assignedAgainst (kept across turns)
+	static constexpr uint32_t SAVE_VERSION_PETRA_BLOCKED = 140; // each Petra attack plan's isBlocked (its target is a blocker on the way)
 	static constexpr uint32_t SAVE_VERSION_RALLY_EMERGENCY = 138; // Petra's autogarrison rally flag (rally_emergency)
 	static constexpr uint32_t SAVE_VERSION_RALLY_COMMANDS = 97; // each rally position's command and unit or treasure
 	static constexpr uint32_t SAVE_VERSION_PETRA_RAID_SIEGE = 95; // the Petra raid's name and siege class
@@ -2400,6 +2404,8 @@ public:
 		// position5TurnsAgo: the army's centre at the last turn that was a multiple of 5 (far off
 		// until the march's first such turn, as 0.28's [0, 0] map corner).
 		float pos5_x = 1e6f, pos5_z = 1e6f;
+		// attackPlan.js isBlocked: the last target pick found a blocker (any enemy structure) on the way.
+		bool blocked = false;
 	};
 	const AttackPlan &petra_attack_plan() const { return petra_attack_plan_; }
 	const std::vector<AttackPlan> &petra_started_attacks() const { return petra_started_attacks_; }
@@ -3870,6 +3876,7 @@ private:
 	} petra_strike_force_;
 
 	AttackPlan petra_attack_plan_; // attackManager.js upcomingAttacks: the plan being prepared
+	mutable bool petra_pick_blocked_ = false; // see petra_pick_blocked()
 	// The main plan's own fields that PetraAttackManager holds for petra_attack_plan_.
 	struct PetraPlanMuster {
 		int32_t target_size = 0, min_size = 0;
@@ -4015,8 +4022,10 @@ private:
 	// attackPlan.js checkTargetObstruction: the enemy structure (a wall, palisade or gate) that
 	// blocks the path from (px, pz) to target `id` on the same land, else `id` itself.
 	uint32_t petra_target_obstruction(uint32_t id, float px, float pz, float &tx, float &tz) const;
-	// attackPlan.js isBlocked: the plan's target is a wall piece that blocked its path.
+	// attackPlan.js isBlocked: the plan's last target pick found a blocker on its path.
 	bool petra_plan_blocked(const AttackPlan &plan) const;
+	// isBlocked of the last getNearestTarget/checkTargetObstruction call (0.28 resets it per pick).
+	bool petra_pick_blocked() const { return petra_pick_blocked_; }
 	bool petra_unit_reserved(uint32_t uid) const;
 	std::unordered_set<uint32_t> petra_launched_units() const;
 	bool petra_builder_worker(size_t unit_idx, const std::unordered_set<uint32_t> &launched) const;
@@ -4419,6 +4428,13 @@ private:
 		std::vector<PetraTradeRoute> finished; // every finished pair, for checkRoutes(accessIndex)
 	};
 	void petra_check_routes(PetraTradeRoutes &out) const;
+	// tradeManager.js keeps tradeRoute between checks: checkRoutes runs on a trade event, for an idle
+	// trader (checkTrader) and for prospection, not every AI turn. The last result stands until then.
+	struct PetraRouteCache {
+		bool valid = false;
+		PetraTradeRoutes routes;
+	};
+	PetraRouteCache petra_route_cache_;
 	// checkRoutes(accessIndex): the best route for a trader on that land, or a ship on that
 	// sea; for a land trader the best land route anywhere when its own land has none.
 	const PetraTradeRoute *petra_route_for(const PetraTradeRoutes &r, uint16_t access, bool ship) const;
@@ -4566,7 +4582,7 @@ private:
 	X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_) \
 	X(petra_sent_diplo_) X(petra_started_attacks_) X(petra_defense_build_) X(petra_dropsite_check_) \
 	X(petra_failed_gather_) X(petra_hunt_search_) X(petra_base_dropsite_checks_) X(petra_approach_) X(petra_inaccessible_) \
-	X(petra_kept_) X(petra_move_to_gatherer_) X(petra_supply_) X(petra_room_) X(petra_prospect_) X(petra_targeted_relics_) X(petra_tile_bases_) X(petra_defense_targets_) X(petra_queue_heads_) X(petra_ferried_guards_) X(petra_next_plan_) X(petra_ship_idle_) X(petra_holders_)
+	X(petra_kept_) X(petra_move_to_gatherer_) X(petra_supply_) X(petra_room_) X(petra_prospect_) X(petra_route_cache_) X(petra_targeted_relics_) X(petra_tile_bases_) X(petra_defense_targets_) X(petra_queue_heads_) X(petra_ferried_guards_) X(petra_next_plan_) X(petra_ship_idle_) X(petra_holders_)
 	struct PetraSlot {
 		bool initialized = false;
 #define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};
