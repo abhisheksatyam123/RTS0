@@ -549,12 +549,12 @@ int main(int argc, char **argv) {
 			if (w >= 0) {
 				const size_t i = (size_t)w;
 				const size_t np = i < s.unit_paths_.size() ? (size_t)(s.unit_paths_[i].count - s.unit_paths_[i].cur) : 0;
-				std::printf("[watch] t=%ds pos=(%.2f,%.2f) vel=(%.2f,%.2f) act=%s order=%d/%u flags=%d has=%d goal=(%.1f,%.1f) wp=%d/%d path=%zu tu=%u tb=%u stance=%d\n",
+				std::printf("[watch] t=%ds pos=(%.2f,%.2f) vel=(%.2f,%.2f) act=%s order=%d/%u flags=%d has=%d goal=(%.1f,%.1f) wp=%d/%d path=%zu tu=%u tb=%u stance=%d pack=%d rng=%.2f\n",
 						sec, s.units_.pos_x[i], s.units_.pos_z[i], s.units_.vel_x[i], s.units_.vel_z[i],
 						action_name(s.units_.action_state[i]), s.units_.order_kind[i], s.units_.order_target[i],
 						s.units_.order_flags[i], s.units_.has_order[i], s.units_.target_x[i], s.units_.target_z[i],
 						s.units_.waypoint_cur[i], s.units_.waypoint_count[i], np, s.units_.target_unit_id[i],
-						s.units_.target_building_id[i], s.units_.stance[i]);
+						s.units_.target_building_id[i], s.units_.stance[i], (int)s.units_.pack_state[i], s.units_.attack_range[i]);
 				if (const uint32_t tu = s.units_.target_unit_id[i]) {
 					const int32_t t = s.lookup_unit(tu);
 					if (t >= 0)
@@ -630,10 +630,11 @@ int main(int argc, char **argv) {
 			auto bit = s.building_id_to_idx_.find(ot);
 			if (ot && bit != s.building_id_to_idx_.end()) {
 				const auto &bb = s.buildings_[bit->second];
-				std::snprintf(ob, sizeof ob, "order_bld type=%d team=%d hp=%.0f prog=%.2f garrison=%zu/%d dist=%.1f gap=%.1f dy=%.1f same_land=%d",
+				std::snprintf(ob, sizeof ob, "order_bld type=%d team=%d hp=%.0f prog=%.2f garrison=%zu/%d dist=%.1f gap=%.1f reach=%.1f dy=%.1f same_land=%d",
 						bb.type, bb.team, bb.hp, bb.build_progress, bb.garrisoned_units.size(), (int)bb.garrison_cap,
 						std::hypot(bb.x - s.units_.pos_x[i], bb.z - s.units_.pos_z[i]),
-						nav::footprint_gap(bb, s.units_.pos_x[i], s.units_.pos_z[i]).length(),
+						std::max(0.0f, nav::footprint_gap(bb, s.units_.pos_x[i], s.units_.pos_z[i]).length() - s.unit_clearance_at(i)),
+						s.attack_reach(i),
 						s.get_terrain_height(bb.x, bb.z) - s.unit_height(i), (int)s.petra_same_land(i, bb));
 			} else if (ot) {
 				std::snprintf(ob, sizeof ob, "order_target=%u", ot);
