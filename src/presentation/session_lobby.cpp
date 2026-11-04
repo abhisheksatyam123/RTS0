@@ -1007,7 +1007,9 @@ void RtsoMain::_on_lobby_start_pressed() {
 	net_setup_.setup = setup;
 	++net_setup_.seq;
 	net_host_.note_game_start_sent();
-	net_host_.sendGameStart(rtso::format_game_start_full(setup));
+	const std::string start_attrs = rtso::format_game_start_full(setup);
+	net_host_.sendGameStart(start_attrs);
+	turn_mgr_.remember_sent_game_start(start_attrs); // the late-join resend
 	net_game_started_ = true;
 	chat_window_.clear_history(); // the session's chat starts empty (Chat.js)
 	begin_match_recording(&setup);
