@@ -339,7 +339,7 @@ public:
 	}
 
 	// sel_<structure> (interface/select/building).
-	void play_building_select(uint8_t type) { play_group("interface/select/building", building_sound_name(type, true), 1.0f); }
+	void play_building_select(uint8_t type, uint8_t civ) { play_group("interface/select/building", building_sound_name(type, true, civ), 1.0f); }
 
 	// template_player.xml SoundGroups, played by Player.OnGlobalPlayerDefeated to
 	// each player: "defeated" when it falls, "defeated_ally" when an ally does,
@@ -377,7 +377,7 @@ public:
 				progress[b.id] = b.build_progress;
 				auto it = bld_progress_.find(b.id);
 				if (fire && it != bld_progress_.end() && it->second < 1.0f && b.build_progress >= 1.0f)
-					play_group("interface/complete/building", building_sound_name(b.type, false), 1.0f);
+					play_group("interface/complete/building", building_sound_name(b.type, false, b.civ), 1.0f);
 				// Upgrade.js PlaySound("upgraded") on the new entity: the structure's type changed
 				// in place (finish_upgrade keeps the id), and the new template's group plays.
 				auto ty = bld_type_.find(b.id);
@@ -597,7 +597,7 @@ public:
 		}
 	}
 
-	static const char *building_sound_name(uint8_t type, bool select) {
+	static const char *building_sound_name(uint8_t type, bool select, uint8_t civ) {
 		const char *n = "universal";
 		switch (building_research_base(type)) {
 			case BLD_TOWN_CENTER: n = "civ_center"; break;
@@ -607,7 +607,8 @@ public:
 			case BLD_TOWER: case BLD_SENTRY_TOWER: case BLD_OUTPOST: n = "tower"; break;
 			case BLD_FARMSTEAD: n = "farmstead"; break;
 			case BLD_MARKET: n = "market"; break;
-			case BLD_FORTRESS: n = "fortress"; break;
+			// 0.28: the Britons' and Germans' fortresses are brochs (brit/fortress, germ/fortress); the Gauls' is a fortress.
+			case BLD_FORTRESS: n = (civ == CIV_BRITONS || civ == CIV_GERMANS) ? "broch" : "fortress"; break;
 			case BLD_GATE: case BLD_PALISADE_GATE: case BLD_SIEGE_WALL_GATE: n = "gate"; break;
 			case BLD_TEMPLE: n = "temple"; break;
 			case BLD_WONDER: n = "wonder"; break;
@@ -626,7 +627,9 @@ public:
 			case BLD_PRYTANEION: case BLD_GEROUSIA: case BLD_ASSEMBLY: case BLD_AMPHITHEATER: case BLD_ACADEMY:
 				n = "tholos"; break;
 			case BLD_ARMY_CAMP: case BLD_PALACE: case BLD_HALL: n = "broch"; break;
-			case BLD_MONUMENT: case BLD_PILLAR: case BLD_PYRAMID_LARGE: case BLD_PYRAMID_SMALL: n = "iber_monument"; break;
+			case BLD_MONUMENT: case BLD_PILLAR: n = "iber_monument"; break;
+			// kush/pyramid_*: constructed iber_monument, selected temple_10 (sel_temple_10.ogg).
+			case BLD_PYRAMID_LARGE: case BLD_PYRAMID_SMALL: n = select ? "temple_10" : "iber_monument"; break;
 			case BLD_LIGHTHOUSE: case BLD_TEMPLE_AMUN: case BLD_TEMPLE_VESTA: case BLD_TEMPLE_MARS: case BLD_TEMPLE_ISIS:
 			case BLD_EPIC_TEMPLE: n = "temple"; break;
 			case BLD_TACHARA: n = "greek_theater"; break;
