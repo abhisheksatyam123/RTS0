@@ -12,9 +12,9 @@
 //    or mods is refused (NDR_INCORRECT_SOFTWARE_VERSION); a name already in
 //    the game, the host's included, is refused (NDR_PLAYERNAME_IN_USE) unless
 //    network.duplicateplayernames, which lets it in as "Name (2)".
-// 4. 0 A.D. NetServer CheckPasswordAndIncrement / IsBanned: three wrong
-//    passwords from one name ban it, so even the right one is then refused
-//    (ARC_BANNED); the right password before the third resets the count.
+// 4. 0 A.D. NetServer CheckPasswordAndIncrement / IsBanned: on the lobby's
+//    connection data three wrong passwords from one name ban it. A direct join
+//    counts nothing; the right password before a third wrong one resets the count.
 // 5. 0 A.D. NetServer OnChat with ChatAddressees.isAddressee
 //    (network/chat_routing.h): the host relays an ally, enemy, observer,
 //    private or flare line only to its addressees, and an untagged one to all.
@@ -206,7 +206,9 @@ int main() {
 	CHECK(attempt("eve", "a") == ARC_PASSWORD_INVALID && attempt("eve", "b") == ARC_PASSWORD_INVALID &&
 	      attempt("eve", "c") == ARC_PASSWORD_INVALID,
 	      "eve's three wrong passwords are refused as wrong");
-	CHECK(attempt("eve", "hunter2") == ARC_BANNED, "then eve is banned, even with the right password");
+	// 0 A.D. counts wrong passwords only on the lobby's connection data, so a
+	// direct join is never banned by count: eve gets in with the right password.
+	CHECK(attempt("eve", "hunter2") == ARC_OK, "a direct join is never banned by count (0 A.D. counts lobby data only)");
 	CHECK(attempt("frank", "hunter2") == ARC_OK, "another name still gets in");
 	// With a hasher (0 A.D. HashCryptographically) the client sends hash(password,
 	// name), never the text, and the host checks it against its own password.
