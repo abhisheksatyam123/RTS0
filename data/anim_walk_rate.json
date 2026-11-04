@@ -11,10 +11,6 @@
   "run": 30,
   "walk": 15
  },
- "athen_spearman": {
-  "run": 8,
-  "walk": 30
- },
  "boar": {
   "run": 8,
   "walk": 10
