@@ -9917,7 +9917,7 @@ void Simulation::occupy_turret(size_t i, Building &b) {
 	set_order(i, ORDER_NONE, 0, 0, x, z); // up there: the garrison order is done
 	units_.pos_x[i] = units_.target_x[i] = units_.anchor_x[i] = x;
 	units_.pos_z[i] = units_.target_z[i] = units_.anchor_z[i] = z;
-	unit_jumped(i);
+	unit_reset_prev(i); // a MoveTo (UpdateTurretPosition): the walk's lead is kept
 	units_.vel_x[i] = units_.vel_z[i] = 0.0f;
 	units_.has_order[i] = 0;
 	units_.waypoint_count[i] = 0;
@@ -12094,6 +12094,97 @@ void Simulation::aim_point(float sx, float sz, float speed, const AimTarget &tg,
 	az = tg.z + tg.vz * t;
 }
 
+// Walks (x, z) along the points xs/zs (n of them, in order) for at most `left` metres, as a move does. With
+// `has_stop` the walk ends where it first comes within `stop` of the goal (gx, gz), and stands if it starts
+// within it: UnitMotion's MoveToTargetRange stops an attacker at that distance from its target.
+static void walk_points(float &x, float &z, float &left, const float *xs, const float *zs, int n, bool has_stop,
+		float gx, float gz, float stop) {
+	if (has_stop) {
+		const float wx = x - gx, wz = z - gz;
+		if (wx * wx + wz * wz <= stop * stop) {
+			left = 0.0f;
+			return;
+		}
+	}
+	for (int k = 0; k < n && left > 0.0f; ++k) {
+		const float dx = xs[k] - x, dz = zs[k] - z;
+		const float d = std::sqrt(dx * dx + dz * dz);
+		if (has_stop && d > 0.0f) {
+			// The first point of this leg within `stop` of the goal: |w + u e| = stop, with w the walker's offset
+			// from the goal and e the leg's unit direction; the smaller root of the quadratic is the entry.
+			const float ex = dx / d, ez = dz / d;
+			const float wx = x - gx, wz = z - gz;
+			const float b = wx * ex + wz * ez;
+			const float disc = b * b - (wx * wx + wz * wz - stop * stop);
+			if (disc >= 0.0f) {
+				const float u = -b - std::sqrt(disc);
+				if (u >= 0.0f && u <= d) {
+					const float move = std::min(u, left);
+					x += ex * move;
+					z += ez * move;
+					left = 0.0f;
+					return;
+				}
+			}
+		}
+		if (d <= left) {
+			left -= d;
+			x = xs[k];
+			z = zs[k];
+		} else {
+			x += dx * (left / d);
+			z += dz * (left / d);
+			left = 0.0f;
+		}
+	}
+}
+
+// UnitAI MoveToTargetAttackRange: how far from its target an attacker stops. A Ranged attack walks to its
+// elevation-adapted range (GetEffectiveParabolicRange, the one tick_combat fires within), or halfway there when
+// height lengthens it ("the parabole changes while walking"), and stops comfortably within volley distance; a
+// Slaughter walks up to its animal; a melee attack stops right at weapon reach. move_units uses it too.
+float Simulation::attack_stop_distance(size_t i) const {
+	float r_att = attack_reach(i);
+	if (units_.target_unit_id[i] != 0 && fauna_.count != 0 && slaughters_target(i))
+		r_att = SLAUGHTER_RANGE + 1.0f; // Attack/Slaughter MaxRange: walk up to the animal
+	if (r_att > 3.0f) {
+		if (units_.target_unit_id[i] != 0) {
+			const int32_t t = lookup_unit(units_.target_unit_id[i]);
+			if (t >= 0) {
+				const float h = unit_height_offset((size_t)t) - unit_height_offset(i) - unit_attack_origin_y(i);
+				const float eff = std::sqrt(std::max(0.0f, r_att * r_att - 2.0f * r_att * h));
+				r_att = eff > r_att ? 0.5f * (r_att + eff) : eff;
+			}
+		}
+		// Ranged units (Archers, Catapults, Triremes) stop comfortably within volley distance
+		return std::max(2.5f, r_att * 0.85f);
+	}
+	// Melee units stop right at weapon reach to encircle target without penetration
+	return std::max(1.1f, r_att - 0.2f);
+}
+
+// Whether move_units follows the unit's waypoints now, by its action as move_units' path test reads it: a move,
+// attack move or patrol, or a task path (gather, build, return, trade, attack) whose goal lies within 2 units of
+// the task's target. An attacker's target is the unit it stands on, where it is now. A path left behind by an
+// earlier walk, such as an attacker's after an order to attack, is not walked.
+bool Simulation::unit_walks_path(size_t t) const {
+	const uint8_t st = units_.action_state[t];
+	if (st == ACTION_MOVE || st == ACTION_ATTACK_MOVE || st == ACTION_PATROL) return true;
+	const bool task = st == ACTION_GATHER || st == ACTION_BUILD || st == ACTION_RETURN_DROPSITE || st == ACTION_TRADE ||
+		st == ACTION_ATTACK;
+	if (!task || t >= unit_paths_.size() || !unit_paths_[t].has_goal) return false;
+	float tx = units_.target_x[t], tz = units_.target_z[t];
+	if (st == ACTION_ATTACK && units_.target_unit_id[t] != 0) {
+		const int32_t k = lookup_unit(units_.target_unit_id[t]);
+		if (k >= 0 && units_.alive[k]) {
+			tx = units_.pos_x[k];
+			tz = units_.pos_z[k];
+		}
+	}
+	const float gdx = unit_paths_[t].goal_x - tx, gdz = unit_paths_[t].goal_z - tz;
+	return gdx * gdx + gdz * gdz <= 4.0f;
+}
+
 void Simulation::unit_future_position(size_t t, float dt, float &x, float &z) const {
 	x = units_.pos_x[t];
 	z = units_.pos_z[t];
@@ -12102,36 +12193,30 @@ void Simulation::unit_future_position(size_t t, float dt, float &x, float &z) co
 	// The distance it covers in dt, accelerating from its speed to its walk speed (accelerate).
 	float speed = 0.0f;
 	float left = accelerate(t, s, unit_move_speed(t), dt, &speed);
+	// Where move_units ends it: an attacker on a unit stops at its stop distance from that unit, which it walks
+	// at (MoveToTargetRange). Any other walk goes to its goal, target_x/z, with no stop.
+	bool has_stop = false;
+	float stop = 0.0f, gx = units_.target_x[t], gz = units_.target_z[t];
+	if (units_.action_state[t] == ACTION_ATTACK && units_.target_building_id[t] == 0 && units_.target_unit_id[t] != 0) {
+		const int32_t k = lookup_unit(units_.target_unit_id[t]);
+		if (k >= 0 && units_.alive[k]) {
+			has_stop = true;
+			stop = attack_stop_distance(t);
+			gx = units_.pos_x[k];
+			gz = units_.pos_z[k];
+		}
+	}
 	const float *xs = nullptr, *zs = nullptr;
 	const int n = unit_waypoints_left(t, &xs, &zs);
-	if (n > 0) {
+	if (n > 0 && unit_walks_path(t)) {
 		// Along the long path it is walking: its remaining waypoints in order.
-		for (int k = 0; k < n && left > 0.0f; ++k) {
-			const float dx = xs[k] - x, dz = zs[k] - z;
-			const float d = std::sqrt(dx * dx + dz * dz);
-			if (d <= left) {
-				left -= d;
-				x = xs[k];
-				z = zs[k];
-			} else {
-				x += dx * (left / d);
-				z += dz * (left / d);
-				left = 0.0f;
-			}
-		}
+		walk_points(x, z, left, xs, zs, n, has_stop, gx, gz, stop);
 		return;
 	}
-	// Moving without a path: straight at its move goal. Standing still it stays.
+	// Moving without a path: straight at its goal. Standing still it stays.
 	if (!units_.has_order[t] || s <= 0.0f) return;
-	const float dx = units_.target_x[t] - x, dz = units_.target_z[t] - z;
-	const float d = std::sqrt(dx * dx + dz * dz);
-	if (d <= left) {
-		x = units_.target_x[t];
-		z = units_.target_z[t];
-	} else if (d > 0.0f) {
-		x += dx * (left / d);
-		z += dz * (left / d);
-	}
+	const float goal_x[1] = {gx}, goal_z[1] = {gz};
+	walk_points(x, z, left, goal_x, goal_z, 1, has_stop, gx, gz, stop);
 }
 
 // 0 A.D. globalscripts randomNormal2D: two independent standard normals (Box-Muller)
@@ -13149,27 +13234,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		if (at_building) {
 			d2 = 0.0f; // in reach: stop here
 		} else if (units_.action_state[i] == ACTION_ATTACK && !backing_off && units_.target_building_id[i] == 0) {
-			float r_att = attack_reach(i);
-			if (units_.target_unit_id[i] != 0 && fauna_.count != 0 && slaughters_target(i))
-				r_att = SLAUGHTER_RANGE + 1.0f; // Attack/Slaughter MaxRange: walk up to the animal
-			if (r_att > 3.0f) {
-				// UnitAI MoveToTargetAttackRange: a Ranged attack walks to its elevation-adapted
-				// range (GetEffectiveParabolicRange, the one tick_combat fires within), or halfway
-				// there when height lengthens it ("the parabole changes while walking").
-				if (units_.target_unit_id[i] != 0) {
-					const int32_t t = lookup_unit(units_.target_unit_id[i]);
-					if (t >= 0) {
-						const float h = unit_height_offset((size_t)t) - unit_height_offset(i) - unit_attack_origin_y(i);
-						const float eff = std::sqrt(std::max(0.0f, r_att * r_att - 2.0f * r_att * h));
-						r_att = eff > r_att ? 0.5f * (r_att + eff) : eff;
-					}
-				}
-				// Ranged units (Archers, Catapults, Triremes) stop comfortably within volley distance
-				stop_dist = std::max(2.5f, r_att * 0.85f);
-			} else {
-				// Melee units stop right at weapon reach to encircle target without penetration
-				stop_dist = std::max(1.1f, r_att - 0.2f);
-			}
+			stop_dist = attack_stop_distance(i);
 		}
 
 		// Along a chase path the unit stops for its target, not at a waypoint. So does a hunter along

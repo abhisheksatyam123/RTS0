@@ -1369,6 +1369,8 @@ uint32_t TurnManager::compute_sim_hash(const Simulation &sim) const {
 		mix_i32(fv.food_amount[f]);
 		mix_u8(fv.fauna_type[f]);
 		mix_u8(fv.behavior[f]);
+		mix_float(fv.aim_vx[f]);
+		mix_float(fv.aim_vz[f]);
 	}
 
 	// 7. FoW Grid

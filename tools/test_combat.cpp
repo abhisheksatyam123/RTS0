@@ -1624,6 +1624,64 @@ static void test_p14_aim_velocity() {
 	check(std::fabs(vx) < 1e-3f && std::fabs(vz) < 1e-3f, "once a whole turn has passed at rest, aim knows it stopped");
 }
 
+// The aim port's review fixes (P14): a teleport clears the lead, an occupied turret keeps it, a stale path
+// is not walked, and an attacker on a unit stops at its stop distance (MoveToTargetRange).
+static void test_p14_aim_review() {
+	std::printf("32. aim lead: teleports, stale paths and the attacker's stop distance (P14)\n");
+	Simulation s;
+	setup(s);
+	uint32_t a = s.spawn_unit(0.0f, 0.0f, 0, UNIT_SWORDSMAN);
+	uint32_t tg = s.spawn_unit(60.0f, 0.0f, 1, UNIT_SWORDSMAN);
+	const int ai = idx(s, a), ti = idx(s, tg);
+	(void)ti;
+	// A teleport (JumpTo) clears the lead until the turn starts; an occupied turret keeps the walk's (MoveTo).
+	s.units_.aim_vx[ai] = 3.0f;
+	s.units_.aim_vz[ai] = 1.0f;
+	s.units_.pos_x[ai] = 10.0f;
+	s.units_.pos_z[ai] = -4.0f;
+	s.unit_jumped((size_t)ai);
+	check(s.units_.aim_vx[ai] == 0.0f && s.units_.aim_vz[ai] == 0.0f, "a teleport clears the lead until the turn starts");
+	check(s.units_.prev_x[ai] == 10.0f && s.units_.prev_z[ai] == -4.0f, "the turn-start position is where it landed");
+	s.units_.aim_vx[ai] = 3.0f;
+	s.unit_reset_prev((size_t)ai);
+	check(s.units_.aim_vx[ai] == 3.0f, "an occupied turret keeps the walk's lead (MoveTo, not JumpTo)");
+	// A stationary attacker with a leftover path (an earlier walk) does not walk it.
+	s.units_.pos_x[ai] = 0.0f;
+	s.units_.pos_z[ai] = 0.0f;
+	s.units_.vel_x[ai] = s.units_.vel_z[ai] = 0.0f;
+	s.units_.aim_vx[ai] = s.units_.aim_vz[ai] = 0.0f;
+	s.units_.action_state[ai] = ACTION_ATTACK;
+	s.units_.target_unit_id[ai] = tg;
+	s.units_.target_building_id[ai] = 0;
+	s.units_.has_order[ai] = 1;
+	s.units_.target_x[ai] = 60.0f;
+	s.units_.target_z[ai] = 0.0f;
+	s.unit_paths_[ai].count = 2;
+	s.unit_paths_[ai].cur = 0;
+	s.unit_paths_[ai].xs[0] = 0.0f;
+	s.unit_paths_[ai].zs[0] = -40.0f;
+	s.unit_paths_[ai].xs[1] = 0.0f;
+	s.unit_paths_[ai].zs[1] = -80.0f;
+	s.units_.waypoint_count[ai] = 2;
+	s.units_.waypoint_cur[ai] = 0;
+	float fx = 1.0f, fz = 1.0f;
+	s.unit_future_position((size_t)ai, 2.0f, fx, fz);
+	check(fx == 0.0f && fz == 0.0f, "a stale path is not walked by a stationary attacker");
+	// An attacker walking at its target ends its walk at its stop distance from it, and one already within
+	// that distance stands.
+	s.units_.waypoint_count[ai] = 0;
+	s.units_.vel_x[ai] = 4.0f;
+	const float stop = s.attack_stop_distance((size_t)ai);
+	s.unit_future_position((size_t)ai, 40.0f, fx, fz); // long enough to reach the stop point
+	const float dd = std::sqrt((60.0f - fx) * (60.0f - fx) + fz * fz);
+	std::printf("      stop distance %.2f m, predicted stop %.3f m from the target\n", stop, dd);
+	check(std::fabs(dd - stop) < 1e-3f, "a walk at its target ends at the stop distance from it");
+	s.units_.pos_x[ai] = 60.0f - 0.5f * stop;
+	s.unit_future_position((size_t)ai, 40.0f, fx, fz);
+	check(std::fabs(fx - s.units_.pos_x[ai]) < 1e-4f && std::fabs(fz) < 1e-4f,
+		"an attacker already within its stop distance stands");
+}
+
 // What main's P14 left: PredictTimeToTarget's lead, ApplyStatus carried by the arrow, and
 // the aimed animal before a unit under the same landing point (DelayedDamage.js Hit).
 static void test_p14_leftovers() {
@@ -1713,6 +1771,7 @@ int main() {
 	test_p14_stray_armour();
 	test_p14_invulnerable_fallthrough();
 	test_p14_aim_velocity();
+	test_p14_aim_review();
 	test_p14_leftovers();
 	if (g_failures) {
 		std::printf("test_combat: FAIL (%d)\n", g_failures);

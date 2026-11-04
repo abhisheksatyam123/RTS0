@@ -3323,9 +3323,14 @@ private:
 		bool fauna, motion;
 	};
 	// CCmpPosition::JumpTo (a teleport: a garrison exit, a landing, a set position): the turn-start position
-	// becomes where the unit landed (m_LastX = m_PrevX = m_X), so the next full turn's velocity is not the jump.
-	void unit_jumped(size_t i) { units_.prev_x[i] = units_.pos_x[i]; units_.prev_z[i] = units_.pos_z[i]; }
-	void fauna_jumped(size_t f) { fauna_.prev_x[f] = fauna_.pos_x[f]; fauna_.prev_z[f] = fauna_.pos_z[f]; }
+	// becomes where the unit landed (m_LastX = m_PrevX = m_X), so GetPreviousPosition is the landing point and
+	// Attack.js's targetVelocity is zero until the next turn starts. The last turn's velocity goes with it.
+	void unit_jumped(size_t i) { unit_reset_prev(i); units_.aim_vx[i] = units_.aim_vz[i] = 0.0f; }
+	void fauna_jumped(size_t f) { fauna_reset_prev(f); fauna_aim_vx_[f] = fauna_aim_vz_[f] = 0.0f; }
+	// The turn-start position alone: a move 0 A.D. makes by MoveTo (UpdateTurretPosition, an occupied turret),
+	// which keeps the walk's velocity as the lead.
+	void unit_reset_prev(size_t i) { units_.prev_x[i] = units_.pos_x[i]; units_.prev_z[i] = units_.pos_z[i]; }
+	void fauna_reset_prev(size_t f) { fauna_.prev_x[f] = fauna_.pos_x[f]; fauna_.prev_z[f] = fauna_.pos_z[f]; }
 	AimTarget unit_aim_target(size_t t) const;
 	AimTarget fauna_aim_target(size_t f) const;
 	// The aim point of an arrow of `speed` from (sx, sz) at `tg` (Attack.js PerformAttack):
@@ -3337,7 +3342,11 @@ private:
 	// UnitMotion.EstimateFuturePosition(dt) of unit t: its position dt on along the path it walks
 	// (its remaining long-path waypoints, or straight at its move goal when it is moving without one),
 	// at its speed with its acceleration (no turn or pushing terms); it stands still otherwise.
-	void unit_future_position(size_t t, float dt, float &x, float &z) const;
+	float attack_stop_distance(size_t i) const;
+		// Whether move_units walks the unit's waypoints now: a move, attack move or patrol, or a task path to its
+		// task's target (a gather, build, return, trade or attack chase path). A stale path is not walked.
+		bool unit_walks_path(size_t t) const;
+		void unit_future_position(size_t t, float dt, float &x, float &z) const;
 	// A uniform draw in [0, 1) from a 64-bit key (splitmix64): the Attack.js randBool, as a pure
 	// function of the shot so the parallel ranged pass draws the same as a sequential one.
 	static float aim_draw(uint64_t key);
