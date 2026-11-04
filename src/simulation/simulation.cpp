@@ -36472,6 +36472,7 @@ void Simulation::petra_manage_defense(float dt) {
 		}
 		bool has_dest = false;
 		float dest_x = 0.0f, dest_z = 0.0f;
+		float dest_r = 0.0f; // defenseArmy.js radius: 0 for a unit centre, the structure's obstruction radius
 		if (n[0] > 0 || n[1] > 0) {
 			const int k = n[0] > 0 ? 0 : 1;
 			dest_x = sum[k][0] / (float)n[k];
@@ -36493,6 +36494,7 @@ void Simulation::petra_manage_defense(float dt) {
 				dist_min = d;
 				dest_x = b.x;
 				dest_z = b.z;
+				dest_r = det::hypot(b.half_size, b.half_d);
 				has_dest = true;
 			}
 		}
@@ -36505,8 +36507,23 @@ void Simulation::petra_manage_defense(float dt) {
 				if (incoming.empty()) incoming = petra_garrison_incoming();
 				if (petra_garrison_attacked_unit((size_t)idx, false, incoming)) continue;
 			}
-			if (has_dest && !mutual_land(units_.pos_x[idx], units_.pos_z[idx])) order_walk(&uid, 1, dest_x, dest_z, false);
-			else cmd_stop(&uid, 1); // stopMoving: a Stop order, which drops what it had queued too
+			if (has_dest && !mutual_land(units_.pos_x[idx], units_.pos_z[idx])) {
+				// moveToRange(x, z, radius, radius + 5 m) (defenseArmy.js:284-286): walk to the band
+				// from the structure's obstruction edge out to 5 m past it, not to its centre. A unit
+				// already in the band is done (the order finishes), so it stops where it is.
+				const float min_r = dest_r, max_r = dest_r + 5.0f / 4.0f; // 5 m in 4 m units
+				const float dx = units_.pos_x[idx] - dest_x, dz = units_.pos_z[idx] - dest_z;
+				const float d = det::hypot(dx, dz);
+				if (d >= min_r && d <= max_r) {
+					cmd_stop(&uid, 1);
+				} else {
+					const float t = std::clamp(d, min_r, max_r);
+					const float ux = d > 1e-3f ? dx / d : 1.0f, uz = d > 1e-3f ? dz / d : 0.0f;
+					order_walk(&uid, 1, dest_x + ux * t, dest_z + uz * t, false);
+				}
+			} else {
+				cmd_stop(&uid, 1); // stopMoving: a Stop order, which drops what it had queued too
+			}
 		}
 		a.defender_ids.clear();
 		a.foe_ids.clear();
