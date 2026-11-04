@@ -2320,7 +2320,7 @@ enum CivRosterFlag : uint16_t {
 	ROSTER_RANGED = 4,
 	ROSTER_CITIZEN = 8,
 	ROSTER_MERCENARY = 16,
-	ROSTER_PACKABLE = 32, // 0 A.D. Pack component (10 s to pack or unpack)
+	ROSTER_PACKABLE = 32, // 0 A.D. Pack component (5 s to pack or unpack: Pack/Time 5000 ms)
 	ROSTER_SIEGE_TOWER = 64,
 	ROSTER_RELIC = 128, // a catafalque (template_unit_catafalque): Capture the Relic
 	ROSTER_NO_GATHER = 256, // a Citizen whose template disables ResourceGatherer (mercenaries)
@@ -3081,7 +3081,7 @@ inline bool template_has_ranged_attack(uint16_t tmpl, uint8_t type, uint8_t civ)
 }
 
 // 0 A.D. Pack.js. Stone throwers and bolt shooters (template_unit_siege_stonethrower.xml,
-// template_unit_siege_boltshooter.xml) carry <Pack><Time>10000</Time></Pack>: they move as
+// template_unit_siege_boltshooter.xml) carry <Pack><Time>5000</Time></Pack>: they move as
 // their "_packed" template and must unpack before they can fire, and pack again to move.
 // A roster unit packs when its 0 A.D. template has a Pack component (ROSTER_PACKABLE), so
 // siege towers and engines that disable Pack (Han Shoushe) are left alone; units without a
