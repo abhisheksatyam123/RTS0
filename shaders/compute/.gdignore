@@ -1,2 +1,0 @@
-Godot skips this folder. los_fow.glsl is compiled at runtime by load_or_compile_compute
-(src/graphics/gpu_separation.cpp), not imported.
