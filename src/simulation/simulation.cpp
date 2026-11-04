@@ -1933,6 +1933,8 @@ void Simulation::rebuild_nav_grid() {
 	// RTS0's 8 m, as wide as a small mine: a navcell a mine only partly covers stays open to long paths,
 	// and units steer round the mine itself (steer_obstacles_). Blocking every navcell a mine touches
 	// would close passages 0 A.D. leaves open, such as a causeway on Snowflake Searocks.
+	// The 1 m subcells each mine's grown square covers (NavGrid::mine_sub), for the long path's legs.
+	nav_grid_.mine_sub.clear();
 	for (size_t r = 0; r < resources_.count; ++r) {
 		nav::Footprint m;
 		if (!resources_.alive[r] || resources_.amount[r] <= 0 || !mine_footprint(r, m)) continue;
@@ -1941,11 +1943,22 @@ void Simulation::rebuild_nav_grid() {
 		auto in = [&](float x, float z) { return nav::footprint_contains(m, x, z, grow); };
 		const auto [x0, y0] = nav_grid_.world_to_cell(m.x - e, m.z - e);
 		const auto [x1, y1] = nav_grid_.world_to_cell(m.x + e, m.z + e);
+		if (nav_grid_.mine_sub.empty()) nav_grid_.mine_sub.assign(nav_grid_.cells.data.size(), 0);
+		const float sub = nav_cell / 8.0f; // 1 m: 0 A.D.'s obstruction navcells are 1 m (Rasterize.cpp)
 		for (int y = y0; y <= y1; ++y)
 			for (int x = x0; x <= x1; ++x) {
 				const float wx = nav_origin.x + (float)x * nav_cell, wz = nav_origin.y + (float)y * nav_cell;
 				if (in(wx, wz) && in(wx + nav_cell, wz) && in(wx, wz + nav_cell) && in(wx + nav_cell, wz + nav_cell))
 					nav_grid_.cells.at(x, y) = NAV_OBSTRUCTED;
+				if (!nav_grid_.cells.inside(x, y)) continue;
+				uint64_t bits = 0;
+				for (int j = 0; j < 8; ++j)
+					for (int i = 0; i < 8; ++i) {
+						const float sx0 = wx + (float)i * sub, sz0 = wz + (float)j * sub;
+						if (in(sx0, sz0) && in(sx0 + sub, sz0) && in(sx0, sz0 + sub) && in(sx0 + sub, sz0 + sub))
+							bits |= uint64_t(1) << (j * 8 + i);
+					}
+				nav_grid_.mine_sub[static_cast<size_t>(y) * nav_grid_.cells.w + x] |= bits;
 			}
 	}
 	// Off-world passability (CCmpPathfinder::UpdateGrid, source/simulation2/components/CCmpPathfinder.cpp:711):
