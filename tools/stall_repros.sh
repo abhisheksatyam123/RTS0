@@ -5,7 +5,7 @@
 # lines for that unit id in the soak log. A fixed case prints none for its id.
 set -u
 SOAK=${1:?usage: stall_repros.sh path/to/soak_match}
-OUT=${OUT:-$(mktemp -d)}
+OUT=${OUT:-$(mktemp -d)}; mkdir -p "$OUT"
 run() { # name unit_id watch_from soak args...
 	local name=$1 uid=$2 from=$3; shift 3
 	timeout 1500 "$SOAK" "$@" --twin --watch "$uid" --watch-from "$from" > "$OUT/$name.log" 2>&1
