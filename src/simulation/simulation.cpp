@@ -208,6 +208,7 @@ static constexpr uint32_t SAVE_VERSION_RALLY = 47; // each structure's rally res
 static constexpr uint32_t SAVE_VERSION_PETRA_STARTED_ATTACKS = 52;
 static constexpr uint32_t SAVE_VERSION_PATROL_WAIT = 58; // each patrolling unit's time at its waypoint
 static constexpr uint32_t SAVE_VERSION_PETRA_CHAT = 66; // Petra chat lines as kind, variant and players; trade-route warnings
+static constexpr uint32_t SAVE_VERSION_PETRA_QUEUE_PLANS = 144; // each queue's first two plans (queue.js plans) beside its accounts
 static constexpr uint32_t SAVE_VERSION_PETRA_QUEUES = 67; // Petra's 0.28 queues: 21 accounts with priorities, paused and switched
 // The save version that added each unit's kept short path (tick_state_io section 1) and the aura
 // sources in force (section 9).
@@ -34056,6 +34057,7 @@ void Simulation::petra_refresh_queue_accounts(float dt) {
 		if (qm.want_age[i] > PetraQueueManager::want_ttl(i)) {
 			qm.wants[i] = PetraQueueAccount{};
 			qm.accounts[i] = PetraQueueAccount{};
+			for (auto &pl : qm.plans[i]) pl = PetraQueuePlan{};
 			qm.switched[i] = 0;
 		}
 	}
@@ -34283,6 +34285,8 @@ bool Simulation::petra_try_pay(uint8_t queue, float food, float wood, float gold
 		w.food = std::max(w.food, food); w.wood = std::max(w.wood, wood);
 		w.gold = std::max(w.gold, gold); w.stone = std::max(w.stone, stone);
 		qm.want_age[queue] = 0.0f;
+		// The head plan is the item this check is for (queue.js plans[0]).
+		qm.plans[queue][0] = PetraQueuePlan{food, wood, gold, stone, 1, {}};
 		return false;
 	}
 	if (!pay) return true;
@@ -34291,6 +34295,9 @@ bool Simulation::petra_try_pay(uint8_t queue, float food, float wood, float gold
 	petra_ps().pay(food, wood, gold, stone); // affordable: checked above
 	w = PetraQueueAccount{};
 	qm.want_age[queue] = 0.0f;
+	// The started plan leaves the queue; the next one is not known until it is checked (stage 1).
+	qm.plans[queue][0] = qm.plans[queue][1];
+	qm.plans[queue][1] = PetraQueuePlan{};
 	qm.switched[queue] = 0;
 	// The started plan's queueToReset goes back to its Config.priorities value.
 	if (const uint8_t r = qm.reset_on_start[queue]) {
@@ -40254,7 +40261,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 					if (v.pending > BLD_TYPE_COUNT) ar.ok = false;
 			} else v = PetraDefenseBuild{};
 		} else if constexpr (std::is_same_v<T, PetraQueueManager>) {
-			if (ar.version >= SAVE_VERSION_PETRA_QUEUES) {
+			if (ar.version >= SAVE_VERSION_PETRA_QUEUE_PLANS) {
 				ar.pod(v);
 				if constexpr (Ar::loading) {
 					for (int q = 0; q < PETRA_Q_COUNT; ++q)
@@ -40262,10 +40269,26 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 					if (v.special_tech >= TECH_COUNT) ar.ok = false; // a former pad byte: 0 in older saves
 				}
 			} else if constexpr (Ar::loading) {
-				// The six coarse queues: their wants come back within a turn, so they restart empty.
-				PetraQueueManagerV59 old;
-				ar.pod(old);
-				v.reset();
+				if (ar.version >= SAVE_VERSION_PETRA_QUEUES) {
+					// v67 to v143: the same queues without their plan lists (which start empty).
+					PetraQueueManagerV143 old;
+					ar.pod(old);
+					for (int q = 0; q < PETRA_Q_COUNT; ++q) {
+						v.accounts[q] = old.accounts[q]; v.wants[q] = old.wants[q]; v.want_age[q] = old.want_age[q];
+						v.priority[q] = old.priority[q]; v.paused[q] = old.paused[q]; v.switched[q] = old.switched[q];
+						v.reset_on_start[q] = old.reset_on_start[q];
+					}
+					v.special_tech = old.special_tech;
+					for (auto &pq : v.plans) for (auto &pl : pq) pl = PetraQueuePlan{};
+					for (int q = 0; q < PETRA_Q_COUNT; ++q)
+						if (v.reset_on_start[q] > PETRA_Q_COUNT) ar.ok = false;
+					if (v.special_tech >= TECH_COUNT) ar.ok = false;
+				} else {
+					// The six coarse queues: their wants come back within a turn, so they restart empty.
+					PetraQueueManagerV59 old;
+					ar.pod(old);
+					v.reset();
+				}
 			}
 		} else if constexpr (std::is_same_v<T, std::vector<S::PetraBaseDropsiteCheck>>) {
 			if (ar.version >= Simulation::SAVE_VERSION_PETRA_HUNT_SEARCH)
