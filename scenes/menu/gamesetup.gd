@@ -1822,15 +1822,11 @@ func _unassign_net_slot(k: int) -> void:
 		net_main.assign_net_client(holder, -1)
 
 ## Host: PlayerAssignmentsController.unassignInvalidPlayers, a lower player count
-## leaves the clients of the dropped slots unassigned.
+## leaves the clients of the dropped slots unassigned. Removed seats keep their index.
 func _unassign_net_slots_from(count: int) -> void:
-	var k := 0
 	for i in _slot_rows.size():
-		if i > 0 and int(_slot_rows[i]["kind"]) == 2:
-			continue
 		if i >= count:
-			_unassign_net_slot(k)
-		k += 1
+			_unassign_net_slot(i)
 
 ## The AI dialog's AI Player: Petra makes the slot an AI, None an unassigned one.
 func _set_slot_kind(slot: int, kind: int) -> void:
@@ -2411,8 +2407,7 @@ func _collect_setup() -> Dictionary:
 		var k := int(_slot_rows[i]["kind"])
 		if i == 0:
 			k = mini(k, 1) # Human or AI, never closed
-		if k == 2:
-			continue # closed: 0 A.D. drops the slot, so later players move up
+		# Removed (2) keeps its seat: 0 A.D. PlayerRemoved defeats it at start, so later players keep their numbers.
 		if k == 0 and i == _local_slot:
 			local = types.size()
 		types.append(k)
@@ -2978,14 +2973,13 @@ func _process(delta: float) -> void:
 		_host_write_setup(false)
 	_apply_mp_locks() # controls the page rebuilt since
 
-## The rows that are in the setup (Closed slots are dropped, as at Start):
-## the setup's slot k is row _net_rows()[k].
+## The rows that are in the setup. Removed seats stay (0 A.D. keeps the seat and defeats it
+## at start), so the setup's slot k is row _net_rows()[k].
 func _net_rows() -> Array:
 	var rows: Array = []
 	var n := mini(int(_slot_count_node().value), _slot_rows.size())
 	for i in range(n):
-		if i == 0 or int(_slot_rows[i]["kind"]) != 2:
-			rows.append(i)
+		rows.append(i)
 	return rows
 
 ## Host: the page into MatchSettings, which RtsoMain sends when it changed.
