@@ -59,6 +59,7 @@
 #include <tuple>
 #include <unordered_map>
 #include <vector>
+#include <unistd.h>
 
 using namespace rtso;
 
@@ -408,8 +409,9 @@ int main(int argc, char **argv) {
 		const int sec = t / 5;
 		Simulation &s = *a;
 		if (save_at >= 0.0 && !c && sec >= (int)(save_at * 60.0)) {
-			// Per map: a sweep runs skirmish (--json) matches side by side, so the map id alone would collide.
-			const std::string path = "/tmp/soak_" + std::to_string(seed) + "_" + (json.empty() ? std::to_string(map) : json) + ".sav";
+			// Per process too: runs with the same seed and map (a bisect, or a sweep's repeats) started at
+			// once would otherwise reload each other's save.
+			const std::string path = "/tmp/soak_" + std::to_string(getpid()) + "_" + std::to_string(seed) + "_" + (json.empty() ? std::to_string(map) : json) + ".sav";
 			c = std::make_unique<Simulation>();
 			const bool saved = s.save_state(path.c_str());
 			const bool loaded = saved && c->load_state(path.c_str());

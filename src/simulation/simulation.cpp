@@ -38889,7 +38889,10 @@ bool Simulation::save_state(const char *filepath) const {
 
 	// 6. v15: everything else a tick reads (tools/test_save_hash.cpp checks it)
 	save_tick_state(out);
-	return true;
+	// A full disk makes the writes above fail silently. Report that here, or the caller gets a
+	// truncated file and a load failure that looks like a save/load bug.
+	out.flush();
+	return out.good();
 }
 
 bool Simulation::load_state(const char *filepath) {
