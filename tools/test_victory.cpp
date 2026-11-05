@@ -1497,6 +1497,31 @@ int main() {
 		CHECK(sim->is_game_over() && sim->winner_mask_ == 0b101);
 		delete sim;
 	}
+	// 7d. Removed Game Setup seat (PlayerRemoved.js + InitGame.js): the seat is defeated at
+	// start and everything it owns turns Gaia, so it is no longer a live enemy.
+	{
+		Simulation *sim = fresh(VICTORY_CONQUEST);
+		sim->set_player_active(1, false, false); // slot 'x' as session_setup seats it
+		size_t owned = 0;
+		for (size_t u = 0; u < sim->units_.count; ++u) owned += sim->units_.team[u] == 1;
+		for (auto &b : sim->buildings_) owned += b.team == 1;
+		CHECK(owned > 0);
+		CHECK(sim->remove_seat(1));
+		CHECK(sim->is_defeated(1));
+		for (size_t u = 0; u < sim->units_.count; ++u) CHECK(sim->units_.team[u] != 1);
+		for (auto &b : sim->buildings_) CHECK(b.team != 1);
+		CHECK(!sim->is_defeated(0));
+		run(*sim, 1.0f);
+		CHECK(!sim->is_defeated(0));
+		CHECK(!sim->remove_seat(1)); // already defeated: nothing to do
+		// A seat with nothing on the map is not defeated (no defeat triggers, no participant).
+		size_t owned15 = 0;
+		for (size_t u = 0; u < sim->units_.count; ++u) owned15 += sim->units_.team[u] == 15;
+		for (auto &b : sim->buildings_) owned15 += b.team == 15;
+		CHECK(sim->remove_seat(15) == (owned15 > 0));
+		CHECK(sim->is_defeated(15) == (owned15 > 0));
+		delete sim;
+	}
 
 	if (failures) {
 		std::printf("%d check(s) failed\n", failures);

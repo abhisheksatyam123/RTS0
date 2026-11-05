@@ -560,7 +560,7 @@ def play_setup_leave(args, lobby):
     warning = said("setup_net_warning", "host")
     status = said("setup_status")
     moved = said("moved_to_observers")
-    ok = (host.returncode == 0 and join.returncode == 0 and moved == "Observers: bob"
+    ok = (host.returncode == 0 and join.returncode == 0 and moved == "Observer:|bob"
           and status == ("Lost connection to the server. |  | The host has ended the game. reason=2 saw_page=true page=true"
                      " chat_input=false ready_off=true box_layer=20")
           and said("setup_exit_scene") == "res://scenes/menu/lobby.tscn"
@@ -572,7 +572,7 @@ def play_setup_leave(args, lobby):
         for line in gmp_lines(outs[role]):
             print("   " + line)
     if ok:
-        print("[gmp] PASS the host's player assignment made bob an observer; his page listed: Observers: bob")
+        print("[gmp] PASS the host's player assignment made bob an observer; his page listed: Observer, then bob")
         print(f"[gmp] PASS the host chose Random and picked {said('random_pick', 'host').split()[0]}; the client's setup showed Random")
         print(f"[gmp] PASS bob froze in the setup; the host's setup page showed over it: {warning}")
         print(f"[gmp] PASS the host left the setup; the client's page stayed behind: {status.split(' reason=')[0]}; "

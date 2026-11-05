@@ -33,7 +33,7 @@
 //   - [stats]: statistics that go wrong (a counter that drops, trained units below the
 //     living units bought since the start, map explored or controlled outside 0-100, a missing 30 s sample).
 // Build (one line):
-//   g++ -std=c++20 -O2 -Isrc tools/soak_match.cpp src/simulation/simulation.cpp
+//   g++ -std=c++20 -O2 -Isrc -Itools tools/soak_match.cpp src/simulation/simulation.cpp src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp src/network/net_host.cpp -lpthread -o soak_match
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp
 //       src/network/net_host.cpp -lpthread -o /tmp/soak_match
 //   /tmp/soak_match --map 15 --civs 0,1,2,3 --minutes 30 --size 256 --seed 7 --twin
