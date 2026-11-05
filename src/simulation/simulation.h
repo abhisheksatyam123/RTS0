@@ -4030,7 +4030,9 @@ private:
 	                                  bool must_start = false, bool note = true) const;
 	uint8_t petra_enemy_player(uint8_t kind, bool first = true, bool *gaia_relics = nullptr) const;
 	uint32_t petra_nearest_target(uint8_t kind, bool forced, uint8_t enemy, float px, float pz, uint16_t same_land, float &out_tx, float &out_tz) const;
-	uint32_t find_petra_raid_target(float &out_tx, float &out_tz) const;
+	// from: a raid retargeting from its squad's position takes the nearest entry (getNearestTarget);
+	// without one, the first listed (attackManager's initial pick).
+	uint32_t find_petra_raid_target(float &out_tx, float &out_tz, const std::vector<uint32_t> *from_squad = nullptr) const;
 	bool petra_defense_target(const Building &b) const; // defenseManager.js targetList
 	uint8_t petra_target_owner(uint32_t id) const;
 	bool petra_defendable(float x, float z) const;
