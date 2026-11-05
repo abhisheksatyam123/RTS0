@@ -33184,13 +33184,20 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 			const size_t away = petra_go_home(squad, ret_x, ret_z, PETRA_TRANSPORT_ATTACK, plan.state_timer <= petra_turn_dt_ + 1e-3f);
 			// attackPlan.js Abort: each unit leaves the plan at once, its move order given
 			// (removeUnit), free for the defense and the economy on the way. RTS0 keeps those on
-			// another land, which wait for a ship home.
+			// another land, which wait for a ship home, except one on a land with no sea link to
+			// the withdrawal land: petra_go_home never ships it, so it is released as
+			// petra_abort_plan releases stranded units, and the next plan ships it.
 			{
+				uint16_t home = 0;
+				const PetraNavalTopo &topo = petra_classified_topo(home);
 				const uint16_t dest = petra_land_at(ret_x, ret_z);
 				std::vector<uint32_t> keep;
 				for (uint32_t uid : squad) {
 					const int32_t k = lookup_unit(uid);
-					if (k >= 0 && units_.alive[k] && !petra_passenger(uid) && petra_land_at(units_.pos_x[k], units_.pos_z[k]) == dest) petra_out_of_plan(uid);
+					if (k < 0 || !units_.alive[k] || petra_passenger(uid)) { keep.push_back(uid); continue; }
+					const uint16_t land = petra_land_at(units_.pos_x[k], units_.pos_z[k]);
+					const bool stranded = topo.naval_map && land && dest && !topo.sea_between(land, dest);
+					if (land == dest || stranded) petra_out_of_plan(uid);
 					else keep.push_back(uid);
 				}
 				squad.swap(keep);
