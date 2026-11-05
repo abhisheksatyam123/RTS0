@@ -12506,9 +12506,16 @@ bool Simulation::unit_running(size_t i) const {
 	if (st != ACTION_ATTACK || units_.target_unit_id[i] == 0) return false;
 	const uint32_t tid = units_.target_unit_id[i];
 	if (units_.chase_target[i] != tid) return false; // APPROACHING
-	const int32_t t = lookup_unit(tid);
+	// Still in range (ATTACKING): nothing moves, so the target's state now is what counts.
+	if (units_.chase_run[i] & CHASE_RANGE_BIT) return unit_chase_fleeing(tid);
+	// CHASING: the run was decided when the chase began (CHASING enter), not on each tick.
+	return (units_.chase_run[i] & CHASE_RUN_BIT) != 0;
+}
+
+bool Simulation::unit_chase_fleeing(uint32_t target_id) const {
+	const int32_t t = lookup_unit(target_id);
 	if (t >= 0) return units_.alive[t] && units_.action_state[t] == ACTION_FLEE;
-	auto f = fauna_id_to_idx_.find(tid);
+	auto f = fauna_id_to_idx_.find(target_id);
 	return f != fauna_id_to_idx_.end() && fauna_.alive[f->second] && fauna_.behavior[f->second] == FAUNA_FLEE;
 }
 
@@ -18300,6 +18307,14 @@ void Simulation::tick_combat(float dt) {
 			p.new_order_flags = units_.order_flags[i] | ORDER_FLAG_CHEER;
 			p.order_flags_modified = true;
 			p.new_chase = units_.id[t];
+			// At the target (ATTACKING): the run is decided again when the chase begins.
+			p.new_run = (units_.chase_target[i] == p.new_chase ? (units_.chase_run[i] & CHASE_RUN_BIT) : 0) | CHASE_RANGE_BIT;
+			p.chase_modified = true;
+		} else if (units_.chase_target[i] == units_.id[t] && (units_.chase_run[i] & CHASE_RANGE_BIT)) {
+			// CHASING enter: the target has moved out of range, so the run is decided now
+			// (UnitAI CHASING "enter": a fleeing target is run after).
+			p.new_chase = units_.id[t];
+			p.new_run = unit_chase_fleeing(p.new_chase) ? CHASE_RUN_BIT : 0;
 			p.chase_modified = true;
 		}
 
@@ -18376,7 +18391,10 @@ void Simulation::tick_combat(float dt) {
 		if (p.target_idx < 0) continue;
 
 		if (p.order_flags_modified) units_.order_flags[i] = p.new_order_flags;
-		if (p.chase_modified) units_.chase_target[i] = p.new_chase;
+		if (p.chase_modified) {
+			units_.chase_target[i] = p.new_chase;
+			units_.chase_run[i] = p.new_run;
+		}
 		if (p.timer_modified) units_.attack_timer[i] = p.new_timer;
 		if (p.late_cleared && i < attack_late_.size()) attack_late_[i] = 0.0f;
 		if (p.action_modified) units_.action_state[i] = p.new_action_state;
@@ -39837,6 +39855,8 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		}
 		if (ar.version >= S::SAVE_VERSION_CHASE_TARGET) ar.pod(U.chase_target[i]);
 		else U.chase_target[i] = 0; // a chase under way walks until the next strike
+		if (ar.version >= S::SAVE_VERSION_CHASE_RUN) ar.pod(U.chase_run[i]);
+		else U.chase_run[i] = 0; // a chase saved before the run latch walks until its next strike
 		if (ar.version >= S::SAVE_VERSION_GATHER_CLAIMS) {
 			ar.pod(U.gather_claim_res[i]); ar.pod(U.gather_claim[i]);
 		} else {
@@ -41974,7 +41994,12 @@ void Simulation::tick_hunters() {
 		// The animal's footprint. Slaughter's MaxRange is 2 m even for archers, who walk up to it.
 		const float reach = (slaughter ? SLAUGHTER_RANGE : units_.attack_range[i]) + finfo.footprint;
 		const bool in_reach = dx * dx + dz * dz <= reach * reach;
-		if (in_reach) units_.chase_target[i] = tid; // COMBAT.ATTACKING: CHASING follows it from here
+		if (in_reach) { // COMBAT.ATTACKING: CHASING follows it from here
+			units_.chase_run[i] = (units_.chase_target[i] == tid ? (units_.chase_run[i] & CHASE_RUN_BIT) : 0) | CHASE_RANGE_BIT;
+			units_.chase_target[i] = tid;
+		} else if (units_.chase_target[i] == tid && (units_.chase_run[i] & CHASE_RANGE_BIT)) {
+			units_.chase_run[i] = unit_chase_fleeing(tid) ? CHASE_RUN_BIT : 0; // CHASING enter
+		}
 		if (!attack_ready(i, in_reach, slaughter ? SLAUGHTER_PREPARE : unit_combat_at(i).prepare)) continue;
 
 		float dmg;

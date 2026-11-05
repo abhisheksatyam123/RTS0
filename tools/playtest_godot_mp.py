@@ -81,6 +81,8 @@ def main():
     ok = play_late_observer(args, lobby) and ok
     ok = play_rejoin(args, lobby) and ok
     ok = play_four(args, lobby) and ok
+    ok = play_mixed(args, lobby) and ok
+    ok = play_mixed(args, lobby, save=True) and ok
     ok = play_setup_leave(args, lobby) and ok
     ok = play_connect_timeout(args, lobby) and ok
     ok = play_connect_cancel(args, lobby) and ok
@@ -217,6 +219,57 @@ def play_four(args, lobby):
         return True
     print(f"[gmp] FAIL four players: rc={[p.returncode for _, p in procs]} hashes={hashes} "
           f"seats={[done[r].get('seat') for r in done]} late={late_got}")
+    return False
+
+
+def play_mixed(args, lobby, save=False):
+    """Two people and two Petra seats, in one match. The Petra seats play on
+    with the people; the two people's turn hashes must match at the last turn.
+    With save, the match is first played alone and saved (both people in a
+    mixed setup), then the host hosts that save and the joiner loads its world
+    and resumes it (0 A.D. Host Saved Game)."""
+    label = "a mixed match saved and resumed" if save else "a mixed match"
+    print(f"[gmp] ---- {label}: two people and two Petra seats ----")
+    port = args.port + (8 if save else 9)
+    mixed = ("players=4", "humans=2")
+    if save:
+        maker = _godot_client(args, lobby, port, "make_save", "alice", "saves=gmp_mixed", *mixed)
+        maker.wait(timeout=args.timeout)
+        out_save = _godot_output(maker)
+        if maker.returncode != 0 or "saved gmp_mixed" not in out_save:
+            print("\n".join(out_save.splitlines()[-20:]))
+            print("[gmp] FAIL could not make the mixed save")
+            return False
+        host = _godot_client(args, lobby, port, "host", "alice", "saved=gmp_mixed", *mixed)
+    else:
+        host = _godot_client(args, lobby, port, "host", "alice", *mixed)
+    time.sleep(2.0)
+    bob = _godot_client(args, lobby, port, "join", "bob")
+    outs = {}
+    for role, p in (("bob", bob), ("host", host)):
+        try:
+            p.wait(timeout=args.timeout + 60)
+        except subprocess.TimeoutExpired:
+            p.kill()
+            p.wait()
+        outs[role] = _godot_output(p)
+    h, b = _done_line(outs["host"]), _done_line(outs["bob"])
+    resumed = ("HOST continues saved game" in outs["host"] and "rejoined as client" in outs["bob"]
+               if save else True)
+    ok = (host.returncode == 0 and bob.returncode == 0 and h and b and resumed
+          and h.get("hash") == b.get("hash") and h.get("hash") not in (None, "00000000")
+          and h.get("seat") == "0" and b.get("seat") == "1"
+          # A resumed save: the host's MatchSettings keep no slot arrays (its
+          # sim comes from the save), so only the joiner's count is read there.
+          and (save or h.get("ai_seats") == "2") and b.get("ai_seats") == "2")
+    for role in ("host", "bob"):
+        for line in gmp_lines(outs[role]):
+            print("   " + role + " " + line)
+    if ok:
+        print(f"[gmp] PASS {label}: two people (seats 0 and 1) and two Petra seats hash the same at turn "
+              f"{args.turns} ({h['hash']})")
+        return True
+    print(f"[gmp] FAIL {label} rc host/bob={host.returncode}/{bob.returncode} host={h} bob={b} resumed={resumed}")
     return False
 
 
