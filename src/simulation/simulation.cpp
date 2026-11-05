@@ -16548,6 +16548,8 @@ void Simulation::tick_gather(float dt) {
 		// takes it). An idle full worker stays put, as in UnitAI IDLE (Petra sends it with
 		// ReturnResource); a full worker the player walks elsewhere or sends to fight keeps
 		// its order.
+		// A unit already returning re-picks its dropsite without a new leg: 0.28's re-sent order keeps its walk.
+		const bool was_returning = units_.action_state[i] == ACTION_RETURN_DROPSITE;
 		if ((units_.action_state[i] == ACTION_GATHER && full_for_target(i)) ||
 				units_.action_state[i] == ACTION_RETURN_DROPSITE) {
 			float best_d2 = 1e9f;
@@ -16678,6 +16680,7 @@ void Simulation::tick_gather(float dt) {
 					units_.target_z[i] = drop_z;
 					units_.has_order[i] = 1;
 					units_.action_state[i] = ACTION_RETURN_DROPSITE;
+					if (!was_returning) units_.motion[i].failed = 0; // a new leg is a new MoveTo, which resets the count (0.28 APPROACHING enter)
 				}
 			} else {
 				// RETURNINGRESOURCE enter with no dropsite (FindNearestDropsite null): FinishOrder,
@@ -16851,6 +16854,7 @@ void Simulation::tick_gather(float dt) {
 						(resources_.subtype[ridx] == RES_SUB_NONE || resources_.subtype[ridx] == RES_SUB_GRAIN));
 					if (units_.carry[i] >= carry_cap(i, rt) || resources_.amount[ridx] <= 0) {
 						if (units_.carry[i] >= carry_cap(i, rt)) {
+							units_.motion[i].failed = 0; // a full gatherer's new return leg (0.28 APPROACHING enter)
 							units_.action_state[i] = ACTION_RETURN_DROPSITE;
 							units_.target_x[i] = units_.pos_x[i]; // no pick yet: tick_gather takes the nearest
 							units_.target_z[i] = units_.pos_z[i];
