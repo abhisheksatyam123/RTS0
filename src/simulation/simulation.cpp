@@ -9429,6 +9429,7 @@ void Simulation::kill_passengers_of(size_t holder) {
 		const int32_t p = lookup_unit(puid);
 		if (p < 0) continue;
 		units_.hp[p] = 0.0f;
+		if (units_.hp[p] < 0.0f) units_.hp[p] = 0.0f; // Health.Reduce: a unit killed by overkill is at 0, not below
 		units_.alive[p] = 0;
 		units_.action_state[p] = ACTION_DYING;
 		record_unit_death((size_t)p, 0xFF);
@@ -9479,6 +9480,7 @@ void Simulation::eject_foreign_passengers(size_t transport) {
 		it->second.erase(at);
 		const int32_t p = lookup_unit(puid);
 		units_.hp[p] = 0.0f;
+		if (units_.hp[p] < 0.0f) units_.hp[p] = 0.0f; // Health.Reduce: a unit killed by overkill is at 0, not below
 		units_.alive[p] = 0;
 		units_.action_state[p] = ACTION_DYING;
 		if (units_.team[p] == 0) record_.units_lost++;
@@ -9520,6 +9522,7 @@ void Simulation::tick_siege_garrisons() {
 			float ex = cx, ez = cz;
 			if (!siege_spawn_point(i, units_.unit_type[p], puid, cx, cz, ex, ez)) {
 				units_.hp[p] = 0.0f;
+				if (units_.hp[p] < 0.0f) units_.hp[p] = 0.0f; // Health.Reduce: a unit killed by overkill is at 0, not below
 				units_.alive[p] = 0;
 				units_.action_state[p] = ACTION_DYING;
 				if (units_.team[p] == 0) record_.units_lost++;
@@ -9576,6 +9579,7 @@ void Simulation::unload_sunk_ship(size_t ship) {
 			units_.vel_x[p] = units_.vel_z[p] = 0.0f;
 		} else {
 			units_.hp[p] = 0.0f;
+			if (units_.hp[p] < 0.0f) units_.hp[p] = 0.0f; // Health.Reduce: a unit killed by overkill is at 0, not below
 			units_.alive[p] = 0;
 			units_.action_state[p] = ACTION_DYING;
 			if (units_.team[p] == 0) record_.units_lost++;
@@ -9691,6 +9695,7 @@ void Simulation::garrison_now(size_t i, Building &b) {
 	// GARRISONING enter: a dropsite takes what the unit carries.
 	if (units_.carry[i] > 0 && dropsite_accepts(i, b)) deposit_carry(i);
 	units_.action_state[i] = ACTION_GARRISONED;
+	if (units_.hp[i] < 0.0f) units_.hp[i] = 0.0f; // Health.Reduce: a unit killed by overkill is at 0, not below
 	units_.alive[i] = 0;
 	units_.has_order[i] = 0;
 	units_.vel_x[i] = 0.0f;
@@ -10876,6 +10881,7 @@ void Simulation::eject_or_kill(Building &b, uint8_t keep_allies_of) {
 		const int32_t i = lookup_unit(uid);
 		if (i < 0) continue;
 		units_.hp[i] = 0.0f;
+		if (units_.hp[i] < 0.0f) units_.hp[i] = 0.0f; // Health.Reduce: a unit killed by overkill is at 0, not below
 		units_.alive[i] = 0;
 		units_.action_state[i] = ACTION_DYING; // Health.Kill
 		record_unit_death((size_t)i, 0xFF);
@@ -11303,6 +11309,7 @@ void Simulation::order_board_transport(const uint32_t *unit_ids, size_t count, u
 		if (d2 <= reach * reach && pack_state_can_move(units_.pack_state[uidx]) &&
 				occupied_slots(passengers) + garrison_size((size_t)uidx) <= max_cap) {
 			units_.action_state[uidx] = ACTION_GARRISONED;
+			if (units_.hp[uidx] < 0.0f) units_.hp[uidx] = 0.0f; // Health.Reduce: a unit killed by overkill is at 0, not below
 			units_.alive[uidx] = 0;
 			units_.has_order[uidx] = 0;
 			units_.vel_x[uidx] = 0.0f;
@@ -13611,6 +13618,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 					int max_pcap = get_transport_capacity(units_.id[tidx]);
 					if (occupied_slots(passengers) + garrison_size(i) <= max_pcap) {
 						units_.action_state[i] = ACTION_GARRISONED;
+						if (units_.hp[i] < 0.0f) units_.hp[i] = 0.0f; // Health.Reduce: a unit killed by overkill is at 0, not below
 						units_.alive[i] = 0;
 						units_.has_order[i] = 0;
 						units_.vel_x[i] = 0.0f;
@@ -15368,6 +15376,7 @@ void Simulation::tick_flight(float dt) {
 		}
 		if (killed) {
 			units_.hp[i] = 0.0f;
+			if (units_.hp[i] < 0.0f) units_.hp[i] = 0.0f; // Health.Reduce: a unit killed by overkill is at 0, not below
 			units_.alive[i] = 0;
 			units_.action_state[i] = ACTION_DYING;
 			units_.has_order[i] = 0;
@@ -18398,6 +18407,7 @@ void Simulation::tick_combat(float dt) {
 			apply_status((size_t)t, unit_combat_at(i), units_.id[i], units_.team[i]);
 
 			if (units_.hp[t] <= 0) {
+				if (units_.hp[t] < 0.0f) units_.hp[t] = 0.0f; // Health.Reduce: a unit killed by overkill is at 0, not below
 				units_.alive[t] = 0;
 				units_.action_state[t] = ACTION_DYING;
 				note_kill(units_.id[i], units_.id[t]);
@@ -19011,6 +19021,7 @@ void Simulation::tick_combat(float dt) {
 		units_.hp[u] += dt * burn;
 		if (units_.hp[u] > 0.0f) continue;
 		units_.hp[u] = 0.0f;
+		if (units_.hp[u] < 0.0f) units_.hp[u] = 0.0f; // Health.Reduce: a unit killed by overkill is at 0, not below
 		units_.alive[u] = 0;
 		units_.action_state[u] = ACTION_DYING;
 		record_unit_death(u, units_.team[u]);
@@ -19030,6 +19041,7 @@ void Simulation::tick_combat(float dt) {
 			units_.hp[u] += dt * healMod;
 			if (units_.hp[u] > 0.0f) continue;
 			units_.hp[u] = 0.0f;
+			if (units_.hp[u] < 0.0f) units_.hp[u] = 0.0f; // Health.Reduce: a unit killed by overkill is at 0, not below
 			units_.alive[u] = 0;
 			units_.action_state[u] = ACTION_DYING;
 			record_unit_death(u, units_.team[u]);
@@ -19734,6 +19746,7 @@ void Simulation::tick_projectiles(float dt) {
 					if (p.status_effect != 0)
 						if (const CombatProfile *att = projectile_status_profile(p)) apply_status((size_t)tidx, *att, p.source_id, p.team);
 					if (units_.hp[tidx] <= 0) {
+						if (units_.hp[tidx] < 0.0f) units_.hp[tidx] = 0.0f; // Health.Reduce: a unit killed by overkill is at 0, not below
 						units_.alive[tidx] = 0;
 						units_.action_state[tidx] = ACTION_DYING;
 						note_kill(p.source_id, units_.id[tidx]);
@@ -20061,6 +20074,7 @@ bool Simulation::status_tick(const StatusInstance &st) {
 						guard_answer(k, i, st.src);
 			return true;
 		}
+		if (units_.hp[i] < 0.0f) units_.hp[i] = 0.0f; // Health.Reduce: a unit killed by overkill is at 0, not below
 		units_.alive[i] = 0;
 		units_.action_state[i] = ACTION_DYING;
 		note_kill(st.src, units_.id[i]);
@@ -21001,6 +21015,7 @@ void Simulation::tick_death_damage(float dt) {
 			units_.hp[i] -= dmg;
 			if (units_.hp[i] > 0.0f) continue;
 			units_.hp[i] = 0.0f;
+			if (units_.hp[i] < 0.0f) units_.hp[i] = 0.0f; // Health.Reduce: a unit killed by overkill is at 0, not below
 			units_.alive[i] = 0;
 			units_.action_state[i] = ACTION_DYING;
 			stat_unit_lost(i, owner); // the dead entity's owner deals it
@@ -21178,6 +21193,7 @@ void Simulation::cause_damage_over_area(uint8_t splash, uint32_t attacker_id, ui
 		if (units_.team[u] == 0)
 			raise_alert(BattleAlert::ALERT_UNDER_ATTACK, units_.pos_x[u], units_.pos_z[u], units_.id[u], units_.team[u]);
 		if (units_.hp[u] > 0.0f) continue;
+		if (units_.hp[u] < 0.0f) units_.hp[u] = 0.0f; // Health.Reduce: a unit killed by overkill is at 0, not below
 		units_.alive[u] = 0;
 		units_.action_state[u] = ACTION_DYING;
 		note_kill(attacker_id, units_.id[u]);
@@ -23006,6 +23022,7 @@ void Simulation::cmd_delete(uint8_t player, const uint32_t *ids, size_t count) {
 		if (i >= 0 && units_.alive[i] && (units_.team[i] == player || control_all)) {
 			const uint8_t owner = units_.team[i];
 			units_.hp[i] = 0.0f;
+			if (units_.hp[i] < 0.0f) units_.hp[i] = 0.0f; // Health.Reduce: a unit killed by overkill is at 0, not below
 			units_.alive[i] = 0;
 			units_.action_state[i] = ACTION_DYING;
 			order_queues_.erase(id);
@@ -23073,6 +23090,7 @@ bool Simulation::cmd_cheat(uint8_t player, uint8_t action, int32_t parameter, ui
 			if (i >= 0) {
 				if (!units_.alive[i] || is_relic_unit(i)) continue;
 				units_.hp[i] = 0.0f;
+				if (units_.hp[i] < 0.0f) units_.hp[i] = 0.0f; // Health.Reduce: a unit killed by overkill is at 0, not below
 				units_.alive[i] = 0;
 				units_.action_state[i] = ACTION_DYING;
 				order_queues_.erase(selected[k]);
@@ -41860,6 +41878,7 @@ void Simulation::fauna_hit_unit(size_t f, size_t u) {
 	if (units_.team[u] < MAX_PLAYERS && petra_runs_for(units_.team[u]))
 		petra_ev_attacked_.push_back({(uint32_t)ticks_ + 1, units_.id[u], fauna_.id[f]});
 	if (units_.hp[u] <= 0.0f) {
+		if (units_.hp[u] < 0.0f) units_.hp[u] = 0.0f; // Health.Reduce: a unit killed by overkill is at 0, not below
 		units_.alive[u] = 0;
 		units_.action_state[u] = ACTION_DYING;
 		record_unit_death(u, GAIA_PLAYER);
@@ -45097,6 +45116,7 @@ void Simulation::trigger_survival_ownership(const TriggerEventData &data) {
 		if (u >= 0 && units_.alive[u]) {
 			// Engine.DestroyEntity: gone, not killed.
 			units_.hp[u] = 0.0f;
+			if (units_.hp[u] < 0.0f) units_.hp[u] = 0.0f; // Health.Reduce: a unit killed by overkill is at 0, not below
 			units_.alive[u] = 0;
 			units_.action_state[u] = ACTION_DYING;
 			units_.has_order[u] = 0;
@@ -45216,6 +45236,7 @@ void Simulation::tutorial_remove_champions() {
 		const TechClasses c = t < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(t).tech_classes : unit_tech_classes(units_.unit_type[i]);
 		if (!(c & TC_CHAMPION) || --keep >= 0) continue;
 		units_.hp[i] = 0.0f; // Health.Kill
+		if (units_.hp[i] < 0.0f) units_.hp[i] = 0.0f; // Health.Reduce: a unit killed by overkill is at 0, not below
 		units_.alive[i] = 0;
 		units_.action_state[i] = ACTION_DYING;
 		units_.has_order[i] = 0;
@@ -46495,6 +46516,7 @@ void Simulation::set_water_level(float h, float drown_depth) {
 		if (!units_.alive[i] || unit_is_ship(units_.unit_type[i])) continue;
 		if (!submerged(units_.pos_x[i], units_.pos_z[i])) continue;
 		units_.hp[i] = 0.0f;
+		if (units_.hp[i] < 0.0f) units_.hp[i] = 0.0f; // Health.Reduce: a unit killed by overkill is at 0, not below
 		units_.alive[i] = 0;
 		units_.action_state[i] = ACTION_DYING;
 		units_.has_order[i] = 0;
@@ -46516,6 +46538,7 @@ void Simulation::set_water_level(float h, float drown_depth) {
 			const int32_t u = lookup_unit(uid);
 			if (u < 0) continue;
 			units_.hp[u] = 0.0f;
+			if (units_.hp[u] < 0.0f) units_.hp[u] = 0.0f; // Health.Reduce: a unit killed by overkill is at 0, not below
 			units_.alive[u] = 0;
 			units_.action_state[u] = ACTION_DYING;
 			units_.pos_x[u] = b.x;
