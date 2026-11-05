@@ -265,6 +265,31 @@ int main() {
 		if (!nav.line_clear(11, 10, 15, 10, PASS_INFANTRY) || nav.line_clear(9, 11, 12, 11, PASS_INFANTRY))
 			fail("leaving a blocked navcell", 0, 11, 10, 15, 10, 0, 1);
 	}
+	// A point goal on a blocked navcell ends on the passable navcell it snaps to: 0 A.D.'s
+	// MakeGoalReachable moves an unreachable point goal to the centre of the nearest reachable navcell
+	// (HierarchicalPathfinder::CreatePointGoalAt, HierarchicalPathfinder.cpp:681-718). The last waypoint
+	// must be walkable and near the goal; before the fix it was the goal point itself, inside the block,
+	// where a unit stalls aiming at ground it cannot enter.
+	{
+		NavGrid nav;
+		nav.init(64.f, RES);
+		for (int y = 28; y <= 32; ++y)
+			for (int x = 28; x <= 32; ++x) nav.cells.at(x, y) = NAV_OBSTRUCTED;
+		// The block's middle navcell (30, 30) is centred at (-3, -3): navcells are 2 m here.
+		const float gx = -3.0f, gz = -3.0f;
+		WaypointPath wp;
+		const bool ok = nav.find_path(-40.0f, -3.0f, gx, gz, wp, PASS_INFANTRY);
+		if (!ok || wp.count < 1) {
+			fail("a path to a point on a blocked navcell is found", 0, 30, 30, 30, 30, wp.count, 1);
+		} else {
+			const float ex = wp.xs[wp.count - 1], ez = wp.zs[wp.count - 1];
+			const auto [ecx, ecy] = nav.world_to_cell(ex, ez);
+			const float dist = std::hypot(ex - gx, ez - gz);
+			if (nav.cells.at(ecx, ecy) != NAV_PASSABLE || dist > 6.1f)
+				fail("a point goal on a blocked navcell ends on the passable navcell it snaps to", 0, ecx, ecy, 30, 30,
+						static_cast<long>(dist * 100.0f), 610);
+		}
+	}
 	// A start on a blocked navcell (a unit pressed on a wall) moves to the nearest open one, as
 	// LongPathfinder's FindNearestPassableNavcell does: the row above the wall it stands at, not the
 	// first open navcell of a scan from below, which would start its path on the wall's far side.
