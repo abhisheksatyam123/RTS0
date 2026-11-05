@@ -46,6 +46,8 @@ func _run() -> void:
 	var turns := int(args.get("turns", "150"))
 	var deadline := Time.get_ticks_msec() + int(args.get("timeout", "240")) * 1000
 	var ms = root.get_node("MatchSettings")
+	# players=N: the host's human seats (default 2, the joiner takes the second).
+	var need: int = int(args.get("players", "2"))
 	if args.has("stun"):
 		# The playtest's own STUN responder (tools/lobby_server.py serve_stun).
 		RtsoUserConfig.new().set_value("lobby.stun.port", args["stun"])
@@ -54,13 +56,18 @@ func _run() -> void:
 		# gamesetup.gd persists in matchsettings.mp.json.
 		DirAccess.remove_absolute(ProjectSettings.globalize_path("user://config/matchsettings.mp.json"))
 	if role == "host" or role == "make_save":
-		# Two human slots: the joiner takes the second.
-		ms.slot_types = [0, 0]
-		ms.slot_civs = [0, 1]
-		ms.slot_teams = [0, 0]
-		ms.player_count = 2
+		# Human slots, one per player: the joiners take the others.
+		ms.slot_types = []
+		ms.slot_civs = []
+		ms.slot_teams = []
+		ms.slot_colors = []
+		for i in need:
+			ms.slot_types.append(0)
+			ms.slot_civs.append(i)
+			ms.slot_teams.append(0)
+			ms.slot_colors.append(i)
+		ms.player_count = need
 		ms.map_size = 128
-		ms.slot_colors = [0, 1]
 		ms.game_speed = 1.5
 	if role == "make_save":
 		await _make_save(ms, args.get("saves", "mp_saved"))
@@ -294,7 +301,8 @@ func _run() -> void:
 				var civs: Array = ms.slot_civs
 				var teams: Array = ms.slot_teams
 				var cols: Array = ms.slot_colors
-				var got: bool = slot < civs.size() and int(civs[slot]) == 15 and int(teams[slot]) == 2 and int(cols[slot]) == 5
+				# The host sets only bob's civ, team and colour; the other joiners keep theirs.
+				var got: bool = args.get("name", role) != "bob" or (slot < civs.size() and int(civs[slot]) == 15 and int(teams[slot]) == 2 and int(cols[slot]) == 5)
 				# A saved game's setup refuses every pick (only the seats change).
 				if (got or bool(ns.get("saved_game", false))) and refusals.size() and int(ns.get("settings_version", 0)) != ready_for:
 					_say("refused=%s" % refusals[0])
@@ -333,7 +341,7 @@ func _run() -> void:
 					page._on_slot_team(2, row)
 					page._on_slot_color(5, row)
 					_say("picked civ 15, team 2, colour 5 for bob in slot %d" % bob_slot)
-			if role == "host" and not started and int(st.get("players", 0)) >= 2 \
+			if role == "host" and not started and int(st.get("players", 0)) >= need \
 					and Array(ns.get("slots", [])).any(func(e): return str(e.get("name", "")) == "bob"):
 				if not bool(ns.get("can_start", false)):
 					if not refused:
@@ -390,8 +398,9 @@ func _run() -> void:
 		if st.get("oos", false):
 			return _fail("out of sync at turn %d" % int(st.get("oos_turn", 0)))
 		if late and int(st.get("turn", 0)) >= turns:
-			_say("late done turn=%d seat=%d rejoin_box=%s box_after_loading=%s synchronizing=%s title=%s" % [
-					int(st.get("turn", 0)), int(st.get("seat", -1)), str(saw_rejoin_box).to_lower(),
+			_say("late done turn=%d seat=%d hash=%08X rejoin_box=%s box_after_loading=%s synchronizing=%s title=%s" % [
+					int(st.get("turn", 0)), int(st.get("seat", -1)), int(main.get_turn_hash(turns)),
+					str(saw_rejoin_box).to_lower(),
 					str(rejoin_box_after_loading).to_lower(), str(saw_sync).to_lower(),
 					str(load("res://scenes/menu/loading.gd").last_title).replace(" ", "_")])
 			break
@@ -418,10 +427,11 @@ func _run() -> void:
 			st = main.get_lobby_state()
 			# 0.28 page_loading at "start": the networked Start loads under the loading page.
 			_say("start_loading=" + ",".join(load("res://scenes/menu/loading.gd").last_stages.map(func(x): return str(x[1]).replace(" ", "_"))))
-			_say("done turn=%d seat=%d hash=%08X speed=%s civ1=%d team1=%d color1=%d rejoined_lines=%d rejoin_box=%s saved_loading=%s waiting=%s" % [turns, int(st.get("seat", -1)),
+			_say("done turn=%d seat=%d hash=%08X speed=%s civ1=%d team1=%d color1=%d rejoined_lines=%d left_lines=%d rejoin_box=%s saved_loading=%s waiting=%s" % [turns, int(st.get("seat", -1)),
 					int(main.get_turn_hash(turns)), str(main.get_game_speed()), int(ms.slot_civs[1]),
 					int(ms.slot_teams[1]) if ms.slot_teams.size() > 1 else -1, int(ms.slot_colors[1]),
-					str(st.get("chat", "")).count("has rejoined the game."), str(saw_rejoin_box).to_lower(),
+					str(st.get("chat", "")).count("has rejoined the game."),
+					str(st.get("chat", "")).count("has left the game."), str(saw_rejoin_box).to_lower(),
 					str(saw_saved_loading).to_lower(), saw_saved_wait if saw_saved_wait != "" else "-"])
 			# PlayerName onFinalizeAttributes: the seated clients' names are the players' names.
 			_say("slot_names=" + "|".join(Array(ms.slot_names).slice(0, 2)))
