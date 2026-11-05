@@ -16555,6 +16555,8 @@ void Simulation::tick_gather(float dt) {
 		// takes it). An idle full worker stays put, as in UnitAI IDLE (Petra sends it with
 		// ReturnResource); a full worker the player walks elsewhere or sends to fight keeps
 		// its order.
+		// A unit already returning re-picks its dropsite without a new leg: 0.28's re-sent order keeps its walk.
+		const bool was_returning = units_.action_state[i] == ACTION_RETURN_DROPSITE;
 		if ((units_.action_state[i] == ACTION_GATHER && full_for_target(i)) ||
 				units_.action_state[i] == ACTION_RETURN_DROPSITE) {
 			float best_d2 = 1e9f;
@@ -16685,6 +16687,7 @@ void Simulation::tick_gather(float dt) {
 					units_.target_z[i] = drop_z;
 					units_.has_order[i] = 1;
 					units_.action_state[i] = ACTION_RETURN_DROPSITE;
+					if (!was_returning) units_.motion[i].failed = 0; // a new leg is a new MoveTo, which resets the count (0.28 APPROACHING enter)
 				}
 			} else {
 				// RETURNINGRESOURCE enter with no dropsite (FindNearestDropsite null): FinishOrder,
@@ -16858,6 +16861,7 @@ void Simulation::tick_gather(float dt) {
 						(resources_.subtype[ridx] == RES_SUB_NONE || resources_.subtype[ridx] == RES_SUB_GRAIN));
 					if (units_.carry[i] >= carry_cap(i, rt) || resources_.amount[ridx] <= 0) {
 						if (units_.carry[i] >= carry_cap(i, rt)) {
+							units_.motion[i].failed = 0; // a full gatherer's new return leg (0.28 APPROACHING enter)
 							units_.action_state[i] = ACTION_RETURN_DROPSITE;
 							units_.target_x[i] = units_.pos_x[i]; // no pick yet: tick_gather takes the nearest
 							units_.target_z[i] = units_.pos_z[i];
@@ -33202,13 +33206,20 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 			const size_t away = petra_go_home(squad, ret_x, ret_z, PETRA_TRANSPORT_ATTACK, plan.state_timer <= petra_turn_dt_ + 1e-3f);
 			// attackPlan.js Abort: each unit leaves the plan at once, its move order given
 			// (removeUnit), free for the defense and the economy on the way. RTS0 keeps those on
-			// another land, which wait for a ship home.
+			// another land, which wait for a ship home, except one on a land with no sea link to
+			// the withdrawal land: petra_go_home never ships it, so it is released as
+			// petra_abort_plan releases stranded units, and the next plan ships it.
 			{
+				uint16_t home = 0;
+				const PetraNavalTopo &topo = petra_classified_topo(home);
 				const uint16_t dest = petra_land_at(ret_x, ret_z);
 				std::vector<uint32_t> keep;
 				for (uint32_t uid : squad) {
 					const int32_t k = lookup_unit(uid);
-					if (k >= 0 && units_.alive[k] && !petra_passenger(uid) && petra_land_at(units_.pos_x[k], units_.pos_z[k]) == dest) petra_out_of_plan(uid);
+					if (k < 0 || !units_.alive[k] || petra_passenger(uid)) { keep.push_back(uid); continue; }
+					const uint16_t land = petra_land_at(units_.pos_x[k], units_.pos_z[k]);
+					const bool stranded = topo.naval_map && land && dest && !topo.sea_between(land, dest);
+					if (land == dest || stranded) petra_out_of_plan(uid);
 					else keep.push_back(uid);
 				}
 				squad.swap(keep);

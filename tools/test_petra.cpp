@@ -10555,6 +10555,67 @@ static void test_out_of_plan() {
 	}
 }
 
+// attackPlan.js Abort removes every unit from an aborted plan at once. RTS0's REGROUP keeps
+// units on another land until a ship brings them home, but a unit on a land with no sea link
+// to the withdrawal land can never be shipped, so it is released to the free army
+// (petra_abort_plan does the same for stranded units). A unit on a linked land still waits.
+// Danubius, seed 42 (naval): five lands have no sea link to Petra's land.
+static void test_regroup_stranded_released() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->set_petra_difficulty(3);
+	s->set_petra_behavior(0);
+	s->generate_random_map(MAP_DANUBIUS, 42, 2, 96.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	uint16_t home = 0;
+	const Simulation::PetraNavalTopo &topo = s->petra_classified_topo(home);
+	const bool naval = topo.naval_map;
+	const uint16_t dest = s->petra_land_at(tx, tz);
+	// One land with no sea link to Petra's land and one with a link, both found on the grid.
+	uint16_t cut = 0, linked = 0;
+	float cx = 0.0f, cz = 0.0f, lx = 0.0f, lz = 0.0f;
+	for (float x = -128.0f; x <= 128.0f; x += 2.0f)
+		for (float z = -128.0f; z <= 128.0f; z += 2.0f) {
+			const uint16_t l = s->petra_land_at(x, z);
+			if (!l || l == dest) continue;
+			if (!cut && topo.sea_between(l, dest) == 0) { cut = l; cx = x; cz = z; }
+			else if (!linked && topo.sea_between(l, dest) != 0) { linked = l; lx = x; lz = z; }
+		}
+	CHECK(naval && dest != 0 && cut != 0 && linked != 0, "Danubius is naval, with a land cut off from Petra's land and one that is linked to it");
+	if (!naval || !cut || !linked) return;
+	Simulation::AttackPlan plan;
+	plan.kind = PETRA_ATTACK_ATTACK;
+	plan.state = Simulation::AttackPlan::REGROUP;
+	plan.retreat_x = tx;
+	plan.retreat_z = tz;
+	const uint32_t stranded_a = s->spawn_unit(cx, cz, 1, UNIT_SPEARMAN);
+	const uint32_t stranded_b = s->spawn_unit(cx + 0.5f, cz, 1, UNIT_SPEARMAN);
+	const uint32_t linked_a = s->spawn_unit(lx, lz, 1, UNIT_SPEARMAN);
+	plan.squad = {stranded_a, stranded_b, linked_a};
+	auto land_of = [&](uint32_t uid) -> uint16_t {
+		const int32_t k = s->lookup_unit(uid);
+		return k < 0 ? (uint16_t)0 : s->petra_land_at(s->units_.pos_x[k], s->units_.pos_z[k]);
+	};
+	CHECK(land_of(stranded_a) == cut && land_of(stranded_b) == cut && land_of(linked_a) == linked, "the test soldiers stand on the lands they were placed on");
+	s->petra_update_attack_plan(plan, tx, tz);
+	auto in_squad = [&](uint32_t uid) { return std::find(plan.squad.begin(), plan.squad.end(), uid) != plan.squad.end(); };
+	auto in_army = [&](uint32_t uid) {
+		const auto &army = s->petra_army_ids_[1];
+		return std::binary_search(army.begin(), army.end(), uid);
+	};
+	const bool released = !in_squad(stranded_a) && !in_squad(stranded_b) && in_army(stranded_a) && in_army(stranded_b);
+	std::printf("  regroup: soldiers cut off from home %s the plan, the linked soldier %s\n", released ? "leave" : "stay in",
+	            in_squad(linked_a) ? "waits for its ship" : "left the plan");
+	CHECK(released, "a soldier with no sea link to the withdrawal land leaves the plan (Abort) and joins the free army");
+	CHECK(in_squad(linked_a), "a soldier on a land with a sea link keeps waiting for its ship home");
+	CHECK(plan.state == Simulation::AttackPlan::REGROUP, "the plan keeps regrouping while a linked soldier is still away");
+}
+
 // attackPlan.js UpdateTarget: a unit target is followed as it moves, and once it garrisons
 // in an enemy structure that structure becomes the target.
 static void test_attack_follows_unit_target() {
@@ -10804,6 +10865,7 @@ int main(int argc, char **argv) {
 	RUN(test_soldier_fights_back);
 	RUN(test_defender_orders);
 	RUN(test_out_of_plan);
+	RUN(test_regroup_stranded_released);
 	RUN(test_attack_follows_unit_target);
 	RUN(test_raids_at_once);
 	RUN(test_defense_ignores_ships);
