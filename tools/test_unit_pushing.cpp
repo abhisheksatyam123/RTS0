@@ -887,7 +887,10 @@ int main() {
 		}
 		const float d1 = std::hypot(s->units_.pos_x[hi] + 24.89f, s->units_.pos_z[hi] + 24.89f);
 		std::printf("  hero ordered home every turn past an idle rider: %.1f from its Civic Center, %.1f after 20 s\n", d0, d1);
-		CHECK(d1 < 4.0f, "a walker ordered again every turn gets past an idle unit by a structure");
+		// The Civic Center's corner: its half-width (footprint x GRID / 2) times sqrt 2. The old 4.0 was that corner
+		// for the old half-width of 2 (2.83) plus 1.17.
+		const float tc_corner = std::sqrt(2.0f) * building_type_info(BLD_TOWN_CENTER).footprint * Simulation::GRID * 0.5f;
+		CHECK(d1 < tc_corner + 1.17f, "a walker ordered again every turn gets past an idle unit by a structure");
 	}
 	{
 		auto s = std::make_unique<Simulation>();
@@ -1505,8 +1508,8 @@ int main() {
 	for (int layout = 0; layout < 2; ++layout)
 		for (const bool build : {false, true}) {
 			// Stats' two layouts, as his traces had them. 0: Continental seed 5, unit 3 beside the
-			// town centre heading for (35, 35), unit 4 standing at the centre's corner; builders go
-			// to a house south-west of it. 1: unit 879 heading north past unit 884, standing 1.4
+			// town centre heading for (33, 33), unit 4 standing at the centre's corner; builders go
+			// to a house south of it. 1: unit 879 heading north past unit 884, standing 1.4
 			// ahead, in her rally batch (the others as a rally leaves them, 1.3-1.5 apart); builders
 			// go to a house beyond the point.
 			auto s = std::make_unique<Simulation>();
@@ -1515,9 +1518,9 @@ int main() {
 			float gx = 0.0f, gz = 0.0f, hx = 0.0f, hz = 0.0f;
 			if (layout == 0) {
 				s->spawn_building_world(37.335f, 37.335f, BLD_TOWN_CENTER, 0, 1.0f);
-				w = s->spawn_unit(39.586f, 36.263f, 0, UNIT_FEMALE_CITIZEN);
-				s->spawn_unit(40.867f, 37.040f, 0, UNIT_FEMALE_CITIZEN);
-				gx = 35.0f, gz = 35.0f, hx = 36.0f, hz = 32.0f;
+				w = s->spawn_unit(41.586f, 36.263f, 0, UNIT_FEMALE_CITIZEN);
+				s->spawn_unit(42.867f, 37.040f, 0, UNIT_FEMALE_CITIZEN);
+				gx = 33.0f, gz = 33.0f, hx = 36.0f, hz = 29.0f;
 			} else {
 				w = s->spawn_unit(26.606f, 34.418f, 0, UNIT_FEMALE_CITIZEN);
 				s->spawn_unit(26.802f, 35.808f, 0, UNIT_FEMALE_CITIZEN);
@@ -1564,7 +1567,7 @@ int main() {
 							const float ix = 20.0f, iz = 20.0f, h = 2.0f * unit_push_clearance(UNIT_FEMALE_CITIZEN), off2 = 0.05f;
 							const float wx = ix + lat, wz = iz - h - off, a = deg * 3.14159265f / 180.0f;
 							const float gx = wx + 5.2f * std::cos(a), gz = wz + 5.2f * std::sin(a);
-							if (layout == 1) s->spawn_building_world(wx, wz - off2 - CLEARANCE_DEFAULT - 2.0f, BLD_TOWN_CENTER, 0, 1.0f);
+							if (layout == 1) s->spawn_building_world(wx, wz - off2 - CLEARANCE_DEFAULT - 4.0f, BLD_TOWN_CENTER, 0, 1.0f);
 							const uint32_t w = s->spawn_unit(wx, wz, 0, UNIT_FEMALE_CITIZEN);
 							s->spawn_unit(ix, iz, 0, UNIT_FEMALE_CITIZEN);
 							if (layout == 0) s->spawn_unit(wx + 0.3f, wz - off2 - h, 0, UNIT_FEMALE_CITIZEN);
@@ -1768,7 +1771,7 @@ int main() {
 		s->set_terrain_data(h, RES, 0.0f);
 		s->begin_bulk_spawn();
 		s->end_bulk_spawn();
-		const uint32_t house = s->spawn_building_world(18.0f, 0.0f, BLD_HOUSE, 0, 1.0f);
+		const uint32_t house = s->spawn_building_world(17.0f, 0.0f, BLD_HOUSE, 0, 1.0f);
 		s->tick(DT);
 		const auto &b = s->buildings_[s->building_id_to_idx_.at(house)];
 		// The point of such a navcell farthest east, 0.5 or more outside the house and its own
@@ -2305,7 +2308,9 @@ int main() {
 			for (float z = -5.0f; z <= 5.0f + 1e-3f; z += 1.3f)
 				for (float x = -5.0f; x <= 5.0f + 1e-3f; x += 1.3f) {
 					const float jx = x + jitter(), jz = z + jitter();
-					if (std::hypot(jx - bx, jz - bz) >= 1.3f) s->spawn_unit(jx, jz, 0, UNIT_FEMALE_CITIZEN);
+					{ // the site's footprint half-width was 1 unit when this crowd was laid: no women in the ring 1..2 units out
+					    const float m = std::max(std::fabs(jx), std::fabs(jz));
+					    if (std::hypot(jx - bx, jz - bz) >= 1.3f && !(m >= 1.0f && m < 2.0f)) s->spawn_unit(jx, jz, 0, UNIT_FEMALE_CITIZEN); }
 				}
 			for (int t = 0; t < 20; ++t) s->tick(DT);
 			s->order_build_or_repair(&builder, 1, site);
@@ -2577,7 +2582,9 @@ int main() {
 					s->spawn_resource_world(26.0f + OX, (float)k + OZ, RES_WOOD, 300, RES_SUB_NONE, 0, FLORA_TREE_CRETAN_DATE_PALM_PATCH);
 			}
 			if (run == SUBGOAL)
-				for (float fz : {-8.0f, 0.0f}) s->spawn_building_world(18.0f + OX, fz + OZ, BLD_FORTRESS, 0, 1.0f);
+				// The fortresses are 3 cells wide now, 2 before: centred 1 unit west, so their east faces stay at
+				// x = 20, where the walk bends round them.
+				for (float fz : {-8.0f, 0.0f}) s->spawn_building_world(17.0f + OX, fz + OZ, BLD_FORTRESS, 0, 1.0f);
 			// The point the way on leads to: the walk's own, or the storehouse's centre.
 			end_x[run] = gx;
 			end_z[run] = GZ;
