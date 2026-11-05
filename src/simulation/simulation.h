@@ -1612,6 +1612,10 @@ public:
 	// structures turn Gaia and it watches the rest of the match.
 	// `reason` is the chat line's (DefeatPlayer's message): objective unless the script names one.
 	void defeat_player(uint8_t pid, uint8_t reason = SessionNotice::END_OBJECTIVE);
+	// 0 A.D. PlayerRemoved.js + InitGame.js: a removed seat is defeated at start, and
+	// Player.SetState hands everything it owns to Gaia. Quiet (Defeat(undefined): no chat
+	// line). Returns whether the seat owned anything; a seat with nothing stays undefeated.
+	bool remove_seat(uint8_t pid);
 	// 0 A.D. "resign" (Commands.js: cmpPlayer.Defeat("%(player)s has resigned.")): the
 	// issuing player is defeated as by conquest. Its units and structures turn Gaia, its
 	// allies play on, and it watches the rest of the match. False when it is already out.
