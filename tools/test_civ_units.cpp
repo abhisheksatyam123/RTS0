@@ -327,6 +327,21 @@ int main() {
 		CHECK(civ_team_bonus_mult(CIV_ATHENIANS, civ_bit(CIV_HAN), TEAM_BONUS_TRADE_INTERNATIONAL) > 1.19f);
 		// Two allies of the same civ don't stack one bonus.
 		CHECK(civ_team_bonus_mult(CIV_SPARTANS, civ_bit(CIV_SPARTANS), TEAM_BONUS_UNIT_COST, RES_FOOD, pericles) == 0.0f);
+		// Delian League (0.28 civbonuses): Athenian ships build 25% faster, for the Athenian player
+		// only (allies don't get it), and only build time, not cost. Elephant Tradition: Mauryan
+		// elephants 30% faster, heroes excluded (Elephant !Hero).
+		uint16_t athen_ram = CIV_UNIT_TEMPLATE_NONE, maur_elephant = CIV_UNIT_TEMPLATE_NONE;
+		for (uint16_t i = 0; i < CIV_UNIT_TEMPLATE_COUNT; ++i) {
+			if (std::strcmp(civ_unit_template(i).id, "athen/ship_ram") == 0) athen_ram = i;
+			if (std::strcmp(civ_unit_template(i).id, "maur/champion_elephant") == 0) maur_elephant = i;
+		}
+		CHECK(athen_ram != CIV_UNIT_TEMPLATE_NONE && maur_elephant != CIV_UNIT_TEMPLATE_NONE);
+		CHECK(civ_team_bonus_mult(CIV_ATHENIANS, 0, TEAM_BONUS_UNIT_TRAIN_TIME, -1, athen_ram) == 0.75f);
+		CHECK(civ_team_bonus_mult(CIV_ATHENIANS, civ_bit(CIV_SPARTANS), TEAM_BONUS_UNIT_TRAIN_TIME, -1, athen_ram) == 0.75f);
+		CHECK(civ_team_bonus_mult(CIV_SPARTANS, civ_bit(CIV_ATHENIANS), TEAM_BONUS_UNIT_TRAIN_TIME, -1, athen_ram) == 1.0f);
+		CHECK(civ_team_bonus_mult(CIV_ATHENIANS, 0, TEAM_BONUS_UNIT_COST, RES_WOOD, athen_ram) == 1.0f);
+		CHECK(civ_team_bonus_mult(CIV_MAURYANS, 0, TEAM_BONUS_UNIT_TRAIN_TIME, -1, maur_elephant) == 0.7f);
+		CHECK(civ_team_bonus_mult(CIV_MAURYANS, 0, TEAM_BONUS_UNIT_TRAIN_TIME, -1, athen_ram) == 1.0f);
 		// German Stolen Arms adds -5 metal (ModifiersManager "add", after the multipliers),
 		// for Germans and their allies; a multiplier of -5 would make them free.
 		uint16_t teut = CIV_UNIT_TEMPLATE_NONE;
