@@ -31779,10 +31779,25 @@ uint32_t Simulation::find_petra_rush_target(float &out_tx, float &out_tz, uint8_
 	// becomes the target and its owner the enemy.
 	if (const uint32_t id = petra_nearest_target(PETRA_ATTACK_RUSH, false, enemy, bx, bz, land, out_tx, out_tz))
 		return petra_target_obstruction(id, bx, bz, out_tx, out_tz);
-	for (int p = 0; p < MAX_PLAYERS; ++p) // rushTargetFinder(gameState): any enemy
-		if (p != enemy && petra_foe(p) && !is_defeated((uint8_t)p))
-			if (const uint32_t id = petra_nearest_target(PETRA_ATTACK_RUSH, false, (uint8_t)p, bx, bz, land, out_tx, out_tz))
-				return petra_target_obstruction(id, bx, bz, out_tx, out_tz);
+	// rushTargetFinder(gameState) with no player (attackPlan.js:1045-1099): the nearest of every
+	// enemy's undefended structures, not the first enemy that has one.
+	{
+		uint32_t fb_id = 0;
+		float fb_x = 0.0f, fb_z = 0.0f, fb_d = 1e30f;
+		for (int p = 0; p < MAX_PLAYERS; ++p) {
+			if (p == enemy || !petra_foe(p) || is_defeated((uint8_t)p)) continue;
+			float tx = 0.0f, tz = 0.0f;
+			const uint32_t id = petra_nearest_target(PETRA_ATTACK_RUSH, false, (uint8_t)p, bx, bz, land, tx, tz);
+			if (!id) continue;
+			const float dx = tx - bx, dz = tz - bz, d = dx * dx + dz * dz;
+			if (!fb_id || d < fb_d) { fb_id = id; fb_x = tx; fb_z = tz; fb_d = d; }
+		}
+		if (fb_id) {
+			out_tx = fb_x;
+			out_tz = fb_z;
+			return petra_target_obstruction(fb_id, bx, bz, out_tx, out_tz);
+		}
+	}
 	if (forced)
 		if (const uint32_t id = petra_nearest_target(PETRA_ATTACK_RUSH, true, enemy, bx, bz, land, out_tx, out_tz))
 			return petra_target_obstruction(id, bx, bz, out_tx, out_tz);
