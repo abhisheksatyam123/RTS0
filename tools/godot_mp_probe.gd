@@ -231,7 +231,7 @@ func _run() -> void:
 				if int(ns.get("my_slot", 0)) == -1 and Array(ns.get("observers", [])).any(func(e): return str(e.get("name", "")) == "bob"):
 					saw_observer = true
 					var obs = root.find_child("NetObservers", true, false)
-					_say("moved_to_observers=%s" % (obs.text if obs else "-"))
+					_say("moved_to_observers=%s" % (str(obs.text).replace("\n", "|") if obs else "-"))
 			if role == "join" and not saw_random and main.is_net_pregame() and str(ms.map_id) == "random":
 				saw_random = true
 				_say("setup_map=random")
