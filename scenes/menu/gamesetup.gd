@@ -2520,6 +2520,8 @@ func _on_start_pressed() -> void:
 		# once all players are ready (0.28 ReadyController).
 		if bool(_net_state.get("can_start", false)):
 			save_persisted() # launchGame, before Random is resolved
+			_start_pressed = true
+			_update_net_controls()
 		_host_write_setup(true)
 		net_main._on_lobby_start_pressed()
 		return
@@ -2626,6 +2628,9 @@ func _show_error(msg: String) -> void:
 
 var net_main: Node = null
 var _mp_role := "none"           # "none", "host" or "client"
+# 0.28 StartGameButton.onPress: once pressed the button is disabled until the
+# match goes, so a second click cannot start the match twice.
+var _start_pressed := false
 var _net_state := {}             # net_main.get_net_setup_state()
 var _net_sent := {}              # host: the settings written last
 var _net_random_map := ""        # host: the map Random picked, kept while Random stays selected
@@ -2915,7 +2920,9 @@ func _update_net_controls() -> void:
 	var start := $VBox/HBox/Right/Buttons/BtnStart as Button
 	if _mp_role == "host":
 		var ok := bool(_net_state.get("can_start", false))
-		start.disabled = not ok
+		if not ok:
+			_start_pressed = false
+		start.disabled = _start_pressed or not ok
 		start.tooltip_text = START_TOOLTIP if ok else START_WAIT_TOOLTIP
 		return
 	var ready := clampi(int(_net_state.get("ready", 0)), 0, 2)
