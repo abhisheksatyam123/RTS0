@@ -46,8 +46,10 @@ func _run() -> void:
 	var turns := int(args.get("turns", "150"))
 	var deadline := Time.get_ticks_msec() + int(args.get("timeout", "240")) * 1000
 	var ms = root.get_node("MatchSettings")
-	# players=N: the host's human seats (default 2, the joiner takes the second).
+	# players=N: the match's seats (default 2); humans=H of them are people, the
+	# rest are Petra (default: all people). The host waits for the H humans.
 	var need: int = int(args.get("players", "2"))
+	var humans: int = int(args.get("humans", str(need)))
 	if args.has("stun"):
 		# The playtest's own STUN responder (tools/lobby_server.py serve_stun).
 		RtsoUserConfig.new().set_value("lobby.stun.port", args["stun"])
@@ -62,7 +64,7 @@ func _run() -> void:
 		ms.slot_teams = []
 		ms.slot_colors = []
 		for i in need:
-			ms.slot_types.append(0)
+			ms.slot_types.append(0 if i < humans else 1)
 			ms.slot_civs.append(i)
 			ms.slot_teams.append(0)
 			ms.slot_colors.append(i)
@@ -341,7 +343,7 @@ func _run() -> void:
 					page._on_slot_team(2, row)
 					page._on_slot_color(5, row)
 					_say("picked civ 15, team 2, colour 5 for bob in slot %d" % bob_slot)
-			if role == "host" and not started and int(st.get("players", 0)) >= need \
+			if role == "host" and not started and int(st.get("players", 0)) >= humans \
 					and Array(ns.get("slots", [])).any(func(e): return str(e.get("name", "")) == "bob"):
 				if not bool(ns.get("can_start", false)):
 					if not refused:
@@ -427,11 +429,11 @@ func _run() -> void:
 			st = main.get_lobby_state()
 			# 0.28 page_loading at "start": the networked Start loads under the loading page.
 			_say("start_loading=" + ",".join(load("res://scenes/menu/loading.gd").last_stages.map(func(x): return str(x[1]).replace(" ", "_"))))
-			_say("done turn=%d seat=%d hash=%08X speed=%s civ1=%d team1=%d color1=%d rejoined_lines=%d left_lines=%d rejoin_box=%s saved_loading=%s waiting=%s" % [turns, int(st.get("seat", -1)),
+			_say("done turn=%d seat=%d hash=%08X speed=%s civ1=%d team1=%d color1=%d rejoined_lines=%d left_lines=%d ai_seats=%d rejoin_box=%s saved_loading=%s waiting=%s" % [turns, int(st.get("seat", -1)),
 					int(main.get_turn_hash(turns)), str(main.get_game_speed()), int(ms.slot_civs[1]),
 					int(ms.slot_teams[1]) if ms.slot_teams.size() > 1 else -1, int(ms.slot_colors[1]),
 					str(st.get("chat", "")).count("has rejoined the game."),
-					str(st.get("chat", "")).count("has left the game."), str(saw_rejoin_box).to_lower(),
+					str(st.get("chat", "")).count("has left the game."), int(ms.slot_types.count(1)), str(saw_rejoin_box).to_lower(),
 					str(saw_saved_loading).to_lower(), saw_saved_wait if saw_saved_wait != "" else "-"])
 			# PlayerName onFinalizeAttributes: the seated clients' names are the players' names.
 			_say("slot_names=" + "|".join(Array(ms.slot_names).slice(0, 2)))
