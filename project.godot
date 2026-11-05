@@ -16,6 +16,10 @@ run/main_scene="res://scenes/menu/main_menu.tscn"
 config/quit_on_go_back=false
 config/features=PackedStringArray("4.3", "Forward Plus")
 config/icon="res://icon.png"
+config/version="0.1.0"
+boot_splash/image="res://assets/branding/splash.png"
+boot_splash/fullsize=true
+boot_splash/bg_color=Color(0.114, 0.094, 0.071, 1)
 
 [autoload]
 

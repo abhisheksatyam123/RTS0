@@ -474,7 +474,8 @@ void RtsoMain::_ready() {
 	// Multiplayer lobby panel (lobby_dialog.h). Its buttons connect to the RtsoMain
 	// methods in bind_signals below, as the inline connects did.
 	{
-		auto lw = lobby_dialog_.build(ui_layer);
+		lobby_dialog_.instantiate();
+		auto lw = lobby_dialog_->build(ui_layer);
 		lobby_panel = lw.panel;
 		lobby_name = lw.name;
 		lobby_host = lw.host;
@@ -486,7 +487,7 @@ void RtsoMain::_ready() {
 		lobby_status = lw.status;
 		lobby_players = lw.players;
 		lobby_seats = lw.seats;
-		lobby_dialog_.bind_signals(this);
+		lobby_dialog_->bind_signals(this);
 	}
 
 	// =========================================================================
@@ -727,8 +728,10 @@ void RtsoMain::_ready() {
 	// (chat_window.h / diplomacy_dialog.h own the panel trees; the bound
 	// handler methods below delegate into them).
 	chat_window_.build(this, ui_layer, this);
+	chat_window_.bind_signals(this);
 	refresh_chat_tooltips();
-	diplo_dialog_.build(this, ui_layer, this, &chat_window_);
+	diplo_dialog_.build(ui_layer, this, &chat_window_);
+	diplo_dialog_.bind_signals(this);
 	objectives_dialog_.build(ui_layer, this, "toggle_objectives");
 	tutorial_panel_.build(ui_layer, this, "_on_tutorial_ready_pressed");
 	panel_entities_.build(ui_layer, this, "_on_panel_entity_gui_input", 58.0f); // PanelEntities.xml, under the top panel
@@ -773,6 +776,9 @@ void RtsoMain::_ready() {
 	session_audio_.set_spatial([this](const Ref<AudioStream> &s, Vector3 pos, float db, float pitch) {
 		if (view) view->play_spatial_sound(s, pos, db, 75.0f, pitch);
 	});
+	session_audio_.set_screen_pan([this](Vector3 pos, Vector3 &heard_at, float &dist, bool &max_rolloff) {
+		return view && view->screen_pan(pos, heard_at, dist, max_rolloff);
+	});
 
 	// gui/session/Ambient.js: one looping dayscape track ("TODO: Let the map decide the tracks"),
 	// played by PlayAmbientSound at a constant sound.ambientgain. 0.28 plays it at 0.6 beside
@@ -795,8 +801,10 @@ void RtsoMain::_ready() {
 
 	spatial_sfx_player = memnew(AudioStreamPlayer3D);
 	spatial_sfx_player->set_bus("Action");
-	spatial_sfx_player->set_max_distance(75.0f);
-	spatial_sfx_player->set_unit_size(10.0f);
+	// 0.28's linear falloff, as session_audio.h spatial_at: Godot attenuation is off, and the
+	// volume is set per play in main_node.cpp play_spatial_sfx.
+	spatial_sfx_player->set_attenuation_model(AudioStreamPlayer3D::ATTENUATION_DISABLED);
+	spatial_sfx_player->set_max_distance(1.0e6f);
 	spatial_sfx_player->set_volume_db(0.0f);
 	add_child(spatial_sfx_player);
 
@@ -1003,14 +1011,9 @@ void RtsoMain::_process(double delta) {
 				write_replay(false, true); // "Replay saved to", however early
 				quit_confirmation("out_of_sync_network");
 			}
-			if (turn_mgr_.has_out_of_sync() && lobby_status) {
-				// 0 A.D. session.js "Out-Of-Sync" notice: the first diverging turn and who.
-				String who;
-				for (const auto &n : turn_mgr_.oos_players()) who += (who.is_empty() ? "" : ", ") + String::utf8(n.c_str());
-				lobby_status->set_text("Out-Of-Sync on turn " + String::num_int64(turn_mgr_.oos_turn()) +
-						(who.is_empty() ? String() : ". Players: " + who) +
-						(turn_mgr_.oos_dump_path().empty() ? String() : ". Dump: " + String::utf8(turn_mgr_.oos_dump_path().c_str())));
-			} else if (turn_mgr_.is_paused() && lobby_status) {
+			// 0 A.D. has no status-line text for an out-of-sync game (the box is the
+			// only display), so this line is free for the pause and link states.
+			if (turn_mgr_.is_paused() && lobby_status) {
 				String who;
 				for (uint32_t c : turn_mgr_.paused_clients()) {
 					const uint8_t pl = turn_mgr_.player_for_client(c);

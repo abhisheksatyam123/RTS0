@@ -207,6 +207,21 @@ float target_hp(const Simulation &s, uint32_t uid, uint32_t bid) {
 
 // The owner's capture points of a building target, which a capture attack lowers. Kept apart
 // from health: slow damage while the owner regenerates points must not read as no progress.
+// A unit whose capture can't outpace its target's regen (Capturable.js TimerTick: regen runs
+// unconditionally, and UnitAI keeps the capture order it was given). Its points never move; the
+// no-hurt report is tagged [capture-stall] instead of hits-nothing. Rate: Capture over 0.1 + 0.9
+// health against RegenRate, with no garrison.
+bool capture_outpaced(const Simulation &s, size_t i, uint32_t bid) {
+	if (!(s.units_.order_flags[i] & ORDER_FLAG_ALLOW_CAPTURE)) return false;
+	auto it = s.building_id_to_idx_.find(bid);
+	if (it == s.building_id_to_idx_.end()) return false;
+	const auto &b = s.buildings_[it->second];
+	if (!b.garrisoned_units.empty()) return false;
+	const float health = b.max_hp > 0.0f ? std::clamp(b.hp / b.max_hp, 0.0f, 1.0f) : 1.0f;
+	const float rate = s.unit_capture_attack_at(i) / (0.1f + 0.9f * health);
+	return rate > 0.0f && rate <= b.capture_regen_rate;
+}
+
 float target_cp(const Simulation &s, uint32_t bid) {
 	auto it = bid ? s.building_id_to_idx_.find(bid) : s.building_id_to_idx_.end();
 	if (it == s.building_id_to_idx_.end()) return -1.0f;
@@ -703,7 +718,8 @@ int main(int argc, char **argv) {
 					}
 					std::snprintf(buf, sizeof buf, "target hp %.0f cp %.0f kind=%s tdist=%.1f reach=%.1f vision=%.1f stance=%d", hp, cp, tk, tdist,
 							s.attack_reach(i), s.unit_vision_at(i), s.units_.stance[i]);
-					report(i, k, 2, "hits-nothing", buf);
+					// A capture that regen outpaces is tagged apart from a hit that never lands (Migrate counts it).
+					report(i, k, 2, tb && capture_outpaced(s, i, tb) ? "capture-stall" : "hits-nothing", buf);
 				}
 				// A siege engine on a target across water is excused as the hits-nothing check
 				// excuses it (auto_fight_across_water): 0.28 picks the same target again.
@@ -779,8 +795,12 @@ int main(int argc, char **argv) {
 			const int32_t f = id ? s.lookup_unit(id) : -1;
 			if (f < 0) continue;
 			s.apply_rank_bonus((size_t)f, s.units_.rank[f], s.units_.rank[i]); // a template trained above Basic starts ranked
-			const float was[4] = {s.units_.max_hp[i], s.units_.attack_damage[i], s.units_.speed[i], s.units_.attack_range[i]};
-			const float now[4] = {s.units_.max_hp[f], s.units_.attack_damage[f], s.units_.speed[f], s.units_.attack_range[f]};
+			// Health/Max auras (Xerxes, Antiochus IV) rescale a unit's max_hp in place, so compare
+			// the base health: each side without its aura multiplier.
+			const float aura_was = s.units_.aura_hp_mult[i] > 0.0f ? s.units_.aura_hp_mult[i] : 1.0f;
+			const float aura_now = s.units_.aura_hp_mult[f] > 0.0f ? s.units_.aura_hp_mult[f] : 1.0f;
+			const float was[4] = {s.units_.max_hp[i] / aura_was, s.units_.attack_damage[i], s.units_.speed[i], s.units_.attack_range[i]};
+			const float now[4] = {s.units_.max_hp[f] / aura_now, s.units_.attack_damage[f], s.units_.speed[f], s.units_.attack_range[f]};
 			static const char *kName[4] = {"max_hp", "attack", "speed", "range"};
 			for (int k = 0; k < 4; ++k)
 				if (off(was[k], now[k]) && drift++ < 40)

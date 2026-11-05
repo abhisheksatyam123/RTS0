@@ -936,8 +936,8 @@ static_assert(sizeof(UnitOrder) == 24, "UnitOrder is saved raw");
 inline constexpr float FLEE_DISTANCE = 12.0f * 0.28f;
 inline constexpr float NEARBY_SEARCH_RANGE = 64.0f * 0.28f;
 // Attack.js Capture: template_unit_*.xml Capture MaxRange 4, RepeatTime 1000. 0 A.D.
-// measures edge to edge; RTS0 melee reach is ~0.28 x R plus the radii, so Capture
-// MaxRange 4 is the spearman's reach, as in 0 A.D. (Melee MaxRange 4): 2.4.
+// measures edge to edge. RTS0 scales melee ranges by 0.6 (tools/extract_0ad_rosters.py),
+// so Capture MaxRange 4 becomes 4 x 0.6 = 2.4, the same value as a spearman's Melee MaxRange 4.
 inline constexpr float CAPTURE_RANGE = 2.4f;
 inline constexpr float CAPTURE_REPEAT_S = 1.0f;
 // template_unit_catafalque.xml Capturable: CapturePoints 250, RegenRate 10 a second.
@@ -2320,7 +2320,7 @@ enum CivRosterFlag : uint16_t {
 	ROSTER_RANGED = 4,
 	ROSTER_CITIZEN = 8,
 	ROSTER_MERCENARY = 16,
-	ROSTER_PACKABLE = 32, // 0 A.D. Pack component (10 s to pack or unpack)
+	ROSTER_PACKABLE = 32, // 0 A.D. Pack component (5 s to pack or unpack: Pack/Time 5000 ms)
 	ROSTER_SIEGE_TOWER = 64,
 	ROSTER_RELIC = 128, // a catafalque (template_unit_catafalque): Capture the Relic
 	ROSTER_NO_GATHER = 256, // a Citizen whose template disables ResourceGatherer (mercenaries)
@@ -3085,7 +3085,7 @@ inline bool template_has_ranged_attack(uint16_t tmpl, uint8_t type, uint8_t civ)
 }
 
 // 0 A.D. Pack.js. Stone throwers and bolt shooters (template_unit_siege_stonethrower.xml,
-// template_unit_siege_boltshooter.xml) carry <Pack><Time>10000</Time></Pack>: they move as
+// template_unit_siege_boltshooter.xml) carry <Pack><Time>5000</Time></Pack>: they move as
 // their "_packed" template and must unpack before they can fire, and pack again to move.
 // A roster unit packs when its 0 A.D. template has a Pack component (ROSTER_PACKABLE), so
 // siege towers and engines that disable Pack (Han Shoushe) are left alone; units without a

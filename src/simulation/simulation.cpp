@@ -1428,6 +1428,7 @@ void Simulation::set_fauna_position(uint32_t fauna_id, float x, float z) {
 	if (it == fauna_id_to_idx_.end()) return;
 	fauna_.pos_x[it->second] = fauna_.home_x[it->second] = x;
 	fauna_.pos_z[it->second] = fauna_.home_z[it->second] = z;
+	fauna_jumped(it->second);
 }
 
 void Simulation::set_resource_amount(uint32_t res_id, int32_t amount) {
@@ -1933,6 +1934,10 @@ void Simulation::rebuild_nav_grid() {
 	// RTS0's 8 m, as wide as a small mine: a navcell a mine only partly covers stays open to long paths,
 	// and units steer round the mine itself (steer_obstacles_). Blocking every navcell a mine touches
 	// would close passages 0 A.D. leaves open, such as a causeway on Snowflake Searocks.
+	// The 1 m subcells each mine's grown square covers, per passability class (NavGrid::mine_sub): the
+	// class's clearance grows the square as steering's does (unit_clearance_at).
+	nav_grid_.mine_sub[0].clear();
+	nav_grid_.mine_sub[1].clear();
 	for (size_t r = 0; r < resources_.count; ++r) {
 		nav::Footprint m;
 		if (!resources_.alive[r] || resources_.amount[r] <= 0 || !mine_footprint(r, m)) continue;
@@ -1947,6 +1952,30 @@ void Simulation::rebuild_nav_grid() {
 				if (in(wx, wz) && in(wx + nav_cell, wz) && in(wx, wz + nav_cell) && in(wx + nav_cell, wz + nav_cell))
 					nav_grid_.cells.at(x, y) = NAV_OBSTRUCTED;
 			}
+		// 1 m subcells (0 A.D. obstruction navcells, Rasterize.cpp): four corners inside, per class.
+		if (!nav_grid_.cells.inside(x0, y0) && !nav_grid_.cells.inside(x1, y1)) continue;
+		const float sub = nav_cell / 8.0f;
+		for (int cls = 0; cls < 2; ++cls) {
+			const float gc = (cls ? CLEARANCE_LARGE : CLEARANCE_DEFAULT) + 1e-4f, ec = nav::footprint_extent(m) + gc;
+			auto inc = [&](float x, float z) { return nav::footprint_contains(m, x, z, gc); };
+			const auto [cx0, cy0] = nav_grid_.world_to_cell(m.x - ec, m.z - ec);
+			const auto [cx1, cy1] = nav_grid_.world_to_cell(m.x + ec, m.z + ec);
+			auto &mask = nav_grid_.mine_sub[cls];
+			if (mask.empty()) mask.assign(nav_grid_.cells.data.size(), 0);
+			for (int y = cy0; y <= cy1; ++y)
+				for (int x = cx0; x <= cx1; ++x) {
+					if (!nav_grid_.cells.inside(x, y)) continue;
+					const float wx = nav_origin.x + (float)x * nav_cell, wz = nav_origin.y + (float)y * nav_cell;
+					uint64_t bits = 0;
+					for (int j = 0; j < 8; ++j)
+						for (int i = 0; i < 8; ++i) {
+							const float sx0 = wx + (float)i * sub, sz0 = wz + (float)j * sub;
+							if (inc(sx0, sz0) && inc(sx0 + sub, sz0) && inc(sx0, sz0 + sub) && inc(sx0 + sub, sz0 + sub))
+								bits |= uint64_t(1) << (j * 8 + i);
+						}
+					mask[static_cast<size_t>(y) * nav_grid_.cells.w + x] |= bits;
+				}
+		}
 	}
 	// Off-world passability (CCmpPathfinder::UpdateGrid, source/simulation2/components/CCmpPathfinder.cpp:711):
 	// on a circular map every navcell whose centre lies past its edge (MAP_EDGE_TILES inside
@@ -4374,12 +4403,14 @@ Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, ui
 	}
 
 	// 4. Distance from the player's own structures (foundations included) of the
-	// same class, measured between footprint edges.
+	// same class: centre to centre, less the new structure's half size. 0 A.D.
+	// BuildRestrictions subtracts the new template's obstructionRadius.min; RTS0 has
+	// no per-template obstruction radius yet, so its footprint half stands in.
 	if (rule.distance_class != DIST_NONE) {
 		const float half = rect ? rect->half_size : 0.5f * (x1 - x0);
 		for (const Building &b : buildings_) {
 			if (b.team != player || b.hp <= 0.0f || distance_class_of(b.type) != rule.distance_class) continue;
-			const float d = det::hypot(b.x - cxw, b.z - czw) - half - b.half_size;
+			const float d = det::hypot(b.x - cxw, b.z - czw) - half;
 			if (d < rule.min_distance) return PLACE_DISTANCE;
 		}
 	}
@@ -4815,6 +4846,10 @@ uint8_t Simulation::train_unlock_tech(uint8_t player_id, uint8_t unit_type, uint
 		// A civ without the unlock trains the unit outright, as in 0 A.D.
 		return tech_available_to_civ(tech, civ) ? tech : (uint8_t)TECH_NONE;
 	};
+	// Female citizen houses (units/<civ>/support_female_citizen_house.xml) are gated on
+	// unlock_females_house (Fertility Festival, 200 food, 40 s), not the civilians' tech.
+	if (tmpl < CIV_UNIT_TEMPLATE_COUNT && civ_unit_template(tmpl).unlock_tech == TECH_UNLOCK_FEMALES_HOUSE)
+		return gate(TECH_UNLOCK_FEMALES_HOUSE);
 	if (house_trains_citizens(bld_type)) {
 		uint8_t tech = tech_available_to_civ(TECH_UNLOCK_CIVILIANS_HOUSE_KUSH, civ)
 				? (uint8_t)TECH_UNLOCK_CIVILIANS_HOUSE_KUSH : (uint8_t)TECH_UNLOCK_CIVILIANS_HOUSE_GENERIC;
@@ -7311,8 +7346,17 @@ void Simulation::order_gather(const uint32_t *unit_ids_in, size_t count_in, uint
 				gdx * gdx + gdz * gdz <= 4.0f && units_.carry[uidx] > 0 &&
 				units_.carry[uidx] >= carry_cap((size_t)uidx, units_.res_type_carried[uidx]) &&
 				resources_.type[ridx] == units_.res_type_carried[uidx];
+		// A re-send of the same resource to a unit walking back with its full load keeps the walk's failed
+		// count: set_order starts a new move, and MoveTo resets m_FailedMovements, but 0.28 never re-sends a
+		// working gatherer (Petra's worker.js gathers only idle units). Petra re-sends a returning gatherer
+		// every few seconds here, so a walk blocked at its dropsite never reached MoveFailed (SW6, seed 30).
+		const bool same_return = returning && units_.target_resource_id[uidx] == resource_id && units_.carry[uidx] > 0 &&
+				units_.carry[uidx] >= carry_cap((size_t)uidx, units_.res_type_carried[uidx]) &&
+				resources_.type[ridx] == units_.res_type_carried[uidx];
+		const uint8_t failed_kept = units_.motion[uidx].failed;
 		if (!keep) drop_walk_path((size_t)uidx);
 		set_order(uidx, ORDER_GATHER, flags, resource_id, rx, rz);
+		if (same_return) units_.motion[uidx].failed = failed_kept;
 	}
 	if (!walkers.empty()) order_walk(walkers.data(), walkers.size(), rx, rz);
 }
@@ -9484,6 +9528,7 @@ void Simulation::tick_siege_garrisons() {
 			}
 			units_.pos_x[p] = ex;
 			units_.pos_z[p] = ez;
+			unit_jumped(p);
 			units_.alive[p] = 1;
 			units_.action_state[p] = ACTION_IDLE;
 			units_.has_order[p] = 0;
@@ -9524,6 +9569,7 @@ void Simulation::unload_sunk_ship(size_t ship) {
 		if (shore && holder_ejects(ship, (size_t)p) && ship_unload_point(ship, lx, lz, (size_t)p, &taken)) {
 			units_.pos_x[p] = lx;
 			units_.pos_z[p] = lz;
+			unit_jumped(p);
 			units_.alive[p] = 1;
 			units_.action_state[p] = ACTION_IDLE;
 			units_.has_order[p] = 0;
@@ -9914,6 +9960,7 @@ void Simulation::occupy_turret(size_t i, Building &b) {
 	set_order(i, ORDER_NONE, 0, 0, x, z); // up there: the garrison order is done
 	units_.pos_x[i] = units_.target_x[i] = units_.anchor_x[i] = x;
 	units_.pos_z[i] = units_.target_z[i] = units_.anchor_z[i] = z;
+	unit_reset_prev(i); // a MoveTo (UpdateTurretPosition): the walk's lead is kept
 	units_.vel_x[i] = units_.vel_z[i] = 0.0f;
 	units_.has_order[i] = 0;
 	units_.waypoint_count[i] = 0;
@@ -9940,6 +9987,7 @@ bool Simulation::leave_turret(size_t i, const Building &b, bool forced) {
 	}
 	units_.pos_x[i] = sx;
 	units_.pos_z[i] = sz;
+	unit_jumped(i);
 	face_away_from(i, b.x, b.z);
 	auto it = turret_prev_stance_.find(units_.id[i]);
 	units_.stance[i] = it != turret_prev_stance_.end() ? it->second : unit_default_stance(units_.unit_type[i], units_.tmpl[i]);
@@ -10788,6 +10836,7 @@ void Simulation::order_ungarrison(uint32_t building_id, bool forced_turrets) {
 		if (!turret) {
 			units_.pos_x[idx] = ex;
 			units_.pos_z[idx] = ez;
+			unit_jumped(idx);
 			face_away_from((size_t)idx, b.x, b.z);
 		}
 		units_.alive[idx] = 1;
@@ -10866,6 +10915,7 @@ void Simulation::order_ungarrison_single(uint32_t building_id, uint32_t unit_id)
 				if (!pick_spawn_point(b, units_.unit_type[idx], unit_id, ex, ez, units_.tmpl[idx])) return;
 				units_.pos_x[idx] = ex;
 				units_.pos_z[idx] = ez;
+				unit_jumped(idx);
 				face_away_from((size_t)idx, b.x, b.z);
 			}
 			units_.alive[idx] = 1;
@@ -11386,6 +11436,7 @@ void Simulation::order_disembark(uint32_t transport_id, float target_x, float ta
 		}
 		units_.pos_x[idx] = x;
 		units_.pos_z[idx] = z;
+		unit_jumped(idx);
 		units_.alive[idx] = 1;
 		units_.action_state[idx] = ACTION_IDLE;
 		units_.has_order[idx] = 0;
@@ -11428,6 +11479,7 @@ void Simulation::order_disembark_single(uint32_t transport_id, uint32_t unit_id)
 			}
 			units_.pos_x[idx] = land_x;
 			units_.pos_z[idx] = land_z;
+			unit_jumped(idx);
 			units_.alive[idx] = 1;
 			units_.action_state[idx] = ACTION_IDLE;
 			units_.has_order[idx] = 0;
@@ -12001,28 +12053,213 @@ float Simulation::projectile_speed_of(uint32_t source_id, uint8_t visual) const 
 	return p ? p->proj_speed * COMBAT_DISTANCE_SCALE : projectile_speed(visual);
 }
 
+// The last full turn's velocity of unit t, taken at the turn start (see the snapshot in tick()).
 void Simulation::aim_velocity_unit(size_t t, float &vx, float &vz) const {
-	vx = (units_.pos_x[t] - units_.prev_x[t]) / (4 * FIXED_STEP);
-	vz = (units_.pos_z[t] - units_.prev_z[t]) / (4 * FIXED_STEP);
+	vx = units_.aim_vx[t];
+	vz = units_.aim_vz[t];
 }
 
-// PositionHelper.PredictTimeToTarget: the smallest non-negative time t at which a projectile
-// of horizontal `speed` from (sx, sz) meets a target at (tx, tz) moving at (vx, vz), from
-// a t^2 + 2 b t + c = 0; 0 (aim where it stands) when there is none.
-float Simulation::predict_time_to_target(float sx, float sz, float speed, float tx, float tz, float vx, float vz) {
+void Simulation::aim_velocity_fauna(size_t f, float &vx, float &vz) const {
+	vx = fauna_aim_vx_[f];
+	vz = fauna_aim_vz_[f];
+}
+
+// PositionHelper.PredictTimeToTarget (helpers/Position.js): whether an arrow of `speed` from (sx, sz)
+// meets the target at (tx, tz) moving at (vx, vz), and the smallest non-negative time t of that meeting,
+// from a t^2 + 2 b t + c = 0. It stands on the spot (t = 0) when c is 0. False when it never meets.
+bool Simulation::time_to_target(float sx, float sz, float speed, float tx, float tz, float vx, float vz, float &t) {
 	const float rx = tx - sx, rz = tz - sz;
 	const float a = vx * vx + vz * vz - speed * speed;
 	const float b = rx * vx + rz * vz;
 	const float c = rx * rx + rz * rz;
-	if (c == 0.0f) return 0.0f;
+	if (c == 0.0f) {
+		t = 0.0f;
+		return true;
+	}
 	const float disc = b * b - a * c;
-	if (a < 0.0f || (b < 0.0f && disc >= 0.0f)) return c / (std::sqrt(std::max(0.0f, disc)) - b);
-	return 0.0f;
+	if (a < 0.0f || (b < 0.0f && disc >= 0.0f)) {
+		t = c / (std::sqrt(std::max(0.0f, disc)) - b);
+		return true;
+	}
+	t = 0.0f;
+	return false;
 }
 
-void Simulation::aim_velocity_fauna(size_t f, float &vx, float &vz) const {
-	vx = (fauna_.pos_x[f] - fauna_.prev_x[f]) / (4 * FIXED_STEP);
-	vz = (fauna_.pos_z[f] - fauna_.prev_z[f]) / (4 * FIXED_STEP);
+float Simulation::predict_time_to_target(float sx, float sz, float speed, float tx, float tz, float vx, float vz) {
+	float t = 0.0f;
+	time_to_target(sx, sz, speed, tx, tz, vx, vz, t);
+	return t;
+}
+
+// splitmix64 of the key, as a uniform draw in [0, 1) from its top 24 bits: Attack.js randBool(p), but a pure
+// function of the shot, so the parallel ranged pass draws the same as a sequential one and the sim RNG is untouched.
+float Simulation::aim_draw(uint64_t key) {
+	uint64_t z = key + 0x9E3779B97F4A7C15ull;
+	z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ull;
+	z = (z ^ (z >> 27)) * 0x94D049BB133111EBull;
+	z ^= z >> 31;
+	return (float)(z >> 40) * (1.0f / 16777216.0f);
+}
+
+uint64_t Simulation::aim_key(uint32_t shooter, uint32_t target) const {
+	uint64_t k = ticks_;
+	k = k * 0x9E3779B97F4A7C15ull + shooter;
+	k = k * 0x9E3779B97F4A7C15ull + target;
+	return k;
+}
+
+// Attack.js PerformAttack's target: a unit that is a formation member has no UnitMotion lead (it is
+// not "a UnitMotion target" in 0.28's check), so it is led linearly.
+Simulation::AimTarget Simulation::unit_aim_target(size_t t) const {
+	const bool member = !formations_.empty() && t < formation_group_.size() && formation_group_[t] != 0;
+	return AimTarget{units_.pos_x[t], units_.pos_z[t], units_.aim_vx[t], units_.aim_vz[t], units_.id[t], t, false, !member};
+}
+
+// An animal has no path in RTS0, so its future position is linear (the same as its straight-line
+// motion at constant velocity), and it never takes the UnitMotion branch.
+Simulation::AimTarget Simulation::fauna_aim_target(size_t f) const {
+	return AimTarget{fauna_.pos_x[f], fauna_.pos_z[f], fauna_aim_vx_[f], fauna_aim_vz_[f], fauna_.id[f], f, true, false};
+}
+
+void Simulation::aim_point(float sx, float sz, float speed, const AimTarget &tg, uint64_t key, float &ax, float &az) const {
+	float t = 0.0f;
+	if (!time_to_target(sx, sz, speed, tg.x, tg.z, tg.vx, tg.vz, t)) {
+		ax = tg.x;
+		az = tg.z;
+		return;
+	}
+	// Don't predict too far ahead: after 0.75 / (1 / 1.333) s of flight the linear prediction is always used.
+	if (tg.motion && aim_draw(key) < std::max(0.0f, 0.75f - t / 1.333f)) {
+		unit_future_position(tg.idx, t, ax, az);
+		return;
+	}
+	ax = tg.x + tg.vx * t;
+	az = tg.z + tg.vz * t;
+}
+
+// Walks (x, z) along the points xs/zs (n of them, in order) for at most `left` metres, as a move does. With
+// `has_stop` the walk ends where it first comes within `stop` of the goal (gx, gz), and stands if it starts
+// within it: UnitMotion's MoveToTargetRange stops an attacker at that distance from its target.
+static void walk_points(float &x, float &z, float &left, const float *xs, const float *zs, int n, bool has_stop,
+		float gx, float gz, float stop) {
+	if (has_stop) {
+		const float wx = x - gx, wz = z - gz;
+		if (wx * wx + wz * wz <= stop * stop) {
+			left = 0.0f;
+			return;
+		}
+	}
+	for (int k = 0; k < n && left > 0.0f; ++k) {
+		const float dx = xs[k] - x, dz = zs[k] - z;
+		const float d = std::sqrt(dx * dx + dz * dz);
+		if (has_stop && d > 0.0f) {
+			// The first point of this leg within `stop` of the goal: |w + u e| = stop, with w the walker's offset
+			// from the goal and e the leg's unit direction; the smaller root of the quadratic is the entry.
+			const float ex = dx / d, ez = dz / d;
+			const float wx = x - gx, wz = z - gz;
+			const float b = wx * ex + wz * ez;
+			const float disc = b * b - (wx * wx + wz * wz - stop * stop);
+			if (disc >= 0.0f) {
+				const float u = -b - std::sqrt(disc);
+				if (u >= 0.0f && u <= d) {
+					const float move = std::min(u, left);
+					x += ex * move;
+					z += ez * move;
+					left = 0.0f;
+					return;
+				}
+			}
+		}
+		if (d <= left) {
+			left -= d;
+			x = xs[k];
+			z = zs[k];
+		} else {
+			x += dx * (left / d);
+			z += dz * (left / d);
+			left = 0.0f;
+		}
+	}
+}
+
+// UnitAI MoveToTargetAttackRange: how far from its target an attacker stops. A Ranged attack walks to its
+// elevation-adapted range (GetEffectiveParabolicRange, the one tick_combat fires within), or halfway there when
+// height lengthens it ("the parabole changes while walking"), and stops comfortably within volley distance; a
+// Slaughter walks up to its animal; a melee attack stops right at weapon reach. move_units uses it too.
+float Simulation::attack_stop_distance(size_t i) const {
+	float r_att = attack_reach(i);
+	if (units_.target_unit_id[i] != 0 && fauna_.count != 0 && slaughters_target(i))
+		r_att = SLAUGHTER_RANGE + 1.0f; // Attack/Slaughter MaxRange: walk up to the animal
+	if (r_att > 3.0f) {
+		if (units_.target_unit_id[i] != 0) {
+			const int32_t t = lookup_unit(units_.target_unit_id[i]);
+			if (t >= 0) {
+				const float h = unit_height_offset((size_t)t) - unit_height_offset(i) - unit_attack_origin_y(i);
+				const float eff = std::sqrt(std::max(0.0f, r_att * r_att - 2.0f * r_att * h));
+				r_att = eff > r_att ? 0.5f * (r_att + eff) : eff;
+			}
+		}
+		// Ranged units (Archers, Catapults, Triremes) stop comfortably within volley distance
+		return std::max(2.5f, r_att * 0.85f);
+	}
+	// Melee units stop right at weapon reach to encircle target without penetration
+	return std::max(1.1f, r_att - 0.2f);
+}
+
+// Whether move_units follows the unit's waypoints now, by its action as move_units' path test reads it: a move,
+// attack move or patrol, or a task path (gather, build, return, trade, attack) whose goal lies within 2 units of
+// the task's target. An attacker's target is the unit it stands on, where it is now. A path left behind by an
+// earlier walk, such as an attacker's after an order to attack, is not walked.
+bool Simulation::unit_walks_path(size_t t) const {
+	const uint8_t st = units_.action_state[t];
+	if (st == ACTION_MOVE || st == ACTION_ATTACK_MOVE || st == ACTION_PATROL) return true;
+	const bool task = st == ACTION_GATHER || st == ACTION_BUILD || st == ACTION_RETURN_DROPSITE || st == ACTION_TRADE ||
+		st == ACTION_ATTACK;
+	if (!task || t >= unit_paths_.size() || !unit_paths_[t].has_goal) return false;
+	float tx = units_.target_x[t], tz = units_.target_z[t];
+	if (st == ACTION_ATTACK && units_.target_unit_id[t] != 0) {
+		const int32_t k = lookup_unit(units_.target_unit_id[t]);
+		if (k >= 0 && units_.alive[k]) {
+			tx = units_.pos_x[k];
+			tz = units_.pos_z[k];
+		}
+	}
+	const float gdx = unit_paths_[t].goal_x - tx, gdz = unit_paths_[t].goal_z - tz;
+	return gdx * gdx + gdz * gdz <= 4.0f;
+}
+
+void Simulation::unit_future_position(size_t t, float dt, float &x, float &z) const {
+	x = units_.pos_x[t];
+	z = units_.pos_z[t];
+	const float vx = units_.vel_x[t], vz = units_.vel_z[t];
+	const float s = std::sqrt(vx * vx + vz * vz);
+	// The distance it covers in dt, accelerating from its speed to its walk speed (accelerate).
+	float speed = 0.0f;
+	float left = accelerate(t, s, unit_move_speed(t), dt, &speed);
+	// Where move_units ends it: an attacker on a unit stops at its stop distance from that unit, which it walks
+	// at (MoveToTargetRange). Any other walk goes to its goal, target_x/z, with no stop.
+	bool has_stop = false;
+	float stop = 0.0f, gx = units_.target_x[t], gz = units_.target_z[t];
+	if (units_.action_state[t] == ACTION_ATTACK && units_.target_building_id[t] == 0 && units_.target_unit_id[t] != 0) {
+		const int32_t k = lookup_unit(units_.target_unit_id[t]);
+		if (k >= 0 && units_.alive[k]) {
+			has_stop = true;
+			stop = attack_stop_distance(t);
+			gx = units_.pos_x[k];
+			gz = units_.pos_z[k];
+		}
+	}
+	const float *xs = nullptr, *zs = nullptr;
+	const int n = unit_waypoints_left(t, &xs, &zs);
+	if (n > 0 && unit_walks_path(t)) {
+		// Along the long path it is walking: its remaining waypoints in order.
+		walk_points(x, z, left, xs, zs, n, has_stop, gx, gz, stop);
+		return;
+	}
+	// Moving without a path: straight at its goal. Standing still it stays.
+	if (!units_.has_order[t] || s <= 0.0f) return;
+	const float goal_x[1] = {gx}, goal_z[1] = {gz};
+	walk_points(x, z, left, goal_x, goal_z, 1, has_stop, gx, gz, stop);
 }
 
 // 0 A.D. globalscripts randomNormal2D: two independent standard normals (Box-Muller)
@@ -12213,18 +12450,23 @@ void Simulation::tick(float dt) {
 	frame_arena_.flip();
 	auto t1 = std::chrono::high_resolution_clock::now();
 	tick_us_ += std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count();
-	// CCmpPosition m_PrevX/m_PrevZ at MT_TurnStart: each unit's and animal's position
-	// at the end of the last lockstep turn (4 FIXED_STEP ticks, turn_manager.h
-	// TICKS_PER_TURN), whatever dt each tick ran with, so ranged aim divides by a
-	// full turn below.
+	// CCmpPosition m_PrevX/m_PrevZ at each lockstep turn start (4 FIXED_STEP ticks, turn_manager.h
+	// TICKS_PER_TURN, whatever dt each tick ran with): the position a turn ago. The velocity over the last
+	// full turn, (position - prev) / (4 FIXED_STEP), is Attack.js targetVelocity; it is taken here at the
+	// boundary, before prev moves on, and kept for the whole next turn. Shots then lead by that velocity
+	// whatever tick of the turn they fall in (0 A.D.'s shots fire at the turn start, so this is its lead).
 	aim_clock_ += dt;
-	if (aim_clock_ >= 4 * FIXED_STEP) {
+	if (aim_clock_ >= 4 * FIXED_STEP - 0.5f * FIXED_STEP) { // half a tick of slack for float sums
 		aim_clock_ = 0.0f;
 		for (size_t u = 0; u < units_.count; ++u) {
+			units_.aim_vx[u] = (units_.pos_x[u] - units_.prev_x[u]) / (4 * FIXED_STEP);
+			units_.aim_vz[u] = (units_.pos_z[u] - units_.prev_z[u]) / (4 * FIXED_STEP);
 			units_.prev_x[u] = units_.pos_x[u];
 			units_.prev_z[u] = units_.pos_z[u];
 		}
 		for (size_t f = 0; f < fauna_.count; ++f) {
+			fauna_aim_vx_[f] = (fauna_.pos_x[f] - fauna_.prev_x[f]) / (4 * FIXED_STEP);
+			fauna_aim_vz_[f] = (fauna_.pos_z[f] - fauna_.prev_z[f]) / (4 * FIXED_STEP);
 			fauna_.prev_x[f] = fauna_.pos_x[f];
 			fauna_.prev_z[f] = fauna_.pos_z[f];
 		}
@@ -13035,27 +13277,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		if (at_building) {
 			d2 = 0.0f; // in reach: stop here
 		} else if (units_.action_state[i] == ACTION_ATTACK && !backing_off && units_.target_building_id[i] == 0) {
-			float r_att = attack_reach(i);
-			if (units_.target_unit_id[i] != 0 && fauna_.count != 0 && slaughters_target(i))
-				r_att = SLAUGHTER_RANGE + 1.0f; // Attack/Slaughter MaxRange: walk up to the animal
-			if (r_att > 3.0f) {
-				// UnitAI MoveToTargetAttackRange: a Ranged attack walks to its elevation-adapted
-				// range (GetEffectiveParabolicRange, the one tick_combat fires within), or halfway
-				// there when height lengthens it ("the parabole changes while walking").
-				if (units_.target_unit_id[i] != 0) {
-					const int32_t t = lookup_unit(units_.target_unit_id[i]);
-					if (t >= 0) {
-						const float h = unit_height_offset((size_t)t) - unit_height_offset(i) - unit_attack_origin_y(i);
-						const float eff = std::sqrt(std::max(0.0f, r_att * r_att - 2.0f * r_att * h));
-						r_att = eff > r_att ? 0.5f * (r_att + eff) : eff;
-					}
-				}
-				// Ranged units (Archers, Catapults, Triremes) stop comfortably within volley distance
-				stop_dist = std::max(2.5f, r_att * 0.85f);
-			} else {
-				// Melee units stop right at weapon reach to encircle target without penetration
-				stop_dist = std::max(1.1f, r_att - 0.2f);
-			}
+			stop_dist = attack_stop_distance(i);
 		}
 
 		// Along a chase path the unit stops for its target, not at a waypoint. So does a hunter along
@@ -14238,6 +14460,16 @@ constexpr float PUSH_EPSILON = 10.0f / 65536.0f * PUSH_SCALE; // fixed::Epsilon(
 constexpr float PUSH_TURN = 0.2f;                         // 0 A.D. turn length, s
 constexpr int PUSH_MAX_PRESSURE = 255;                    // CCmpUnitMotionManager::MAX_PRESSURE
 constexpr int PUSH_MAX_DAMPING_PRESSURE = 160;            // MAX_PUSH_DAMPING_PRESSURE
+// 0 A.D. bins each unit once a turn, by its turn-start position, into a PUSHING_GRID_SIZE (20 m) square
+// (CCmpUnitMotion_System.cpp:75 and 458-480, 0ad-android checkout), and its pair loop (584-591) pairs a
+// unit only with the units in its own square and its four orthogonal neighbours (consider list 536-547), so
+// a pair across a square's corner never pushes. At the
+// crowd scale the square is 20 m times PUSH_SCALE, with the map's corner as its origin, as 0 A.D.'s
+// squares start at its map's corner. Not ported: 0 A.D. builds each bin's neighbour list round the cell
+// its first unit ends the turn in (513-514, after Move), a quirk RTS0 can't reproduce while it pushes every tick.
+// RTS0 bins a stepping unit by where it stood before its first step this turn, and a standing unit by its
+// tick-start position, so a standing unit that a push moves can change square up to a turn early.
+constexpr float PUSH_SQUARE = 20.0f * PUSH_SCALE;
 constexpr int PUSH_MIN_PRESSURE_IF_OBSTRUCTED = 80;       // MIN_PRESSURE_IF_OBSTRUCTED
 constexpr float PUSH_PRESSURE_STATIC = 2.0f;              // PRESSURE_STATIC_FACTOR
 constexpr float PUSH_PRESSURE_DISTANCE = 5.0f;            // PRESSURE_DISTANCE_FACTOR
@@ -14390,14 +14622,15 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 	if (n_big && !big.build(arena, N, epx, epz, qbig, map_half_, grid.res)) return;
 
 	// The pair loop's inputs, gathered once: twice the average of where each unit stood before and
-	// after move_units (the pushes compare that), where it stood when the turn began (the crossing
-	// test compares that, as 0 A.D. pushes once a turn: over one tick two walkers can't get far
+	// after move_units (the pushes compare that), where a stepping unit stood before its first step this
+	// turn, else where it stood at the tick's start (the crossing test compares that, as 0 A.D. pushes once
+	// a turn: over one tick two walkers can't get far
 	// enough past each other to pass PERPENDICULAR_NUDGE_THRESHOLD), and its pushing data. The
 	// widest clearance this tick bounds every pair's reach: none pushes beyond its clearances times
 	// Radius plus the moving extension.
 	struct PushUnit {
 		float sx, sz;
-		float ix, iz; // where it stood when the turn began: before its first step of the turn, if any
+		float ix, iz; // where a stepping unit stood before its first step this turn, else where it stood at the tick's start
 		float r; // unit_collision_radius, or an animal's FAUNA_PUSH_RADIUS; its push clearance is r * PUSH_CLEARANCE_PER_RADIUS
 		uint32_t id, group; // group: its formation, 0 for none
 		uint16_t w; // unit_push_weight, or an animal's UnitMotion Weight
@@ -14513,6 +14746,17 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 		step_max = std::max({step_max, std::fabs(epx[i] - frx[i]), std::fabs(epz[i] - frz[i])});
 		mov[i] = u.moving;
 	}
+	// Each entity's pushing square, from pu[i].ix, iz (see PushUnit): 0 A.D. bins
+	// every unit once a turn, at its turn-start position; RTS0 bins a standing unit at its tick-start one.
+	// A unit that doesn't push is never looked at.
+	int32_t *sqx = arena.alloc_array<int32_t>(N);
+	int32_t *sqz = arena.alloc_array<int32_t>(N);
+	if (!sqx || !sqz) return;
+	for (size_t i = 0; i < N; ++i) {
+		const bool pushing = i >= n || pushes[i];
+		sqx[i] = pushing ? (int32_t)std::floor((pu[i].ix + map_half_) / PUSH_SQUARE) : 0;
+		sqz[i] = pushing ? (int32_t)std::floor((pu[i].iz + map_half_) / PUSH_SQUARE) : 0;
+	}
 	const float min_push = PUSH_MIN_FORCE * dt / PUSH_TURN;
 	if (n_big) {
 		if (!grid.pack(arena, N, epx, epz, mov) || !grid.alloc_split_flagged(arena)) return;
@@ -14599,6 +14843,16 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 				const float rr = ri + b.r;
 				const float bdx = pxi - epx[j], bdz = pzi - epz[j];
 				if (bdx * bdx + bdz * bdz < rr * rr) body_overlap = true;
+			}
+			// The square gate (0 A.D. pushes a pair only from one pushing square to the same or an orthogonal
+			// neighbour, consider list 536-547 in CCmpUnitMotion_System.cpp). It covers every pair that moves alike (both walking or
+			// both standing) and every same-group pair. A walker and an idle unit outside one group never push:
+			// they slide below, RTS0's own nudge off a standing body (avoid_idle_units keeps a steered walker out of it).
+			// It runs after the bodies' overlap above, so a pair across a square's corner still exempts an
+			// overlapping body from MinimalForce; only its own push is skipped.
+			if (same_group || mi == mj) {
+				const int32_t dsx = sqx[i] - sqx[j], dsz = sqz[i] - sqz[j];
+				if (dsx > 1 || dsx < -1 || dsz > 1 || dsz < -1 || (dsx != 0 && dsz != 0)) return;
 			}
 			// Half the offset of the averages; no pair pushes beyond `reach`.
 			const float hx = (a.sx - b.sx) * 0.5f, hz = (a.sz - b.sz) * 0.5f;
@@ -14741,7 +14995,11 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 			pressure = (uint8_t)std::min(PUSH_MAX_PRESSURE, (int)((PUSH_PRESSURE_DECAY * pressure) >> 16) + added_pressure);
 		// MinimalForce lets crowds settle, but it can also hold idle units that were put on top of
 		// one another (a siege engine's forced eject at its centre): an idle unit whose body overlaps
-		// another idle unit's is always pushed.
+		// another idle unit's is exempt, so its total push is always applied, even where its pair across a
+		// square's corner is skipped by the gate. 0 A.D. has no such exemption (PushAdjust, CCmpUnitMotion_System.cpp:622
+		// in the 0ad-android checkout zeroes any total under MinimalPushing): this is a deliberate RTS0 deviation
+		// (REMAINING_GAPS G124). It stays because without it a corner pair with a third idle unit nearby froze 0.46
+		// units apart after 60 ticks, against 1.54 with it (test_unit_pushing scenario 45).
 		if (!body_overlap && ax * ax + az * az <= min_push * min_push) {
 			ax = az = 0.0f;
 		} else {
@@ -18085,13 +18343,11 @@ void Simulation::tick_combat(float dt) {
 			p.effect = status_effect_bit(unit_combat_at(i).status);
 			const float arrow_sy = (u_att == UNIT_TRIREME) ? 3.0f : (u_att == UNIT_BOLT_SHOOTER ? 1.0f : (maur_elephant_archer ? 3.4f : 1.4f));
 			p.proj_vis = (u_att == UNIT_CATAPULT) ? 2 : ((u_att == UNIT_TRIREME || u_att == UNIT_BOLT_SHOOTER) ? 1 : 0);
-			const float dist = std::sqrt(d2);
-			float lead_x = 0.0f, lead_z = 0.0f;
-			aim_velocity_unit((size_t)t, lead_x, lead_z);
-			const float flight = predict_time_to_target(units_.pos_x[i], units_.pos_z[i], projectile_speed_of(units_.id[i], p.proj_vis),
-					units_.pos_x[t], units_.pos_z[t], lead_x, lead_z);
-			p.aim_x = units_.pos_x[t] + lead_x * flight;
-			p.aim_z = units_.pos_z[t] + lead_z * flight;
+			aim_point(units_.pos_x[i], units_.pos_z[i], projectile_speed_of(units_.id[i], p.proj_vis), unit_aim_target((size_t)t),
+					aim_key(units_.id[i], units_.id[t]), p.aim_x, p.aim_z);
+			// The spread is taken from the shooter to the aim point (Attack.js predictedPosition.horizDistanceTo).
+			const float dist = std::sqrt((p.aim_x - units_.pos_x[i]) * (p.aim_x - units_.pos_x[i]) +
+					(p.aim_z - units_.pos_z[i]) * (p.aim_z - units_.pos_z[i]));
 			const float tech_spread = units_.team[i] < MAX_PLAYERS ? unit_tech_mods(units_.team[i], units_.unit_type[i], units_.tmpl[i]).spread : 1.0f;
 			p.sigma = unit_combat_at(i).spread * spread_rank_multiplier(units_.rank[i]) * tech_spread * dist / 100.0f;
 			p.launch_y = unit_height(i) + arrow_sy;
@@ -18428,13 +18684,10 @@ void Simulation::tick_combat(float dt) {
 			const size_t t = (size_t)tu;
 			units_.attacked_by[t] = units_.id[i]; // UnitAI "Attacked"
 			const float dmg = unit_attack_damage(i, t);
-			const float dist = det::hypot(units_.pos_x[t] - sx, units_.pos_z[t] - sz);
-			float lead_x = 0.0f, lead_z = 0.0f;
-			aim_velocity_unit(t, lead_x, lead_z);
-			const float flight = predict_time_to_target(sx, sz, projectile_speed_of(units_.id[i], 0),
-					units_.pos_x[t], units_.pos_z[t], lead_x, lead_z);
-			const float aim_x = units_.pos_x[t] + lead_x * flight;
-			const float aim_z = units_.pos_z[t] + lead_z * flight;
+			float aim_x = 0.0f, aim_z = 0.0f;
+			aim_point(sx, sz, projectile_speed_of(units_.id[i], 0), unit_aim_target(t), aim_key(units_.id[i], units_.id[t]), aim_x, aim_z);
+			// The spread is taken from the shooter to the aim point (Attack.js predictedPosition.horizDistanceTo).
+			const float dist = det::hypot(aim_x - sx, aim_z - sz);
 			const float sigma = spread * dist / 100.0f;
 			const float land_y = (unit_is_ship(units_.unit_type[t]) ? unit_height(t)
 					: get_terrain_height(aim_x, aim_z) + unit_height_offset(t)) + 0.8f;
@@ -18642,12 +18895,10 @@ void Simulation::tick_combat(float dt) {
 				const FaunaTypeInfo &fi = fauna_type_info(fauna_.fauna_type[f]);
 				const float dmg = hack * det::pow(0.9f, fi.hack_armor) + pierce * det::pow(0.9f, fi.pierce_armor) +
 						crush * det::pow(0.9f, fi.crush_armor);
-				const float fx = fauna_.pos_x[f], fz = fauna_.pos_z[f];
-				const float dist = det::hypot(fx - b.x, fz - b.z);
-				float lead_x = 0.0f, lead_z = 0.0f;
-				aim_velocity_fauna(f, lead_x, lead_z);
-				const float flight = predict_time_to_target(b.x, b.z, projectile_speed_of(b.id, 0), fx, fz, lead_x, lead_z);
-				const float lx = fx + lead_x * flight, lz = fz + lead_z * flight;
+				float lx = 0.0f, lz = 0.0f;
+				aim_point(b.x, b.z, projectile_speed_of(b.id, 0), fauna_aim_target(f), aim_key(b.id, fauna_.id[f]), lx, lz);
+				// The spread is taken from the shooter to the aim point (Attack.js predictedPosition.horizDistanceTo).
+				const float dist = det::hypot(lx - b.x, lz - b.z);
 				const float sigma = spread * dist / 100.0f;
 				float disp_x = 0.0f, disp_z = 0.0f;
 				random_normal_2d(disp_x, disp_z);
@@ -18673,14 +18924,10 @@ void Simulation::tick_combat(float dt) {
 			float armor[3];
 			unit_resistance(u, armor);
 			const float dmg = hack * det::pow(0.9f, armor[0]) + pierce * det::pow(0.9f, armor[1]) + crush * det::pow(0.9f, armor[2]);
-			const float dx = units_.pos_x[u] - b.x, dz = units_.pos_z[u] - b.z;
-			const float dist = sqrtf(dx * dx + dz * dz);
-			float lead_x = 0.0f, lead_z = 0.0f;
-			aim_velocity_unit(u, lead_x, lead_z);
-			const float flight = predict_time_to_target(b.x, b.z, projectile_speed_of(b.id, 0), // at its own Projectile/Speed
-					units_.pos_x[u], units_.pos_z[u], lead_x, lead_z);
-			const float aim_x = units_.pos_x[u] + lead_x * flight;
-			const float aim_z = units_.pos_z[u] + lead_z * flight;
+			float aim_x = 0.0f, aim_z = 0.0f; // at its own Projectile/Speed
+			aim_point(b.x, b.z, projectile_speed_of(b.id, 0), unit_aim_target(u), aim_key(b.id, units_.id[u]), aim_x, aim_z);
+			// The spread is taken from the shooter to the aim point (Attack.js predictedPosition.horizDistanceTo).
+			const float dist = sqrtf((aim_x - b.x) * (aim_x - b.x) + (aim_z - b.z) * (aim_z - b.z));
 			const float sigma = spread * dist / 100.0f;
 			float disp_x = 0.0f, disp_z = 0.0f;
 			random_normal_2d(disp_x, disp_z);
@@ -20433,6 +20680,8 @@ Simulation::UnitView Simulation::units() const {
 	v.vel_z = units_.vel_z;
 	v.prev_x = units_.prev_x;
 	v.prev_z = units_.prev_z;
+	v.aim_vx = units_.aim_vx;
+	v.aim_vz = units_.aim_vz;
 	v.target_x = units_.target_x;
 	v.target_z = units_.target_z;
 	v.hp = units_.hp;
@@ -20637,6 +20886,7 @@ void Simulation::eject_corral_animals(const Building &b, bool unallied_only) {
 		pick_spawn_point(b, UNIT_FEMALE_CITIZEN, 0, ex, ez);
 		fauna_.pos_x[f] = ex + 0.3f * (float)(k % 3 - 1); // spread the herd over the spawn point
 		fauna_.pos_z[f] = ez + 0.3f * (float)(k / 3 % 3 - 1);
+		fauna_jumped(f);
 		++k;
 		fauna_.vel_x[f] = fauna_.vel_z[f] = 0.0f;
 		fauna_.behavior[f] = FAUNA_IDLE_GRAZE;
@@ -21238,7 +21488,14 @@ std::vector<uint32_t> Simulation::split_queued(const uint32_t *ids, size_t count
 		for (FormationController &fc : formations_) {
 			if (std::find(fids.begin(), fids.end(), fc.id) == fids.end()) continue;
 			if (!queued) {
-				if (!push_front_order_) fc.queue.clear(); // pushed to the front, the queue carries on after
+				if (!push_front_order_) {
+					fc.queue.clear();
+				} else {
+					// UnitAI PushOrderFront: the walk the controller was on resumes after the new
+					// order, ahead of the rest of the queue.
+					UnitOrder carry;
+					if (formation_current_order(fc, carry) && fc.queue.size() < 64) fc.queue.insert(fc.queue.begin(), carry);
+				}
 				continue;
 			}
 			UnitOrder q = o;
@@ -24532,6 +24789,12 @@ void Simulation::petra_join_trained_plan(uint8_t pid, uint8_t order_plan, uint8_
 // queue lasts, so a civic centre of ours rallying to itself is training emergency units: its
 // other unstarted items are stopped as 0 A.D. does, and no worker is queued there meanwhile.
 bool Simulation::petra_train_emergency_units(const std::vector<std::pair<float, float>> &positions) {
+	// headquarters.js trainEmergencyUnits: nothing while an emergency plan still waits to start
+	// (queues.emergency.hasQueuedUnits); a plan leaves that queue once its unit starts training.
+	for (const Building &b : buildings_)
+		if (b.team == petra_pid_)
+			for (const ProductionOrder &o : b.queue)
+				if (!o.started && o.timer <= 0.0f && o.petra_plan == PETRA_ORDER_EMERGENCY) return false;
 	uint16_t home = 0;
 	const bool naval = petra_classified_topo(home).naval_map;
 	const uint8_t civ = petra_ps().civ;
@@ -24905,18 +25168,34 @@ int Simulation::petra_train_more_workers() {
 	const float support_max = support_ratio * (float)target;
 	const float support_num = support_max * (1.0f - det::exp(-alpha * (float)total / support_max));
 
+	// The scarce-resource penalty findBestTrainableUnit adds (getTotalResourceLevel and
+	// getAvailableResources): under 800 in stock and under 800 left round our dropsites, x0.6
+	// (over 400 left) or x0.2. Workers take it too; the under-45 stone and metal halving is
+	// only for soldiers (speed and costsResource 0.5 requirements).
+	float scarce[RES_COUNT] = {1.0f, 1.0f, 1.0f, 1.0f};
+	{
+		float remaining[RES_COUNT];
+		petra_total_resource_level(remaining);
+		for (int r = 0; r < RES_COUNT; ++r)
+			if (petra_available_resource((uint8_t)r) <= 800.0f && remaining[r] <= 800.0f) // getAvailableResources
+				scarce[r] = std::min(scarce[r], remaining[r] > 400.0f ? 0.6f : 0.2f);
+	}
 	// findBestTrainableUnit(["Support+Worker"], costsResource food): the civ's 0.28 civilian
-	// (support_civilian at the civic centre), the cheapest that a civic centre of ours trains.
+	// (support_civilian at the civic centre). Its score is 0.1 times each scarce penalty on a
+	// resource it costs, over 1 + its total cost; the best score wins.
 	uint16_t civilian = CIV_UNIT_TEMPLATE_NONE;
-	float civilian_cost = 0.0f;
+	float civilian_score = 0.0f;
 	for (uint16_t tmpl : civ_roster_ids(petra_ps().civ)) {
 		const CivUnitTemplate &t = civ_unit_template(tmpl);
 		if (!(t.flags & ROSTER_CIVILIAN) || t.phase > petra_ps().phase || triggers_.template_disabled(tmpl)) continue;
 		if (!petra_has_trainer(tmpl)) continue; // trainable here, however busy the civic centre
 		float cost[RES_COUNT];
 		unit_train_cost(petra_pid_, tmpl, civ_template_unit_info(tmpl, t.unit_type), cost);
-		const float sum = cost[RES_FOOD] + cost[RES_WOOD] + cost[RES_GOLD] + cost[RES_STONE];
-		if (civilian == CIV_UNIT_TEMPLATE_NONE || sum < civilian_cost) { civilian = tmpl; civilian_cost = sum; }
+		float value = 0.1f;
+		for (int r = 0; r < RES_COUNT; ++r)
+			if (cost[r] > 0.0f) value *= scarce[r];
+		const float score = value / (1.0f + cost[RES_FOOD] + cost[RES_WOOD] + cost[RES_GOLD] + cost[RES_STONE]);
+		if (civilian == CIV_UNIT_TEMPLATE_NONE || score > civilian_score) { civilian = tmpl; civilian_score = score; }
 	}
 	uint16_t soldier = CIV_UNIT_TEMPLATE_NONE;
 	// No civilian to train (map-disabled): soldiers instead, as 0.28's !templateDef.
@@ -24927,14 +25206,11 @@ int Simulation::petra_train_more_workers() {
 		// siege tower, and the scarce-resource penalty findBestTrainableUnit adds: under 800 in
 		// stock and under 800 left round our dropsites (getTotalResourceLevel), x0.6 (over 400 left) or x0.2.
 		const int pick = (int)petra_rng_.range_int(0, 2);
-		float penalty[RES_COUNT] = {1.0f, 1.0f, 1.0f, 1.0f};
-		if (total < 45) penalty[RES_STONE] = penalty[RES_GOLD] = 0.5f;
-		{
-			float remaining[RES_COUNT];
-			petra_total_resource_level(remaining);
-			for (int r = 0; r < RES_COUNT; ++r)
-				if (petra_available_resource((uint8_t)r) <= 800.0f && remaining[r] <= 800.0f) // getAvailableResources
-					penalty[r] = std::min(penalty[r], remaining[r] > 400.0f ? 0.6f : 0.2f);
+		float penalty[RES_COUNT];
+		for (int r = 0; r < RES_COUNT; ++r) penalty[r] = scarce[r];
+		if (total < 45) {
+			penalty[RES_STONE] = std::min(penalty[RES_STONE], 0.5f);
+			penalty[RES_GOLD] = std::min(penalty[RES_GOLD], 0.5f);
 		}
 		float best_value = 0.0f;
 		for (uint16_t tmpl : civ_roster_ids(petra_ps().civ)) {
@@ -26873,8 +27149,10 @@ void Simulation::petra_check_hunt_drift(PetraHuntScan &scan) {
 		if (fauna_.food_amount[fit->second] <= 0) continue; // only food supplies
 		const float tx = fauna_.pos_x[fit->second], tz = fauna_.pos_z[fit->second];
 		const int terr = territory_owner_at(tx, tz);
-		bool drifted = petra_foe(terr);
-		if (!drifted && terr < 0) {
+		// worker.js: territoryOwner 0 (neutral) is Gaia, an enemy, so the hunt is retried; only land
+		// of a player that is neither ally nor enemy takes the food-dropsite distance check.
+		bool drifted = terr < 0 || petra_foe(terr);
+		if (!drifted && !is_ally((uint8_t)petra_pid_, (uint8_t)terr)) {
 			const float d2 = (gcls == GATHER_CAVALRY ? 90000.0f : 30000.0f) / 16.0f;
 			auto [cx, cz] = nav_grid_.world_to_cell(tx, tz); // getLandAccess(target)
 			drifted = !petra_food_drop_near(scan, nav_grid_.global_region_at(cx, cz, PASS_INFANTRY), tx, tz, d2);
@@ -28302,9 +28580,10 @@ int Simulation::petra_transport_ships_on(uint16_t sea) const {
 	return n;
 }
 
-// navalManager.js getBestShip: for "transport" the most GarrisonHolder room,
-// +50 when it carries siege engines (no RTS0 ship has BuildingAI arrows, as in
-// 0 A.D. now); for "fishing" the fishing boat. Ties go to the later template.
+// navalManager.js getBestShip: for "transport" the most GarrisonHolder room among every trainable
+// ship at the dock with room for 2 or more, skipping categories at their EntityLimits, +50 for a
+// trireme that carries siege engines (no RTS0 ship has BuildingAI arrows, as in 0 A.D. now); for
+// "fishing" the fishing boat, under the same limit. Ties go to the later template.
 uint16_t Simulation::petra_best_ship(bool fishing) const {
 	const uint8_t pid = petra_pid_;
 	uint16_t best_tmpl = CIV_UNIT_TEMPLATE_NONE;
@@ -28313,11 +28592,14 @@ uint16_t Simulation::petra_best_ship(bool fishing) const {
 		const CivUnitTemplate &t = civ_unit_template(tmpl);
 		if (t.civ != players_[pid].civ || t.phase > players_[pid].phase || !unit_is_ship(t.unit_type)) continue;
 		if (!can_train_at(pid, t.unit_type, BLD_DOCK, tmpl)) continue;
+		// getBestShip: a category at its EntityLimits (queued ones count) is skipped.
+		if (!match_limit_allows(pid, tmpl, 1)) continue;
 		if (fishing) {
 			if (t.unit_type == UNIT_FISHING_BOAT) best_tmpl = tmpl;
 			continue;
 		}
-		if (t.unit_type != UNIT_TRIREME && t.unit_type != UNIT_MERCHANT_SHIP) continue;
+		// Every ship that can hold two passengers (the fishing boat holds one).
+		if (t.unit_type == UNIT_FISHING_BOAT) continue;
 		int capacity = ship_template_capacity(t.unit_type, tmpl);
 		if (capacity < 2) continue;
 		if (t.unit_type == UNIT_TRIREME && capacity != 10) capacity += 50; // List Siege (not the scout ship)
@@ -31381,6 +31663,10 @@ void Simulation::petra_set_rushes() {
 	const float wood = petra_starting_wood(base->x, base->z);
 	// startingStrategy.js gameStart: under 6000 wood, saveResources and an earlier town phase.
 	m.save_resources = wood < 6000.0f ? 1 : 0;
+	// startingStrategy.js: setRushes only when the wood is over 8500 AND canBuildUnits (no rushes
+	// for an AI that cannot train units). Its max stays 0 otherwise.
+	petra_check_can_build_units();
+	if (!petra_can_build_units()) return;
 	int allowed = (int)std::ceil((wood - 8500.0f) / 3000.0f);
 	if (ceasefire_remaining() > 900.0f) allowed = 0;
 	else if (ceasefire_remaining() > 600.0f && allowed > 1) allowed = 1;
@@ -31665,6 +31951,7 @@ void Simulation::petra_attack_units(AttackPlan &plan) {
 	const bool blocked = petra_plan_blocked(plan);
 	std::unordered_set<int32_t> reacted;
 	auto hit = [&](int32_t j, int32_t a) {
+		if (!unit_can_target((size_t)j, (size_t)a)) return; // canAttackTarget (attackPlan.js:1406-1477): leave it alone
 		const uint32_t uid = units_.id[j];
 		order_attack(&uid, 1, units_.id[a]);
 		reacted.insert(j);
@@ -31740,6 +32027,9 @@ void Simulation::petra_attack_units(AttackPlan &plan) {
 			if (siege_unit && b.build_progress <= 0.0f) continue;
 			const float dx = b.x - units_.pos_x[i], dz = b.z - units_.pos_z[i];
 			if (dx * dx + dz * dz > range2 || petra_building_land(b) != land) continue;
+			if (!unit_can_target_building((size_t)i, b.type)) continue; // canAttackTarget (attackPlan.js:1632, 1752)
+			// isBlocked: while a blocker holds the plan, only its target is picked (attackPlan.js:1750).
+			if (!siege_unit && blocked && b.id != plan.target_building_id) continue;
 			c.push_back({-building_value(i, b, siege_unit), bi});
 		}
 		if (c.empty()) return -1;
@@ -31818,6 +32108,9 @@ void Simulation::petra_attack_units(AttackPlan &plan) {
 			if (dist2 > range2) continue;
 			if (chases_fleeing && (cls((int32_t)j) & TC_FEMALECITIZEN) && units_.action_state[j] == ACTION_FLEE) continue;
 			if (petra_land_at(units_.pos_x[j], units_.pos_z[j]) != land) continue;
+			// attackPlan.js:1684 canAttackTarget. The Animal test (:1686) holds by construction:
+			// animals are fauna_ entries, never in this unit scan.
+			if (!unit_can_target((size_t)i, j)) continue;
 			const bool vetoed = veto.count(units_.id[j]) != 0;
 			if (vetoed && far_from_target) continue;
 			float v = petra_is_support_unit(units_.unit_type[j]) ? 50.0f : 0.0f;
@@ -32781,11 +33074,16 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 
 				// No siege-only plan focusing the target (0.28 has none): siege engines go with
 				// the rest and pick the best structure near them (petra_attack_units).
-				order_attack_move(squad.data(), squad.size(), tx, tz, false, false, true, petra_attack_avoid(plan, false));
-
+				// attackPlan.js ARRIVED: stopMoving, then the per-unit loop runs on the same update with
+				// startingAttack, which checks every unit. Idle units get their own targets there
+				// (counters, supports, the 10% pick), and the far ones get the attack-move from that loop.
+				// A squad-wide attack-move here left every unit walking with no target, which the idle
+				// test of that loop then skips.
+				cmd_stop(squad.data(), squad.size());
 				plan.state = AttackPlan::ATTACKED;
 				plan.state_timer = 0.0f;
 				petra_strike_force_.state = PetraStrikeForce::ENGAGE;
+				petra_attack_units(plan);
 			}
 			break;
 		}
@@ -35684,8 +35982,14 @@ void Simulation::petra_scuttle_undefendable() {
 	// The Attacked events since our last turn (DM:608-622): any hit or capture attempt,
 	// from a unit, a structure's arrows or a siege engine out of sight.
 	std::vector<uint32_t> attacked;
+	// defenseManager.js:585: an ally hitting it (recovering its own capture points) is no reason to react.
+	auto by_ally = [&](uint32_t who) {
+		if (const int32_t k = lookup_unit(who); k >= 0) return units_.team[k] < MAX_PLAYERS && is_ally(petra_pid_, units_.team[k]);
+		const auto it = building_id_to_idx_.find(who);
+		return it != building_id_to_idx_.end() && buildings_[it->second].team < MAX_PLAYERS && is_ally(petra_pid_, buildings_[it->second].team);
+	};
 	for (const auto &[target, attacker] : petra_turn_attacks_)
-		if (building_id_to_idx_.count(target)) attacked.push_back(target);
+		if (building_id_to_idx_.count(target) && !(attacker && by_ally(attacker))) attacked.push_back(target);
 	if (attacked.empty()) return;
 	std::sort(attacked.begin(), attacked.end());
 	attacked.erase(std::unique(attacked.begin(), attacked.end()), attacked.end());
@@ -36095,7 +36399,9 @@ void Simulation::petra_manage_defense(float dt) {
 	// of our structures, to a cooperative ally's civic centre, or (an ally attacked by
 	// several enemies) to that ally's structures. Enemy land is never ours to defend.
 	auto dangerous_outside_at = [&](float x, float z, float reach, int owner) {
-		if (owner == petra_pid_ || (owner >= 0 && !is_ally(petra_pid_, (uint8_t)owner))) return false;
+		// isDangerous (DM:152-162) has no territory test for an exclusive ally's civic centre, so
+		// the ally CC check also covers our own land (the own-structure test came first).
+		if (owner >= 0 && owner != petra_pid_ && !is_ally(petra_pid_, (uint8_t)owner)) return false;
 		if (near_own_structure_at(x, z, reach)) return true;
 		const bool help_ally = owner >= 0 && attacked_allies[owner] > 1 && cooperation((uint8_t)owner) > 0.7f;
 		for (const auto &b : buildings_) {
@@ -36107,7 +36413,8 @@ void Simulation::petra_manage_defense(float dt) {
 			if ((is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY) && coop >= 0.3f &&
 			    (coop >= 0.6f || b.build_progress >= 1.0f))
 				return true;
-			if (help_ally && b.team == owner) return true;
+			// defenseManager.js:189: a help-ally structure on blinking (disconnected) land is not defended.
+			if (help_ally && b.team == owner && territory_connected_at(b.x, b.z)) return true;
 		}
 		return false;
 	};
@@ -36208,6 +36515,7 @@ void Simulation::petra_manage_defense(float dt) {
 		}
 		bool has_dest = false;
 		float dest_x = 0.0f, dest_z = 0.0f;
+		float dest_r = 0.0f; // defenseArmy.js radius: 0 for a unit centre, the structure's obstruction radius
 		if (n[0] > 0 || n[1] > 0) {
 			const int k = n[0] > 0 ? 0 : 1;
 			dest_x = sum[k][0] / (float)n[k];
@@ -36229,6 +36537,7 @@ void Simulation::petra_manage_defense(float dt) {
 				dist_min = d;
 				dest_x = b.x;
 				dest_z = b.z;
+				dest_r = det::hypot(b.half_size, b.half_d);
 				has_dest = true;
 			}
 		}
@@ -36241,8 +36550,23 @@ void Simulation::petra_manage_defense(float dt) {
 				if (incoming.empty()) incoming = petra_garrison_incoming();
 				if (petra_garrison_attacked_unit((size_t)idx, false, incoming)) continue;
 			}
-			if (has_dest && !mutual_land(units_.pos_x[idx], units_.pos_z[idx])) order_walk(&uid, 1, dest_x, dest_z, false);
-			else cmd_stop(&uid, 1); // stopMoving: a Stop order, which drops what it had queued too
+			if (has_dest && !mutual_land(units_.pos_x[idx], units_.pos_z[idx])) {
+				// moveToRange(x, z, radius, radius + 5 m) (defenseArmy.js:284-286): walk to the band
+				// from the structure's obstruction edge out to 5 m past it, not to its centre. A unit
+				// already in the band is done (the order finishes), so it stops where it is.
+				const float min_r = dest_r, max_r = dest_r + 5.0f / 4.0f; // 5 m in 4 m units
+				const float dx = units_.pos_x[idx] - dest_x, dz = units_.pos_z[idx] - dest_z;
+				const float d = det::hypot(dx, dz);
+				if (d >= min_r && d <= max_r) {
+					cmd_stop(&uid, 1);
+				} else {
+					const float t = std::clamp(d, min_r, max_r);
+					const float ux = d > 1e-3f ? dx / d : 1.0f, uz = d > 1e-3f ? dz / d : 0.0f;
+					order_walk(&uid, 1, dest_x + ux * t, dest_z + uz * t, false);
+				}
+			} else {
+				cmd_stop(&uid, 1); // stopMoving: a Stop order, which drops what it had queued too
+			}
 		}
 		a.defender_ids.clear();
 		a.foe_ids.clear();
@@ -36306,8 +36630,10 @@ void Simulation::petra_manage_defense(float dt) {
 			} else {
 				continue;
 			}
+			// 0.28 tests the UnitAI state's order name: GATHER (or idle). A boat carrying its load is
+			// in RETURNRESOURCE, which is not GATHER (DM:591), so it keeps going to its dropsite.
 			const bool gathering = units_.action_state[i] == ACTION_IDLE || units_.action_state[i] == ACTION_GATHER ||
-			                       units_.action_state[i] == ACTION_RETURN_DROPSITE || units_.order_kind[i] == ORDER_GATHER;
+			                       (units_.order_kind[i] == ORDER_GATHER && units_.action_state[i] != ACTION_RETURN_DROPSITE);
 			if (!gathering) continue;
 			const float dx = units_.pos_x[i] - ax, dz = units_.pos_z[i] - az;
 			const float d = std::sqrt(dx * dx + dz * dz);
@@ -36480,9 +36806,9 @@ void Simulation::petra_manage_defense(float dt) {
 				if (b.hp <= 0.0f || b.team >= MAX_PLAYERS || (b.team != petra_pid_ && !is_ally(petra_pid_, b.team))) continue;
 				float reach = 0.0f;
 				if (is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY) {
-					if (b.team == petra_pid_ || cooperation(b.team) >= 0.3f) reach = 56.0f;
+					if (b.team == petra_pid_ || cooperation(b.team) >= 0.3f) reach = 50.0f; // 200 m (40000 m^2, defenseManager.js:370), 4 m a unit
 				} else if (b.type == BLD_DOCK && b.team == petra_pid_) {
-					reach = 28.0f;
+					reach = 25.0f; // 100 m (10000 m^2, defenseManager.js:382)
 				}
 				const float dx = ax - b.x, dz = az - b.z;
 				keep = reach > 0.0f && dx * dx + dz * dz <= reach * reach;
@@ -36652,8 +36978,9 @@ void Simulation::petra_manage_defense(float dt) {
 					const float dx = units_.pos_x[i] - needs[k].x, dz = units_.pos_z[i] - needs[k].z;
 					if (dx * dx + dz * dz < best_d2) { best_d2 = dx * dx + dz * dz; best = (int)k; }
 				}
-				// A unit with no army it can reach also goes to the backup while there is room.
-				if (backup < 12 && (best < 0 || (best_d2 > 56.0f * 56.0f && needs[best].terr != petra_pid_))) {
+				// A unit with no army it can reach also goes to the backup while there is room
+				// (beyond 200 m = 2500 units^2, defenseManager.js:493).
+				if (backup < 12 && (best < 0 || (best_d2 > 2500.0f && needs[best].terr != petra_pid_))) {
 					++backup;
 					c.second = SIZE_MAX;
 					continue;
@@ -36689,6 +37016,13 @@ void Simulation::petra_manage_defense(float dt) {
 				const int32_t idx = lookup_unit(uid);
 				if (idx < 0) continue;
 				const bool on_it = units_.action_state[idx] == ACTION_ATTACK && units_.target_building_id[idx] == bid;
+				// defenseArmy.js update / assignUnit: only a unit with no order is given the foe. A
+				// defender busy on another target (another structure, a unit, a tower) keeps it.
+				const bool idle = units_.action_state[idx] == ACTION_IDLE && !units_.has_order[idx] &&
+				                  (!order_queues_.count(uid) || order_queues_.at(uid).empty());
+				// A defender just drafted is assigned at once (assignDefenders), whatever its order.
+				const bool just_drafted = std::find(drafted.begin(), drafted.end(), uid) != drafted.end();
+				if (!on_it && !idle && !just_drafted) continue;
 				// defenseArmy.js update: one capturing what allowCapture no longer allows damages it.
 				if (on_it && !(units_.order_flags[idx] & ORDER_FLAG_ALLOW_CAPTURE)) continue;
 				const bool capture = petra_allow_capture(army.defender_ids, uid, b);
@@ -38349,6 +38683,8 @@ bool Simulation::save_state(const char *filepath) const {
 		out.write((const char *)&units_.pos_z[u], sizeof(float));
 		out.write((const char *)&units_.prev_x[u], sizeof(float)); // v98: previous-turn position
 		out.write((const char *)&units_.prev_z[u], sizeof(float));
+		out.write((const char *)&units_.aim_vx[u], sizeof(float)); // v143: the last full turn's velocity (aim)
+		out.write((const char *)&units_.aim_vz[u], sizeof(float));
 		out.write((const char *)&units_.target_x[u], sizeof(float));
 		out.write((const char *)&units_.target_z[u], sizeof(float));
 		out.write((const char *)&units_.hp[u], sizeof(float));
@@ -38729,6 +39065,11 @@ bool Simulation::load_state(const char *filepath) {
 			in.read((char *)&pvx, sizeof(pvx));
 			in.read((char *)&pvz, sizeof(pvz));
 		}
+		float avx = 0.0f, avz = 0.0f; // v143: the last full turn's velocity; older saves start at rest
+		if (version >= SAVE_VERSION_AIM_VELOCITY) {
+			in.read((char *)&avx, sizeof(avx));
+			in.read((char *)&avz, sizeof(avz));
+		}
 		in.read((char *)&tx, sizeof(tx));
 		in.read((char *)&tz, sizeof(tz));
 		in.read((char *)&hp, sizeof(hp));
@@ -38770,6 +39111,8 @@ bool Simulation::load_state(const char *filepath) {
 		units_.pos_z[idx] = pz;
 		units_.prev_x[idx] = pvx;
 		units_.prev_z[idx] = pvz;
+		units_.aim_vx[idx] = avx;
+		units_.aim_vz[idx] = avz;
 		units_.vel_x[idx] = 0;
 		units_.vel_z[idx] = 0;
 		units_.target_x[idx] = tx;
@@ -39573,6 +39916,15 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		for (size_t f = 0; f < s.fauna_.count && f < S::FaunaStorage::MAX_FAUNA; ++f) ar.pod(s.fauna_queued_target_[f]);
 	} else if constexpr (Ar::loading) {
 		std::fill(std::begin(s.fauna_queued_target_), std::end(s.fauna_queued_target_), 0u); // older saves: none set aside
+	}
+	if (ar.version >= S::SAVE_VERSION_AIM_VELOCITY) {
+		for (size_t f = 0; f < s.fauna_.count && f < S::FaunaStorage::MAX_FAUNA; ++f) {
+			ar.pod(s.fauna_aim_vx_[f]);
+			ar.pod(s.fauna_aim_vz_[f]);
+		}
+	} else if constexpr (Ar::loading) {
+		std::fill(std::begin(s.fauna_aim_vx_), std::end(s.fauna_aim_vx_), 0.0f); // older saves: at rest
+		std::fill(std::begin(s.fauna_aim_vz_), std::end(s.fauna_aim_vz_), 0.0f);
 	}
 	if constexpr (Ar::loading) {
 		if (s.fauna_.count > S::FaunaStorage::MAX_FAUNA) { ar.ok = false; return; }
@@ -41070,7 +41422,7 @@ Simulation::FaunaView Simulation::fauna() const {
 	return {fauna_.count, fauna_.id, fauna_.pos_x, fauna_.pos_z,
 	        fauna_.vel_x, fauna_.vel_z, fauna_.rot_y,
 	        fauna_.hp, fauna_.max_hp, fauna_.food_amount,
-	        fauna_.fauna_type, fauna_.behavior, fauna_.alive, fauna_owner_};
+	        fauna_.fauna_type, fauna_.behavior, fauna_.alive, fauna_owner_, fauna_aim_vx_, fauna_aim_vz_};
 }
 
 uint32_t Simulation::spawn_fauna(float x, float z, uint8_t ftype, uint8_t owner) {
@@ -41085,6 +41437,7 @@ uint32_t Simulation::spawn_fauna(float x, float z, uint8_t ftype, uint8_t owner)
 	fauna_.vel_z[idx] = 0.0f;
 	fauna_.prev_x[idx] = fauna_.pos_x[idx];
 	fauna_.prev_z[idx] = fauna_.pos_z[idx];
+	fauna_aim_vx_[idx] = fauna_aim_vz_[idx] = 0.0f;
 	fauna_.rot_y[idx] = (float)sim_rng_.range_int(0, 359) * 0.0174533f;
 	fauna_.hp[idx] = info.max_hp;
 	fauna_.max_hp[idx] = info.max_hp;
@@ -41543,6 +41896,10 @@ void Simulation::tick_hunters() {
 		if (it == fauna_id_to_idx_.end()) continue;
 		const size_t f = it->second;
 		if (st == ACTION_MOVE) continue; // herding: order_herd walks the herder over
+		if (fauna_.alive[f] && fauna_.hp[f] <= 0.0f && fauna_.behavior[f] != FAUNA_CORRALLED) {
+			fauna_killed(f, i); // Health.js CreateCorpse: the hunters' orders go to the carcass
+			continue;
+		}
 		if (!fauna_.alive[f] || fauna_.hp[f] <= 0.0f || fauna_.behavior[f] == FAUNA_CORRALLED) {
 			units_.target_unit_id[i] = 0;
 			units_.action_state[i] = ACTION_IDLE; // tick_unit_ai resumes an interrupted order
@@ -41561,7 +41918,7 @@ void Simulation::tick_hunters() {
 		const bool slaughter = finfo.is_domestic() && unit_has_slaughter(ut, units_.tmpl[i]);
 		const float dx = units_.pos_x[i] - fx, dz = units_.pos_z[i] - fz;
 		// The animal's footprint. Slaughter's MaxRange is 2 m even for archers, who walk up to it.
-		const float reach = (slaughter ? SLAUGHTER_RANGE : units_.attack_range[i]) + 1.0f;
+		const float reach = (slaughter ? SLAUGHTER_RANGE : units_.attack_range[i]) + finfo.footprint;
 		const bool in_reach = dx * dx + dz * dz <= reach * reach;
 		if (in_reach) units_.chase_target[i] = tid; // COMBAT.ATTACKING: CHASING follows it from here
 		if (!attack_ready(i, in_reach, slaughter ? SLAUGHTER_PREPARE : unit_combat_at(i).prepare)) continue;
@@ -41597,13 +41954,12 @@ void Simulation::tick_hunters() {
 // Unit i launches its ranged attack at animal f (Attack.js PerformAttack, as at units).
 void Simulation::fire_at_fauna(size_t i, size_t f) {
 	const uint8_t ut = units_.unit_type[i];
-	const float fx = fauna_.pos_x[f], fz = fauna_.pos_z[f];
-	const float dist = det::hypot(fx - units_.pos_x[i], fz - units_.pos_z[i]);
 	const uint8_t vis = ut == UNIT_CATAPULT ? 2 : ((ut == UNIT_TRIREME || ut == UNIT_BOLT_SHOOTER) ? 1 : 0);
-	float lead_x = 0.0f, lead_z = 0.0f;
-	aim_velocity_fauna(f, lead_x, lead_z);
-	const float flight = predict_time_to_target(units_.pos_x[i], units_.pos_z[i], projectile_speed_of(units_.id[i], vis), fx, fz, lead_x, lead_z);
-	const float aim_x = fx + lead_x * flight, aim_z = fz + lead_z * flight;
+	float aim_x = 0.0f, aim_z = 0.0f;
+	aim_point(units_.pos_x[i], units_.pos_z[i], projectile_speed_of(units_.id[i], vis), fauna_aim_target(f),
+			aim_key(units_.id[i], fauna_.id[f]), aim_x, aim_z);
+	// The spread is taken from the shooter to the aim point (Attack.js predictedPosition.horizDistanceTo).
+	const float dist = det::hypot(aim_x - units_.pos_x[i], aim_z - units_.pos_z[i]);
 	const float tech_spread = units_.team[i] < MAX_PLAYERS ? unit_tech_mods(units_.team[i], ut, units_.tmpl[i]).spread : 1.0f;
 	const float sigma = unit_combat_at(i).spread * spread_rank_multiplier(units_.rank[i]) * tech_spread * dist / 100.0f;
 	float disp_x = 0.0f, disp_z = 0.0f;
@@ -41983,7 +42339,7 @@ void Simulation::tick_fauna(float dt) {
 			// DefaultRelaxedMaxRange (12 m, UnitAI.js:4967) of its point, which Order.Walk marks
 			// relaxed (:326). A walk into a corral is a Garrison order, which goes on until it
 			// garrisons (or the corral fills).
-			if (!stop && !corral && aim_clock_ + dt >= 4 * FIXED_STEP) {
+			if (!stop && !corral && aim_clock_ + dt >= 4 * FIXED_STEP - 0.5f * FIXED_STEP) { // the tick() turn start
 				constexpr float OBSTRUCTED_PROGRESS = 0.15f, FREE_PROGRESS = 0.5f, RELAXED_RANGE = 12.0f / 4.0f;
 				constexpr uint8_t OBSTRUCTED_AT = 2, FAILED_AT = 35;
 				// The turn's steps: from where it stood when the turn began (prev_x/z, snapshot at the
@@ -42231,6 +42587,7 @@ void Simulation::tick_fauna(float dt) {
 				fauna_.target_unit_id[w] = fauna_.target_unit_id[r]; fauna_.corral_id[w] = fauna_.corral_id[r];
 				fauna_.flee_distance[w] = fauna_.flee_distance[r]; fauna_.home_x[w] = fauna_.home_x[r]; fauna_.home_z[w] = fauna_.home_z[r];
 				fauna_.prev_x[w] = fauna_.prev_x[r]; fauna_.prev_z[w] = fauna_.prev_z[r];
+				fauna_aim_vx_[w] = fauna_aim_vx_[r]; fauna_aim_vz_[w] = fauna_aim_vz_[r];
 				fauna_owner_[w] = fauna_owner_[r];
 				fauna_roam_angle_[w] = fauna_roam_angle_[r];
 				fauna_start_angle_[w] = fauna_start_angle_[r];
@@ -46152,6 +46509,7 @@ void Simulation::set_water_level(float h, float drown_depth) {
 			units_.action_state[u] = ACTION_DYING;
 			units_.pos_x[u] = b.x;
 			units_.pos_z[u] = b.z;
+			unit_jumped(u);
 		}
 		b.garrisoned_units.clear();
 		reset_production_queue(b);

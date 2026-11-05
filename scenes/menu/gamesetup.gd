@@ -1482,7 +1482,11 @@ func _build_slot_headings() -> void:
 	for h in SLOT_HEADINGS:
 		var l := Label.new()
 		l.text = tr(h)
-		l.clip_text = true
+		# The Color column is narrower than its heading at 1280x720: let "Color" spill
+		# evenly into the gaps on both sides rather than cutting it to "Colo".
+		l.clip_text = h != "Color"
+		if not l.clip_text:
+			l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		header.add_child(l)
 	# Panels/Buttons/CivInfoButton.js: the info icon at the Civilization heading's end.
 	var info := Button.new()
