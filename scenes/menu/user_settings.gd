@@ -595,6 +595,20 @@ func phone_ui_factor() -> float:
 	var logical := (win - Vector2(inset.x + inset.z, inset.y + inset.w)) / base
 	return clampf(minf(logical.y / PHONE_UI_HEIGHT, logical.x / PHONE_UI_MIN_WIDTH), 1.0, 720.0 / PHONE_UI_HEIGHT)
 
+## Global illumination (SDFGI), an AAA-look option: Forward+ only (cascades 1 low, 2 high;
+## the probe ray count is a project setting in 4.3). Mobile and GL
+## Compatibility keep the sky ambient. Units cast no indirect shadow (dynamic occluders
+## are not in SDFGI), so off is the 0 A.D.-fit look.
+func _apply_gi() -> void:
+	var forward := RenderingServer.get_rendering_device() != null
+	var mode := cfg.get_value("gi") if forward else "off"
+	for we in get_tree().root.find_children("*", "WorldEnvironment", true, false):
+		var env: Environment = we.environment
+		if env == null:
+			continue
+		env.sdfgi_enabled = mode != "off"
+		env.sdfgi_cascades = 1 if mode == "low" else 2
+
 ## renderer.scale with renderer.upscale.technique, antialiasing and
 ## gui.scale on the main viewport (times phone_ui_factor()).
 func _apply_viewport() -> void:
@@ -631,6 +645,7 @@ func _apply_viewport() -> void:
 	vp.texture_mipmap_bias = float(2 - clampi(int(cfg.get_number("textures.quality")), 0, 2)) - 0.0001 * level
 	_apply_hdr()
 	_apply_sharpening()
+	_apply_gi()
 
 ## postproc: the map's post effect (HDR_SHADER), under the sharpening.
 func _apply_hdr() -> void:
