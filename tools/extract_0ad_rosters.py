@@ -942,11 +942,13 @@ BUILDING_CLASS = {
     "Wall": ["BLD_WALL_SEGMENT", "BLD_GATE", "BLD_WALL_TOWER"],
     "Tower": ["BLD_TOWER", "BLD_SENTRY_TOWER", "BLD_TOWER_GREAT"], "Field": ["BLD_FIELD"],
     "Storehouse": ["BLD_STOREHOUSE"],
-    "House": ["BLD_HOUSE"] + MAP_HOUSES,
-    "Economic": ["BLD_STOREHOUSE", "BLD_FARMSTEAD", "BLD_MARKET", "BLD_CORRAL", "BLD_HOUSE"] + MAP_HOUSES + [
+    # 0.28 House (G113): cart apartment, pers inn and warehouse, gaul tavern and rome tent join the house and map houses.
+    "House": ["BLD_HOUSE", "BLD_APARTMENT", "BLD_INN", "BLD_WAREHOUSE", "BLD_TAVERN", "BLD_TENT"] + MAP_HOUSES,
+    # MAP_HOUSES are houses, not Economic, in 0.28 (G114); they stay in House.
+    "Economic": ["BLD_STOREHOUSE", "BLD_FARMSTEAD", "BLD_MARKET", "BLD_CORRAL", "BLD_HOUSE"] + [
                  "BLD_TRADING_POST",  # trading_post_* inherit template_structure_economic_market
                  "BLD_MILL"],  # mill_greek: rotary_mill|template_structure_economic_farmstead
-    "CivCentre": ["BLD_TOWN_CENTER", "BLD_IMPERIAL_COURT", "BLD_CRANNOG", "BLD_MILITARY_COLONY"], "Naval": ["BLD_DOCK"], "Wonder": ["BLD_WONDER"],
+    "CivCentre": ["BLD_TOWN_CENTER", "BLD_IMPERIAL_COURT", "BLD_CRANNOG", "BLD_MILITARY_COLONY"], "Naval": ["BLD_DOCK", "BLD_SUPER_DOCK", "BLD_CRANNOG"],  # cart/super_dock and brit/crannog: VisibleClasses Naval (G115) "Wonder": ["BLD_WONDER"],
     # military_colony inherits template_structure_civic_civil_centre; the temples of Vesta, Mars,
     # Amun and Isis (ptol/temple_2) template_structure_civic_temple; han/academy and the
     # mercenary camps template_structure_military_barracks.
@@ -1058,6 +1060,30 @@ def load_team_bonuses(sim_root, rows):
                 out.append({"civ": civ, "stat": stat, "res": res, "allies_only": allies_only,
                             "buildings": bmask, "units": urows, "value": value,
                             "id": civ + "_player_teambonus", "name": base[0], "description": base[1]})
+    # Civ bonuses that only shorten a unit class's build time (data/technologies/civbonuses):
+    # Delian League (athen, Ship Cost/BuildTime x0.75) and Elephant Tradition (maur, Elephant !Hero
+    # x0.7). Both reach only their own civ's player, so they are TEAM_BONUS_UNIT_TRAIN_TIME rows with
+    # allies_only false. Civ bonuses that touch buildings (maur walls) stay out.
+    cdir = os.path.join(sim_root, "data", "technologies", "civbonuses")
+    for fn in sorted(os.listdir(cdir)) if os.path.isdir(cdir) else []:
+        with open(os.path.join(cdir, fn), encoding="utf-8") as fh:
+            d = json.load(fh)
+        req = d.get("requirements") or {}
+        # One civ ({"civ": x}) or an alternative of one civ ({"any": [{"civ": x}]}) as Delian League has.
+        civs = [req["civ"]] if "civ" in req else [r["civ"] for r in req.get("any", []) if "civ" in r]
+        civ = civs[0] if len(civs) == 1 else None
+        affects = d.get("affects") or []
+        if civ not in CIVS or building_mask(affects):
+            continue
+        units = [i for i, r in enumerate(rows) if affects_match(affects, set(r["classes"]))]
+        if not units:
+            continue
+        for m in d.get("modifications", []):
+            if m.get("value") == "Cost/BuildTime":
+                out.append({"civ": civ, "stat": "TEAM_BONUS_UNIT_TRAIN_TIME", "res": -1, "allies_only": False,
+                            "buildings": [], "units": units, "value": m["multiply"], "owner_only": True,
+                            "id": civ + "_player_teambonus", "name": d.get("genericName", ""),
+                            "description": d.get("tooltip", "")})
     return out
 
 
@@ -1749,9 +1775,11 @@ def emit_header(rows, auras, civ_json, bonuses, team):
             bits[i // 64] |= 1 << (i % 64)
         bitset = "{" + ", ".join("0x%016xull" % b for b in bits) + "}"
         blds = " | ".join("bld_bit(%s)" % x for x in t["buildings"]) or "BldMask{}"
-        w("\t\t{%s, %s, %d, %s, %s, %s, %s, %s, %s, %s}," % (
+        # owner_only (a 0 A.D. civ bonus): the trailing field, false when left out.
+        owner = ", true" if t.get("owner_only") else ""
+        w("\t\t{%s, %s, %d, %s, %s, %s, %s, %s, %s, %s%s}," % (
             CIV_ENUM_OF[t["civ"]], t["stat"], t["res"], "true" if t["allies_only"] else "false",
-            blds, f(t["value"]), cstr(t["id"]), cstr(t["name"]), cstr(t["description"]), bitset))
+            blds, f(t["value"]), cstr(t["id"]), cstr(t["name"]), cstr(t["description"]), bitset, owner))
     w("\t\t{0, 0, -1, false, {}, 1.0f, \"\", \"\", \"\", {}}, // sentinel")
     w("\t};")
     w("\treturn kTeam;")

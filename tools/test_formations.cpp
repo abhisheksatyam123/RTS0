@@ -892,6 +892,32 @@ static void test_walking_members_ignore_attackers() {
 	}
 }
 
+// UnitAI PushOrderFront (session.pushorderfront): a formation pushed to a near point walks
+// there first, then carries on with the walk it was on.
+static void test_push_front_resumes() {
+	std::printf("19c. a pushed-front walk resumes the formation's walk\n");
+	Simulation s;
+	setup(s, CIV_ATHENIANS);
+	auto inf = spawn_block(s, 8, -30, 0, 0, UNIT_SPEARMAN);
+	s.order_set_formation(inf.data(), inf.size(), FORMATION_BOX);
+	run(s, 1.0f);
+	s.order_walk(inf.data(), inf.size(), 80.0f, 0.0f);
+	run(s, 2.0f);
+	const uint32_t fid = s.formations()[0].id;
+	s.set_push_front_order(true);
+	s.order_walk(inf.data(), inf.size(), 0.0f, 20.0f);
+	s.set_push_front_order(false);
+	bool at_near = false, resumed = false;
+	for (int k = 0; k < 600 && !resumed; ++k) {
+		run(s, 0.1f);
+		const Simulation::FormationController *fc = ctrl(s, fid);
+		if (!fc) break;
+		if (fc->order == Simulation::FORDER_IDLE && fc->goal_z > 15.0f) at_near = true;
+		resumed = fc->goal_x > 60.0f && fc->order == Simulation::FORDER_WALK;
+	}
+	check(at_near && resumed, "it stops at the pushed point, then walks on to the far one");
+}
+
 static void test_audit_028() {
 	std::printf("18. facing, rearranging and split selections (Formation.js)\n");
 	{ // MoveToMembersCenter: a new formation faces the way its members do.
@@ -1059,6 +1085,7 @@ int main(int argc, char **argv) {
 	test_queued_leave_and_facing();
 	test_audit_028();
 	test_walking_members_ignore_attackers();
+	test_push_front_resumes();
 	if (g_failures) {
 		std::printf("test_formations: FAIL (%d)\n", g_failures);
 		return 1;

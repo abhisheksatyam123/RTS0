@@ -936,8 +936,8 @@ static_assert(sizeof(UnitOrder) == 24, "UnitOrder is saved raw");
 inline constexpr float FLEE_DISTANCE = 12.0f * 0.28f;
 inline constexpr float NEARBY_SEARCH_RANGE = 64.0f * 0.28f;
 // Attack.js Capture: template_unit_*.xml Capture MaxRange 4, RepeatTime 1000. 0 A.D.
-// measures edge to edge; RTS0 melee reach is ~0.28 x R plus the radii, so Capture
-// MaxRange 4 is the spearman's reach, as in 0 A.D. (Melee MaxRange 4): 2.4.
+// measures edge to edge. RTS0 scales melee ranges by 0.6 (tools/extract_0ad_rosters.py),
+// so Capture MaxRange 4 becomes 4 x 0.6 = 2.4, the same value as a spearman's Melee MaxRange 4.
 inline constexpr float CAPTURE_RANGE = 2.4f;
 inline constexpr float CAPTURE_REPEAT_S = 1.0f;
 // template_unit_catafalque.xml Capturable: CapturePoints 250, RegenRate 10 a second.
@@ -2329,7 +2329,7 @@ enum CivRosterFlag : uint16_t {
 	ROSTER_RANGED = 4,
 	ROSTER_CITIZEN = 8,
 	ROSTER_MERCENARY = 16,
-	ROSTER_PACKABLE = 32, // 0 A.D. Pack component (10 s to pack or unpack)
+	ROSTER_PACKABLE = 32, // 0 A.D. Pack component (5 s to pack or unpack: Pack/Time 5000 ms)
 	ROSTER_SIEGE_TOWER = 64,
 	ROSTER_RELIC = 128, // a catafalque (template_unit_catafalque): Capture the Relic
 	ROSTER_NO_GATHER = 256, // a Citizen whose template disables ResourceGatherer (mercenaries)
@@ -2461,6 +2461,7 @@ struct CivTeamBonus {
 	const char *name;
 	const char *description;
 	uint64_t units[CIV_TEMPLATE_WORDS_MAX]; // civ_unit_template_table() rows affected
+	bool owner_only = false; // 0 A.D. civ bonus (requirements civ): the owner's own player, never its allies
 };
 
 // units/plane UnitMotionFlying (0.28), the one flying template: horizontal speeds and rates x the
@@ -2648,8 +2649,12 @@ inline float civ_unit_cooldown_mult(uint8_t civ, TechClasses c) {
 	if (civ == CIV_ROMANS && (c & TC_STONETHROWER) != 0) return 0.9f;
 	return 1.0f;
 }
+// Unit-class Cost/BuildTime bonuses of a civ's auto-researched technologies: maur_elephants
+// (Elephant !Hero x0.7) and delian_league (Ship x0.75, athen). A template's roster train time
+// carries its own civ's bonus baked in (apply_unit_bonuses), so the owner's is applied on top.
 inline float civ_unit_train_time_mult(uint8_t civ, TechClasses c) {
 	if (civ == CIV_MAURYANS && (c & TC_ELEPHANT) != 0 && (c & TC_HERO) == 0) return 0.7f;
+	if (civ == CIV_ATHENIANS && (c & TC_SHIP) != 0) return 0.75f;
 	return 1.0f;
 }
 
@@ -2658,6 +2663,12 @@ inline float civ_unit_train_time_mult(uint8_t civ, TechClasses c) {
 // Each civ's bonus counts once even when several allies share the civ, as 0 A.D.
 // auras of the same name don't stack. `res` is the ResourceType for cost stats;
 // `tmpl` the unit for unit stats; `building` the building for building and tech stats.
+// Whether a team bonus row applies to a player of civ own_civ with allies of civs ally_civs.
+inline bool civ_team_bonus_reaches(const CivTeamBonus &b, uint8_t own_civ, uint16_t ally_civs) {
+	if (b.owner_only) return b.civ == own_civ;
+	return (ally_civs & civ_bit(b.civ)) || (!b.allies_only && b.civ == own_civ);
+}
+
 inline float civ_team_bonus_mult(uint8_t own_civ, uint16_t ally_civs, uint8_t stat, int8_t res = -1,
 		uint16_t tmpl = 0xFFFF, uint8_t building = BLD_TYPE_COUNT) {
 	float m = 1.0f;
@@ -2665,7 +2676,7 @@ inline float civ_team_bonus_mult(uint8_t own_civ, uint16_t ally_civs, uint8_t st
 	for (uint16_t i = 0; i < CIV_TEAM_BONUS_COUNT; ++i) {
 		const CivTeamBonus &b = t[i];
 		if (b.stat != stat || b.res != res) continue;
-		if (!(ally_civs & civ_bit(b.civ)) && (b.allies_only || b.civ != own_civ)) continue;
+		if (!civ_team_bonus_reaches(b, own_civ, ally_civs)) continue;
 		if (stat == TEAM_BONUS_UNIT_COST || stat == TEAM_BONUS_UNIT_TRAIN_TIME || stat == TEAM_BONUS_UNIT_COST_ADD) {
 			if (tmpl >= CIV_UNIT_TEMPLATE_COUNT || !((b.units[tmpl >> 6] >> (tmpl & 63)) & 1u)) continue;
 		} else if (stat != TEAM_BONUS_FOOD_TRICKLE && stat != TEAM_BONUS_TRADE_INTERNATIONAL) {
@@ -2683,7 +2694,7 @@ inline float civ_team_bonus_cost_add(uint8_t own_civ, uint16_t ally_civs, int8_t
 	for (uint16_t i = 0; i < CIV_TEAM_BONUS_COUNT; ++i) {
 		const CivTeamBonus &b = t[i];
 		if (b.stat != TEAM_BONUS_UNIT_COST_ADD || b.res != res) continue;
-		if (!(ally_civs & civ_bit(b.civ)) && (b.allies_only || b.civ != own_civ)) continue;
+		if (!civ_team_bonus_reaches(b, own_civ, ally_civs)) continue;
 		if (tmpl >= CIV_UNIT_TEMPLATE_COUNT || !((b.units[tmpl >> 6] >> (tmpl & 63)) & 1u)) continue;
 		add += b.value;
 	}
@@ -2697,7 +2708,7 @@ inline float civ_team_food_trickle(uint8_t own_civ, uint16_t ally_civs) {
 	for (uint16_t i = 0; i < CIV_TEAM_BONUS_COUNT; ++i) {
 		const CivTeamBonus &b = t[i];
 		if (b.stat != TEAM_BONUS_FOOD_TRICKLE) continue;
-		if (!(ally_civs & civ_bit(b.civ)) && (b.allies_only || b.civ != own_civ)) continue;
+		if (!civ_team_bonus_reaches(b, own_civ, ally_civs)) continue;
 		add += b.value;
 	}
 	return add;
@@ -3090,7 +3101,7 @@ inline bool template_has_ranged_attack(uint16_t tmpl, uint8_t type, uint8_t civ)
 }
 
 // 0 A.D. Pack.js. Stone throwers and bolt shooters (template_unit_siege_stonethrower.xml,
-// template_unit_siege_boltshooter.xml) carry <Pack><Time>10000</Time></Pack>: they move as
+// template_unit_siege_boltshooter.xml) carry <Pack><Time>5000</Time></Pack>: they move as
 // their "_packed" template and must unpack before they can fire, and pack again to move.
 // A roster unit packs when its 0 A.D. template has a Pack component (ROSTER_PACKABLE), so
 // siege towers and engines that disable Pack (Han Shoushe) are left alone; units without a

@@ -773,8 +773,10 @@ void RtsoWorldView::_ready() {
 	// Initialize 3D Positional Spatial Audio Pool
 	for (size_t p = 0; p < SPATIAL_AUDIO_POOL_SIZE; ++p) {
 		spatial_players[p] = memnew(AudioStreamPlayer3D);
-		spatial_players[p]->set_max_distance(80.0f);
-		spatial_players[p]->set_unit_size(8.0f);
+		// Distance falloff is 0.28's linear OpenAL model, applied by session_audio.h spatial_at:
+		// no Godot attenuation or cut-off here.
+		spatial_players[p]->set_attenuation_model(AudioStreamPlayer3D::ATTENUATION_DISABLED);
+		spatial_players[p]->set_max_distance(1.0e6f);
 		spatial_players[p]->set_volume_db(0.0f);
 		spatial_players[p]->set_bus("Action"); // sound.actiongain
 		add_child(spatial_players[p]);
@@ -1519,7 +1521,7 @@ void RtsoWorldView::play_spatial_sound(const Ref<AudioStream> &stream, Vector3 p
 		spatial_end_ms_[slot] = now + (uint64_t)(1000.0 * (len > 0.0 ? len / std::max(0.05f, pitch_scale) : 1.0));
 		if (player->get_stream() != stream) player->set_stream(stream);
 		player->set_volume_db(volume_db);
-		player->set_max_distance(max_dist);
+		(void)max_dist; // the 0.28 falloff (session_audio.h spatial_at) replaces the old per-call cut-off
 		player->set_pitch_scale(pitch_scale);
 		player->play();
 	}
@@ -1530,11 +1532,47 @@ void RtsoWorldView::play_spatial_sound(const Ref<AudioStream> &stream, Vector3 p
 static void play_structure_death(RtsoWorldView &view, uint8_t type, Vector3 pos) {
 	static std::mt19937 rng(std::random_device{}());
 	const uint8_t g = rtso::building_attack_sounds(type).c;
-	float pitch = 1.0f;
-	const String path = rtso::pick_attack_sound(g, rng, &pitch);
+	float pitch = 1.0f, gain = 1.0f;
+	const String path = rtso::pick_attack_sound(g, rng, &pitch, &gain);
 	if (path.is_empty()) return;
-	const float gain = rtso::attack_sound_group(g).gain;
 	view.play_spatial_sound(rtso::load_audio(path), pos, gain > 0.001f ? 20.0f * std::log10(gain) : -80.0f, 95.0f, pitch);
+}
+
+bool RtsoWorldView::screen_pan(Vector3 pos, Vector3 &heard_at, float &dist, bool &max_rolloff) const {
+	const Viewport *vp = get_viewport();
+	Camera3D *cam = vp ? vp->get_camera_3d() : nullptr;
+	heard_at = pos;
+	dist = 0.0f;
+	max_rolloff = false;
+	if (!cam) return true;
+	const Vector3 origin = cam->get_global_position();
+	dist = (pos - origin).length();
+	if (cam->is_position_behind(pos)) return false;
+	const Vector2 size = vp->get_visible_rect().size;
+	const Vector2 sp = cam->unproject_position(pos);
+	const float cap = 3.14159265f / 6.0f; // sound.maxstereoangle
+	const float x_buffer = size.x * 0.1f, y_buffer = 15.0f;
+	float offset = 0.0f;
+	bool on_screen = true;
+	if (sp.x < -x_buffer) {
+		on_screen = false;
+		offset = -cap;
+	} else if (sp.x > size.x + x_buffer) {
+		on_screen = false;
+		offset = cap;
+	} else {
+		if (sp.x < 0.0f || sp.x > size.x) max_rolloff = true;
+		offset = cap * (sp.x * 2.0f / size.x - 1.0f);
+	}
+	if (sp.y < -y_buffer || sp.y > size.y + y_buffer) {
+		on_screen = false;
+	} else if (sp.y < 0.0f || sp.y > size.y) {
+		max_rolloff = true;
+	}
+	if (!on_screen) return false;
+	// The emitter goes where 0.28 puts it in the listener's frame: (dist sin, 0, -dist cos), then the camera's basis.
+	heard_at = origin + cam->get_global_transform().basis.xform(Vector3(dist * std::sin(offset), 0.0f, -dist * std::cos(offset)));
+	return true;
 }
 
 void RtsoWorldView::play_spatial_sound_path(const String &path, Vector3 pos, float volume_db, float max_dist, float pitch_scale) {
@@ -1933,7 +1971,10 @@ static ClipId resolve_clip_fallback(AnimationPlayer *anim, ClipId want) {
 	ClipId alt = CLIP_NONE;
 	switch (want) {
 		case CLIP_RUN:       alt = CLIP_WALK; break;
-		case CLIP_WALK:      alt = CLIP_RUN; break;
+		// 0 A.D. 0.28 (ObjectEntry::GetAnimations): a movement clip the model lacks plays
+		// the idle animation, not the other locomotion clip. Catapults and bolt shooters
+		// have a Run clip but no Walk, so a slow move shows idle as in 0.28.
+		case CLIP_WALK:      alt = CLIP_IDLE; break;
 		case CLIP_CARRY:     alt = CLIP_WALK; break;
 		case CLIP_CARRY_FOOD:
 		case CLIP_CARRY_MEAT:
@@ -3001,6 +3042,54 @@ void RtsoWorldView::hide_unit_vis(UnitVis &v) {
 	if (v.anim && UtilityFunctions::is_instance_valid(v.anim))
 		v.anim->set_active(false);
 }
+
+// Walk playback factor of a unit model (data/walk_cadence_scale.json, tools/gait_speed.py): a
+// walk cycle whose step rate falls outside 0 A.D.'s plausible 1.5-2.5 steps a second is sped up
+// or slowed to the nearest bound, so the walk's cadence reads right. 1 for every other model.
+static float walk_cadence_scale(const char *model) {
+	static std::unordered_map<std::string, float> &table = *new std::unordered_map<std::string, float>();
+	static bool loaded = false;
+	if (!loaded) {
+		loaded = true;
+		Ref<FileAccess> f = FileAccess::open("res://data/walk_cadence_scale.json", FileAccess::READ);
+		if (f.is_valid()) {
+			Dictionary root = JSON::parse_string(f->get_as_text());
+			Array keys = root.keys();
+			for (int i = 0; i < keys.size(); ++i)
+				table[String(keys[i]).utf8().get_data()] = (float)(double)root[keys[i]];
+		}
+	}
+	auto it = model ? table.find(model) : table.end();
+	return it != table.end() ? it->second : 1.0f;
+}
+
+// 0 A.D. 0.28 movement rate (data/anim_walk_rate.json, tools/anim_walk_rate.py): a Walk or Run clip
+// plays at (metres a second) x (the actor's animation speed attribute / 100). Returns that
+// attribute as a fraction, or -1 when the rig is not in the table (the model keeps its base pace).
+static float walk_rate_attr(const char *model, bool run) {
+	static std::unordered_map<std::string, std::pair<float, float>> &table =
+			*new std::unordered_map<std::string, std::pair<float, float>>();
+	static bool loaded = false;
+	if (!loaded) {
+		loaded = true;
+		Ref<FileAccess> f = FileAccess::open("res://data/anim_walk_rate.json", FileAccess::READ);
+		if (f.is_valid()) {
+			Dictionary root = JSON::parse_string(f->get_as_text());
+			Array keys = root.keys();
+			for (int i = 0; i < keys.size(); ++i) {
+				Dictionary e = root[keys[i]];
+				table[String(keys[i]).utf8().get_data()] = {
+					(float)(double)e["walk"] / 100.0f, (float)(double)e["run"] / 100.0f };
+			}
+		}
+	}
+	auto it = model ? table.find(model) : table.end();
+	if (it == table.end()) return -1.0f;
+	return run ? it->second.second : it->second.first;
+}
+
+// Metres a second of a sim speed (sim units a second; the rosters' SPEED_SCALE is 0.356).
+static constexpr float SIM_UNITS_PER_METRE_SCALE = 0.356f;
 
 // Crowd clip slots. 0 A.D. plays the real clip for every unit (gather_*,
 // build, carry, heal...); the crowd keeps one baked MultiMesh per slot.
@@ -4944,8 +5033,15 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 				const float speed2 = ux * ux + uz * uz;
 				pace = 0.3f; // standing still in a walk pose: the clock barely moves
 				if (speed2 > 0.05f) {
-					const float base = sim->unit_base_walk_speed(i);
-					if (base > 0.001f) pace = Math::clamp(std::sqrt(speed2) / base, 0.3f, 2.5f);
+					const float attr = walk_rate_attr(crowd_key_model(civ, key), slot == 4);
+					if (attr > 0.0f) {
+						// 0 A.D. 0.28: rate = metres a second x the clip's speed attribute / 100.
+						pace = Math::clamp(std::sqrt(speed2) / SIM_UNITS_PER_METRE_SCALE * attr, 0.05f, 10.0f);
+					} else {
+						const float base = sim->unit_base_walk_speed(i);
+						if (base > 0.001f) pace = Math::clamp(std::sqrt(speed2) / base, 0.3f, 2.5f);
+						if (slot == 1) pace *= walk_cadence_scale(crowd_key_model(civ, key));
+					}
 				}
 			}
 			pace_sum[civ][key][slot][phase] += pace;
@@ -5291,8 +5387,15 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			// locomotion clip by speed over walk speed, so the feet keep up with the ground).
 			float pace = 1.0f;
 			if (!dying && (want.clip == CLIP_WALK || want.clip == CLIP_RUN) && speed2 > 0.05f) {
-				const float base = sim->unit_base_walk_speed(i);
-				if (base > 0.001f) pace = Math::clamp(std::sqrt(speed2) / base, 0.3f, 2.5f);
+				const float attr = walk_rate_attr(utype_str.utf8().get_data(), want.clip == CLIP_RUN);
+				if (attr > 0.0f) {
+					// 0 A.D. 0.28: rate = metres a second x the clip's speed attribute / 100.
+					pace = Math::clamp(std::sqrt(speed2) / SIM_UNITS_PER_METRE_SCALE * attr, 0.05f, 10.0f);
+				} else {
+					const float base = sim->unit_base_walk_speed(i);
+					if (base > 0.001f) pace = Math::clamp(std::sqrt(speed2) / base, 0.3f, 2.5f);
+					if (want.clip == CLIP_WALK) pace *= walk_cadence_scale(utype_str.utf8().get_data());
+				}
 			}
 			v.anim->set_speed_scale(pace);
 		} else {

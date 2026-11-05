@@ -419,6 +419,16 @@ inline const char *tech_specific_name(uint8_t tech, uint8_t civ) {
 				case CIV_SPARTANS: return "Peristasis";
 				default: return nullptr;
 			}
+		case TECH_UNLOCK_FEMALES_HOUSE: // unlock_females_house
+			switch (civ) {
+				case CIV_ATHENIANS: return "Thesmophoria";
+				case CIV_MACEDONIANS: return "Thesmophoria";
+				case CIV_PTOLEMIES: return "Thesmophoria";
+				case CIV_ROMANS: return "Bona Dea";
+				case CIV_SELEUCIDS: return "Thesmophoria";
+				case CIV_SPARTANS: return "Thesmophoria";
+				default: return nullptr;
+			}
 		default: return nullptr;
 	}
 }

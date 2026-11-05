@@ -3382,6 +3382,158 @@ int main() {
 		CHECK(ended > 0 && ended * DT <= 30.0f && dgoal > 3.0f,
 		      "a walk that keeps turning back over one spot fails within 30 s (MoveFailed), and the ram stands short of the point");
 	}
+	// 44. Pushing squares (0 A.D.'s PUSHING_GRID_SIZE, 20 m, at the crowd scale: 16.7 units, from the map's corner).
+	// 0 A.D. pushes a pair only from one square to the same or an orthogonal neighbour
+	// (consider list 536-547 in CCmpUnitMotion_System.cpp), so two idle spearmen 0.7 apart across a square's corner never push
+	// each other, while the same pair inside one square, or split across one edge, do.
+	{
+		const float H = 64.0f;                  // the default map's half-size (simulation.h map_half_)
+		const float Q = 20.0f * (5.0f / 6.0f);  // a pushing square in RTS0 units (PUSH_SQUARE)
+		const float cx = -H + 3.0f * Q, cz = -H + 3.0f * Q; // a corner of the squares, inside the map
+		// Two idle spearmen at (ax, az) and (bx, bz) for 40 ticks: their separation before and after.
+		auto pair_sep = [&](float ax, float az, float bx, float bz, float &before) {
+			auto s = std::make_unique<Simulation>();
+			setup(*s);
+			const uint32_t a = s->spawn_unit(ax, az, 0, UNIT_SPEARMAN, 150.0f);
+			const uint32_t b = s->spawn_unit(bx, bz, 0, UNIT_SPEARMAN, 150.0f);
+			const auto sep = [&]() {
+				const int ia = idx(*s, a), ib = idx(*s, b);
+				return std::hypot(s->units_.pos_x[ia] - s->units_.pos_x[ib], s->units_.pos_z[ia] - s->units_.pos_z[ib]);
+			};
+			before = sep();
+			for (int t = 0; t < 40; ++t) s->tick(DT);
+			return sep();
+		};
+		float d0 = 0.0f;
+		const float diag1 = pair_sep(cx - 0.25f, cz - 0.25f, cx + 0.25f, cz + 0.25f, d0);
+		std::printf("  diagonal pair across a square's corner: %.3f -> %.3f units apart\n", d0, diag1);
+		CHECK(std::fabs(diag1 - d0) < 1e-3f, "two idle spearmen diagonal across a pushing square's corner do not push each other");
+		const float same1 = pair_sep(cx + 0.25f, cz + 0.25f, cx + 0.75f, cz + 0.75f, d0);
+		std::printf("  pair inside one square: %.3f -> %.3f units apart\n", d0, same1);
+		CHECK(same1 > d0 + 0.05f, "the same pair inside one square push apart");
+		const float edge1 = pair_sep(cx - 0.25f, cz + 0.25f, cx + 0.25f, cz + 0.25f, d0);
+		std::printf("  pair split across one edge: %.3f -> %.3f units apart\n", d0, edge1);
+		CHECK(edge1 > d0 + 0.05f, "a pair split across one square edge, orthogonal neighbours, pushes apart");
+	}
+	// 45. The square gate runs after the bodies' overlap, so it keeps RTS0's exemption: an idle unit whose body
+	// overlaps another idle unit's is never held by MinimalForce. A and B straddle a square's corner 0.71 apart
+	// with overlapping bodies, so their own pair never pushes; a third idle spearman 1.0 off A (210 degrees) pushes
+	// A, and A's total push is applied, so A and B part. Run before the overlap, the gate froze them 0.46 apart. 0 A.D. has no
+		// such exemption: this is RTS0's deliberate deviation (REMAINING_GAPS G124).
+	{
+		const float H = 64.0f;                  // the default map's half-size (simulation.h map_half_)
+		const float Q = 20.0f * (5.0f / 6.0f);  // a pushing square in RTS0 units (PUSH_SQUARE)
+		const float cx = -H + 3.0f * Q, cz = -H + 3.0f * Q; // the same corner as scenario 44
+		auto s = std::make_unique<Simulation>();
+		setup(*s);
+		const uint32_t a = s->spawn_unit(cx - 0.25f, cz - 0.25f, 0, UNIT_SPEARMAN, 150.0f);
+		const uint32_t b = s->spawn_unit(cx + 0.25f, cz + 0.25f, 0, UNIT_SPEARMAN, 150.0f);
+		const float th = 7.0f * 2.0f * 3.14159265f / 12.0f; // 210 degrees
+		s->spawn_unit(cx - 0.25f + std::cos(th), cz - 0.25f + std::sin(th), 0, UNIT_SPEARMAN, 150.0f);
+		const auto sep = [&]() {
+			const int ia = idx(*s, a), ib = idx(*s, b);
+			return std::hypot(s->units_.pos_x[ia] - s->units_.pos_x[ib], s->units_.pos_z[ia] - s->units_.pos_z[ib]);
+		};
+		const float d0 = sep();
+		for (int t = 0; t < 60; ++t) s->tick(DT);
+		const float d1 = sep();
+		std::printf("  overlapping pair across a square's corner, a third unit pushing one: %.3f -> %.3f units apart\n", d0, d1);
+		CHECK(d1 > 1.0f, "an overlapping pair across a square's corner still parts when a third unit pushes one of them");
+	}
+	// 46. Walkers across a square's corner: the gate skips a diagonal pair whether or not either is moving, so two walkers
+		// that start diagonal across the corner and walk away from it each keep the track they walk alone.
+		{
+			const float H = 64.0f;                  // the default map's half-size (simulation.h map_half_)
+			const float Q = 20.0f * (5.0f / 6.0f);  // a pushing square in RTS0 units (PUSH_SQUARE)
+			const float cx = -H + 3.0f * Q, cz = -H + 3.0f * Q; // the same corner as scenario 44
+			// Walker a (from the corner's lower side) and walker b (from its upper side) walk away from the corner for
+			// 20 ticks; each one's position afterwards. Only the walkers flagged are spawned.
+			auto walk_away = [&](bool with_a, bool with_b, float &ax, float &az, float &bx, float &bz) {
+				auto s = std::make_unique<Simulation>();
+				setup(*s);
+				uint32_t a = 0, b = 0;
+				if (with_a) a = s->spawn_unit(cx - 0.25f, cz - 0.25f, 0, UNIT_SPEARMAN, 150.0f);
+				if (with_b) b = s->spawn_unit(cx + 0.25f, cz + 0.25f, 0, UNIT_SPEARMAN, 150.0f);
+				if (with_a) s->order_walk(&a, 1, cx - 30.0f, cz - 30.0f);
+				if (with_b) s->order_walk(&b, 1, cx + 30.0f, cz + 30.0f);
+				for (int t = 0; t < 20; ++t) s->tick(DT);
+				if (with_a) { const int ia = idx(*s, a); ax = s->units_.pos_x[ia]; az = s->units_.pos_z[ia]; }
+				if (with_b) { const int ib = idx(*s, b); bx = s->units_.pos_x[ib]; bz = s->units_.pos_z[ib]; }
+			};
+			float sax = 0.0f, saz = 0.0f, sbx = 0.0f, sbz = 0.0f, pax = 0.0f, paz = 0.0f, pbx = 0.0f, pbz = 0.0f, unused = 0.0f;
+			walk_away(true, false, sax, saz, unused, unused);   // a alone
+			walk_away(false, true, unused, unused, sbx, sbz);   // b alone
+			walk_away(true, true, pax, paz, pbx, pbz);          // the pair, diagonal across the corner
+			const float moved = std::hypot(sax - (cx - 0.25f), saz - (cz - 0.25f)) + std::hypot(sbx - (cx + 0.25f), sbz - (cz + 0.25f));
+			const float da = std::hypot(pax - sax, paz - saz), db = std::hypot(pbx - sbx, pbz - sbz);
+			std::printf("  walkers across a square's corner, 1 s of walking away: %.3f and %.3f units off their solo tracks\n", da, db);
+			CHECK(moved > 0.5f, "the walkers do walk away from the corner, so the tracks compared are real");
+			CHECK(da < 0.05f && db < 0.05f, "two walkers diagonal across a pushing square's corner keep the tracks they walk alone");
+		}
+		// A crowd walks past a Gaia mine whose grown square the 1 m mask blocks (NavGrid::mine_sub): the
+	// long path goes round the square, the crowd gets through the gap beside it, no unit gets stuck in a
+	// blocked subcell for long, and most of it arrives. Migrate's review asked for this (mixed pressure at
+	// a mine's edge).
+	{
+		auto s = std::make_unique<Simulation>();
+		setup(*s);
+		s->spawn_resource_world(0.0f, 0.0f, RES_STONE, 5000);
+		const NavGrid &g = s->nav_grid();
+		const float nc = 2.0f * g.map_half / (float)g.res, sub = nc / 8.0f;
+		std::vector<uint32_t> crowd;
+		for (int k = 0; k < 12; ++k) crowd.push_back(s->spawn_unit(-10.0f, -3.0f + 0.6f * k, 0, UNIT_SPEARMAN, 150.0f));
+		s->order_walk(crowd.data(), crowd.size(), 10.0f, 0.0f);
+		std::vector<int> in_blocked(crowd.size(), 0);
+		std::vector<bool> reached(crowd.size(), false);
+		const int ticks = (int)(60.0f / Simulation::FIXED_STEP);
+		for (int t = 0; t < ticks; ++t) {
+			s->tick(Simulation::FIXED_STEP);
+			for (size_t i = 0; i < crowd.size(); ++i) {
+				const int u = idx(*s, crowd[i]);
+				if (u < 0) continue;
+				const int sx = (int)std::floor((s->units_.pos_x[u] + g.map_half) / sub);
+				const int sy = (int)std::floor((s->units_.pos_z[u] + g.map_half) / sub);
+				if (g.mine_subcell_blocked(0, sx, sy)) ++in_blocked[i];
+				if (std::hypot(s->units_.pos_x[u] - 10.0f, s->units_.pos_z[u]) < 4.0f) reached[i] = true;
+			}
+		}
+		int arrived = 0, worst = 0;
+		for (size_t i = 0; i < crowd.size(); ++i) {
+			const int u = idx(*s, crowd[i]);
+			if (reached[i]) ++arrived;
+			worst = std::max(worst, in_blocked[i]);
+		}
+		std::printf("  crowd of 12 past a mine: %d within 4 units of the goal in 60 s; longest time in a blocked subcell %.2f s\n",
+				arrived, worst * Simulation::FIXED_STEP);
+		CHECK(arrived >= 10, "most of a crowd gets past a mine");
+		CHECK(worst * Simulation::FIXED_STEP <= 2.0f, "no unit sits in a blocked subcell for over 2 s");
+	}
+
+	// SW6: a gatherer walking back to its dropsite keeps its failed count when its gather order is re-sent
+	// (Petra re-sends a returning gatherer every few seconds). set_order starts a new move, and MoveTo resets
+	// m_FailedMovements, so a walk blocked at its dropsite would never reach MoveFailed (0 A.D.'s walk fails
+	// after MAX_FAILED_MOVEMENTS turns, and RETURNRESOURCE then picks the nearest dropsite again).
+	{
+		auto s = std::make_unique<Simulation>();
+		setup(*s);
+		constexpr float OX = -96.0f, OZ = -102.0f;
+		s->spawn_building_world(57.0f + OX, 67.0f + OZ, BLD_STOREHOUSE, 0, 1.0f);
+		const uint32_t tree = s->spawn_resource_world(79.5f + OX, 55.5f + OZ, RES_WOOD, 300, RES_SUB_NONE, 0, FLORA_TREE_DATE_PALM);
+		const uint32_t w = s->spawn_unit(71.11f + OX, 54.83f + OZ, 0, UNIT_FEMALE_CITIZEN, 150.0f);
+		const int wi = idx(*s, w);
+		s->units_.res_type_carried[wi] = RES_WOOD;
+		s->units_.carry[wi] = s->carry_cap((size_t)wi, RES_WOOD);
+		s->order_gather(&w, 1, tree);
+		int t = 0;
+		while (t < 2400 && s->units_.action_state[idx(*s, w)] != ACTION_RETURN_DROPSITE) { s->tick(DT); ++t; }
+		CHECK(s->units_.action_state[idx(*s, w)] == ACTION_RETURN_DROPSITE, "a full gatherer walks back to its dropsite");
+		for (int k = 0; k < 4; ++k) s->tick(DT); // a few turns on its walk, with a path to follow
+		const int fi = idx(*s, w);
+		s->units_.motion[fi].failed = 20;
+		s->order_gather(&w, 1, tree); // the re-send, on the way back
+		CHECK(s->units_.motion[fi].failed == 20, "a re-send that keeps the walk keeps its failed count (SW6)");
+	}
+
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }

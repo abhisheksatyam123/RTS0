@@ -1222,6 +1222,21 @@ int main() {
 		std::printf("animal combat: mid-swing keeps its target, defensive bear ignores an archer %.1f out\n", vis + 2.0f);
 	}
 
+	// FA17: an animal killed by something other than a hunter (tower arrows, a dead shooter) still
+	// leaves its carcass for its hunters (Health.js CreateCorpse renames their orders).
+	{
+		fresh(s);
+		const uint32_t cav = s.spawn_unit(0.0f, 0.0f, 0, UNIT_CAVALRY);
+		const uint32_t deer = s.spawn_fauna(6.0f, 0.0f, FAUNA_DEER);
+		s.order_hunt(&cav, 1, deer);
+		s.fauna_.hp[fidx(s, deer)] = 0.0f; // killed without a hunter's blow
+		run(s, 0.1f);
+		CHECK(!f_alive(s, deer));
+		CHECK(s.units_.target_unit_id[uidx(s, cav)] == 0);
+		CHECK(s.units_.target_resource_id[uidx(s, cav)] != 0); // ordered on to the carcass
+		std::printf("tower kill: the hunter's order goes on to the carcass\n");
+	}
+
 	if (failures) {
 		std::printf("test_fauna: %d failure(s)\n", failures);
 		return 1;
