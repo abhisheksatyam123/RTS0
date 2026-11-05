@@ -32,6 +32,7 @@ Needs a Godot 4.3 binary (--godot or $GODOT) and an imported project
   python3 tools/playtest_godot_mp.py --godot /path/to/godot
 """
 import argparse
+import copy
 import os
 import re
 import shutil
@@ -78,6 +79,8 @@ def main():
         ok = play(args, lobby, leave) and ok
     ok = play_saved(args, lobby) and ok
     ok = play_late_observer(args, lobby) and ok
+    ok = play_rejoin(args, lobby) and ok
+    ok = play_four(args, lobby) and ok
     ok = play_setup_leave(args, lobby) and ok
     ok = play_connect_timeout(args, lobby) and ok
     ok = play_connect_cancel(args, lobby) and ok
@@ -86,6 +89,135 @@ def main():
     server.shutdown()
     stun.close()
     return 0 if ok else 1
+
+
+def _godot_client(args, lobby, port, role, name, *more):
+    """One headless game client (godot_mp_probe.gd), its output in a file so a
+    peer whose pipe fills while another is read cannot block."""
+    cmd = [args.godot, "--headless", "--path", ROOT, "-s", "res://tools/godot_mp_probe.gd", "--",
+           f"role={role}", f"name={name}", f"lobby={lobby}", f"port={port}", f"turns={args.turns}",
+           f"timeout={args.timeout}", f"stun={args.stun_port}", "lan=0", *more]
+    if not args.no_firewall:
+        cmd.append("net_firewall=1")
+    log = tempfile.TemporaryFile(mode="w+")
+    p = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT, text=True)
+    p.log = log
+    return p
+
+
+def _godot_output(p):
+    p.log.seek(0)
+    return p.log.read()
+
+
+def _done_line(out):
+    for line in gmp_lines(out):
+        if " done " in line:
+            return dict(kv.split("=", 1) for kv in line.split(" done ", 1)[1].split())
+    return {}
+
+
+def play_rejoin(args, lobby):
+    """0 A.D. rejoin: bob's client is lost mid-match. Its process is killed, so
+    the host gets no goodbye and must notice on its own; the host plays on
+    alone. A new process signs in as bob and takes his old seat from the
+    host's world (the lobby lists the running game, and he joins it). Both must
+    hash the same at the end; the host hears bob leave, then rejoin."""
+    print("[gmp] ---- a client drops mid-match and rejoins its seat ----")
+    port = args.port + 6
+    # The host plays on alone for the lobby to drop bob (30 s) and for him to
+    # come back: the match must still be running then, so it runs longer.
+    args = copy.copy(args)
+    args.turns = max(args.turns, 400)
+    host = _godot_client(args, lobby, port, "host", "alice")
+    time.sleep(2.0)
+    bob = _godot_client(args, lobby, port, "join", "bob")
+    # Drop bob once he is in the match and a while has played.
+    until = time.time() + args.timeout
+    while time.time() < until and "in the match scene" not in _godot_output(bob):
+        if host.poll() is not None or bob.poll() is not None:
+            break
+        time.sleep(0.25)
+    time.sleep(8.0)
+    bob.kill()
+    bob.wait()
+    # The lobby drops a player it has not heard from for 30 s; until then the
+    # killed client still counts as signed in ("Player already logged in").
+    until = time.time() + 90
+    while time.time() < until:
+        with lobby_server.LOBBY.lock:
+            names = {p["name"] for p in lobby_server.LOBBY.player_list()[1]["players"]}
+        if "bob" not in names:
+            break
+        time.sleep(1.0)
+    bob2 = _godot_client(args, lobby, port, "join", "bob")
+    outs = {}
+    for role, p in (("bob2", bob2), ("host", host)):
+        try:
+            p.wait(timeout=args.timeout + 60)
+        except subprocess.TimeoutExpired:
+            p.kill()
+            p.wait()
+        outs[role] = _godot_output(p)
+    h, b = _done_line(outs["host"]), _done_line(outs["bob2"])
+    rejoined = [l for l in gmp_lines(outs["bob2"]) if "rejoining" in l or "rejoin" in l]
+    ok = (host.returncode == 0 and bob2.returncode == 0 and h and b
+          and h.get("hash") == b.get("hash") and h.get("hash") not in (None, "00000000")
+          and h.get("seat") == "0" and b.get("seat") == "1"
+          and int(h.get("left_lines", "0")) >= 1 and int(h.get("rejoined_lines", "0")) == 1
+          and b.get("rejoin_box") == "true")
+    for role in ("host", "bob2"):
+        for line in gmp_lines(outs[role]):
+            print("   " + role + " " + line)
+    if ok:
+        print(f"[gmp] PASS bob's client dropped mid-match; the host played on, heard him leave and rejoin "
+              f"into seat 1; turn {args.turns} hash {h['hash']} on both")
+        return True
+    print(f"[gmp] FAIL rejoin rc host/bob2={host.returncode}/{bob2.returncode} host={h} bob2={b}")
+    return False
+
+
+def play_four(args, lobby):
+    """Four human players and a late observer: alice hosts a four-player match,
+    bob, carol and dave join its setup, and erin watches from the lobby once it
+    runs. All five must hash the same at the last turn."""
+    print("[gmp] ---- four players and a late observer ----")
+    port = args.port + 7
+    host = _godot_client(args, lobby, port, "host", "alice", "players=4")
+    time.sleep(2.0)
+    joins = []
+    for name in ("bob", "carol", "dave"):
+        joins.append((name, _godot_client(args, lobby, port, "join", name)))
+        time.sleep(1.0)
+    late = _godot_client(args, lobby, port, "join", "erin", "late=1")
+    outs = {}
+    procs = [("host", host), ("late", late)] + [(n, p) for n, p in joins]
+    for role, p in procs:
+        try:
+            p.wait(timeout=args.timeout + 120)
+        except subprocess.TimeoutExpired:
+            p.kill()
+            p.wait()
+        outs[role] = _godot_output(p)
+    done = {r: _done_line(outs[r]) for r in ("host", "bob", "carol", "dave")}
+    late_line = next((l.split(" late done ", 1)[1] for l in gmp_lines(outs["late"]) if " late done " in l), "")
+    late_got = dict(kv.split("=", 1) for kv in late_line.split()) if late_line else {}
+    hashes = {done["host"].get("hash"), late_got.get("hash")} | {done[n].get("hash") for n in ("bob", "carol", "dave")}
+    ok = (all(p.returncode == 0 for _, p in procs) and all(done[r] for r in done) and late_got
+          and len(hashes) == 1 and None not in hashes and "00000000" not in hashes
+          and done["host"].get("seat") == "0"
+          and all(done[n].get("seat") == str(i) for i, n in enumerate(("bob", "carol", "dave"), 1))
+          and late_got.get("seat") == "255" and int(late_got.get("turn", "0")) >= args.turns)
+    for role, _ in procs:
+        for line in gmp_lines(outs[role]):
+            print("   " + role + " " + line)
+    if ok:
+        print(f"[gmp] PASS four players and a late observer: seats 0-3 and the watcher hash the same at turn "
+              f"{args.turns} ({done['host']['hash']})")
+        return True
+    print(f"[gmp] FAIL four players: rc={[p.returncode for _, p in procs]} hashes={hashes} "
+          f"seats={[done[r].get('seat') for r in done]} late={late_got}")
+    return False
 
 
 def play_late_observer(args, lobby):
