@@ -3502,6 +3502,31 @@ int main() {
 		CHECK(worst * Simulation::FIXED_STEP <= 2.0f, "no unit sits in a blocked subcell for over 2 s");
 	}
 
+	// SW6: a gatherer walking back to its dropsite keeps its failed count when its gather order is re-sent
+	// (Petra re-sends a returning gatherer every few seconds). set_order starts a new move, and MoveTo resets
+	// m_FailedMovements, so a walk blocked at its dropsite would never reach MoveFailed (0 A.D.'s walk fails
+	// after MAX_FAILED_MOVEMENTS turns, and RETURNRESOURCE then picks the nearest dropsite again).
+	{
+		auto s = std::make_unique<Simulation>();
+		setup(*s);
+		constexpr float OX = -96.0f, OZ = -102.0f;
+		s->spawn_building_world(57.0f + OX, 67.0f + OZ, BLD_STOREHOUSE, 0, 1.0f);
+		const uint32_t tree = s->spawn_resource_world(79.5f + OX, 55.5f + OZ, RES_WOOD, 300, RES_SUB_NONE, 0, FLORA_TREE_DATE_PALM);
+		const uint32_t w = s->spawn_unit(71.11f + OX, 54.83f + OZ, 0, UNIT_FEMALE_CITIZEN, 150.0f);
+		const int wi = idx(*s, w);
+		s->units_.res_type_carried[wi] = RES_WOOD;
+		s->units_.carry[wi] = s->carry_cap((size_t)wi, RES_WOOD);
+		s->order_gather(&w, 1, tree);
+		int t = 0;
+		while (t < 2400 && s->units_.action_state[idx(*s, w)] != ACTION_RETURN_DROPSITE) { s->tick(DT); ++t; }
+		CHECK(s->units_.action_state[idx(*s, w)] == ACTION_RETURN_DROPSITE, "a full gatherer walks back to its dropsite");
+		for (int k = 0; k < 4; ++k) s->tick(DT); // a few turns on its walk, with a path to follow
+		const int fi = idx(*s, w);
+		s->units_.motion[fi].failed = 20;
+		s->order_gather(&w, 1, tree); // the re-send, on the way back
+		CHECK(s->units_.motion[fi].failed == 20, "a re-send that keeps the walk keeps its failed count (SW6)");
+	}
+
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }

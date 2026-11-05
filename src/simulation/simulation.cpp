@@ -7346,8 +7346,17 @@ void Simulation::order_gather(const uint32_t *unit_ids_in, size_t count_in, uint
 				gdx * gdx + gdz * gdz <= 4.0f && units_.carry[uidx] > 0 &&
 				units_.carry[uidx] >= carry_cap((size_t)uidx, units_.res_type_carried[uidx]) &&
 				resources_.type[ridx] == units_.res_type_carried[uidx];
+		// A re-send of the same resource to a unit walking back with its full load keeps the walk's failed
+		// count: set_order starts a new move, and MoveTo resets m_FailedMovements, but 0.28 never re-sends a
+		// working gatherer (Petra's worker.js gathers only idle units). Petra re-sends a returning gatherer
+		// every few seconds here, so a walk blocked at its dropsite never reached MoveFailed (SW6, seed 30).
+		const bool same_return = returning && units_.target_resource_id[uidx] == resource_id && units_.carry[uidx] > 0 &&
+				units_.carry[uidx] >= carry_cap((size_t)uidx, units_.res_type_carried[uidx]) &&
+				resources_.type[ridx] == units_.res_type_carried[uidx];
+		const uint8_t failed_kept = units_.motion[uidx].failed;
 		if (!keep) drop_walk_path((size_t)uidx);
 		set_order(uidx, ORDER_GATHER, flags, resource_id, rx, rz);
+		if (same_return) units_.motion[uidx].failed = failed_kept;
 	}
 	if (!walkers.empty()) order_walk(walkers.data(), walkers.size(), rx, rz);
 }
