@@ -33428,20 +33428,28 @@ bool Simulation::petra_unit_reserved(uint32_t uid) const {
 	return petra_is_defender(uid);
 }
 
-uint32_t Simulation::find_petra_raid_target(float &out_tx, float &out_tz) const {
-	float bx = 36.0f, bz = 36.0f;
-	if (const auto *base = get_primary_petra_base()) { bx = base->x; bz = base->z; }
+uint32_t Simulation::find_petra_raid_target(float &out_tx, float &out_tz, const std::vector<uint32_t> *from_squad) const {
 	// attackManager.js:425-433: the first enemy structure of defenseManager.js targetList, in
 	// the order the structures were found.
-	(void)bx; (void)bz;
+	float fx = 0.0f, fz = 0.0f;
+	const bool nearest = from_squad && petra_squad_centre(*from_squad, fx, fz);
+	uint32_t best = 0;
+	float best_d2 = 0.0f;
 	for (const uint32_t id : petra_defense_targets_.ids) {
 		const auto it = building_id_to_idx_.find(id);
 		if (it == building_id_to_idx_.end() || !petra_defense_target(buildings_[it->second])) continue;
-		out_tx = buildings_[it->second].x;
-		out_tz = buildings_[it->second].z;
-		return id;
+		if (!nearest) {
+			out_tx = buildings_[it->second].x;
+			out_tz = buildings_[it->second].z;
+			return id;
+		}
+		// AttackPlan.getNearestTarget (UpdateTarget, attackPlan.js:2020): the nearest of the
+		// targetList from the army's position; a tie keeps the earlier entry.
+		const float dx = buildings_[it->second].x - fx, dz = buildings_[it->second].z - fz;
+		const float d2 = dx * dx + dz * dz;
+		if (!best || d2 < best_d2) { best = id; best_d2 = d2; out_tx = buildings_[it->second].x; out_tz = buildings_[it->second].z; }
 	}
-	return 0;
+	return best;
 }
 
 // attackManager.js raidTargetEntity / attackPlan.js "Raid": a few cavalry
@@ -33788,7 +33796,7 @@ void Simulation::petra_update_started_raid(AttackPlan &plan, float base_x, float
 		}
 		if (!target_ok) {
 			float tx = 0.0f, tz = 0.0f;
-			uint32_t tid = find_petra_raid_target(tx, tz);
+			uint32_t tid = find_petra_raid_target(tx, tz, &plan.squad);
 			if (tid) {
 				plan.target_building_id = tid;
 				plan.blocked = petra_pick_blocked_;

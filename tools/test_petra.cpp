@@ -3657,6 +3657,32 @@ static void test_raid_target_discovery_order() {
 	CHECK(kept, "the targetList keeps its discovery order through a save");
 }
 
+// attackPlan.js UpdateTarget: a raid whose target falls takes the nearest structure of the
+// targetList from its army's position (getNearestTarget), not the first listed.
+static void test_raid_retarget_nearest() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	float cx = 0.0f, cz = 0.0f;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { cx = b.x; cz = b.z; }
+	const uint32_t far = s->spawn_building_world(cx + 60.0f, cz, BLD_HOUSE, 0, 1.0f);
+	const uint32_t near = s->spawn_building_world(cx + 14.0f, cz, BLD_HOUSE, 0, 1.0f);
+	s->petra_defense_targets_.ids = {far, near}; // the far one was listed first
+	const uint32_t raider = s->spawn_unit(cx + 12.0f, cz + 2.0f, 1, UNIT_CAVALRY);
+	float tx = 0.0f, tz = 0.0f;
+	const uint32_t first = s->find_petra_raid_target(tx, tz);
+	const std::vector<uint32_t> squad{raider};
+	const uint32_t nearest = s->find_petra_raid_target(tx, tz, &squad);
+	std::printf("  raid retarget: first listed %s, nearest to the squad %s\n", first == far ? "yes" : "no", nearest == near ? "yes" : "no");
+	CHECK(first == far, "the initial raid pick is the first structure listed");
+	CHECK(nearest == near, "a retarget from the squad's position takes the nearest structure");
+}
+
 // attackManager.js pass 4. (a) switchDefenseToAttack aims the retake plan at the captor
 // (targetPlayer = target.owner(), totalNumber++). (b) getEnemyPlayer keeps the current enemy
 // for a rush however many towers it has (the tower veto bars only a new pick). (c) A plan's
@@ -10813,6 +10839,7 @@ int main(int argc, char **argv) {
 	RUN(test_siege_attack_moves_at_structures);
 	RUN(test_attack_manager_pass4);
 	RUN(test_raid_target_discovery_order);
+	RUN(test_raid_retarget_nearest);
 	RUN(test_attack_targets_target_player);
 	RUN(test_siege_prefers_any_gate);
 	RUN(test_raid_sizes_vary);
