@@ -20,6 +20,7 @@ using namespace rtso;
 static int failures = 0;
 #define CHECK(cond) do { if (!(cond)) { std::printf("FAIL %s:%d %s\n", __FILE__, __LINE__, #cond); ++failures; } } while (0)
 
+
 static void run(Simulation &s, float seconds) {
 	for (int t = 0; t < (int)std::lround(seconds / Simulation::FIXED_STEP); ++t) s.tick(Simulation::FIXED_STEP);
 }
@@ -704,6 +705,8 @@ int main() {
 		for (int f = 0; f < FAUNA_COUNT; ++f) large += fauna_type_info((uint8_t)f).is_large();
 		CHECK(large == 4); // not the infants, the cows or the trainable cattle
 		fresh(s);
+		// The houses here are 1-cell (8 m) houses, as Gaul houses are; Athenian houses are 2 cells now.
+		s.set_player_civ(CIV_GAULS);
 		s.spawn_building_world(0.0f, 20.0f, BLD_HOUSE, 0, 1.0f); // half 1: x and z in [-1, 1] round its centre
 		s.tick(Simulation::FIXED_STEP);
 		const uint32_t deer = s.spawn_fauna(-1.5f, 20.0f, FAUNA_DEER);
@@ -715,6 +718,7 @@ int main() {
 		CHECK(s.fauna_can_step(fidx(s, ele), -1.5f, 20.1f)); // along the wall
 
 		fresh(s);
+		s.set_player_civ(CIV_GAULS); // 1-cell houses, as below
 		// Houses at z = 1 +- (1.6 + 2k): edges at z 0.4 and 1.6, a 1.2-unit gap round the middle of
 		// the navcell row z in [0, 2], which no house covers, so the nav grid leaves it open.
 		for (int k = 0; k < 6; ++k) {
@@ -992,8 +996,9 @@ int main() {
 			}
 		};
 		fresh(s);
+		s.set_player_civ(CIV_GAULS); // 1-cell houses for the pocket
 		pocket(s);
-		uint32_t ewe = s.spawn_fauna(4.0f, 0.0f, FAUNA_SHEEP_TRAINABLE, 1);
+		uint32_t ewe =s.spawn_fauna(4.0f, 0.0f, FAUNA_SHEEP_TRAINABLE, 1);
 		s.order_fauna_walk(1, &ewe, 1, 16.0f, 0.0f);
 		run(s, 40.0f);
 		int32_t e = fidx(s, ewe);
@@ -1001,6 +1006,7 @@ int main() {
 		CHECK(std::hypot(s.fauna_.pos_x[e] - 16.0f, s.fauna_.pos_z[e]) < 1.0f);
 		// A wolf in the pocket chases a soldier standing behind it.
 		fresh(s);
+		s.set_player_civ(CIV_GAULS); // 1-cell houses for the pocket
 		pocket(s);
 		uint32_t u = s.spawn_unit(16.0f, 0.0f, 1, UNIT_SPEARMAN);
 		s.order_set_stance(&u, 1, STANCE_STAND_GROUND);
