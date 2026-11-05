@@ -25553,30 +25553,17 @@ void Simulation::petra_staff_foundations() {
 		if (n.watch->stall >= kStallRelease) n.watch->stall = 0.0f;
 	// assignToFoundations counts every unit whose target-foundation it is, those still crossing
 	// to it too: a builders' crossing is its land's first foundation's builders until it lands.
-	// A land's crossings serve its foundations in order: each foundation there is credited up
-	// to its missing builders, so a second foundation on the land is not left to send its own
-	// crossing every turn (only the first one on the land used to be credited).
-	if (naval_map) {
-		std::vector<int> crossing(topo.land_size.size() + 1, 0);
+	if (naval_map)
 		for (const PetraTransportPlan &tp : petra_transports_) {
 			if (tp.owner != PETRA_TRANSPORT_BUILDERS || tp.state == PetraTransportPlan::FAILED) continue;
 			const uint16_t to = petra_land_at(tp.drop_x, tp.drop_z);
-			if (to >= crossing.size()) continue;
-			for (const auto &n : needs)
-				if (n.land == to) {
-					crossing[to] += (int)tp.passenger_ids.size();
-					building += (int)tp.passenger_ids.size();
-					break;
-				}
+			for (auto &n : needs) {
+				if (n.land != to) continue;
+				n.missing -= (int)tp.passenger_ids.size();
+				building += (int)tp.passenger_ids.size();
+				break;
+			}
 		}
-		for (auto &n : needs) {
-			if (n.land >= crossing.size() || crossing[n.land] <= 0) continue;
-			const int take = std::min(n.missing, crossing[n.land]);
-			if (take <= 0) continue;
-			n.missing -= take;
-			crossing[n.land] -= take;
-		}
-	}
 	// maxTotalBuilders: the workers times the builder ratio (getAvailableResources), at least
 	// two; two more for a house while the population is near its cap; 15 for a base
 	// anchor or the wonder in wonder victory; every worker while there is no base yet.
