@@ -474,7 +474,8 @@ void RtsoMain::_ready() {
 	// Multiplayer lobby panel (lobby_dialog.h). Its buttons connect to the RtsoMain
 	// methods in bind_signals below, as the inline connects did.
 	{
-		auto lw = lobby_dialog_.build(ui_layer);
+		lobby_dialog_.instantiate();
+		auto lw = lobby_dialog_->build(ui_layer);
 		lobby_panel = lw.panel;
 		lobby_name = lw.name;
 		lobby_host = lw.host;
@@ -486,7 +487,7 @@ void RtsoMain::_ready() {
 		lobby_status = lw.status;
 		lobby_players = lw.players;
 		lobby_seats = lw.seats;
-		lobby_dialog_.bind_signals(this);
+		lobby_dialog_->bind_signals(this);
 	}
 
 	// =========================================================================
@@ -1010,14 +1011,9 @@ void RtsoMain::_process(double delta) {
 				write_replay(false, true); // "Replay saved to", however early
 				quit_confirmation("out_of_sync_network");
 			}
-			if (turn_mgr_.has_out_of_sync() && lobby_status) {
-				// 0 A.D. session.js "Out-Of-Sync" notice: the first diverging turn and who.
-				String who;
-				for (const auto &n : turn_mgr_.oos_players()) who += (who.is_empty() ? "" : ", ") + String::utf8(n.c_str());
-				lobby_status->set_text("Out-Of-Sync on turn " + String::num_int64(turn_mgr_.oos_turn()) +
-						(who.is_empty() ? String() : ". Players: " + who) +
-						(turn_mgr_.oos_dump_path().empty() ? String() : ". Dump: " + String::utf8(turn_mgr_.oos_dump_path().c_str())));
-			} else if (turn_mgr_.is_paused() && lobby_status) {
+			// 0 A.D. has no status-line text for an out-of-sync game (the box is the
+			// only display), so this line is free for the pause and link states.
+			if (turn_mgr_.is_paused() && lobby_status) {
 				String who;
 				for (uint32_t c : turn_mgr_.paused_clients()) {
 					const uint8_t pl = turn_mgr_.player_for_client(c);

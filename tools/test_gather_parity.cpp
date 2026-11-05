@@ -768,6 +768,57 @@ int main() {
 		CHECK(on(a) && (int)on(b) + (int)on(c) == 1);
 	}
 
+	// 14. A long path never crosses a 1 m subcell a Gaia mine covers (0 A.D. rasterizes a mine's grown
+	// square at 1 m, Rasterize.cpp): NavGrid::mine_sub, avoid_mine_subcells.
+	{
+		static Simulation s;
+		fresh(s);
+		s.spawn_resource_world(0.0f, 0.0f, RES_STONE, 5000);
+		const NavGrid &g = s.nav_grid();
+		int partial = 0;
+		for (int y = 0; y < g.res; ++y)
+			for (int x = 0; x < g.res; ++x) partial += g.mine_partial(0, x, y) ? 1 : 0;
+		std::printf("  mine: %d navcells it covers in part\n", partial);
+		CHECK(partial > 0);
+		bool all_reached = true, crossed = false;
+		const float legs[][4] = {{-10, 0, 10, 0}, {0, -10, 0, 10}, {-10, -10, 10, 10}, {-12, 2, 12, -2}};
+		for (const auto &l : legs) {
+			WaypointPath out;
+			all_reached = g.find_path(l[0], l[1], l[2], l[3], out, PASS_INFANTRY) && all_reached;
+			crossed = g.crosses_mine_sub(0, l[0], l[1], out) || crossed;
+		}
+		std::printf("  four legs past the mine: all reached %s, any leg through a mine subcell %s\n",
+				all_reached ? "yes" : "no", crossed ? "yes" : "no");
+		CHECK(all_reached);
+		CHECK(!crossed);
+
+		// A unit standing in a partly covered navcell, or pushed into a blocked subcell, still gets a route.
+		const float nc = 2.0f * g.map_half / (float)g.res, sub = nc / 8.0f;
+		float px = 0, pz = 0, qx = 0, qz = 0;
+		bool have_partial = false, have_sub = false;
+		for (int y = 0; y < g.res && !have_partial; ++y)
+			for (int x = 0; x < g.res && !have_partial; ++x)
+				if (g.mine_partial(0, x, y)) {
+					px = ((float)x + 0.5f) * nc - g.map_half;
+					pz = ((float)y + 0.5f) * nc - g.map_half;
+					have_partial = true;
+				}
+		for (int y = 0; y < g.res * 8 && !have_sub; ++y)
+			for (int x = 0; x < g.res * 8 && !have_sub; ++x)
+				if (g.mine_subcell_blocked(0, x, y)) {
+					qx = ((float)x + 0.5f) * sub - g.map_half;
+					qz = ((float)y + 0.5f) * sub - g.map_half;
+					have_sub = true;
+				}
+		WaypointPath pa, pb;
+		const bool ra = have_partial && g.find_path(px, pz, 10.0f, 0.0f, pa, PASS_INFANTRY);
+		const bool rb = have_sub && g.find_path(qx, qz, 10.0f, 0.0f, pb, PASS_INFANTRY);
+		std::printf("  from a partly covered navcell: route %s; from a blocked subcell: route %s\n",
+				ra ? "yes" : "no", rb ? "yes" : "no");
+		CHECK(have_partial && ra);
+		CHECK(have_sub && rb);
+	}
+
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }

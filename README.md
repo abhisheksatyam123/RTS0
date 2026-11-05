@@ -2,8 +2,33 @@
 
 A real-time strategy game modeled on [0 A.D.](https://play0ad.com), built with **Godot 4.3 (Pure C++ GDExtension / SoA Simulation)**.
 
-**Cross-platform multiplayer target: Windows, Linux, Android, iOS.**
+**Cross-platform multiplayer target: Windows, Linux, macOS, Android, iOS.**
 See `docs/MULTIPLAYER.md` for the netcode model, platform matrix, and the architecture rules (sim/presentation split, command pattern) that all gameplay code must follow.
+
+Version 0.1.0. See [CHANGELOG.md](CHANGELOG.md) for what is in it.
+
+## Install and play
+
+### Playing a release build
+Release archives are built per platform by `tools/build.py <platform> --package` (see [docs/BUILD.md](docs/BUILD.md)). Each one is a self-contained game:
+
+- **Windows:** unzip `RTS0-windows-x86_64.zip` and run `RTS0.exe`.
+- **Linux:** unzip `RTS0-linux-x86_64.zip` and run `./RTS0.x86_64`.
+- **macOS:** unzip `RTS0-macos-universal.zip` and open `RTS0.app`.
+- **Android:** install `RTS0-android-arm64.apk` (allow installs from your browser or file manager).
+- **iOS:** built from macOS/Xcode only; see [docs/BUILD.md](docs/BUILD.md).
+
+Each archive ships with `LICENSE`, `assets/LICENSE` and `docs/0AD_ATTRIBUTION.md`. The in-game credits screen is under the main menu's **Credits** button.
+
+### Playing from source
+Follow **Requirements** and **Run / Build** below, then start the game with `./build/linux/RTS0.x86_64` (or the equivalent file for your platform).
+
+### Starting a match quickly
+From the main menu, open **Single-player** and choose **Skirmish Arena** for a quick match, or start a new game from the setup screen. For scripted starts, use the 0 A.D.-style autostart options shown under **Run / Build**.
+
+### Saving and multiplayer
+- Press Esc in a match to open the session menu and save. Saves go to Godot's user data folder (`user://saves/`, shown in the save dialog).
+- Multiplayer matches start once every seated player has loaded.
 
 ## Requirements
 - Godot 4.3+ **Standard edition** (no .NET SDK or Mono required): https://godotengine.org/download
@@ -54,3 +79,9 @@ Start at **[docs/README.md](docs/README.md)**, which lists every doc and the one
 RTS0's code is **GPL-2.0-or-later** (`LICENSE`), because it copies and ports code from
 [0 A.D.](https://play0ad.com). Art, audio and maps from 0 A.D. are **CC BY-SA 3.0**
 (`assets/LICENSE`). Details: `docs/0AD_ATTRIBUTION.md`.
+
+Distributed builds are under the same licences. The complete corresponding source for any build is this repository (https://github.com/abhisheksatyam123/RTS0) at the tag or commit the build was made from. Credits are shown in the game and listed in `docs/0AD_ATTRIBUTION.md`.
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md).
