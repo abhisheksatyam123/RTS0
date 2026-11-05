@@ -3230,7 +3230,10 @@ func _update_net_observers() -> void:
 		return
 	var names: Array = Array(_net_state.get("observers", [])).map(func(e): return str(e.get("name", "")))
 	var lbl: Label = %NetObservers
-	lbl.text = "Observers: " + ", ".join(names) if not names.is_empty() else ""
+	# 0 A.D. getGameDescription: the observers' heading ("Observer" or "Observers",
+	# by how many) over their names, one a line.
+	var heading := "Observer" if names.size() == 1 else "Observers"
+	lbl.text = (heading + ":\n" + "\n".join(names)) if not names.is_empty() else ""
 	lbl.visible = not names.is_empty()
 
 ## GameSettingControlManager with isSavedGame: the controller loaded a saved
