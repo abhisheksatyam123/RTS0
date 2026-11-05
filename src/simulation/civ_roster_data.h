@@ -1335,7 +1335,7 @@ inline const CivPlayerBonus *civ_player_bonus_table() {
 	return kBonuses;
 }
 
-inline constexpr uint16_t CIV_TEAM_BONUS_COUNT = 58;
+inline constexpr uint16_t CIV_TEAM_BONUS_COUNT = 60;
 
 // 0 A.D. team bonuses (data/auras/teambonuses): each reaches the civ's player and
 // its allies (allies only when allies_only is set).
@@ -1401,6 +1401,10 @@ inline const CivTeamBonus *civ_team_bonus_table() {
 		{CIV_SELEUCIDS, TEAM_BONUS_BUILDING_BUILD_TIME, -1, false, bld_bit(BLD_TOWN_CENTER) | bld_bit(BLD_MILITARY_COLONY) | bld_bit(BLD_IMPERIAL_COURT) | bld_bit(BLD_CRANNOG), 0.7f, "sele_player_teambonus", "Syrian Tetrapolis", "Civil Centers and Colonies −20% resource cost and −30% construction time.", {0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull}},
 		{CIV_HAN, TEAM_BONUS_TRADE_INTERNATIONAL, -1, true, BldMask{}, 1.2f, "han_player_teambonus", "Silk Road", "Allies +20% international trade bonus.", {0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull}},
 		{CIV_GERMANS, TEAM_BONUS_UNIT_COST_ADD, 1, false, BldMask{}, -5.0f, "germ_player_teambonus", "Stolen Arms", "Swordsmen and Axemen of all kinds -5 metal cost.", {0x000800028000021aull, 0x060460000cbf4000ull, 0x480006a00001c000ull, 0x0010110008b00003ull, 0x0000082000010060ull, 0x0000000208000414ull, 0x0008aa0000000000ull, 0x7a50240ce2f00040ull, 0x0000000e40448000ull}},
+		// Delian League (0 A.D. data/technologies/civbonuses/delian_league.json): Ship Cost/BuildTime x0.75.
+		{CIV_ATHENIANS, TEAM_BONUS_UNIT_TRAIN_TIME, -1, false, BldMask{}, 0.75f, "athen_player_teambonus", "Delian League", "Ships −25% construction time.", {0x000007c0000f8000ull, 0xf8000003f000003eull, 0x0007c00007c00001ull, 0x01e00001f00007c0ull, 0x0003f000001e0000ull, 0x00000f800001f800ull, 0x01f0000000000700ull, 0x0023c04000000002ull, 0x0000000000000000ull}, true},
+		// Elephant Tradition (civbonuses/maur_elephants.json): Elephant !Hero Cost/BuildTime x0.7.
+		{CIV_MAURYANS, TEAM_BONUS_UNIT_TRAIN_TIME, -1, false, BldMask{}, 0.7f, "maur_player_teambonus", "Elephant Tradition", "Elephants −30% training time.", {0x0200000000000000ull, 0x0001000000000000ull, 0x0000000000000000ull, 0x0400440000000000ull, 0x0000000200000010ull, 0x0000000000000001ull, 0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull}, true},
 		{0, 0, -1, false, {}, 1.0f, "", "", "", {}}, // sentinel
 	};
 	return kTeam;

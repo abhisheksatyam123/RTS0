@@ -3463,6 +3463,70 @@ int main() {
 			CHECK(moved > 0.5f, "the walkers do walk away from the corner, so the tracks compared are real");
 			CHECK(da < 0.05f && db < 0.05f, "two walkers diagonal across a pushing square's corner keep the tracks they walk alone");
 		}
-		std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
+		// A crowd walks past a Gaia mine whose grown square the 1 m mask blocks (NavGrid::mine_sub): the
+	// long path goes round the square, the crowd gets through the gap beside it, no unit gets stuck in a
+	// blocked subcell for long, and most of it arrives. Migrate's review asked for this (mixed pressure at
+	// a mine's edge).
+	{
+		auto s = std::make_unique<Simulation>();
+		setup(*s);
+		s->spawn_resource_world(0.0f, 0.0f, RES_STONE, 5000);
+		const NavGrid &g = s->nav_grid();
+		const float nc = 2.0f * g.map_half / (float)g.res, sub = nc / 8.0f;
+		std::vector<uint32_t> crowd;
+		for (int k = 0; k < 12; ++k) crowd.push_back(s->spawn_unit(-10.0f, -3.0f + 0.6f * k, 0, UNIT_SPEARMAN, 150.0f));
+		s->order_walk(crowd.data(), crowd.size(), 10.0f, 0.0f);
+		std::vector<int> in_blocked(crowd.size(), 0);
+		std::vector<bool> reached(crowd.size(), false);
+		const int ticks = (int)(60.0f / Simulation::FIXED_STEP);
+		for (int t = 0; t < ticks; ++t) {
+			s->tick(Simulation::FIXED_STEP);
+			for (size_t i = 0; i < crowd.size(); ++i) {
+				const int u = idx(*s, crowd[i]);
+				if (u < 0) continue;
+				const int sx = (int)std::floor((s->units_.pos_x[u] + g.map_half) / sub);
+				const int sy = (int)std::floor((s->units_.pos_z[u] + g.map_half) / sub);
+				if (g.mine_subcell_blocked(0, sx, sy)) ++in_blocked[i];
+				if (std::hypot(s->units_.pos_x[u] - 10.0f, s->units_.pos_z[u]) < 4.0f) reached[i] = true;
+			}
+		}
+		int arrived = 0, worst = 0;
+		for (size_t i = 0; i < crowd.size(); ++i) {
+			const int u = idx(*s, crowd[i]);
+			if (reached[i]) ++arrived;
+			worst = std::max(worst, in_blocked[i]);
+		}
+		std::printf("  crowd of 12 past a mine: %d within 4 units of the goal in 60 s; longest time in a blocked subcell %.2f s\n",
+				arrived, worst * Simulation::FIXED_STEP);
+		CHECK(arrived >= 10, "most of a crowd gets past a mine");
+		CHECK(worst * Simulation::FIXED_STEP <= 2.0f, "no unit sits in a blocked subcell for over 2 s");
+	}
+
+	// SW6: a gatherer walking back to its dropsite keeps its failed count when its gather order is re-sent
+	// (Petra re-sends a returning gatherer every few seconds). set_order starts a new move, and MoveTo resets
+	// m_FailedMovements, so a walk blocked at its dropsite would never reach MoveFailed (0 A.D.'s walk fails
+	// after MAX_FAILED_MOVEMENTS turns, and RETURNRESOURCE then picks the nearest dropsite again).
+	{
+		auto s = std::make_unique<Simulation>();
+		setup(*s);
+		constexpr float OX = -96.0f, OZ = -102.0f;
+		s->spawn_building_world(57.0f + OX, 67.0f + OZ, BLD_STOREHOUSE, 0, 1.0f);
+		const uint32_t tree = s->spawn_resource_world(79.5f + OX, 55.5f + OZ, RES_WOOD, 300, RES_SUB_NONE, 0, FLORA_TREE_DATE_PALM);
+		const uint32_t w = s->spawn_unit(71.11f + OX, 54.83f + OZ, 0, UNIT_FEMALE_CITIZEN, 150.0f);
+		const int wi = idx(*s, w);
+		s->units_.res_type_carried[wi] = RES_WOOD;
+		s->units_.carry[wi] = s->carry_cap((size_t)wi, RES_WOOD);
+		s->order_gather(&w, 1, tree);
+		int t = 0;
+		while (t < 2400 && s->units_.action_state[idx(*s, w)] != ACTION_RETURN_DROPSITE) { s->tick(DT); ++t; }
+		CHECK(s->units_.action_state[idx(*s, w)] == ACTION_RETURN_DROPSITE, "a full gatherer walks back to its dropsite");
+		for (int k = 0; k < 4; ++k) s->tick(DT); // a few turns on its walk, with a path to follow
+		const int fi = idx(*s, w);
+		s->units_.motion[fi].failed = 20;
+		s->order_gather(&w, 1, tree); // the re-send, on the way back
+		CHECK(s->units_.motion[fi].failed == 20, "a re-send that keeps the walk keeps its failed count (SW6)");
+	}
+
+	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }
