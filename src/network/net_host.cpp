@@ -1404,23 +1404,29 @@ void NetHost::authenticate_peer(NetPeer &peer, AuthenticateMsg auth) {
 		return;
 	}
 	const std::string sent_name = auth.sent_name.empty() ? auth.name : auth.sent_name; // the password's salt, as sent
-	// A banned name or address, or the wrong password, is refused and
-	// the link closed.
+	// 0 A.D. counts wrong passwords toward a ban only on the lobby's connection
+	// data (XmppClient, CheckPasswordAndIncrement); a direct join is refused
+	// with the wrong password and counts nothing. A lobby ban by count refuses
+	// even the right password (IsBanned runs first), while a banned name is
+	// refused after the password (NetServer OnAuthenticate order).
 	AuthenticateResultMsg res;
 	res.host_id = static_cast<uint16_t>(peerId);
 	res.is_controller = 0;
 	int &failed = failed_passwords_[auth.name.empty() ? p->address : auth.name];
+	const bool wrong_password = !password_.empty() &&
+			auth.password != (password_hasher_ ? password_hasher_(password_, sent_name) : password_);
 	// NetServer: behind the lobby a name is banned without its rating ("name (1500)").
-	if (banned_names_.count(lobbyAuth() ? auth.name.substr(0, auth.name.find(" (")) : auth.name) ||
-			banned_addresses_.count(p->address) ||
-			failed >= FAILED_PASSWORD_TRIES_BEFORE_BAN) {
+	const std::string bare_name = lobbyAuth() ? auth.name.substr(0, auth.name.find(" (")) : auth.name;
+	if (lobbyAuth() && failed >= FAILED_PASSWORD_TRIES_BEFORE_BAN) {
 		res.code = ARC_BANNED;
 		res.message = "You have been banned from this game";
-	} else if (!password_.empty() &&
-			auth.password != (password_hasher_ ? password_hasher_(password_, sent_name) : password_)) {
-		++failed;
+	} else if (wrong_password) {
+		if (lobbyAuth()) ++failed;
 		res.code = ARC_PASSWORD_INVALID;
 		res.message = "Wrong password";
+	} else if (banned_names_.count(bare_name) || banned_addresses_.count(p->address)) {
+		res.code = ARC_BANNED;
+		res.message = "You have been banned from this game";
 	} else {
 		failed = 0;
 		res.code = ARC_OK;

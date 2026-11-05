@@ -120,7 +120,7 @@ enum TechnologyId : uint8_t {
 	TECH_SERAPIS_CULT = 111, // serapis_cult
 	TECH_SILK_ROAD = 112, // silk_road
 	TECH_TRADE_COMMERCIAL_TREATY = 113, // trade_commercial_treaty
-	TECH_WARSHIP_RAMMING_SPEED = 114, // warship_ramming_speed
+	TECH_WARSHIP_RAMMING_SPEED = 114, // retired: 0 A.D. 0.28 has no Flanking Maneuvers; the id stays so saves keep their slots
 	TECH_ARSENAL_PHILON = 115, // arsenal_philon
 	TECH_UNLOCK_SPIES = 116, // unlock_spies
 	TECH_SPY_COUNTER = 117, // spy_counter
@@ -515,7 +515,7 @@ inline const TechEffect *tech_effects_table() {
 		{TSTAT_TRICKLE_METAL, TOP_ADD, 0, 0, 2.0f}, // serapis_cult
 		{TSTAT_TRADE_INTERNATIONAL, TOP_MUL, 57, 2, 1.2f}, // silk_road
 		{TSTAT_TRADE_INTERNATIONAL, TOP_ADD, 57, 2, 0.1f}, // trade_commercial_treaty
-		{TSTAT_SPEED, TOP_MUL, 59, 1, 1.25f}, // warship_ramming_speed
+		{TSTAT_NONE, TOP_MUL, 0, 0, 1.0f}, // retired (was warship_ramming_speed, id 114); no tech reads it
 		{TSTAT_REGEN, TOP_ADD, 60, 1, 1.0f}, // arsenal_philon
 		{TSTAT_BATCH_TIME, TOP_ADD, 61, 1, -0.1f}, // barracks_batch_training
 		{TSTAT_BATCH_TIME, TOP_ADD, 62, 1, -0.1f}, // stable_batch_training
@@ -660,7 +660,7 @@ inline const TechInfo &tech_info(uint8_t tech_id) {
 		{"Serapis Cult", "+2.0 metal trickle per second.", 300, 0, 300, 0, 60.0f, 3, BLD_TEMPLE_ISIS, TECH_NONE, 0x0800, 173, 1, "serapis_cult"},
 		{"Silk Road", "Traders +20% international trade bonus.", 500, 500, 0, 0, 50.0f, 3, BLD_MARKET, TECH_TRADE_GAIN_02, 0x2000, 174, 1, "silk_road"},
 		{"Commercial Treaty", "Traders +10% trade profit between allies.", 0, 0, 100, 0, 40.0f, 2, BLD_MARKET, TECH_NONE, 0xbfff, 175, 1, "trade_commercial_treaty"},
-		{"Flanking Maneuvers", "Ramming Ships +25% speed and acceleration. Unlocks “Bronze Rams.”", 300, 0, 200, 0, 40.0f, 2, BLD_DOCK, TECH_NONE, 0x0000, 176, 1, "warship_ramming_speed"},
+		{"", "", 0, 0, 0, 0, 0.0f, 0, BLD_DOCK, TECH_NONE, 0x0000, 176, 0, ""}, // retired id 114: Flanking Maneuvers is not in 0 A.D. 0.28
 		{"Arsenal of Philon", "Warships +1 health/second self-repair rate.", 0, 300, 0, 300, 40.0f, 3, BLD_DOCK, TECH_DOCK_EFFICIENCY, 0x0001, 177, 1, "arsenal_philon"},
 		{"Espionage", "Allows bribing the units of other players in order to share their vision.", 500, 0, 500, 0, 60.0f, 3, BLD_TOWN_CENTER, TECH_NONE, 0xbfff, 178, 0, "unlock_spies"},
 		{"Counterintelligence", "Make your units 50% more expensive to bribe.", 400, 0, 400, 0, 60.0f, 3, BLD_TOWN_CENTER, TECH_UNLOCK_SPIES, 0xbfff, 178, 0, "spy_counter"},

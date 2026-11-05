@@ -942,11 +942,13 @@ BUILDING_CLASS = {
     "Wall": ["BLD_WALL_SEGMENT", "BLD_GATE", "BLD_WALL_TOWER"],
     "Tower": ["BLD_TOWER", "BLD_SENTRY_TOWER", "BLD_TOWER_GREAT"], "Field": ["BLD_FIELD"],
     "Storehouse": ["BLD_STOREHOUSE"],
-    "House": ["BLD_HOUSE"] + MAP_HOUSES,
-    "Economic": ["BLD_STOREHOUSE", "BLD_FARMSTEAD", "BLD_MARKET", "BLD_CORRAL", "BLD_HOUSE"] + MAP_HOUSES + [
+    # 0.28 House (G113): cart apartment, pers inn and warehouse, gaul tavern and rome tent join the house and map houses.
+    "House": ["BLD_HOUSE", "BLD_APARTMENT", "BLD_INN", "BLD_WAREHOUSE", "BLD_TAVERN", "BLD_TENT"] + MAP_HOUSES,
+    # MAP_HOUSES are houses, not Economic, in 0.28 (G114); they stay in House.
+    "Economic": ["BLD_STOREHOUSE", "BLD_FARMSTEAD", "BLD_MARKET", "BLD_CORRAL", "BLD_HOUSE"] + [
                  "BLD_TRADING_POST",  # trading_post_* inherit template_structure_economic_market
                  "BLD_MILL"],  # mill_greek: rotary_mill|template_structure_economic_farmstead
-    "CivCentre": ["BLD_TOWN_CENTER", "BLD_IMPERIAL_COURT", "BLD_CRANNOG", "BLD_MILITARY_COLONY"], "Naval": ["BLD_DOCK"], "Wonder": ["BLD_WONDER"],
+    "CivCentre": ["BLD_TOWN_CENTER", "BLD_IMPERIAL_COURT", "BLD_CRANNOG", "BLD_MILITARY_COLONY"], "Naval": ["BLD_DOCK", "BLD_SUPER_DOCK", "BLD_CRANNOG"],  # cart/super_dock and brit/crannog: VisibleClasses Naval (G115) "Wonder": ["BLD_WONDER"],
     # military_colony inherits template_structure_civic_civil_centre; the temples of Vesta, Mars,
     # Amun and Isis (ptol/temple_2) template_structure_civic_temple; han/academy and the
     # mercenary camps template_structure_military_barracks.
