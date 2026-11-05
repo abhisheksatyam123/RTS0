@@ -10,372 +10,119 @@
 namespace rtso {
 
 // The models roster templates draw with besides the civ class models.
-inline constexpr int UNIT_TEMPLATE_DRAW_MODEL_COUNT = 434;
+inline constexpr int UNIT_TEMPLATE_DRAW_MODEL_COUNT = 416;
 
 inline const char *unit_template_draw_model(int k) {
 	static const char *const kDraw[UNIT_TEMPLATE_DRAW_MODEL_COUNT] = {
 		"athen_archer_maiden",
 		"athen_catafalque",
+		"athen_cavalry_javelineer_a",
 		"athen_cavalry_javelineer_b",
+		"athen_cavalry_javelineer_e",
+		"athen_cavalry_swordsman_a",
+		"athen_cavalry_swordsman_e",
 		"athen_champion_infantry",
 		"athen_hero_hippocrates",
 		"athen_hero_iphicrates",
 		"athen_hero_pericles",
+		"athen_hero_xenophon",
 		"athen_infantry_archer_b",
+		"athen_infantry_archer_e",
+		"athen_infantry_javelineer_a",
 		"athen_infantry_javelineer_b",
+		"athen_infantry_javelineer_e",
+		"athen_infantry_slinger_a",
 		"athen_infantry_slinger_b",
+		"athen_infantry_slinger_e",
+		"athen_infantry_spearman_a",
+		"athen_infantry_spearman_e",
 		"athen_ship_ram",
 		"athen_ship_scout",
 		"athen_siege_ram",
+		"brit_cavalry_javelineer_a",
 		"brit_cavalry_javelineer_b",
+		"brit_cavalry_javelineer_e",
+		"brit_cavalry_swordsman_a",
+		"brit_cavalry_swordsman_e",
 		"brit_hero_boudicca",
+		"brit_hero_boudicca_cavalry_javelineer",
 		"brit_hero_caratacos",
 		"brit_hero_cunobelin",
+		"brit_hero_cunobelin_infantry",
+		"brit_infantry_javelineer_a",
 		"brit_infantry_javelineer_b",
+		"brit_infantry_javelineer_e",
+		"brit_infantry_slinger_a",
+		"brit_infantry_slinger_e",
+		"brit_infantry_spearman_a",
 		"brit_infantry_spearman_b",
+		"brit_infantry_spearman_e",
 		"brit_ship_fire",
+		"brit_ship_fire_fire",
 		"brit_ship_scout",
-		"brit_support_female_citizen",
 		"brit_war_dog_war_dog_mastiff_b",
+		"cart_cavalry_javelineer_a",
 		"cart_cavalry_javelineer_b",
+		"cart_cavalry_javelineer_e",
+		"cart_cavalry_spearman_ital_a",
 		"cart_cavalry_spearman_ital_b",
-		"cart_cavalry_swordsman_iber_b",
+		"cart_cavalry_spearman_ital_e",
+		"cart_cavalry_swordsman_gaul_a",
+		"cart_cavalry_swordsman_gaul_e",
+		"cart_champion_pikeman",
 		"cart_hero_hamilcar",
 		"cart_hero_hannibal",
 		"cart_hero_maharbal",
+		"cart_infantry_archer_a",
+		"cart_infantry_archer_e",
+		"cart_infantry_javelineer_iber_a",
 		"cart_infantry_javelineer_iber_b",
+		"cart_infantry_javelineer_iber_e",
+		"cart_infantry_slinger_iber_a",
+		"cart_infantry_slinger_iber_e",
+		"cart_infantry_spearman_a",
 		"cart_infantry_spearman_b",
+		"cart_infantry_spearman_e",
+		"cart_infantry_spearman_ital_a",
+		"cart_infantry_spearman_ital_b",
+		"cart_infantry_spearman_ital_e",
+		"cart_infantry_swordsman_gaul_a",
 		"cart_infantry_swordsman_gaul_b",
+		"cart_infantry_swordsman_gaul_e",
 		"cart_ship_ram",
 		"cart_ship_scout",
 		"cart_ship_siege",
+		"cart_swordsman",
 		"cart_trader",
 		"gaul_cavalry",
+		"gaul_cavalry_javelineer_a",
 		"gaul_cavalry_javelineer_b",
+		"gaul_cavalry_javelineer_e",
 		"gaul_champion_cavalry",
 		"gaul_hero_brennus",
 		"gaul_hero_vercingetorix",
 		"gaul_hero_viridomarus",
+		"gaul_infantry_javelineer_a",
 		"gaul_infantry_javelineer_b",
+		"gaul_infantry_javelineer_e",
+		"gaul_infantry_slinger_a",
+		"gaul_infantry_slinger_e",
+		"gaul_infantry_spearman_a",
 		"gaul_infantry_spearman_b",
-		"han_bireme",
-		"han_cavalry_archer",
-		"han_cavalry_spearman_b",
-		"han_cavalry_swordsman",
-		"han_champion_chariot_academy",
-		"han_crossbowman",
-		"han_halberdman",
-		"han_hero_cav_han_xin",
-		"han_hero_cav_liu_bang",
-		"han_hero_wei_qing_chariot",
-		"han_infantry_archer_b",
-		"han_infantry_crossbowman_b",
-		"han_infantry_spearman_b",
-		"han_minister",
-		"han_siege_mangonel_pivot",
-		"han_siege_tower",
-		"han_towership",
-		"iber_archer",
-		"iber_cavalry_javelineer_b",
-		"iber_cavalry_spearman_b",
-		"iber_hero_caros",
-		"iber_hero_indibil",
-		"iber_infantry_swordsman_b",
-		"iber_siege_ram",
-		"kush_archer_b",
-		"kush_cav_jav_b",
-		"kush_cavalry_spearman_b",
-		"kush_champion_infantry_apedemak",
-		"kush_hero_cav_nastasen",
-		"kush_hero_chariot_amanirenas",
-		"kush_hero_elephant",
-		"kush_javelinist_b",
-		"kush_maceman_b",
-		"kush_pikeman_b",
-		"kush_ship_scout",
-		"kush_swordsman_b",
-		"mace_cavalry_javelineer_b",
-		"mace_cavalry_spearman_b",
-		"mace_champion_infantry_crossbowman",
-		"mace_champion_infantry_spearman",
-		"mace_champion_infantry_spearman_02",
-		"mace_hero_alexander_iii",
-		"mace_hero_demetrius_i",
-		"mace_hero_philip_ii",
-		"mace_infantry_javelineer_b",
-		"mace_infantry_slinger_b",
-		"mace_ship_ram",
-		"mace_ship_scout",
-		"mace_siege_ram",
-		"mace_siege_tower",
-		"maur_archer_b",
-		"maur_bireme",
-		"maur_cav_jav_b",
-		"maur_champion_elephant",
-		"maur_eleph_archer_b",
-		"maur_hero_ashoka_hero_chariot_archer_ashoka_m",
-		"maur_hero_chanakya",
-		"maur_hero_elephant",
-		"maur_mace_inf",
-		"maur_swordsman",
-		"maur_swordsman_b",
-		"pers_cavalry_archer_b",
-		"pers_cavalry_javelineer_b",
-		"pers_cavalry_spearman_b",
-		"pers_champion_cavalry",
-		"pers_champion_cavalry_archer",
-		"pers_champion_chariot",
-		"pers_champion_infantry",
-		"pers_hero_cyrus_ii",
-		"pers_hero_darius_i",
-		"pers_infantry_archer_b",
-		"pers_infantry_javelineer_b",
-		"pers_infantry_spearman_b",
-		"pers_ship_ram",
-		"pers_ship_scout",
-		"pers_siege_ram",
-		"pers_trader",
-		"ptol_cavalry_archer_b",
-		"ptol_cavalry_javelineer_merc_b",
-		"ptol_cavalry_spearman_merc_b",
-		"ptol_hero_ptolemy_i",
-		"ptol_hero_ptolemy_iv",
-		"ptol_infantry_javelineer_b",
-		"ptol_infantry_pikeman_b",
-		"ptol_infantry_slinger_b",
-		"ptol_infantry_spearman_merc_b",
-		"ptol_merchant_ship",
-		"ptol_ship_ram",
-		"ptol_ship_scout",
-		"ptol_ship_siege",
-		"ptol_siege_tower",
-		"rome_cavalry_auxiliary_b",
-		"rome_cavalry_javelineer_b",
-		"rome_champion_cavalry",
-		"rome_champion_infantry_spear_gladiator",
-		"rome_champion_infantry_sword_gladiator",
-		"rome_champion_infantry_swordsman_centurion",
-		"rome_hero_marcellus",
-		"rome_hero_maximus",
-		"rome_hero_scipio",
-		"rome_infantry_antesignanus",
-		"rome_infantry_legionary",
-		"rome_infantry_spearman_a",
-		"rome_infantry_swordsman_a",
-		"rome_infantry_swordsman_b",
-		"rome_ship_ram",
-		"rome_ship_scout",
-		"rome_ship_siege",
-		"sele_cavalry_spearman_merc_b",
-		"sele_hero_antiochus_iii",
-		"sele_hero_antiochus_iv",
-		"sele_hero_seleucus_i",
-		"sele_infantry_javelineer_b",
-		"sele_infantry_pikeman_b",
-		"sele_infantry_spearman_b",
-		"sele_infantry_swordsman_merc_b",
-		"sele_ship_ram",
-		"sele_ship_siege",
-		"sele_siege_tower",
-		"spart_cavalry_javelineer_b",
-		"spart_champion_infantry_spear_olympian",
-		"spart_fishing_boat",
-		"spart_hero_agis",
-		"spart_hero_brasidas",
-		"spart_infantry_javelineer_b",
-		"spart_infantry_spearman_b",
-		"spart_infantry_spearman_neodamodes",
-		"spart_ship_ram",
-		"spart_ship_scout",
+		"gaul_infantry_spearman_e",
+		"germ_cavalry_javelineer_a",
 		"germ_cavalry_javelineer_b",
+		"germ_cavalry_javelineer_e",
+		"germ_cavalry_spearman_a",
+		"germ_cavalry_spearman_e",
 		"germ_champion_cavalry",
 		"germ_champion_healer",
 		"germ_champion_infantry_axeman",
 		"germ_champion_infantry_maceman",
 		"germ_hero_boiorix",
 		"germ_hero_lugius",
-		"germ_infantry_javelineer_b",
-		"germ_ship_scout",
-		"germ_siege_ram_siege_ram_pivot",
-		"cart_infantry_spearman_ital_b",
-		"rome_cavalry_javelineer_auxiliary_b",
-		"rome_cavalry_spearman_auxiliary_b",
-		"rome_champion_infantry_swordsman_first",
-		"rome_infantry_spearman_conscript",
-		"wagon_house",
-		"iber_infantry_javelineer_b",
-		"brit_ship_fire_fire",
-		"rome_cavalry_javelineer_a",
-		"rome_cavalry_javelineer_auxiliary_a",
-		"rome_cavalry_javelineer_auxiliary_e",
-		"rome_cavalry_javelineer_e",
-		"rome_cavalry_spearman_a",
-		"rome_cavalry_spearman_auxiliary_a",
-		"rome_cavalry_spearman_auxiliary_e",
-		"rome_cavalry_spearman_e",
-		"rome_infantry_javelineer_a",
-		"rome_infantry_javelineer_e",
-		"rome_infantry_spearman_e",
-		"rome_infantry_swordsman_e",
-		"athen_cavalry_javelineer_a",
-		"athen_cavalry_javelineer_e",
-		"athen_cavalry_swordsman_a",
-		"athen_cavalry_swordsman_e",
-		"athen_infantry_archer_e",
-		"athen_infantry_javelineer_a",
-		"athen_infantry_javelineer_e",
-		"athen_infantry_slinger_a",
-		"athen_infantry_slinger_e",
-		"athen_infantry_spearman_a",
-		"athen_infantry_spearman_e",
-		"han_cavalry_archer_a",
-		"han_cavalry_archer_e",
-		"han_cavalry_spearman_a",
-		"han_cavalry_spearman_e",
-		"han_cavalry_swordsman_a",
-		"han_cavalry_swordsman_e",
-		"han_infantry_archer_a",
-		"han_infantry_archer_e",
-		"han_infantry_crossbowman_a",
-		"han_infantry_crossbowman_e",
-		"han_infantry_pikeman_a",
-		"han_infantry_pikeman_e",
-		"han_infantry_spearman_a",
-		"han_infantry_spearman_e",
-		"kush_cavalry_javelineer_a",
-		"kush_cavalry_javelineer_e",
-		"kush_cavalry_spearman_a",
-		"kush_cavalry_spearman_e",
-		"kush_infantry_archer_a",
-		"kush_infantry_archer_e",
-		"kush_infantry_javelineer_merc_a",
-		"kush_infantry_javelineer_merc_e",
-		"kush_infantry_maceman_merc_a",
-		"kush_infantry_maceman_merc_e",
-		"kush_infantry_pikeman_a",
-		"kush_infantry_pikeman_e",
-		"kush_infantry_spearman_a",
-		"kush_infantry_spearman_e",
-		"kush_infantry_swordsman_a",
-		"kush_infantry_swordsman_e",
-		"mace_cavalry_javelineer_a",
-		"mace_cavalry_javelineer_e",
-		"mace_cavalry_spearman_a",
-		"mace_cavalry_spearman_e",
-		"mace_infantry_archer_a",
-		"mace_infantry_archer_e",
-		"mace_infantry_javelineer_a",
-		"mace_infantry_javelineer_e",
-		"mace_infantry_pikeman_a",
-		"mace_infantry_pikeman_e",
-		"mace_infantry_slinger_a",
-		"mace_infantry_slinger_e",
-		"maur_cavalry_javelineer_a",
-		"maur_cavalry_javelineer_e",
-		"maur_cavalry_swordsman_a",
-		"maur_cavalry_swordsman_e",
-		"maur_elephant_archer_a",
-		"maur_infantry_archer_a",
-		"maur_infantry_archer_e",
-		"maur_infantry_spearman_a",
-		"maur_infantry_spearman_e",
-		"maur_infantry_swordsman_a",
-		"maur_infantry_swordsman_e",
-		"pers_cavalry_archer_a",
-		"pers_cavalry_archer_e",
-		"pers_cavalry_axeman_a",
-		"pers_cavalry_axeman_e",
-		"pers_cavalry_javelineer_a",
-		"pers_cavalry_javelineer_e",
-		"pers_cavalry_spearman_a",
-		"pers_cavalry_spearman_e",
-		"pers_infantry_archer_a",
-		"pers_infantry_archer_e",
-		"pers_infantry_javelineer_a",
-		"pers_infantry_javelineer_e",
-		"pers_infantry_spearman_a",
-		"pers_infantry_spearman_e",
-		"ptol_cavalry_archer_e",
-		"ptol_cavalry_javelineer_merc_a",
-		"ptol_cavalry_javelineer_merc_e",
-		"ptol_cavalry_spearman_merc_a",
-		"ptol_cavalry_spearman_merc_e",
-		"ptol_infantry_archer_a",
-		"ptol_infantry_archer_e",
-		"ptol_infantry_javelineer_a",
-		"ptol_infantry_javelineer_e",
-		"ptol_infantry_pikeman_a",
-		"ptol_infantry_pikeman_e",
-		"ptol_infantry_slinger_a",
-		"ptol_infantry_slinger_e",
-		"ptol_infantry_spearman_merc_a",
-		"ptol_infantry_spearman_merc_e",
-		"ptol_infantry_swordsman_merc_a",
-		"ptol_infantry_swordsman_merc_e",
-		"sele_cavalry_spearman_merc_e",
-		"sele_infantry_archer_merc_a",
-		"sele_infantry_archer_merc_e",
-		"sele_infantry_javelineer_a",
-		"sele_infantry_javelineer_e",
-		"sele_infantry_pikeman_a",
-		"sele_infantry_pikeman_e",
-		"sele_infantry_spearman_a",
-		"sele_infantry_spearman_e",
-		"sele_infantry_swordsman_merc_a",
-		"sele_infantry_swordsman_merc_e",
-		"spart_cavalry_javelineer_a",
-		"spart_cavalry_javelineer_e",
-		"spart_cavalry_spearman_a",
-		"spart_cavalry_spearman_e",
-		"spart_infantry_javelineer_a",
-		"spart_infantry_javelineer_e",
-		"spart_infantry_spearman_a",
-		"spart_infantry_spearman_e",
-		"brit_cavalry_javelineer_a",
-		"brit_cavalry_javelineer_e",
-		"brit_cavalry_swordsman_a",
-		"brit_cavalry_swordsman_e",
-		"brit_infantry_javelineer_a",
-		"brit_infantry_javelineer_e",
-		"brit_infantry_slinger_a",
-		"brit_infantry_slinger_e",
-		"brit_infantry_spearman_a",
-		"brit_infantry_spearman_e",
-		"cart_cavalry_javelineer_a",
-		"cart_cavalry_javelineer_e",
-		"cart_cavalry_spearman_ital_a",
-		"cart_cavalry_spearman_ital_e",
-		"cart_cavalry_swordsman_gaul_a",
-		"cart_cavalry_swordsman_gaul_e",
-		"cart_cavalry_swordsman_iber_a",
-		"cart_cavalry_swordsman_iber_e",
-		"cart_infantry_archer_a",
-		"cart_infantry_archer_e",
-		"cart_infantry_javelineer_iber_a",
-		"cart_infantry_javelineer_iber_e",
-		"cart_infantry_slinger_iber_a",
-		"cart_infantry_slinger_iber_e",
-		"cart_infantry_spearman_a",
-		"cart_infantry_spearman_e",
-		"cart_infantry_spearman_ital_a",
-		"cart_infantry_spearman_ital_e",
-		"cart_infantry_swordsman_gaul_a",
-		"cart_infantry_swordsman_gaul_e",
-		"cart_infantry_swordsman_ital_a",
-		"cart_infantry_swordsman_ital_e",
-		"gaul_cavalry_javelineer_a",
-		"gaul_cavalry_javelineer_e",
-		"gaul_infantry_javelineer_a",
-		"gaul_infantry_javelineer_e",
-		"gaul_infantry_slinger_a",
-		"gaul_infantry_slinger_e",
-		"gaul_infantry_spearman_a",
-		"gaul_infantry_spearman_e",
-		"germ_cavalry_javelineer_a",
-		"germ_cavalry_javelineer_e",
-		"germ_cavalry_spearman_a",
-		"germ_cavalry_spearman_e",
 		"germ_infantry_javelineer_a",
+		"germ_infantry_javelineer_b",
 		"germ_infantry_javelineer_e",
 		"germ_infantry_slinger_a",
 		"germ_infantry_slinger_e",
@@ -383,71 +130,306 @@ inline const char *unit_template_draw_model(int k) {
 		"germ_infantry_spearman_e",
 		"germ_infantry_swordsman_a",
 		"germ_infantry_swordsman_e",
+		"germ_ship_scout",
+		"germ_siege_ram_siege_ram_pivot",
 		"germ_support_healer_a",
 		"germ_support_healer_e",
+		"han_trireme",
+		"han_cavalry_archer",
+		"han_cavalry_archer_a",
+		"han_cavalry_archer_e",
+		"han_cavalry_crossbowman_a",
+		"han_cavalry_crossbowman_b",
+		"han_cavalry_crossbowman_e",
+		"han_cavalry_spearman_a",
+		"han_cavalry_spearman_b",
+		"han_cavalry_spearman_e",
+		"han_cavalry_swordsman",
+		"han_cavalry_swordsman_a",
+		"han_cavalry_swordsman_e",
+		"han_champion_chariot_academy",
+		"han_crossbowman",
+		"han_halberdman",
+		"han_hero_cav_han_xin",
+		"han_hero_cav_liu_bang",
+		"han_hero_cav_wei_qing",
+		"han_hero_liu_bang",
+		"han_hero_wei_qing",
+		"han_hero_wei_qing_chariot",
+		"han_infantry_archer_a",
+		"han_infantry_archer_b",
+		"han_infantry_archer_e",
+		"han_infantry_crossbowman_a",
+		"han_infantry_crossbowman_b",
+		"han_infantry_crossbowman_e",
+		"han_infantry_pikeman_a",
+		"han_infantry_pikeman_e",
+		"han_infantry_spearman_a",
+		"han_infantry_spearman_b",
+		"han_infantry_spearman_e",
+		"han_minister",
+		"han_siege_mangonel_pivot",
+		"han_siege_shoushe",
+		"han_siege_tower",
+		"iber_archer",
 		"iber_cavalry_javelineer_a",
+		"iber_cavalry_javelineer_b",
 		"iber_cavalry_javelineer_e",
 		"iber_cavalry_spearman_a",
+		"iber_cavalry_spearman_b",
 		"iber_cavalry_spearman_e",
+		"iber_hero_caros",
+		"iber_hero_indibil",
+		"iber_hero_indibil_infantry",
 		"iber_infantry_javelineer_a",
+		"iber_infantry_javelineer_b",
 		"iber_infantry_javelineer_e",
 		"iber_infantry_spearman_a",
 		"iber_infantry_spearman_e",
 		"iber_infantry_swordsman_a",
+		"iber_infantry_swordsman_b",
 		"iber_infantry_swordsman_e",
-		"cart_swordsman",
-		"han_cavalry_crossbowman_b",
-		"han_hero_cav_wei_qing",
-		"han_hero_liu_bang",
-		"han_hero_wei_qing",
+		"iber_siege_ram",
+		"kush_archer_b",
+		"kush_cav_jav_b",
+		"kush_cavalry_javelineer_a",
+		"kush_cavalry_javelineer_e",
+		"kush_cavalry_spearman_a",
+		"kush_cavalry_spearman_b",
+		"kush_cavalry_spearman_e",
+		"kush_champion_infantry_apedemak",
 		"kush_hero_cav_harsiotef",
+		"kush_hero_cav_nastasen",
+		"kush_hero_chariot_amanirenas",
+		"kush_hero_elephant",
+		"kush_infantry_archer_a",
+		"kush_infantry_archer_e",
+		"kush_infantry_javelineer_merc_a",
+		"kush_infantry_javelineer_merc_e",
+		"kush_infantry_maceman_merc_a",
+		"kush_infantry_maceman_merc_e",
+		"kush_infantry_pikeman_e",
+		"kush_infantry_spearman_e",
+		"kush_infantry_swordsman_e",
+		"kush_javelinist_b",
+		"kush_maceman_b",
+		"kush_pikeman_a",
+		"kush_pikeman_b",
+		"kush_ship_scout",
+		"kush_spearman_a",
+		"kush_swordsman_a",
+		"kush_swordsman_b",
+		"mace_cavalry_javelineer_a",
+		"mace_cavalry_javelineer_b",
+		"mace_cavalry_javelineer_e",
+		"mace_cavalry_spearman_a",
+		"mace_cavalry_spearman_b",
+		"mace_cavalry_spearman_e",
+		"mace_champion_infantry_crossbowman",
+		"mace_champion_infantry_spearman",
+		"mace_champion_infantry_spearman_02",
+		"mace_hero_alexander_iii",
+		"mace_hero_craterus",
+		"mace_hero_demetrius_i",
+		"mace_hero_philip_ii",
+		"mace_hero_philip_ii_pike",
+		"mace_hero_pyrrhus_i",
+		"mace_infantry_archer_a",
+		"mace_infantry_archer_e",
+		"mace_infantry_javelineer_a",
+		"mace_infantry_javelineer_b",
+		"mace_infantry_javelineer_e",
+		"mace_infantry_pikeman_a",
+		"mace_infantry_pikeman_e",
+		"mace_infantry_slinger_a",
+		"mace_infantry_slinger_b",
+		"mace_infantry_slinger_e",
+		"mace_ship_ram",
+		"mace_ship_scout",
+		"mace_siege_ram",
+		"mace_siege_tower",
 		"mace_swordsman",
+		"maur_archer_b",
+		"athen_trireme",
+		"maur_cav_jav_b",
+		"maur_cavalry_javelineer_a",
+		"maur_cavalry_javelineer_e",
+		"maur_cavalry_swordsman_a",
+		"maur_cavalry_swordsman_e",
+		"maur_champion_elephant",
+		"maur_eleph_archer_b",
+		"maur_elephant_archer_a",
+		"maur_hero_ashoka_hero_chariot_archer_ashoka_m",
 		"maur_hero_bindusara",
+		"maur_hero_chanakya",
 		"maur_hero_chandragupta",
+		"maur_hero_elephant",
+		"maur_infantry_archer_a",
+		"maur_infantry_archer_e",
+		"maur_infantry_spearman_e",
+		"maur_infantry_swordsman_e",
+		"maur_mace_inf",
+		"maur_spearman_a",
+		"maur_swordsman",
+		"maur_swordsman_a",
+		"maur_swordsman_b",
+		"merc_thorakites",
+		"merc_thureophoros",
 		"noldor_warship",
+		"pers_cavalry_archer_a",
+		"pers_cavalry_archer_b",
+		"pers_cavalry_archer_e",
+		"pers_cavalry_axeman_a",
+		"pers_cavalry_axeman_e",
+		"pers_cavalry_javelineer_a",
+		"pers_cavalry_javelineer_b",
+		"pers_cavalry_javelineer_e",
+		"pers_cavalry_spearman_a",
+		"pers_cavalry_spearman_b",
+		"pers_cavalry_spearman_e",
+		"pers_champion_cavalry",
+		"pers_champion_cavalry_archer",
+		"pers_champion_chariot",
+		"pers_champion_infantry",
+		"pers_hero_cyrus_ii",
+		"pers_hero_darius_i",
+		"pers_hero_xerxes_i_chariot",
+		"pers_infantry_archer_a",
+		"pers_infantry_archer_b",
+		"pers_infantry_archer_e",
+		"pers_infantry_javelineer_a",
+		"pers_infantry_javelineer_b",
+		"pers_infantry_javelineer_e",
+		"pers_infantry_spearman_a",
+		"pers_infantry_spearman_b",
+		"pers_infantry_spearman_e",
+		"pers_kardakes_hoplite",
+		"pers_kardakes_skirmisher",
+		"pers_ship_ram",
+		"pers_ship_scout",
+		"pers_siege_ram",
+		"pers_trader",
 		"pirates_ship_arrow",
 		"pirates_ship_merchant",
 		"pirates_ship_scout",
-		"samnite_skirmisher",
-		"samnite_spearman",
-		"viking_longship",
-		"spart_champion_infantry_pike",
-		"pers_hero_xerxes_i_chariot",
-		"pers_kardakes_hoplite",
-		"pers_kardakes_skirmisher",
-		"rome_hero_marcellus_infantry",
-		"rome_hero_maximus_infantry",
-		"rome_infantry_swordsman_slave",
-		"cart_champion_pikeman",
-		"mace_hero_craterus",
-		"mace_hero_philip_ii_pike",
-		"mace_hero_pyrrhus_i",
-		"brit_hero_boudicca_cavalry_javelineer",
-		"brit_hero_cunobelin_infantry",
-		"iber_hero_indibil_infantry",
-		"theb_siege_fireraiser",
-		"maur_citizen_female",
-		"han_citizen_female",
-		"siege_scorpio",
-		"romans_siege_scorpio_packed",
-		"siege_ballista_med",
-		"romans_siege_rock_packed",
-		"siege_onager",
-		"romans_siege_onager_packed",
-		"siege_mangonel",
-		"han_siege_mangonel_pivot_packed",
-		"athen_female_citizen",
-		"athen_hero_xenophon",
-		"spart_hero_leonidas_300",
+		"plane",
+		"ptol_cavalry_archer_b",
+		"ptol_cavalry_archer_e",
+		"ptol_cavalry_javelineer_merc_a",
+		"ptol_cavalry_javelineer_merc_b",
+		"ptol_cavalry_javelineer_merc_e",
+		"ptol_cavalry_spearman_merc_a",
+		"ptol_cavalry_spearman_merc_b",
+		"ptol_cavalry_spearman_merc_e",
+		"ptol_hero_ptolemy_i",
+		"ptol_hero_ptolemy_iv",
+		"ptol_infantry_archer_a",
+		"ptol_infantry_archer_e",
+		"ptol_infantry_javelineer_a",
+		"ptol_infantry_javelineer_b",
+		"ptol_infantry_javelineer_e",
+		"ptol_infantry_pikeman_a",
+		"ptol_infantry_pikeman_b",
+		"ptol_infantry_pikeman_e",
+		"ptol_infantry_slinger_a",
+		"ptol_infantry_slinger_b",
+		"ptol_infantry_slinger_e",
+		"ptol_infantry_spearman_merc_a",
+		"ptol_infantry_spearman_merc_b",
+		"ptol_infantry_spearman_merc_e",
+		"ptol_infantry_swordsman_merc_a",
+		"ptol_infantry_swordsman_merc_e",
+		"ptol_merchant_ship",
+		"ptol_ship_ram",
+		"ptol_ship_scout",
+		"ptol_ship_siege",
+		"ptol_siege_tower",
+		"rome_cavalry_javelineer_a",
+		"rome_cavalry_javelineer_auxiliary_a",
+		"rome_cavalry_javelineer_auxiliary_b",
+		"rome_cavalry_javelineer_auxiliary_e",
+		"rome_cavalry_javelineer_b",
+		"rome_cavalry_javelineer_e",
+		"rome_cavalry_spearman_a",
+		"rome_cavalry_spearman_auxiliary_a",
+		"rome_cavalry_spearman_auxiliary_b",
+		"rome_cavalry_spearman_auxiliary_e",
+		"rome_cavalry_spearman_e",
+		"rome_champion_cavalry",
+		"rome_champion_infantry_spear_gladiator",
+		"rome_champion_infantry_sword_gladiator",
+		"rome_champion_infantry_swordsman_02",
 		"rome_champion_infantry_swordsman_03",
 		"rome_champion_infantry_swordsman_04",
 		"rome_champion_infantry_swordsman_05",
-		"merc_thorakites",
-		"merc_thureophoros",
+		"rome_champion_infantry_swordsman_centurion",
+		"rome_champion_infantry_swordsman_first",
+		"rome_hero_marcellus",
+		"rome_hero_marcellus_infantry",
+		"rome_hero_maximus",
+		"rome_hero_maximus_infantry",
+		"rome_hero_scipio",
+		"rome_infantry_antesignanus",
+		"rome_infantry_javelineer_a",
+		"rome_infantry_javelineer_e",
+		"rome_infantry_spearman_a",
+		"rome_infantry_spearman_conscript",
+		"rome_infantry_spearman_e",
+		"rome_infantry_swordsman_a",
+		"rome_infantry_swordsman_b",
+		"rome_infantry_swordsman_e",
+		"rome_infantry_swordsman_slave",
+		"rome_ship_ram",
+		"rome_ship_scout",
+		"rome_ship_siege",
+		"samnite_skirmisher",
+		"samnite_spearman",
+		"sele_cavalry_spearman_merc_b",
+		"sele_cavalry_spearman_merc_e",
+		"sele_hero_antiochus_iii",
+		"sele_hero_antiochus_iv",
+		"sele_hero_seleucus_i",
+		"sele_infantry_archer_merc_a",
+		"sele_infantry_archer_merc_e",
+		"sele_infantry_javelineer_a",
+		"sele_infantry_javelineer_b",
+		"sele_infantry_javelineer_e",
+		"sele_infantry_pikeman_a",
+		"sele_infantry_pikeman_b",
+		"sele_infantry_pikeman_e",
+		"sele_infantry_spearman_a",
+		"sele_infantry_spearman_b",
+		"sele_infantry_spearman_e",
+		"sele_infantry_swordsman_merc_a",
+		"sele_infantry_swordsman_merc_b",
+		"sele_infantry_swordsman_merc_e",
+		"sele_ship_ram",
+		"sele_ship_siege",
+		"sele_siege_tower",
+		"spart_cavalry_javelineer_a",
+		"spart_cavalry_javelineer_b",
+		"spart_cavalry_javelineer_e",
+		"spart_cavalry_spearman_a",
+		"spart_cavalry_spearman_e",
+		"spart_champion_infantry_pike",
+		"spart_champion_infantry_spear_olympian",
+		"spart_fishing_boat",
+		"spart_hero_agis",
+		"spart_hero_brasidas",
+		"spart_hero_leonidas_300",
+		"spart_infantry_javelineer_a",
+		"spart_infantry_javelineer_b",
+		"spart_infantry_javelineer_e",
+		"spart_infantry_spearman_a",
+		"spart_infantry_spearman_b",
+		"spart_infantry_spearman_e",
+		"spart_infantry_spearman_neodamodes",
+		"spart_ship_ram",
+		"spart_ship_scout",
 		"theb_sacred_band",
+		"theb_siege_fireraiser",
 		"thesp_melanochitones",
-		"plane",
-		"siege_shoushe",
+		"viking_longship",
 	};
 	return k >= 0 && k < UNIT_TEMPLATE_DRAW_MODEL_COUNT ? kDraw[k] : nullptr;
 }
@@ -456,556 +438,523 @@ inline const char *unit_template_draw_model(int k) {
 // actor), or -1 to draw the civ's model for the unit's UnitType.
 inline int unit_template_draw_index(uint16_t tmpl) {
 	static const int16_t kIndex[CIV_UNIT_TEMPLATE_COUNT] = {
-		2, // athen/cavalry_javelineer_b
+		3, // athen/cavalry_javelineer_b
 		-1, // athen/cavalry_swordsman_b
-		3, // athen/champion_infantry
+		7, // athen/champion_infantry
 		-1, // athen/champion_marine
 		-1, // athen/champion_marine_dock
 		0, // athen/champion_ranged
-		4, // athen/hero_hippocrates
-		5, // athen/hero_iphicrates
-		6, // athen/hero_pericles
+		8, // athen/hero_hippocrates
+		9, // athen/hero_iphicrates
+		10, // athen/hero_pericles
 		-1, // athen/hero_themistocles
-		7, // athen/infantry_archer_b
-		7, // athen/infantry_archer_b_dock
-		8, // athen/infantry_javelineer_b
-		9, // athen/infantry_slinger_b
+		12, // athen/infantry_archer_b
+		12, // athen/infantry_archer_b_dock
+		15, // athen/infantry_javelineer_b
+		18, // athen/infantry_slinger_b
+		20, // athen/infantry_spearman_a
 		-1, // athen/infantry_spearman_b
 		-1, // athen/ship_arrow
-		165, // athen/ship_fishing
+		400, // athen/ship_fishing
 		-1, // athen/ship_merchant
-		10, // athen/ship_ram
-		11, // athen/ship_scout
+		22, // athen/ship_ram
+		23, // athen/ship_scout
 		-1, // athen/siege_lithobolos_packed
 		-1, // athen/siege_oxybeles_packed
 		-1, // athen/siege_ram
-		-1, // athen/support_female_citizen
-		-1, // athen/support_female_citizen_house
+		-1, // athen/support_civilian
+		-1, // athen/support_civilian_house
 		-1, // athen/support_healer_b
+		-1, // athen/support_healer_e
 		-1, // athen/support_trader
 		-1, // athen/rts0_villager
-		163, // spart/cavalry_javelineer_b
+		394, // spart/cavalry_javelineer_b
 		-1, // spart/cavalry_spearman_b
 		-1, // spart/champion_infantry_spear
 		-1, // spart/champion_infantry_swordsman
-		166, // spart/hero_agis
-		167, // spart/hero_brasidas
+		401, // spart/hero_agis
+		402, // spart/hero_brasidas
 		-1, // spart/hero_leonidas
-		168, // spart/infantry_javelineer_b
-		169, // spart/infantry_spearman_b
-		170, // spart/infantry_spearman_neodamodes
+		405, // spart/infantry_javelineer_b
+		407, // spart/infantry_spearman_a
+		408, // spart/infantry_spearman_b
+		410, // spart/infantry_spearman_neodamodes
 		-1, // spart/ship_arrow
-		165, // spart/ship_fishing
+		400, // spart/ship_fishing
 		-1, // spart/ship_merchant
-		171, // spart/ship_ram
-		172, // spart/ship_scout
+		411, // spart/ship_ram
+		412, // spart/ship_scout
 		-1, // spart/siege_oxybeles_packed
 		-1, // spart/siege_ram
-		-1, // spart/support_female_citizen
-		-1, // spart/support_female_citizen_house
+		-1, // spart/support_civilian
+		-1, // spart/support_civilian_house
 		-1, // spart/support_healer_b
+		-1, // spart/support_healer_e
 		-1, // spart/support_trader
 		-1, // spart/rts0_villager
-		105, // pers/cavalry_archer_b
+		264, // pers/cavalry_archer_b
 		-1, // pers/cavalry_axeman_b
-		106, // pers/cavalry_javelineer_b
-		107, // pers/cavalry_spearman_b
-		108, // pers/champion_cavalry
-		109, // pers/champion_cavalry_archer
-		110, // pers/champion_chariot
+		269, // pers/cavalry_javelineer_b
+		272, // pers/cavalry_spearman_b
+		274, // pers/champion_cavalry
+		275, // pers/champion_cavalry_archer
+		276, // pers/champion_chariot
 		-1, // pers/champion_elephant
-		111, // pers/champion_infantry
-		112, // pers/hero_cyrus_ii
-		113, // pers/hero_darius_i
+		277, // pers/champion_infantry
+		-1, // pers/champion_infantry_archer_upgrade
+		278, // pers/hero_cyrus_ii
+		279, // pers/hero_darius_i
 		-1, // pers/hero_xerxes_i
-		114, // pers/infantry_archer_b
-		115, // pers/infantry_javelineer_b
-		116, // pers/infantry_spearman_b
+		282, // pers/infantry_archer_b
+		285, // pers/infantry_javelineer_b
+		287, // pers/infantry_spearman_a
+		288, // pers/infantry_spearman_b
 		-1, // pers/ship_arrow
 		-1, // pers/ship_fishing
 		-1, // pers/ship_merchant
-		117, // pers/ship_ram
-		118, // pers/ship_scout
+		292, // pers/ship_ram
+		293, // pers/ship_scout
 		-1, // pers/siege_ram
-		-1, // pers/support_female_citizen
-		-1, // pers/support_female_citizen_house
+		-1, // pers/support_civilian
+		-1, // pers/support_civilian_house
 		-1, // pers/support_healer_b
-		120, // pers/support_trader
+		-1, // pers/support_healer_e
+		295, // pers/support_trader
 		-1, // pers/rts0_villager
-		136, // rome/cavalry_javelineer_b
+		335, // rome/cavalry_javelineer_b
 		-1, // rome/cavalry_spearman_b
-		137, // rome/champion_cavalry
-		138, // rome/champion_infantry_spear_gladiator
-		139, // rome/champion_infantry_sword_gladiator
+		342, // rome/champion_cavalry
+		343, // rome/champion_infantry_spear_gladiator
+		344, // rome/champion_infantry_sword_gladiator
 		-1, // rome/champion_infantry_swordsman
-		140, // rome/champion_infantry_swordsman_centurion
-		141, // rome/hero_marcellus
-		142, // rome/hero_maximus
-		143, // rome/hero_scipio
+		349, // rome/champion_infantry_swordsman_centurion
+		351, // rome/hero_marcellus
+		353, // rome/hero_maximus
+		355, // rome/hero_scipio
+		356, // rome/infantry_antesignanus
 		-1, // rome/infantry_javelineer_b
-		145, // rome/infantry_legionary
-		146, // rome/infantry_spearman_a
+		359, // rome/infantry_spearman_a
 		-1, // rome/infantry_spearman_b
-		147, // rome/infantry_swordsman_a
-		148, // rome/infantry_swordsman_b
+		360, // rome/infantry_spearman_conscript
+		362, // rome/infantry_swordsman_a
+		363, // rome/infantry_swordsman_b
 		-1, // rome/ship_arrow
 		-1, // rome/ship_fishing
 		-1, // rome/ship_merchant
-		149, // rome/ship_ram
-		150, // rome/ship_scout
-		151, // rome/ship_siege
-		416, // rome/siege_ballista_packed
-		418, // rome/siege_onager_packed
+		366, // rome/ship_ram
+		367, // rome/ship_scout
+		368, // rome/ship_siege
+		-1, // rome/siege_ballista_packed
+		-1, // rome/siege_onager_packed
 		-1, // rome/siege_ram
-		414, // rome/siege_scorpio_packed
-		-1, // rome/support_female_citizen
-		-1, // rome/support_female_citizen_house
+		-1, // rome/siege_scorpio_packed
+		-1, // rome/support_civilian
+		-1, // rome/support_civilian_house
 		-1, // rome/support_healer_b
+		-1, // rome/support_healer_e
 		-1, // rome/support_trader
 		-1, // rome/rts0_villager
-		23, // cart/cavalry_javelineer_b
-		24, // cart/cavalry_spearman_ital_b
-		36, // cart/cavalry_swordsman_gaul_b
-		25, // cart/cavalry_swordsman_iber_b
+		48, // cart/cavalry_javelineer_b
+		51, // cart/cavalry_spearman_ital_b
+		80, // cart/cavalry_swordsman_gaul_b
 		-1, // cart/champion_cavalry
 		-1, // cart/champion_elephant
 		-1, // cart/champion_infantry
-		26, // cart/hero_hamilcar
-		27, // cart/hero_hannibal
-		28, // cart/hero_maharbal
+		56, // cart/hero_hamilcar
+		57, // cart/hero_hannibal
+		58, // cart/hero_maharbal
 		-1, // cart/infantry_archer_b
-		29, // cart/infantry_javelineer_iber_b
-		61, // cart/infantry_slinger_iber_b
-		30, // cart/infantry_spearman_b
-		31, // cart/infantry_swordsman_gaul_b
-		-1, // cart/infantry_swordsman_ital_b
+		62, // cart/infantry_javelineer_iber_b
+		158, // cart/infantry_slinger_iber_b
+		66, // cart/infantry_spearman_a
+		67, // cart/infantry_spearman_b
+		70, // cart/infantry_spearman_ital_b
+		73, // cart/infantry_swordsman_gaul_b
 		-1, // cart/ship_arrow
 		-1, // cart/ship_fishing
 		-1, // cart/ship_merchant
-		32, // cart/ship_ram
-		33, // cart/ship_scout
-		34, // cart/ship_siege
+		75, // cart/ship_ram
+		76, // cart/ship_scout
+		77, // cart/ship_siege
 		-1, // cart/siege_ballista_packed
 		-1, // cart/siege_oxybeles_packed
-		67, // cart/siege_ram
-		-1, // cart/support_female_citizen
-		-1, // cart/support_female_citizen_house
+		176, // cart/siege_ram
+		-1, // cart/support_civilian
+		-1, // cart/support_civilian_house
 		-1, // cart/support_healer_b
-		35, // cart/support_trader
+		-1, // cart/support_healer_e
+		79, // cart/support_trader
 		-1, // cart/rts0_villager
-		80, // mace/cavalry_javelineer_b
-		81, // mace/cavalry_spearman_b
+		207, // mace/cavalry_javelineer_b
+		210, // mace/cavalry_spearman_b
 		-1, // mace/champion_cavalry
-		82, // mace/champion_infantry_crossbowman
-		83, // mace/champion_infantry_spearman
-		-1, // mace/champion_infantry_swordsman
-		85, // mace/hero_alexander_iii
-		86, // mace/hero_demetrius_i
-		87, // mace/hero_philip_ii
+		212, // mace/champion_infantry_crossbowman
+		213, // mace/champion_infantry_spearman
+		235, // mace/champion_infantry_swordsman
+		215, // mace/hero_alexander_iii
+		217, // mace/hero_demetrius_i
+		218, // mace/hero_philip_ii
 		-1, // mace/infantry_archer_b
-		88, // mace/infantry_javelineer_b
+		224, // mace/infantry_javelineer_b
+		226, // mace/infantry_pikeman_a
 		-1, // mace/infantry_pikeman_b
-		89, // mace/infantry_slinger_b
+		229, // mace/infantry_slinger_b
 		-1, // mace/ship_arrow
 		-1, // mace/ship_fishing
 		-1, // mace/ship_merchant
-		90, // mace/ship_ram
-		91, // mace/ship_scout
+		231, // mace/ship_ram
+		232, // mace/ship_scout
 		-1, // mace/siege_lithobolos_packed
 		-1, // mace/siege_oxybeles_packed
 		-1, // mace/siege_ram
-		93, // mace/siege_tower
-		-1, // mace/support_female_citizen
-		-1, // mace/support_female_citizen_house
+		234, // mace/siege_tower
+		-1, // mace/support_civilian
+		-1, // mace/support_civilian_house
 		-1, // mace/support_healer_b
+		-1, // mace/support_healer_e
 		-1, // mace/support_trader
 		-1, // mace/rts0_villager
-		13, // brit/cavalry_javelineer_b
+		26, // brit/cavalry_javelineer_b
 		-1, // brit/cavalry_swordsman_b
 		-1, // brit/champion_chariot
 		-1, // brit/champion_infantry_swordsman
-		14, // brit/hero_boudicca
-		15, // brit/hero_caratacos
-		16, // brit/hero_cunobelin
-		17, // brit/infantry_javelineer_b
+		30, // brit/hero_boudicca
+		32, // brit/hero_caratacos
+		33, // brit/hero_cunobelin
+		36, // brit/infantry_javelineer_b
 		-1, // brit/infantry_slinger_b
-		18, // brit/infantry_spearman_b
+		40, // brit/infantry_spearman_a
+		41, // brit/infantry_spearman_b
 		-1, // brit/ship_arrow
-		19, // brit/ship_fire
+		43, // brit/ship_fire
 		-1, // brit/ship_fishing
 		-1, // brit/ship_merchant
-		20, // brit/ship_scout
+		45, // brit/ship_scout
 		-1, // brit/siege_ram
-		21, // brit/support_female_citizen
-		21, // brit/support_female_citizen_house
+		-1, // brit/support_civilian
+		-1, // brit/support_civilian_house
 		-1, // brit/support_healer_b
+		-1, // brit/support_healer_e
 		-1, // brit/support_trader
-		22, // brit/war_dog
+		46, // brit/war_dog
 		-1, // brit/rts0_villager
-		37, // gaul/cavalry_javelineer_b
-		36, // gaul/cavalry_swordsman_b
-		38, // gaul/champion_cavalry
+		82, // gaul/cavalry_javelineer_b
+		80, // gaul/cavalry_swordsman_b
+		84, // gaul/champion_cavalry
 		-1, // gaul/champion_fanatic
 		-1, // gaul/champion_infantry_swordsman
 		-1, // gaul/champion_infantry_trumpeter
-		39, // gaul/hero_brennus
-		40, // gaul/hero_vercingetorix
-		41, // gaul/hero_viridomarus
-		42, // gaul/infantry_javelineer_b
+		85, // gaul/hero_brennus
+		86, // gaul/hero_vercingetorix
+		87, // gaul/hero_viridomarus
+		89, // gaul/infantry_javelineer_b
 		-1, // gaul/infantry_slinger_b
-		43, // gaul/infantry_spearman_b
+		93, // gaul/infantry_spearman_a
+		94, // gaul/infantry_spearman_b
 		-1, // gaul/ship_arrow
-		19, // gaul/ship_fire
+		43, // gaul/ship_fire
 		-1, // gaul/ship_fishing
 		-1, // gaul/ship_merchant
-		20, // gaul/ship_scout
+		45, // gaul/ship_scout
 		-1, // gaul/siege_ram
-		21, // gaul/support_female_citizen
-		21, // gaul/support_female_citizen_house
+		-1, // gaul/support_civilian
+		-1, // gaul/support_civilian_house
 		-1, // gaul/support_healer_b
+		-1, // gaul/support_healer_e
 		-1, // gaul/support_trader
 		-1, // gaul/rts0_villager
-		62, // iber/cavalry_javelineer_b
-		63, // iber/cavalry_spearman_b
+		160, // iber/cavalry_javelineer_b
+		163, // iber/cavalry_spearman_b
 		-1, // iber/champion_cavalry
 		-1, // iber/champion_infantry_swordsman
-		64, // iber/hero_caros
-		65, // iber/hero_indibil
+		165, // iber/hero_caros
+		166, // iber/hero_indibil
 		-1, // iber/hero_viriato
-		189, // iber/infantry_javelineer_b
-		61, // iber/infantry_slinger_b
+		169, // iber/infantry_javelineer_b
+		158, // iber/infantry_slinger_b
+		171, // iber/infantry_spearman_a
 		-1, // iber/infantry_spearman_b
-		66, // iber/infantry_swordsman_b
+		173, // iber/infantry_swordsman_a
+		174, // iber/infantry_swordsman_b
 		-1, // iber/ship_arrow
-		19, // iber/ship_fire
+		43, // iber/ship_fire
 		-1, // iber/ship_fishing
 		-1, // iber/ship_merchant
-		20, // iber/ship_scout
+		45, // iber/ship_scout
 		-1, // iber/siege_ram
-		-1, // iber/support_female_citizen
-		-1, // iber/support_female_citizen_house
+		-1, // iber/support_civilian
+		-1, // iber/support_civilian_house
 		-1, // iber/support_healer_b
+		-1, // iber/support_healer_e
 		-1, // iber/support_trader
 		-1, // iber/rts0_villager
-		96, // maur/cavalry_javelineer_b
+		238, // maur/cavalry_javelineer_b
 		-1, // maur/cavalry_swordsman_b
 		-1, // maur/champion_chariot
-		97, // maur/champion_elephant
-		102, // maur/champion_infantry_maceman
-		103, // maur/champion_maiden
+		243, // maur/champion_elephant
+		255, // maur/champion_infantry_maceman
+		257, // maur/champion_maiden
 		-1, // maur/champion_maiden_archer
-		98, // maur/elephant_archer_b
-		99, // maur/hero_ashoka
-		100, // maur/hero_chanakya
-		101, // maur/hero_chandragupta
-		94, // maur/infantry_archer_b
+		244, // maur/elephant_archer_b
+		246, // maur/hero_ashoka
+		248, // maur/hero_chanakya
+		250, // maur/hero_chandragupta
+		236, // maur/infantry_archer_b
+		256, // maur/infantry_spearman_a
 		-1, // maur/infantry_spearman_b
-		104, // maur/infantry_swordsman_b
+		258, // maur/infantry_swordsman_a
+		259, // maur/infantry_swordsman_b
 		-1, // maur/ship_arrow
 		-1, // maur/ship_fishing
 		-1, // maur/ship_merchant
-		95, // maur/ship_scout
+		237, // maur/ship_scout
 		-1, // maur/siege_ram
+		-1, // maur/support_civilian
+		-1, // maur/support_civilian_house
 		-1, // maur/support_elephant
-		-1, // maur/support_female_citizen
-		-1, // maur/support_female_citizen_house
 		-1, // maur/support_healer_b
+		-1, // maur/support_healer_e
 		-1, // maur/support_trader
 		-1, // maur/rts0_villager
-		69, // kush/cavalry_javelineer_b
+		178, // kush/cavalry_javelineer_b
 		-1, // kush/cavalry_javelineer_merc_b
-		70, // kush/cavalry_spearman_b
+		182, // kush/cavalry_spearman_b
 		-1, // kush/champion_cavalry
 		-1, // kush/champion_elephant
 		-1, // kush/champion_infantry_amun
-		71, // kush/champion_infantry_apedemak
+		184, // kush/champion_infantry_apedemak
 		-1, // kush/champion_infantry_archer
-		73, // kush/hero_amanirenas
-		74, // kush/hero_arakamani
-		72, // kush/hero_nastasen
-		68, // kush/infantry_archer_b
-		75, // kush/infantry_javelineer_merc_b
-		76, // kush/infantry_maceman_merc_b
-		77, // kush/infantry_pikeman_b
+		187, // kush/hero_amanirenas
+		188, // kush/hero_arakamani
+		186, // kush/hero_nastasen
+		177, // kush/infantry_archer_b
+		198, // kush/infantry_javelineer_merc_b
+		199, // kush/infantry_maceman_merc_b
+		200, // kush/infantry_pikeman_a
+		201, // kush/infantry_pikeman_b
+		203, // kush/infantry_spearman_a
 		-1, // kush/infantry_spearman_b
-		79, // kush/infantry_swordsman_b
+		204, // kush/infantry_swordsman_a
+		205, // kush/infantry_swordsman_b
 		-1, // kush/ship_arrow
 		-1, // kush/ship_fishing
-		130, // kush/ship_merchant
-		78, // kush/ship_scout
-		119, // kush/siege_ram
-		93, // kush/siege_tower
-		-1, // kush/support_female_citizen
-		-1, // kush/support_female_citizen_house
+		326, // kush/ship_merchant
+		202, // kush/ship_scout
+		294, // kush/siege_ram
+		234, // kush/siege_tower
+		-1, // kush/support_civilian
+		-1, // kush/support_civilian_house
 		-1, // kush/support_healer_b
 		-1, // kush/support_healer_e
 		-1, // kush/support_trader
 		-1, // kush/rts0_villager
-		121, // ptol/cavalry_archer_b
-		122, // ptol/cavalry_javelineer_merc_b
-		123, // ptol/cavalry_spearman_merc_b
+		300, // ptol/cavalry_archer_b
+		303, // ptol/cavalry_javelineer_merc_b
+		306, // ptol/cavalry_spearman_merc_b
 		-1, // ptol/champion_cavalry
 		-1, // ptol/champion_elephant
 		-1, // ptol/champion_infantry_pikeman
 		-1, // ptol/hero_cleopatra_vii
-		124, // ptol/hero_ptolemy_i
-		125, // ptol/hero_ptolemy_iv
+		308, // ptol/hero_ptolemy_i
+		309, // ptol/hero_ptolemy_iv
 		-1, // ptol/infantry_archer_b
-		126, // ptol/infantry_javelineer_b
-		127, // ptol/infantry_pikeman_b
-		128, // ptol/infantry_slinger_b
-		129, // ptol/infantry_spearman_merc_b
+		313, // ptol/infantry_javelineer_b
+		315, // ptol/infantry_pikeman_a
+		316, // ptol/infantry_pikeman_b
+		319, // ptol/infantry_slinger_b
+		322, // ptol/infantry_spearman_merc_b
 		-1, // ptol/infantry_swordsman_merc_b
 		-1, // ptol/ship_arrow
 		-1, // ptol/ship_fishing
-		130, // ptol/ship_merchant
-		131, // ptol/ship_ram
-		132, // ptol/ship_scout
-		133, // ptol/ship_siege
+		326, // ptol/ship_merchant
+		327, // ptol/ship_ram
+		328, // ptol/ship_scout
+		329, // ptol/ship_siege
 		-1, // ptol/siege_lithobolos_packed
 		-1, // ptol/siege_polybolos_packed
-		92, // ptol/siege_ram
-		134, // ptol/siege_tower
-		-1, // ptol/support_female_citizen
-		-1, // ptol/support_female_citizen_house
+		233, // ptol/siege_ram
+		330, // ptol/siege_tower
+		-1, // ptol/support_civilian
+		-1, // ptol/support_civilian_house
 		-1, // ptol/support_healer_b
-		120, // ptol/support_trader
+		-1, // ptol/support_healer_e
+		295, // ptol/support_trader
 		-1, // ptol/rts0_villager
-		105, // sele/cavalry_archer_b
-		2, // sele/cavalry_javelineer_b
-		152, // sele/cavalry_spearman_merc_b
+		264, // sele/cavalry_archer_b
+		3, // sele/cavalry_javelineer_b
+		371, // sele/cavalry_spearman_merc_b
 		-1, // sele/champion_cavalry
 		-1, // sele/champion_chariot
 		-1, // sele/champion_elephant
 		-1, // sele/champion_infantry_pikeman
 		-1, // sele/champion_infantry_swordsman
-		153, // sele/hero_antiochus_iii
-		154, // sele/hero_antiochus_iv
-		155, // sele/hero_seleucus_i
+		373, // sele/hero_antiochus_iii
+		374, // sele/hero_antiochus_iv
+		375, // sele/hero_seleucus_i
 		-1, // sele/infantry_archer_merc_b
-		156, // sele/infantry_javelineer_b
-		157, // sele/infantry_pikeman_b
-		158, // sele/infantry_spearman_b
-		159, // sele/infantry_swordsman_merc_b
+		379, // sele/infantry_javelineer_b
+		381, // sele/infantry_pikeman_a
+		382, // sele/infantry_pikeman_b
+		384, // sele/infantry_spearman_a
+		385, // sele/infantry_spearman_b
+		388, // sele/infantry_swordsman_merc_b
 		-1, // sele/ship_arrow
 		-1, // sele/ship_fishing
 		-1, // sele/ship_merchant
-		160, // sele/ship_ram
-		91, // sele/ship_scout
-		161, // sele/ship_siege
+		390, // sele/ship_ram
+		232, // sele/ship_scout
+		391, // sele/ship_siege
 		-1, // sele/siege_lithobolos_packed
-		92, // sele/siege_ram
-		162, // sele/siege_tower
-		-1, // sele/support_female_citizen
-		-1, // sele/support_female_citizen_house
+		233, // sele/siege_ram
+		392, // sele/siege_tower
+		-1, // sele/support_civilian
+		-1, // sele/support_civilian_house
 		-1, // sele/support_healer_b
-		120, // sele/support_trader
+		-1, // sele/support_healer_e
+		295, // sele/support_trader
 		-1, // sele/rts0_villager
-		45, // han/cavalry_archer_b
-		46, // han/cavalry_spearman_b
-		47, // han/cavalry_swordsman_b
+		121, // han/cavalry_archer_b
+		128, // han/cavalry_spearman_b
+		130, // han/cavalry_swordsman_b
 		-1, // han/champion_cavalry_spearman_academy
-		48, // han/champion_chariot_academy
-		49, // han/champion_infantry_crossbowman_academy
+		133, // han/champion_chariot_academy
+		134, // han/champion_infantry_crossbowman_academy
 		-1, // han/champion_infantry_spearman_academy
-		51, // han/hero_han_xin_horse
-		52, // han/hero_liu_bang_horse
-		53, // han/hero_wei_qing_chariot
-		54, // han/infantry_archer_b
-		55, // han/infantry_crossbowman_b
-		50, // han/infantry_pikeman_b
-		56, // han/infantry_spearman_b
+		136, // han/hero_han_xin_horse
+		137, // han/hero_liu_bang_horse
+		141, // han/hero_wei_qing_chariot
+		143, // han/infantry_archer_b
+		146, // han/infantry_crossbowman_b
+		148, // han/infantry_pikeman_a
+		135, // han/infantry_pikeman_b
+		150, // han/infantry_spearman_a
+		151, // han/infantry_spearman_b
 		-1, // han/ship_arrow
 		-1, // han/ship_fishing
 		-1, // han/ship_merchant
-		44, // han/ship_scout
-		60, // han/ship_siege
-		420, // han/siege_mangonel_packed
-		12, // han/siege_ram
-		59, // han/siege_tower
-		-1, // han/support_female_citizen
-		-1, // han/support_female_citizen_house
+		120, // han/ship_scout
+		157, // han/ship_siege
+		154, // han/siege_mangonel_packed
+		24, // han/siege_ram
+		156, // han/siege_tower
+		-1, // han/support_civilian
+		-1, // han/support_civilian_house
 		-1, // han/support_healer_b
-		35, // han/support_trader
+		-1, // han/support_healer_e
+		153, // han/support_minister
+		79, // han/support_trader
 		-1, // han/rts0_villager
-		164, // spart/champion_infantry_spear_olympian
-		135, // rome/cavalry_auxiliary_b
-		144, // rome/infantry_antesignanus
-		84, // mace/champion_infantry_spearman_02
-		57, // han/support_minister
-		1, // athen/catafalque
-		1, // spart/catafalque
-		1, // pers/catafalque
-		1, // rome/catafalque
-		1, // cart/catafalque
-		1, // mace/catafalque
-		1, // brit/catafalque
-		1, // gaul/catafalque
-		1, // iber/catafalque
-		1, // maur/catafalque
-		1, // kush/catafalque
-		1, // ptol/catafalque
-		1, // sele/catafalque
-		1, // han/catafalque
-		-1, // pers/champion_infantry_archer_upgrade
-		190, // brit/ship_fire_fire (fireship_fire: the fire ship's mesh, burning)
-		190, // gaul/ship_fire_fire
-		190, // iber/ship_fire_fire
-		-1, // athen/support_civilian (the civ's female citizen model until male civilian models are ported)
-		-1, // athen/support_civilian_house
-		-1, // spart/support_civilian
-		-1, // spart/support_civilian_house
-		-1, // pers/support_civilian
-		-1, // pers/support_civilian_house
-		-1, // rome/support_civilian
-		-1, // rome/support_civilian_house
-		-1, // cart/support_civilian
-		-1, // cart/support_civilian_house
-		422, // mace/support_civilian
-		422, // mace/support_civilian_house
-		21, // brit/support_civilian
-		21, // brit/support_civilian_house
-		21, // gaul/support_civilian
-		21, // gaul/support_civilian_house
-		-1, // iber/support_civilian
-		-1, // iber/support_civilian_house
-		412, // maur/support_civilian
-		412, // maur/support_civilian_house
-		-1, // kush/support_civilian
-		-1, // kush/support_civilian_house
-		-1, // ptol/support_civilian
-		-1, // ptol/support_civilian_house
-		-1, // sele/support_civilian
-		-1, // sele/support_civilian_house
-		413, // han/support_civilian
-		413, // han/support_civilian_house
-		173, // germ/cavalry_javelineer_b
+		97, // germ/cavalry_javelineer_b
 		-1, // germ/cavalry_spearman_b
-		174, // germ/champion_cavalry
-		175, // germ/champion_healer
-		176, // germ/champion_infantry_axeman
-		177, // germ/champion_infantry_maceman
-		178, // germ/hero_boiorix
-		179, // germ/hero_lugius
+		101, // germ/champion_cavalry
+		102, // germ/champion_healer
+		103, // germ/champion_infantry_axeman
+		104, // germ/champion_infantry_maceman
+		105, // germ/hero_boiorix
+		106, // germ/hero_lugius
 		-1, // germ/hero_teutobod
-		180, // germ/infantry_javelineer_b
+		108, // germ/infantry_javelineer_b
 		-1, // germ/infantry_slinger_b
+		112, // germ/infantry_spearman_a
 		-1, // germ/infantry_spearman_b
+		114, // germ/infantry_swordsman_a
 		-1, // germ/infantry_swordsman_b
 		-1, // germ/ship_arrow
-		19, // germ/ship_fire (the Iberian fireship, as for the Celts)
+		43, // germ/ship_fire
 		-1, // germ/ship_fishing
 		-1, // germ/ship_merchant
-		181, // germ/ship_scout
-		182, // germ/siege_ram
+		116, // germ/ship_scout
+		117, // germ/siege_ram
 		-1, // germ/siege_ram_covered
 		-1, // germ/support_civilian
 		-1, // germ/support_civilian_house
 		-1, // germ/support_healer_b
+		119, // germ/support_healer_e
 		-1, // germ/support_trader
-		-1, // germ/rts0_villager
-		1, // germ/catafalque (no German actor)
-		190, // germ/ship_fire_fire (the Iberian fireship, as for the Celts)
-		187, // rome/infantry_spearman_conscript
-		183, // cart/infantry_spearman_ital_b
-		184, // rome/cavalry_javelineer_auxiliary_b
-		185, // rome/cavalry_spearman_auxiliary_b
-		186, // rome/champion_infantry_swordsman_first
 		-1, // germ/support_wagon
-		188, // germ/support_wagon_house (structures/germans/wagon_house.xml)
-		-1, // pers/support_healer_e
-		-1, // rome/support_healer_e
-		-1, // mace/support_healer_e
-		-1, // gaul/support_healer_e
-		-1, // ptol/support_healer_e
-		-1, // han/support_healer_e
-		7, // athen/infantry_marine_archer_b
-		397, // spart/champion_infantry_pike
-		398, // pers/hero_xerxes_i_chariot
-		399, // pers/kardakes_hoplite
-		400, // pers/kardakes_skirmisher
-		401, // rome/hero_marcellus_infantry
-		402, // rome/hero_maximus_infantry
+		-1, // germ/rts0_villager
+		1, // athen/catafalque
+		11, // athen/hero_xenophon
+		12, // athen/infantry_marine_archer_b
+		1, // spart/catafalque
+		398, // spart/champion_infantry_pike
+		399, // spart/champion_infantry_spear_olympian
+		403, // spart/hero_leonidas_300
+		-1, // pers/arstibara
+		1, // pers/catafalque
+		280, // pers/hero_xerxes_i_chariot
+		290, // pers/kardakes_hoplite
+		291, // pers/kardakes_skirmisher
+		1, // rome/catafalque
+		333, // rome/cavalry_javelineer_auxiliary_b
+		339, // rome/cavalry_spearman_auxiliary_b
+		345, // rome/champion_infantry_swordsman_02
+		346, // rome/champion_infantry_swordsman_03
+		347, // rome/champion_infantry_swordsman_04
+		348, // rome/champion_infantry_swordsman_05
+		350, // rome/champion_infantry_swordsman_first
+		352, // rome/hero_marcellus_infantry
+		354, // rome/hero_maximus_infantry
 		-1, // rome/hero_scipio_infantry
-		403, // rome/infantry_swordsman_slave
-		404, // cart/champion_pikeman
-		405, // mace/hero_craterus
-		406, // mace/hero_philip_ii_pike
-		407, // mace/hero_pyrrhus_i
-		408, // brit/hero_boudicca_cavalry_javelineer
+		345, // rome/infantry_legionary
+		365, // rome/infantry_swordsman_slave
+		1, // cart/catafalque
+		55, // cart/champion_pikeman
+		1, // mace/catafalque
+		214, // mace/champion_infantry_spearman_02
+		216, // mace/hero_craterus
+		219, // mace/hero_philip_ii_pike
+		220, // mace/hero_pyrrhus_i
+		1, // brit/catafalque
+		31, // brit/hero_boudicca_cavalry_javelineer
 		-1, // brit/hero_boudicca_sword
-		409, // brit/hero_cunobelin_infantry
+		34, // brit/hero_cunobelin_infantry
+		44, // brit/ship_fire_fire
+		1, // gaul/catafalque
 		-1, // gaul/hero_vercingetorix_infantry
-		410, // iber/hero_indibil_infantry
+		44, // gaul/ship_fire_fire
+		1, // iber/catafalque
+		167, // iber/hero_indibil_infantry
+		44, // iber/ship_fire_fire
+		1, // maur/catafalque
 		-1, // maur/hero_ashoka_infantry
-		388, // maur/hero_bindusara_infantry
-		389, // maur/hero_chandragupta_infantry
+		247, // maur/hero_bindusara_infantry
+		249, // maur/hero_chandragupta_infantry
+		1, // kush/catafalque
 		-1, // kush/hero_amanirenas_infantry
-		386, // kush/hero_harsiotef
-		151, // ptol/champion_juggernaut
-		382, // han/cavalry_crossbowman_b
+		185, // kush/hero_harsiotef
+		1, // ptol/catafalque
+		368, // ptol/champion_juggernaut
+		1, // sele/catafalque
+		1, // han/catafalque
+		125, // han/cavalry_crossbowman_b
 		-1, // han/champion_infantry_archer_academy
 		-1, // han/hero_han_xin
-		384, // han/hero_liu_bang
-		385, // han/hero_wei_qing
-		383, // han/hero_wei_qing_horse
-		387, // merc_black_cloak
-		390, // noldor_warship
-		391, // pirates/ship_arrow
-		392, // pirates/ship_merchant
-		393, // pirates/ship_scout
-		394, // samnite_skirmisher
-		395, // samnite_spearman
-		381, // samnite_swordsman
-		396, // viking_longship
-		428, // merc_thorakites
-		429, // merc_thureophoros
-		430, // theb_sacred_band
-		431, // thesp_melanochitones
-		411, // theb_siege_fireraiser
-		// The Marian legionary rows draw their c2-c5 actors (c2 is the Legionary's model; hand-added).
-		145, // rome/champion_infantry_swordsman_02
-		425, // rome/champion_infantry_swordsman_03
-		426, // rome/champion_infantry_swordsman_04
-		427, // rome/champion_infantry_swordsman_05
-		// Hand-added with their GLBs (extract_0ad_assets.py --templates --only, header left as is):
-		423, // athen/hero_xenophon
-		424, // spart/hero_leonidas_300
-		-1, // pers/arstibara (no model of its own: its owner civ's spearman model)
-		433, // han/siege_shoushe
-		212, // athen/infantry_spearman_a
-		-1, // athen/support_healer_e (no model of its own: its owner civ's healer model)
-		315, // spart/infantry_spearman_a
-		-1, // spart/support_healer_e (no model of its own: its owner civ's healer model)
-		279, // pers/infantry_spearman_a
-		341, // cart/infantry_spearman_a
-		-1, // cart/support_healer_e (no model of its own: its owner civ's healer model)
-		252, // mace/infantry_pikeman_a
-		325, // brit/infantry_spearman_a
-		-1, // brit/support_healer_e (no model of its own: its owner civ's healer model)
-		355, // gaul/infantry_spearman_a
-		377, // iber/infantry_spearman_a
-		379, // iber/infantry_swordsman_a
-		-1, // iber/support_healer_e (no model of its own: its owner civ's healer model)
-		263, // maur/infantry_spearman_a
-		265, // maur/infantry_swordsman_a
-		-1, // maur/support_healer_e (no model of its own: its owner civ's healer model)
-		238, // kush/infantry_pikeman_a
-		240, // kush/infantry_spearman_a
-		242, // kush/infantry_swordsman_a
-		290, // ptol/infantry_pikeman_a
-		303, // sele/infantry_pikeman_a
-		305, // sele/infantry_spearman_a
-		-1, // sele/support_healer_e (no model of its own: its owner civ's healer model)
-		224, // han/infantry_pikeman_a
-		226, // han/infantry_spearman_a
-		365, // germ/infantry_spearman_a
-		367, // germ/infantry_swordsman_a
-		370, // germ/support_healer_e
-		432, // plane (Flight Demo's P-51, units/global/plane.xml; hand-added)
-		85, // campaigns/army_mace_hero_alexander (Alexander's own model until the army actor is ported; hand-added)
-		-1, // campaigns/army_mace_standard (no model of its own: its owner civ's swordsman model)
-		-1, // campaigns/army_spart_hero_leonidas (no model of its own: its owner civ's hero model)
+		139, // han/hero_liu_bang
+		140, // han/hero_wei_qing
+		138, // han/hero_wei_qing_horse
+		155, // han/siege_shoushe
+		1, // germ/catafalque
+		44, // germ/ship_fire_fire
+		-1, // germ/support_wagon_house
+		-1, // campaigns/army_mace_hero_alexander
+		-1, // campaigns/army_mace_standard
+		-1, // campaigns/army_spart_hero_leonidas
+		235, // merc_black_cloak
+		260, // merc_thorakites
+		261, // merc_thureophoros
+		262, // noldor_warship
+		296, // pirates/ship_arrow
+		297, // pirates/ship_merchant
+		298, // pirates/ship_scout
+		299, // plane
+		369, // samnite_skirmisher
+		370, // samnite_spearman
+		78, // samnite_swordsman
+		413, // theb_sacred_band
+		414, // theb_siege_fireraiser
+		415, // thesp_melanochitones
+		416, // viking_longship
 	};
 	return tmpl < CIV_UNIT_TEMPLATE_COUNT ? kIndex[tmpl] : -1;
 }
@@ -1016,13 +965,13 @@ struct UnitTemplateModel {
 	const char *clip_donor; // a mesh-only model plays this model's clips (same bones), or nullptr
 };
 
-inline constexpr int UNIT_TEMPLATE_MODEL_COUNT = 376;
+inline constexpr int UNIT_TEMPLATE_MODEL_COUNT = 365;
 
 inline const UnitTemplateModel *unit_template_models() {
 	static const UnitTemplateModel kTable[UNIT_TEMPLATE_MODEL_COUNT] = {
 		{"athen_catafalque", "athen_ram", nullptr},
 		{"athen_cavalry_javelineer_a", "athen_cavalry", nullptr},
-		{"athen_cavalry_javelineer_b", "athen_cavalry", "athen_cavalry"},
+		{"athen_cavalry_javelineer_b", "athen_cavalry", nullptr},
 		{"athen_cavalry_javelineer_e", "athen_cavalry", nullptr},
 		{"athen_cavalry_swordsman_a", "athen_cavalry", nullptr},
 		{"athen_cavalry_swordsman_e", "athen_cavalry", nullptr},
@@ -1044,14 +993,14 @@ inline const UnitTemplateModel *unit_template_models() {
 		{"athen_ship_ram", "athen_trireme", nullptr},
 		{"athen_ship_scout", "athen_trireme", "athen_trireme"},
 		{"brit_cavalry_javelineer_a", "brit_cavalry", nullptr},
-		{"brit_cavalry_javelineer_b", "brit_cavalry", "brit_cavalry"},
+		{"brit_cavalry_javelineer_b", "brit_cavalry", nullptr},
 		{"brit_cavalry_javelineer_e", "brit_cavalry", nullptr},
 		{"brit_cavalry_swordsman_a", "brit_cavalry", nullptr},
 		{"brit_cavalry_swordsman_e", "brit_cavalry", nullptr},
 		{"brit_hero_boudicca", "brit_chariot", nullptr},
 		{"brit_hero_boudicca_cavalry_javelineer", "brit_cavalry", nullptr},
 		{"brit_hero_caratacos", "brit_hero", nullptr},
-		{"brit_hero_cunobelin", "brit_cavalry", "brit_cavalry"},
+		{"brit_hero_cunobelin", "brit_cavalry", nullptr},
 		{"brit_hero_cunobelin_infantry", "brit_hero", nullptr},
 		{"brit_infantry_javelineer_a", "brit_archer", nullptr},
 		{"brit_infantry_javelineer_b", "brit_archer", nullptr},
@@ -1064,23 +1013,19 @@ inline const UnitTemplateModel *unit_template_models() {
 		{"brit_ship_fire", "brit_trireme", nullptr},
 		{"brit_ship_fire_fire", "brit_trireme", nullptr},
 		{"brit_ship_scout", "brit_trireme", nullptr},
-		{"brit_support_female_citizen", "brit_female_citizen", "brit_female_citizen"},
-		{"brit_war_dog_war_dog_mastiff_b", "brit_war_dog", nullptr},
+		{"brit_war_dog_war_dog_mastiff_b", "brit_war_dog", "brit_war_dog"},
 		{"cart_cavalry_javelineer_a", "cart_cavalry", nullptr},
-		{"cart_cavalry_javelineer_b", "cart_cavalry", "cart_cavalry"},
+		{"cart_cavalry_javelineer_b", "cart_cavalry", nullptr},
 		{"cart_cavalry_javelineer_e", "cart_cavalry", nullptr},
 		{"cart_cavalry_spearman_ital_a", "cart_cavalry", nullptr},
-		{"cart_cavalry_spearman_ital_b", "cart_cavalry", "cart_cavalry"},
+		{"cart_cavalry_spearman_ital_b", "cart_cavalry", nullptr},
 		{"cart_cavalry_spearman_ital_e", "cart_cavalry", nullptr},
 		{"cart_cavalry_swordsman_gaul_a", "cart_cavalry", nullptr},
 		{"cart_cavalry_swordsman_gaul_e", "cart_cavalry", nullptr},
-		{"cart_cavalry_swordsman_iber_a", "cart_cavalry", nullptr},
-		{"cart_cavalry_swordsman_iber_b", "cart_cavalry", "cart_cavalry"},
-		{"cart_cavalry_swordsman_iber_e", "cart_cavalry", nullptr},
 		{"cart_champion_pikeman", "cart_spearman", nullptr},
-		{"cart_hero_hamilcar", "cart_cavalry", "cart_cavalry"},
+		{"cart_hero_hamilcar", "cart_cavalry", nullptr},
 		{"cart_hero_hannibal", "cart_elephant", nullptr},
-		{"cart_hero_maharbal", "cart_cavalry", "cart_cavalry"},
+		{"cart_hero_maharbal", "cart_cavalry", nullptr},
 		{"cart_infantry_archer_a", "cart_archer", nullptr},
 		{"cart_infantry_archer_e", "cart_archer", nullptr},
 		{"cart_infantry_javelineer_iber_a", "cart_archer", nullptr},
@@ -1097,17 +1042,15 @@ inline const UnitTemplateModel *unit_template_models() {
 		{"cart_infantry_swordsman_gaul_a", "cart_swordsman", nullptr},
 		{"cart_infantry_swordsman_gaul_b", "cart_swordsman", nullptr},
 		{"cart_infantry_swordsman_gaul_e", "cart_swordsman", nullptr},
-		{"cart_infantry_swordsman_ital_a", "cart_swordsman", "cart_swordsman"},
-		{"cart_infantry_swordsman_ital_e", "cart_swordsman", nullptr},
 		{"cart_ship_ram", "cart_trireme", nullptr},
 		{"cart_ship_scout", "cart_trireme", nullptr},
 		{"cart_ship_siege", "cart_trireme", nullptr},
 		{"gaul_cavalry_javelineer_a", "gaul_cavalry", nullptr},
-		{"gaul_cavalry_javelineer_b", "gaul_cavalry", "gaul_cavalry"},
+		{"gaul_cavalry_javelineer_b", "gaul_cavalry", nullptr},
 		{"gaul_cavalry_javelineer_e", "gaul_cavalry", nullptr},
 		{"gaul_champion_cavalry", "gaul_cavalry", nullptr},
 		{"gaul_hero_brennus", "gaul_hero", nullptr},
-		{"gaul_hero_vercingetorix", "gaul_cavalry", "gaul_cavalry"},
+		{"gaul_hero_vercingetorix", "gaul_cavalry", nullptr},
 		{"gaul_hero_viridomarus", "gaul_hero", nullptr},
 		{"gaul_infantry_javelineer_a", "gaul_archer", nullptr},
 		{"gaul_infantry_javelineer_b", "gaul_archer", nullptr},
@@ -1141,17 +1084,18 @@ inline const UnitTemplateModel *unit_template_models() {
 		{"germ_siege_ram_siege_ram_pivot", "germ_ram", nullptr},
 		{"germ_support_healer_a", "germ_healer", "germ_healer"},
 		{"germ_support_healer_e", "germ_healer", "germ_healer"},
-		{"han_cavalry_archer_a", "han_cavalry", nullptr},
-		{"han_cavalry_archer_e", "han_cavalry", nullptr},
-		{"han_cavalry_crossbowman_b", "han_cavalry", nullptr},
-		{"han_cavalry_spearman_a", "han_cavalry", nullptr},
-		{"han_cavalry_spearman_b", "han_cavalry", nullptr},
-		{"han_cavalry_spearman_e", "han_cavalry", nullptr},
-		{"han_cavalry_swordsman_a", "han_cavalry", nullptr},
-		{"han_cavalry_swordsman_e", "han_cavalry", nullptr},
-		{"han_champion_chariot_academy", "han_chariot", nullptr},
-		{"han_citizen_female", "han_female_citizen", nullptr},
-		{"han_hero_wei_qing_chariot", "han_chariot", nullptr},
+		{"han_cavalry_archer_a", "athen_cavalry", nullptr},
+		{"han_cavalry_archer_e", "athen_cavalry", nullptr},
+		{"han_cavalry_crossbowman_a", "athen_cavalry", nullptr},
+		{"han_cavalry_crossbowman_b", "athen_cavalry", nullptr},
+		{"han_cavalry_crossbowman_e", "athen_cavalry", nullptr},
+		{"han_cavalry_spearman_a", "athen_cavalry", nullptr},
+		{"han_cavalry_spearman_b", "athen_cavalry", nullptr},
+		{"han_cavalry_spearman_e", "athen_cavalry", nullptr},
+		{"han_cavalry_swordsman_a", "athen_cavalry", nullptr},
+		{"han_cavalry_swordsman_e", "athen_cavalry", nullptr},
+		{"han_champion_chariot_academy", "chariot_han", nullptr},
+		{"han_hero_wei_qing_chariot", "chariot_han", nullptr},
 		{"han_infantry_archer_a", "han_archer", nullptr},
 		{"han_infantry_archer_b", "han_archer", nullptr},
 		{"han_infantry_archer_e", "han_archer", nullptr},
@@ -1163,15 +1107,16 @@ inline const UnitTemplateModel *unit_template_models() {
 		{"han_infantry_spearman_a", "han_spearman", nullptr},
 		{"han_infantry_spearman_b", "han_spearman", nullptr},
 		{"han_infantry_spearman_e", "han_spearman", nullptr},
-		{"han_siege_tower", "han_bolt_shooter", nullptr},
+		{"han_siege_shoushe", "bolt_shooter", nullptr},
+		{"han_siege_tower", "bolt_shooter", nullptr},
 		{"iber_cavalry_javelineer_a", "iber_cavalry", nullptr},
-		{"iber_cavalry_javelineer_b", "iber_cavalry", "iber_cavalry"},
+		{"iber_cavalry_javelineer_b", "iber_cavalry", nullptr},
 		{"iber_cavalry_javelineer_e", "iber_cavalry", nullptr},
 		{"iber_cavalry_spearman_a", "iber_cavalry", nullptr},
-		{"iber_cavalry_spearman_b", "iber_cavalry", "iber_cavalry"},
+		{"iber_cavalry_spearman_b", "iber_cavalry", nullptr},
 		{"iber_cavalry_spearman_e", "iber_cavalry", nullptr},
 		{"iber_hero_caros", "iber_hero", nullptr},
-		{"iber_hero_indibil", "iber_cavalry", "iber_cavalry"},
+		{"iber_hero_indibil", "iber_cavalry", nullptr},
 		{"iber_hero_indibil_infantry", "iber_hero", nullptr},
 		{"iber_infantry_javelineer_a", "iber_archer", nullptr},
 		{"iber_infantry_javelineer_b", "iber_archer", nullptr},
@@ -1184,7 +1129,7 @@ inline const UnitTemplateModel *unit_template_models() {
 		{"kush_cavalry_javelineer_a", "kush_cavalry", nullptr},
 		{"kush_cavalry_javelineer_e", "kush_cavalry", nullptr},
 		{"kush_cavalry_spearman_a", "kush_cavalry", nullptr},
-		{"kush_cavalry_spearman_b", "kush_cavalry", "kush_cavalry"},
+		{"kush_cavalry_spearman_b", "kush_cavalry", nullptr},
 		{"kush_cavalry_spearman_e", "kush_cavalry", nullptr},
 		{"kush_champion_infantry_apedemak", "kush_swordsman", nullptr},
 		{"kush_infantry_archer_a", "kush_archer", nullptr},
@@ -1193,26 +1138,23 @@ inline const UnitTemplateModel *unit_template_models() {
 		{"kush_infantry_javelineer_merc_e", "kush_archer", nullptr},
 		{"kush_infantry_maceman_merc_a", "kush_swordsman", nullptr},
 		{"kush_infantry_maceman_merc_e", "kush_swordsman", nullptr},
-		{"kush_infantry_pikeman_a", "kush_spearman", nullptr},
 		{"kush_infantry_pikeman_e", "kush_spearman", nullptr},
-		{"kush_infantry_spearman_a", "kush_spearman", "kush_spearman"},
 		{"kush_infantry_spearman_e", "kush_spearman", nullptr},
-		{"kush_infantry_swordsman_a", "kush_swordsman", nullptr},
 		{"kush_infantry_swordsman_e", "kush_swordsman", nullptr},
 		{"kush_ship_scout", "kush_trireme", nullptr},
 		{"mace_cavalry_javelineer_a", "mace_cavalry", nullptr},
-		{"mace_cavalry_javelineer_b", "mace_cavalry", "mace_cavalry"},
+		{"mace_cavalry_javelineer_b", "mace_cavalry", nullptr},
 		{"mace_cavalry_javelineer_e", "mace_cavalry", nullptr},
 		{"mace_cavalry_spearman_a", "mace_cavalry", nullptr},
-		{"mace_cavalry_spearman_b", "mace_cavalry", "mace_cavalry"},
+		{"mace_cavalry_spearman_b", "mace_cavalry", nullptr},
 		{"mace_cavalry_spearman_e", "mace_cavalry", nullptr},
 		{"mace_champion_infantry_crossbowman", "mace_archer", nullptr},
 		{"mace_champion_infantry_spearman", "mace_spearman", nullptr},
 		{"mace_champion_infantry_spearman_02", "mace_spearman", nullptr},
-		{"mace_hero_alexander_iii", "mace_cavalry", "mace_cavalry"},
+		{"mace_hero_alexander_iii", "mace_cavalry", nullptr},
 		{"mace_hero_craterus", "mace_hero", nullptr},
 		{"mace_hero_demetrius_i", "mace_hero", nullptr},
-		{"mace_hero_philip_ii", "mace_cavalry", "mace_cavalry"},
+		{"mace_hero_philip_ii", "mace_cavalry", nullptr},
 		{"mace_hero_philip_ii_pike", "mace_hero", nullptr},
 		{"mace_hero_pyrrhus_i", "mace_cavalry", nullptr},
 		{"mace_infantry_archer_a", "mace_archer", nullptr},
@@ -1233,25 +1175,22 @@ inline const UnitTemplateModel *unit_template_models() {
 		{"maur_cavalry_swordsman_a", "maur_cavalry", nullptr},
 		{"maur_cavalry_swordsman_e", "maur_cavalry", nullptr},
 		{"maur_champion_elephant", "maur_elephant", nullptr},
-		{"maur_citizen_female", "maur_female_citizen", nullptr},
 		{"maur_elephant_archer_a", "maur_elephant", nullptr},
 		{"maur_hero_ashoka_hero_chariot_archer_ashoka_m", "maur_chariot", nullptr},
 		{"maur_infantry_archer_a", "maur_archer", nullptr},
 		{"maur_infantry_archer_e", "maur_archer", nullptr},
-		{"maur_infantry_spearman_a", "maur_spearman", "maur_spearman"},
 		{"maur_infantry_spearman_e", "maur_spearman", "maur_spearman"},
-		{"maur_infantry_swordsman_a", "maur_swordsman", nullptr},
 		{"maur_infantry_swordsman_e", "maur_swordsman", nullptr},
-		{"merc_thorakites", "swordsman", nullptr},
-		{"merc_thureophoros", "archer", nullptr},
-		{"noldor_warship", "trireme", nullptr},
+		{"merc_thorakites", "athen_swordsman", nullptr},
+		{"merc_thureophoros", "athen_archer", nullptr},
+		{"noldor_warship", "athen_trireme", nullptr},
 		{"pers_cavalry_archer_a", "pers_cavalry", nullptr},
-		{"pers_cavalry_archer_b", "pers_cavalry", "pers_cavalry"},
+		{"pers_cavalry_archer_b", "pers_cavalry", nullptr},
 		{"pers_cavalry_archer_e", "pers_cavalry", nullptr},
 		{"pers_cavalry_axeman_a", "pers_cavalry", nullptr},
 		{"pers_cavalry_axeman_e", "pers_cavalry", nullptr},
 		{"pers_cavalry_javelineer_a", "pers_cavalry", nullptr},
-		{"pers_cavalry_javelineer_b", "pers_cavalry", "pers_cavalry"},
+		{"pers_cavalry_javelineer_b", "pers_cavalry", nullptr},
 		{"pers_cavalry_javelineer_e", "pers_cavalry", nullptr},
 		{"pers_cavalry_spearman_a", "pers_cavalry", nullptr},
 		{"pers_cavalry_spearman_b", "pers_cavalry", nullptr},
@@ -1276,9 +1215,10 @@ inline const UnitTemplateModel *unit_template_models() {
 		{"pers_kardakes_skirmisher", "pers_archer", nullptr},
 		{"pers_ship_ram", "pers_trireme", nullptr},
 		{"pers_ship_scout", "pers_trireme", "pers_trireme"},
-		{"pirates_ship_arrow", "trireme", nullptr},
-		{"pirates_ship_merchant", "merchant_ship", nullptr},
-		{"pirates_ship_scout", "trireme", "trireme"},
+		{"pirates_ship_arrow", "athen_trireme", nullptr},
+		{"pirates_ship_merchant", "athen_merchant_ship", nullptr},
+		{"pirates_ship_scout", "athen_trireme", "trireme"},
+		{"plane", "bolt_shooter", nullptr},
 		{"ptol_cavalry_archer_b", "ptol_camel", "ptol_camel"},
 		{"ptol_cavalry_archer_e", "ptol_camel", "ptol_camel"},
 		{"ptol_cavalry_javelineer_merc_a", "ptol_cavalry", nullptr},
@@ -1288,7 +1228,7 @@ inline const UnitTemplateModel *unit_template_models() {
 		{"ptol_cavalry_spearman_merc_b", "ptol_cavalry", nullptr},
 		{"ptol_cavalry_spearman_merc_e", "ptol_cavalry", nullptr},
 		{"ptol_hero_ptolemy_i", "ptol_elephant", nullptr},
-		{"ptol_hero_ptolemy_iv", "ptol_cavalry", "ptol_cavalry"},
+		{"ptol_hero_ptolemy_iv", "ptol_cavalry", nullptr},
 		{"ptol_infantry_archer_a", "ptol_archer", "ptol_archer"},
 		{"ptol_infantry_archer_e", "ptol_archer", nullptr},
 		{"ptol_infantry_javelineer_a", "ptol_archer", nullptr},
@@ -1309,35 +1249,34 @@ inline const UnitTemplateModel *unit_template_models() {
 		{"ptol_ship_scout", "ptol_trireme", nullptr},
 		{"ptol_ship_siege", "ptol_trireme", nullptr},
 		{"ptol_siege_tower", "ptol_bolt_shooter", nullptr},
-		{"rome_cavalry_auxiliary_b", "rome_cavalry", "rome_cavalry"},
 		{"rome_cavalry_javelineer_a", "rome_cavalry", nullptr},
 		{"rome_cavalry_javelineer_auxiliary_a", "rome_cavalry", nullptr},
 		{"rome_cavalry_javelineer_auxiliary_b", "rome_cavalry", nullptr},
 		{"rome_cavalry_javelineer_auxiliary_e", "rome_cavalry", nullptr},
-		{"rome_cavalry_javelineer_b", "rome_cavalry", "rome_cavalry"},
+		{"rome_cavalry_javelineer_b", "rome_cavalry", nullptr},
 		{"rome_cavalry_javelineer_e", "rome_cavalry", nullptr},
 		{"rome_cavalry_spearman_a", "rome_cavalry", nullptr},
 		{"rome_cavalry_spearman_auxiliary_a", "rome_cavalry", nullptr},
 		{"rome_cavalry_spearman_auxiliary_b", "rome_cavalry", nullptr},
 		{"rome_cavalry_spearman_auxiliary_e", "rome_cavalry", nullptr},
 		{"rome_cavalry_spearman_e", "rome_cavalry", nullptr},
-		{"rome_champion_cavalry", "rome_cavalry", "rome_cavalry"},
+		{"rome_champion_cavalry", "rome_cavalry", nullptr},
 		{"rome_champion_infantry_spear_gladiator", "rome_spearman", nullptr},
 		{"rome_champion_infantry_sword_gladiator", "rome_swordsman", nullptr},
-		{"rome_champion_infantry_swordsman_centurion", "rome_swordsman", nullptr},
+		{"rome_champion_infantry_swordsman_02", "rome_swordsman", nullptr},
 		{"rome_champion_infantry_swordsman_03", "rome_swordsman", nullptr},
 		{"rome_champion_infantry_swordsman_04", "rome_swordsman", nullptr},
 		{"rome_champion_infantry_swordsman_05", "rome_swordsman", nullptr},
+		{"rome_champion_infantry_swordsman_centurion", "rome_swordsman", nullptr},
 		{"rome_champion_infantry_swordsman_first", "rome_swordsman", nullptr},
-		{"rome_hero_marcellus", "rome_cavalry", "rome_cavalry"},
+		{"rome_hero_marcellus", "rome_cavalry", nullptr},
 		{"rome_hero_marcellus_infantry", "rome_hero", nullptr},
-		{"rome_hero_maximus", "rome_cavalry", "rome_cavalry"},
+		{"rome_hero_maximus", "rome_cavalry", nullptr},
 		{"rome_hero_maximus_infantry", "rome_hero", nullptr},
-		{"rome_hero_scipio", "rome_cavalry", "rome_cavalry"},
+		{"rome_hero_scipio", "rome_cavalry", nullptr},
 		{"rome_infantry_antesignanus", "rome_archer", nullptr},
 		{"rome_infantry_javelineer_a", "rome_archer", "rome_archer"},
 		{"rome_infantry_javelineer_e", "rome_archer", "rome_archer"},
-		{"rome_infantry_legionary", "rome_swordsman", nullptr},
 		{"rome_infantry_spearman_a", "rome_spearman", "rome_spearman"},
 		{"rome_infantry_spearman_conscript", "rome_spearman", nullptr},
 		{"rome_infantry_spearman_e", "rome_spearman", "rome_spearman"},
@@ -1348,12 +1287,12 @@ inline const UnitTemplateModel *unit_template_models() {
 		{"rome_ship_ram", "rome_trireme", nullptr},
 		{"rome_ship_scout", "rome_trireme", "rome_trireme"},
 		{"rome_ship_siege", "rome_trireme", "rome_trireme"},
-		{"samnite_skirmisher", "archer", nullptr},
-		{"samnite_spearman", "spearman", nullptr},
+		{"samnite_skirmisher", "athen_archer", nullptr},
+		{"samnite_spearman", "samnite_spearman", nullptr},
 		{"sele_cavalry_spearman_merc_b", "sele_cavalry", nullptr},
 		{"sele_cavalry_spearman_merc_e", "sele_cavalry", nullptr},
-		{"sele_hero_antiochus_iii", "sele_cavalry", "sele_cavalry"},
-		{"sele_hero_antiochus_iv", "sele_cavalry", "sele_cavalry"},
+		{"sele_hero_antiochus_iii", "sele_cavalry", nullptr},
+		{"sele_hero_antiochus_iv", "sele_cavalry", nullptr},
 		{"sele_hero_seleucus_i", "sele_elephant", nullptr},
 		{"sele_infantry_archer_merc_a", "sele_archer", "sele_archer"},
 		{"sele_infantry_archer_merc_e", "sele_archer", nullptr},
@@ -1372,9 +1311,8 @@ inline const UnitTemplateModel *unit_template_models() {
 		{"sele_ship_ram", "sele_trireme", nullptr},
 		{"sele_ship_siege", "sele_trireme", nullptr},
 		{"sele_siege_tower", "sele_bolt_shooter", nullptr},
-		{"siege_shoushe", "bolt_shooter", nullptr},
 		{"spart_cavalry_javelineer_a", "spart_cavalry", nullptr},
-		{"spart_cavalry_javelineer_b", "spart_cavalry", "spart_cavalry"},
+		{"spart_cavalry_javelineer_b", "spart_cavalry", nullptr},
 		{"spart_cavalry_javelineer_e", "spart_cavalry", nullptr},
 		{"spart_cavalry_spearman_a", "spart_cavalry", nullptr},
 		{"spart_cavalry_spearman_e", "spart_cavalry", nullptr},
@@ -1392,10 +1330,10 @@ inline const UnitTemplateModel *unit_template_models() {
 		{"spart_infantry_spearman_neodamodes", "spart_spearman", nullptr},
 		{"spart_ship_ram", "spart_trireme", nullptr},
 		{"spart_ship_scout", "spart_trireme", "spart_trireme"},
-		{"theb_sacred_band", "spearman", nullptr},
+		{"theb_sacred_band", "athen_spearman", nullptr},
 		{"theb_siege_fireraiser", "bolt_shooter", nullptr},
-		{"thesp_melanochitones", "swordsman", nullptr},
-		{"viking_longship", "trireme", nullptr},
+		{"thesp_melanochitones", "athen_swordsman", nullptr},
+		{"viking_longship", "athen_trireme", nullptr},
 	};
 	return kTable;
 }
@@ -1418,89 +1356,107 @@ struct UnitTemplateRankModel {
 	const char *elite; // its _e template's, or nullptr
 };
 
-inline constexpr int UNIT_TEMPLATE_RANK_MODEL_COUNT = 104;
+inline constexpr int UNIT_TEMPLATE_RANK_MODEL_COUNT = 125;
 
 inline const UnitTemplateRankModel *unit_template_rank_models() {
 	static const UnitTemplateRankModel kRank[UNIT_TEMPLATE_RANK_MODEL_COUNT + 1] = {
 		{"athen/cavalry_javelineer_b", "athen_cavalry_javelineer_a", "athen_cavalry_javelineer_e"},
 		{"athen/cavalry_swordsman_b", "athen_cavalry_swordsman_a", "athen_cavalry_swordsman_e"},
-		{"athen/infantry_archer_b", nullptr, "athen_infantry_archer_e"},
+		{"athen/infantry_archer_b", "athen_archer", "athen_infantry_archer_e"},
 		{"athen/infantry_javelineer_b", "athen_infantry_javelineer_a", "athen_infantry_javelineer_e"},
+		{"athen/infantry_marine_archer_b", "athen_archer", "athen_infantry_archer_e"},
 		{"athen/infantry_slinger_b", "athen_infantry_slinger_a", "athen_infantry_slinger_e"},
+		{"athen/infantry_spearman_a", nullptr, "athen_infantry_spearman_e"},
 		{"athen/infantry_spearman_b", "athen_infantry_spearman_a", "athen_infantry_spearman_e"},
 		{"brit/cavalry_javelineer_b", "brit_cavalry_javelineer_a", "brit_cavalry_javelineer_e"},
 		{"brit/cavalry_swordsman_b", "brit_cavalry_swordsman_a", "brit_cavalry_swordsman_e"},
 		{"brit/infantry_javelineer_b", "brit_infantry_javelineer_a", "brit_infantry_javelineer_e"},
 		{"brit/infantry_slinger_b", "brit_infantry_slinger_a", "brit_infantry_slinger_e"},
+		{"brit/infantry_spearman_a", nullptr, "brit_infantry_spearman_e"},
 		{"brit/infantry_spearman_b", "brit_infantry_spearman_a", "brit_infantry_spearman_e"},
 		{"cart/cavalry_javelineer_b", "cart_cavalry_javelineer_a", "cart_cavalry_javelineer_e"},
 		{"cart/cavalry_spearman_ital_b", "cart_cavalry_spearman_ital_a", "cart_cavalry_spearman_ital_e"},
 		{"cart/cavalry_swordsman_gaul_b", "cart_cavalry_swordsman_gaul_a", "cart_cavalry_swordsman_gaul_e"},
-		{"cart/cavalry_swordsman_iber_b", "cart_cavalry_swordsman_iber_a", "cart_cavalry_swordsman_iber_e"},
 		{"cart/infantry_archer_b", "cart_infantry_archer_a", "cart_infantry_archer_e"},
 		{"cart/infantry_javelineer_iber_b", "cart_infantry_javelineer_iber_a", "cart_infantry_javelineer_iber_e"},
 		{"cart/infantry_slinger_iber_b", "cart_infantry_slinger_iber_a", "cart_infantry_slinger_iber_e"},
+		{"cart/infantry_spearman_a", nullptr, "cart_infantry_spearman_e"},
 		{"cart/infantry_spearman_b", "cart_infantry_spearman_a", "cart_infantry_spearman_e"},
 		{"cart/infantry_spearman_ital_b", "cart_infantry_spearman_ital_a", "cart_infantry_spearman_ital_e"},
 		{"cart/infantry_swordsman_gaul_b", "cart_infantry_swordsman_gaul_a", "cart_infantry_swordsman_gaul_e"},
-		{"cart/infantry_swordsman_ital_b", "cart_infantry_swordsman_ital_a", "cart_infantry_swordsman_ital_e"},
 		{"gaul/cavalry_javelineer_b", "gaul_cavalry_javelineer_a", "gaul_cavalry_javelineer_e"},
 		{"gaul/cavalry_swordsman_b", "cart_cavalry_swordsman_gaul_a", "cart_cavalry_swordsman_gaul_e"},
 		{"gaul/infantry_javelineer_b", "gaul_infantry_javelineer_a", "gaul_infantry_javelineer_e"},
 		{"gaul/infantry_slinger_b", "gaul_infantry_slinger_a", "gaul_infantry_slinger_e"},
+		{"gaul/infantry_spearman_a", nullptr, "gaul_infantry_spearman_e"},
 		{"gaul/infantry_spearman_b", "gaul_infantry_spearman_a", "gaul_infantry_spearman_e"},
 		{"germ/cavalry_javelineer_b", "germ_cavalry_javelineer_a", "germ_cavalry_javelineer_e"},
 		{"germ/cavalry_spearman_b", "germ_cavalry_spearman_a", "germ_cavalry_spearman_e"},
 		{"germ/infantry_javelineer_b", "germ_infantry_javelineer_a", "germ_infantry_javelineer_e"},
 		{"germ/infantry_slinger_b", "germ_infantry_slinger_a", "germ_infantry_slinger_e"},
+		{"germ/infantry_spearman_a", nullptr, "germ_infantry_spearman_e"},
 		{"germ/infantry_spearman_b", "germ_infantry_spearman_a", "germ_infantry_spearman_e"},
+		{"germ/infantry_swordsman_a", nullptr, "germ_infantry_swordsman_e"},
 		{"germ/infantry_swordsman_b", "germ_infantry_swordsman_a", "germ_infantry_swordsman_e"},
 		{"germ/support_healer_b", "germ_support_healer_a", "germ_support_healer_e"},
 		{"han/cavalry_archer_b", "han_cavalry_archer_a", "han_cavalry_archer_e"},
+		{"han/cavalry_crossbowman_b", "han_cavalry_crossbowman_a", "han_cavalry_crossbowman_e"},
 		{"han/cavalry_spearman_b", "han_cavalry_spearman_a", "han_cavalry_spearman_e"},
 		{"han/cavalry_swordsman_b", "han_cavalry_swordsman_a", "han_cavalry_swordsman_e"},
 		{"han/infantry_archer_b", "han_infantry_archer_a", "han_infantry_archer_e"},
 		{"han/infantry_crossbowman_b", "han_infantry_crossbowman_a", "han_infantry_crossbowman_e"},
+		{"han/infantry_pikeman_a", nullptr, "han_infantry_pikeman_e"},
 		{"han/infantry_pikeman_b", "han_infantry_pikeman_a", "han_infantry_pikeman_e"},
+		{"han/infantry_spearman_a", nullptr, "han_infantry_spearman_e"},
 		{"han/infantry_spearman_b", "han_infantry_spearman_a", "han_infantry_spearman_e"},
 		{"iber/cavalry_javelineer_b", "iber_cavalry_javelineer_a", "iber_cavalry_javelineer_e"},
 		{"iber/cavalry_spearman_b", "iber_cavalry_spearman_a", "iber_cavalry_spearman_e"},
 		{"iber/infantry_javelineer_b", "iber_infantry_javelineer_a", "iber_infantry_javelineer_e"},
 		{"iber/infantry_slinger_b", "cart_infantry_slinger_iber_a", "cart_infantry_slinger_iber_e"},
+		{"iber/infantry_spearman_a", nullptr, "iber_infantry_spearman_e"},
 		{"iber/infantry_spearman_b", "iber_infantry_spearman_a", "iber_infantry_spearman_e"},
+		{"iber/infantry_swordsman_a", nullptr, "iber_infantry_swordsman_e"},
 		{"iber/infantry_swordsman_b", "iber_infantry_swordsman_a", "iber_infantry_swordsman_e"},
 		{"kush/cavalry_javelineer_b", "kush_cavalry_javelineer_a", "kush_cavalry_javelineer_e"},
 		{"kush/cavalry_spearman_b", "kush_cavalry_spearman_a", "kush_cavalry_spearman_e"},
 		{"kush/infantry_archer_b", "kush_infantry_archer_a", "kush_infantry_archer_e"},
 		{"kush/infantry_javelineer_merc_b", "kush_infantry_javelineer_merc_a", "kush_infantry_javelineer_merc_e"},
 		{"kush/infantry_maceman_merc_b", "kush_infantry_maceman_merc_a", "kush_infantry_maceman_merc_e"},
-		{"kush/infantry_pikeman_b", "kush_infantry_pikeman_a", "kush_infantry_pikeman_e"},
-		{"kush/infantry_spearman_b", "kush_infantry_spearman_a", "kush_infantry_spearman_e"},
-		{"kush/infantry_swordsman_b", "kush_infantry_swordsman_a", "kush_infantry_swordsman_e"},
+		{"kush/infantry_pikeman_a", nullptr, "kush_infantry_pikeman_e"},
+		{"kush/infantry_pikeman_b", "kush_pikeman_a", "kush_infantry_pikeman_e"},
+		{"kush/infantry_spearman_a", nullptr, "kush_infantry_spearman_e"},
+		{"kush/infantry_spearman_b", "kush_spearman_a", "kush_infantry_spearman_e"},
+		{"kush/infantry_swordsman_a", nullptr, "kush_infantry_swordsman_e"},
+		{"kush/infantry_swordsman_b", "kush_swordsman_a", "kush_infantry_swordsman_e"},
 		{"mace/cavalry_javelineer_b", "mace_cavalry_javelineer_a", "mace_cavalry_javelineer_e"},
 		{"mace/cavalry_spearman_b", "mace_cavalry_spearman_a", "mace_cavalry_spearman_e"},
 		{"mace/infantry_archer_b", "mace_infantry_archer_a", "mace_infantry_archer_e"},
 		{"mace/infantry_javelineer_b", "mace_infantry_javelineer_a", "mace_infantry_javelineer_e"},
+		{"mace/infantry_pikeman_a", nullptr, "mace_infantry_pikeman_e"},
 		{"mace/infantry_pikeman_b", "mace_infantry_pikeman_a", "mace_infantry_pikeman_e"},
 		{"mace/infantry_slinger_b", "mace_infantry_slinger_a", "mace_infantry_slinger_e"},
 		{"maur/cavalry_javelineer_b", "maur_cavalry_javelineer_a", "maur_cavalry_javelineer_e"},
 		{"maur/cavalry_swordsman_b", "maur_cavalry_swordsman_a", "maur_cavalry_swordsman_e"},
-		{"maur/elephant_archer_b", "maur_elephant_archer_a", nullptr},
+		{"maur/elephant_archer_b", "maur_elephant_archer_a", "maur_elephant"},
 		{"maur/infantry_archer_b", "maur_infantry_archer_a", "maur_infantry_archer_e"},
-		{"maur/infantry_spearman_b", "maur_infantry_spearman_a", "maur_infantry_spearman_e"},
-		{"maur/infantry_swordsman_b", "maur_infantry_swordsman_a", "maur_infantry_swordsman_e"},
+		{"maur/infantry_spearman_a", nullptr, "maur_infantry_spearman_e"},
+		{"maur/infantry_spearman_b", "maur_spearman_a", "maur_infantry_spearman_e"},
+		{"maur/infantry_swordsman_a", nullptr, "maur_infantry_swordsman_e"},
+		{"maur/infantry_swordsman_b", "maur_swordsman_a", "maur_infantry_swordsman_e"},
 		{"pers/cavalry_archer_b", "pers_cavalry_archer_a", "pers_cavalry_archer_e"},
 		{"pers/cavalry_axeman_b", "pers_cavalry_axeman_a", "pers_cavalry_axeman_e"},
 		{"pers/cavalry_javelineer_b", "pers_cavalry_javelineer_a", "pers_cavalry_javelineer_e"},
 		{"pers/cavalry_spearman_b", "pers_cavalry_spearman_a", "pers_cavalry_spearman_e"},
 		{"pers/infantry_archer_b", "pers_infantry_archer_a", "pers_infantry_archer_e"},
 		{"pers/infantry_javelineer_b", "pers_infantry_javelineer_a", "pers_infantry_javelineer_e"},
+		{"pers/infantry_spearman_a", nullptr, "pers_infantry_spearman_e"},
 		{"pers/infantry_spearman_b", "pers_infantry_spearman_a", "pers_infantry_spearman_e"},
-		{"ptol/cavalry_archer_b", nullptr, "ptol_cavalry_archer_e"},
+		{"ptol/cavalry_archer_b", "ptol_camel", "ptol_cavalry_archer_e"},
 		{"ptol/cavalry_javelineer_merc_b", "ptol_cavalry_javelineer_merc_a", "ptol_cavalry_javelineer_merc_e"},
 		{"ptol/cavalry_spearman_merc_b", "ptol_cavalry_spearman_merc_a", "ptol_cavalry_spearman_merc_e"},
 		{"ptol/infantry_archer_b", "ptol_infantry_archer_a", "ptol_infantry_archer_e"},
 		{"ptol/infantry_javelineer_b", "ptol_infantry_javelineer_a", "ptol_infantry_javelineer_e"},
+		{"ptol/infantry_pikeman_a", nullptr, "ptol_infantry_pikeman_e"},
 		{"ptol/infantry_pikeman_b", "ptol_infantry_pikeman_a", "ptol_infantry_pikeman_e"},
 		{"ptol/infantry_slinger_b", "ptol_infantry_slinger_a", "ptol_infantry_slinger_e"},
 		{"ptol/infantry_spearman_merc_b", "ptol_infantry_spearman_merc_a", "ptol_infantry_spearman_merc_e"},
@@ -1519,12 +1475,15 @@ inline const UnitTemplateRankModel *unit_template_rank_models() {
 		{"sele/cavalry_spearman_merc_b", "mace_cavalry_spearman_a", "sele_cavalry_spearman_merc_e"},
 		{"sele/infantry_archer_merc_b", "sele_infantry_archer_merc_a", "sele_infantry_archer_merc_e"},
 		{"sele/infantry_javelineer_b", "sele_infantry_javelineer_a", "sele_infantry_javelineer_e"},
+		{"sele/infantry_pikeman_a", nullptr, "sele_infantry_pikeman_e"},
 		{"sele/infantry_pikeman_b", "sele_infantry_pikeman_a", "sele_infantry_pikeman_e"},
+		{"sele/infantry_spearman_a", nullptr, "sele_infantry_spearman_e"},
 		{"sele/infantry_spearman_b", "sele_infantry_spearman_a", "sele_infantry_spearman_e"},
 		{"sele/infantry_swordsman_merc_b", "sele_infantry_swordsman_merc_a", "sele_infantry_swordsman_merc_e"},
 		{"spart/cavalry_javelineer_b", "spart_cavalry_javelineer_a", "spart_cavalry_javelineer_e"},
 		{"spart/cavalry_spearman_b", "spart_cavalry_spearman_a", "spart_cavalry_spearman_e"},
 		{"spart/infantry_javelineer_b", "spart_infantry_javelineer_a", "spart_infantry_javelineer_e"},
+		{"spart/infantry_spearman_a", nullptr, "spart_infantry_spearman_e"},
 		{"spart/infantry_spearman_b", "spart_infantry_spearman_a", "spart_infantry_spearman_e"},
 		{nullptr, nullptr, nullptr},
 	};
@@ -1558,6 +1517,6 @@ inline int unit_template_rank_draw_index(uint16_t tmpl, uint8_t rank) {
 	return kLookup[tmpl][rank >= 3 ? 1 : 0];
 }
 
-static_assert(CIV_UNIT_TEMPLATE_COUNT == 548, "rerun tools/extract_0ad_assets.py --templates");
+static_assert(CIV_UNIT_TEMPLATE_COUNT == 517, "rerun tools/extract_0ad_assets.py --templates");
 
 } // namespace rtso
