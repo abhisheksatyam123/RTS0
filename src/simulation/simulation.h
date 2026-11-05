@@ -191,7 +191,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 143; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 144; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_AIM_VELOCITY = 143; // each unit's and animal's last-turn velocity (aim_vx/aim_vz; fauna beside fauna_)
 	static constexpr uint32_t SAVE_VERSION_PETRA_ROUTE_CACHE = 139; // Petra's last checkRoutes result (tradeRoute kept between trade events)
 	static constexpr uint32_t SAVE_VERSION_FAUNA_QUEUED_TARGET = 137; // each animal's set-aside attack target (fauna_queued_target_)
@@ -237,6 +237,8 @@ public:
 	static constexpr uint32_t SAVE_VERSION_MOTION_SPAN = 142; // each unit's reversal watch (MotionTurn way_*, span_*, 48 bytes); a 141 save reads the 20-byte MotionTurn
 	static constexpr uint32_t SAVE_VERSION_PETRA_ASSIGNED_AGAINST = 141; // each defense army's assignedTo and assignedAgainst (kept across turns)
 	static constexpr uint32_t SAVE_VERSION_PETRA_BLOCKED = 140; // each Petra attack plan's isBlocked (its target is a blocker on the way)
+	static constexpr uint32_t SAVE_VERSION_CHASE_RUN = 144; // each unit's chase run and range bits (chase_run)
+	static constexpr uint8_t CHASE_RUN_BIT = 1, CHASE_RANGE_BIT = 2; // chase_run: running; in range last tick
 	static constexpr uint32_t SAVE_VERSION_RALLY_EMERGENCY = 138; // Petra's autogarrison rally flag (rally_emergency)
 	static constexpr uint32_t SAVE_VERSION_RALLY_COMMANDS = 97; // each rally position's command and unit or treasure
 	static constexpr uint32_t SAVE_VERSION_PETRA_RAID_SIEGE = 95; // the Petra raid's name and siege class
@@ -550,6 +552,7 @@ public:
 	void face_away_from(size_t i, float x, float z);
 	float unit_run_multiplier(size_t i) const;
 	bool unit_running(size_t i) const;
+	bool unit_chase_fleeing(uint32_t target_id) const; // a unit or animal that is fleeing now (CHASING enter)
 	// 0 A.D. Identity classes, RestrictedClasses, Bonuses and Spread of the unit at SoA index i.
 	const CombatProfile &unit_combat_at(size_t i) const { return unit_combat(units_.tmpl[i], units_.unit_type[i]); }
 	// The passability class Clearance of the unit at SoA index i from buildings (unit_building_clearance).
@@ -5004,6 +5007,7 @@ private:
 		float sigma = 0.0f;
 		float new_timer = 0.0f;
 		uint32_t new_chase = 0;
+		uint8_t new_run = 0;
 		uint8_t new_order_flags = 0;
 		uint8_t new_action_state = 0;
 		uint8_t effect = 0;
