@@ -3,6 +3,11 @@
 // camera inside the low-res SubViewport. Forward+ / Mobile renderers only: the normal
 // texture needs hint_normal_roughness_texture (GL Compatibility uses
 // pixel_art_post_depth.gdshader instead).
+//
+// Depth tests are relative (a fraction of the pixel's own distance), not metres. A metre
+// threshold is a fine line up close and a wide one far away: at 100 m, 0.3 m is 0.3% of the
+// distance, which the gentle depth steps of distant ground exceed, so the ground got dark
+// halos. Relative gaps keep the same line weight at every zoom.
 shader_type spatial;
 render_mode unshaded, blend_mix, depth_draw_never, depth_test_disabled, cull_disabled;
 
@@ -12,7 +17,13 @@ uniform sampler2D normal_roughness_texture : hint_normal_roughness_texture, filt
 
 uniform float brighter_line : hint_range(0.0, 1.0) = 0.25; // inner highlight strength
 uniform float darker_line : hint_range(0.0, 1.0) = 0.5;    // outer outline darkness
-uniform float depth_threshold : hint_range(0.0, 1.0) = 0.3;
+// Outline ink, multiplied into the darkened frame colour. White keeps the scene's own
+// colours (team colours and lighting survive inside the ink).
+uniform vec3 outline_tint = vec3(1.0, 1.0, 1.0);
+// Relative depth gap (fraction of the pixel's distance) that draws an outer outline.
+// The line fades in over [0.5, 1.5] x this value, so sub-pixel camera motion moves the
+// edge smoothly instead of switching pixels on and off (shimmer).
+uniform float depth_threshold : hint_range(0.0, 0.2) = 0.03;
 uniform float normal_threshold : hint_range(0.0, 1.0) = 0.2;
 // Beyond this distance (metres) no outline is drawn: flat distant ground otherwise
 // turns dark from depth noise.
@@ -42,15 +53,16 @@ void fragment() {
 	vec2 texel = 1.0 / VIEWPORT_SIZE;
 	vec2 offsets[4] = vec2[4](vec2(-1.0, 0.0), vec2(1.0, 0.0), vec2(0.0, -1.0), vec2(0.0, 1.0));
 
-	float center_depth = linear_depth(SCREEN_UV);
+	float center_depth = max(linear_depth(SCREEN_UV), 0.001);
 	// No outline beyond max_outline_distance (fragment() may not return early in Godot 4.3).
 	float in_range = step(center_depth, max_outline_distance);
 	vec3 center_normal = decode_normal(SCREEN_UV);
 
-	// Outer silhouettes: neighbours much farther away than the centre.
+	// Outer silhouettes: neighbours much farther away than the centre (relative gap, 0..1).
 	float depth_diff = 0.0;
-	// Inverse mask: centre farther than neighbour, i.e. this pixel is the background side.
-	float inverse_depth = 0.5;
+	// Background side: neighbours nearer than the centre (relative gap, 0..1). Suppresses
+	// the inner highlight on the far side of an outline, so the two never double up.
+	float near_diff = 0.0;
 	// Inner creases: neighbour normals differ while depths stay close.
 	float normal_diff = 0.0;
 
@@ -58,17 +70,18 @@ void fragment() {
 		vec2 uv = SCREEN_UV + offsets[i] * texel;
 		float neighbour_depth = linear_depth(uv);
 		vec3 neighbour_normal = decode_normal(uv);
+		float gap = (neighbour_depth - center_depth) / center_depth;
 
-		depth_diff += clamp(neighbour_depth - center_depth, 0.0, 1.0);
-		inverse_depth += center_depth - neighbour_depth;
+		depth_diff += clamp(gap, 0.0, 1.0);
+		near_diff += clamp(-gap, 0.0, 1.0);
 
 		float depth_close = 1.0 - smoothstep(0.0, 0.05 * max(center_depth, 1.0), abs(neighbour_depth - center_depth));
 		normal_diff += depth_close * smoothstep(normal_threshold, 1.0, 1.0 - dot(center_normal, neighbour_normal));
 	}
 
-	float outer = smoothstep(depth_threshold, depth_threshold + 0.1, depth_diff);
+	float outer = smoothstep(depth_threshold * 0.5, depth_threshold * 1.5, depth_diff);
 	// Suppress the normal highlight wherever an outer outline already sits (no double lines).
-	float mask = clamp(smoothstep(0.5, 1.0, inverse_depth) * 4.0, 0.0, 1.0);
+	float mask = smoothstep(depth_threshold * 0.5, depth_threshold * 1.5, near_diff);
 	float inner = clamp(clamp(normal_diff, 0.0, 1.0) - mask, 0.0, 1.0);
 	inner = clamp(inner - outer, 0.0, 1.0) * in_range;
 	outer *= in_range;
@@ -77,7 +90,7 @@ void fragment() {
 	// whatever is already on screen, so transparent overlays (selection and placement
 	// footprints, range rings) and the colours of the scene survive the pass.
 	vec3 base = texture(screen_texture, SCREEN_UV).rgb;
-	vec3 dark = base * (1.0 - darker_line);
+	vec3 dark = base * (1.0 - darker_line) * outline_tint;
 	vec3 light = mix(base, vec3(1.0), brighter_line);
 	// Full alpha on a line: darker_line and brighter_line set the colour change itself.
 	ALBEDO = outer >= inner ? dark : light;
