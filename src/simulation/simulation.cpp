@@ -44228,6 +44228,17 @@ void Simulation::defeat_player(uint8_t pid, uint8_t reason) {
 	note_session({SessionNotice::DEFEATED, pid, 0, reason, {}});
 }
 
+bool Simulation::remove_seat(uint8_t pid) {
+	if (pid >= MAX_PLAYERS || is_defeated(pid)) return false;
+	const uint8_t bit = (uint8_t)(1u << pid);
+	bool owns = false;
+	for (size_t u = 0; u < units_.count && !owns; ++u) owns = units_.team[u] == pid;
+	for (size_t b = 0; b < buildings_.size() && !owns; ++b) owns = buildings_[b].team == pid;
+	convert_to_gaia(bit); // Player.SetState: everything the seat owned is Gaia's now
+	if (owns) mark_players_defeated(bit);
+	return owns;
+}
+
 bool Simulation::cmd_resign(uint8_t pid) {
 	if (pid >= MAX_PLAYERS || is_defeated(pid) || game_over_ || victory_) return false;
 	const uint8_t bit = (uint8_t)(1u << pid);
