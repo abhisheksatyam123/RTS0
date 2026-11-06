@@ -799,6 +799,30 @@ int main() {
 		}
 	}
 
+	// 19b. SpawnRegicideHero's spawn preference: a Civic Centre first, then another structure,
+	// then a ship, then any unit (getSpawnPreference). With no Civic Centre the hero steps out
+	// beside the barracks, not into the ship or beside the archer.
+	{
+		Simulation sim;
+		sim.set_player_active(0, true, false);
+		sim.spawn_building_world(-30.0f, 0.0f, BLD_BARRACKS, 0);
+		const uint32_t ship = sim.spawn_unit(0.0f, 0.0f, 0, UNIT_TRIREME);
+		sim.spawn_unit(30.0f, 0.0f, 0, UNIT_ARCHER);
+		sim.set_regicide_garrison(true);
+		sim.set_victory_condition(VICTORY_REGICIDE);
+		sim.tick(0.05f);
+		const uint32_t hero = sim.regicide_hero(0);
+		CHECK(hero != 0);
+		const auto *aboard = sim.get_transport_passengers(ship);
+		CHECK(!aboard || std::find(aboard->begin(), aboard->end(), hero) == aboard->end());
+		const int32_t h = sim.lookup_unit(hero);
+		CHECK(h >= 0);
+		if (h >= 0) {
+			const auto uv = sim.units();
+			CHECK(std::fabs(uv.pos_x[h] + 30.0f) < 12.0f && std::fabs(uv.pos_z[h]) < 12.0f);
+		}
+	}
+
 	// 18. DisableTreasures: no treasure is left once the match starts.
 	{
 		Simulation sim;
