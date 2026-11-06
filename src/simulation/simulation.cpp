@@ -9428,6 +9428,7 @@ void Simulation::kill_passengers_of(size_t holder) {
 		const int32_t p = lookup_unit(puid);
 		if (p < 0) continue;
 		units_.hp[p] = 0.0f;
+		if (units_.hp[p] < 0.0f) units_.hp[p] = 0.0f; // Health.Reduce: a unit killed by overkill is at 0, not below
 		units_.alive[p] = 0;
 		units_.action_state[p] = ACTION_DYING;
 		record_unit_death((size_t)p, 0xFF);
@@ -9478,6 +9479,7 @@ void Simulation::eject_foreign_passengers(size_t transport) {
 		it->second.erase(at);
 		const int32_t p = lookup_unit(puid);
 		units_.hp[p] = 0.0f;
+		if (units_.hp[p] < 0.0f) units_.hp[p] = 0.0f; // Health.Reduce: a unit killed by overkill is at 0, not below
 		units_.alive[p] = 0;
 		units_.action_state[p] = ACTION_DYING;
 		if (units_.team[p] == 0) record_.units_lost++;
@@ -9519,6 +9521,7 @@ void Simulation::tick_siege_garrisons() {
 			float ex = cx, ez = cz;
 			if (!siege_spawn_point(i, units_.unit_type[p], puid, cx, cz, ex, ez)) {
 				units_.hp[p] = 0.0f;
+				if (units_.hp[p] < 0.0f) units_.hp[p] = 0.0f; // Health.Reduce: a unit killed by overkill is at 0, not below
 				units_.alive[p] = 0;
 				units_.action_state[p] = ACTION_DYING;
 				if (units_.team[p] == 0) record_.units_lost++;
@@ -9575,6 +9578,7 @@ void Simulation::unload_sunk_ship(size_t ship) {
 			units_.vel_x[p] = units_.vel_z[p] = 0.0f;
 		} else {
 			units_.hp[p] = 0.0f;
+			if (units_.hp[p] < 0.0f) units_.hp[p] = 0.0f; // Health.Reduce: a unit killed by overkill is at 0, not below
 			units_.alive[p] = 0;
 			units_.action_state[p] = ACTION_DYING;
 			if (units_.team[p] == 0) record_.units_lost++;
@@ -9690,6 +9694,7 @@ void Simulation::garrison_now(size_t i, Building &b) {
 	// GARRISONING enter: a dropsite takes what the unit carries.
 	if (units_.carry[i] > 0 && dropsite_accepts(i, b)) deposit_carry(i);
 	units_.action_state[i] = ACTION_GARRISONED;
+	if (units_.hp[i] < 0.0f) units_.hp[i] = 0.0f; // Health.Reduce: a unit killed by overkill is at 0, not below
 	units_.alive[i] = 0;
 	units_.has_order[i] = 0;
 	units_.vel_x[i] = 0.0f;
@@ -10875,6 +10880,7 @@ void Simulation::eject_or_kill(Building &b, uint8_t keep_allies_of) {
 		const int32_t i = lookup_unit(uid);
 		if (i < 0) continue;
 		units_.hp[i] = 0.0f;
+		if (units_.hp[i] < 0.0f) units_.hp[i] = 0.0f; // Health.Reduce: a unit killed by overkill is at 0, not below
 		units_.alive[i] = 0;
 		units_.action_state[i] = ACTION_DYING; // Health.Kill
 		record_unit_death((size_t)i, 0xFF);
@@ -11302,6 +11308,7 @@ void Simulation::order_board_transport(const uint32_t *unit_ids, size_t count, u
 		if (d2 <= reach * reach && pack_state_can_move(units_.pack_state[uidx]) &&
 				occupied_slots(passengers) + garrison_size((size_t)uidx) <= max_cap) {
 			units_.action_state[uidx] = ACTION_GARRISONED;
+			if (units_.hp[uidx] < 0.0f) units_.hp[uidx] = 0.0f; // Health.Reduce: a unit killed by overkill is at 0, not below
 			units_.alive[uidx] = 0;
 			units_.has_order[uidx] = 0;
 			units_.vel_x[uidx] = 0.0f;
@@ -12498,9 +12505,16 @@ bool Simulation::unit_running(size_t i) const {
 	if (st != ACTION_ATTACK || units_.target_unit_id[i] == 0) return false;
 	const uint32_t tid = units_.target_unit_id[i];
 	if (units_.chase_target[i] != tid) return false; // APPROACHING
-	const int32_t t = lookup_unit(tid);
+	// Still in range (ATTACKING): nothing moves, so the target's state now is what counts.
+	if (units_.chase_run[i] & CHASE_RANGE_BIT) return unit_chase_fleeing(tid);
+	// CHASING: the run was decided when the chase began (CHASING enter), not on each tick.
+	return (units_.chase_run[i] & CHASE_RUN_BIT) != 0;
+}
+
+bool Simulation::unit_chase_fleeing(uint32_t target_id) const {
+	const int32_t t = lookup_unit(target_id);
 	if (t >= 0) return units_.alive[t] && units_.action_state[t] == ACTION_FLEE;
-	auto f = fauna_id_to_idx_.find(tid);
+	auto f = fauna_id_to_idx_.find(target_id);
 	return f != fauna_id_to_idx_.end() && fauna_.alive[f->second] && fauna_.behavior[f->second] == FAUNA_FLEE;
 }
 
@@ -13610,6 +13624,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 					int max_pcap = get_transport_capacity(units_.id[tidx]);
 					if (occupied_slots(passengers) + garrison_size(i) <= max_pcap) {
 						units_.action_state[i] = ACTION_GARRISONED;
+						if (units_.hp[i] < 0.0f) units_.hp[i] = 0.0f; // Health.Reduce: a unit killed by overkill is at 0, not below
 						units_.alive[i] = 0;
 						units_.has_order[i] = 0;
 						units_.vel_x[i] = 0.0f;
@@ -15367,6 +15382,7 @@ void Simulation::tick_flight(float dt) {
 		}
 		if (killed) {
 			units_.hp[i] = 0.0f;
+			if (units_.hp[i] < 0.0f) units_.hp[i] = 0.0f; // Health.Reduce: a unit killed by overkill is at 0, not below
 			units_.alive[i] = 0;
 			units_.action_state[i] = ACTION_DYING;
 			units_.has_order[i] = 0;
@@ -18290,6 +18306,14 @@ void Simulation::tick_combat(float dt) {
 			p.new_order_flags = units_.order_flags[i] | ORDER_FLAG_CHEER;
 			p.order_flags_modified = true;
 			p.new_chase = units_.id[t];
+			// At the target (ATTACKING): the run is decided again when the chase begins.
+			p.new_run = (units_.chase_target[i] == p.new_chase ? (units_.chase_run[i] & CHASE_RUN_BIT) : 0) | CHASE_RANGE_BIT;
+			p.chase_modified = true;
+		} else if (units_.chase_target[i] == units_.id[t] && (units_.chase_run[i] & CHASE_RANGE_BIT)) {
+			// CHASING enter: the target has moved out of range, so the run is decided now
+			// (UnitAI CHASING "enter": a fleeing target is run after).
+			p.new_chase = units_.id[t];
+			p.new_run = unit_chase_fleeing(p.new_chase) ? CHASE_RUN_BIT : 0;
 			p.chase_modified = true;
 		}
 
@@ -18366,7 +18390,10 @@ void Simulation::tick_combat(float dt) {
 		if (p.target_idx < 0) continue;
 
 		if (p.order_flags_modified) units_.order_flags[i] = p.new_order_flags;
-		if (p.chase_modified) units_.chase_target[i] = p.new_chase;
+		if (p.chase_modified) {
+			units_.chase_target[i] = p.new_chase;
+			units_.chase_run[i] = p.new_run;
+		}
 		if (p.timer_modified) units_.attack_timer[i] = p.new_timer;
 		if (p.late_cleared && i < attack_late_.size()) attack_late_[i] = 0.0f;
 		if (p.action_modified) units_.action_state[i] = p.new_action_state;
@@ -18397,6 +18424,7 @@ void Simulation::tick_combat(float dt) {
 			apply_status((size_t)t, unit_combat_at(i), units_.id[i], units_.team[i]);
 
 			if (units_.hp[t] <= 0) {
+				if (units_.hp[t] < 0.0f) units_.hp[t] = 0.0f; // Health.Reduce: a unit killed by overkill is at 0, not below
 				units_.alive[t] = 0;
 				units_.action_state[t] = ACTION_DYING;
 				note_kill(units_.id[i], units_.id[t]);
@@ -19010,6 +19038,7 @@ void Simulation::tick_combat(float dt) {
 		units_.hp[u] += dt * burn;
 		if (units_.hp[u] > 0.0f) continue;
 		units_.hp[u] = 0.0f;
+		if (units_.hp[u] < 0.0f) units_.hp[u] = 0.0f; // Health.Reduce: a unit killed by overkill is at 0, not below
 		units_.alive[u] = 0;
 		units_.action_state[u] = ACTION_DYING;
 		record_unit_death(u, units_.team[u]);
@@ -19029,6 +19058,7 @@ void Simulation::tick_combat(float dt) {
 			units_.hp[u] += dt * healMod;
 			if (units_.hp[u] > 0.0f) continue;
 			units_.hp[u] = 0.0f;
+			if (units_.hp[u] < 0.0f) units_.hp[u] = 0.0f; // Health.Reduce: a unit killed by overkill is at 0, not below
 			units_.alive[u] = 0;
 			units_.action_state[u] = ACTION_DYING;
 			record_unit_death(u, units_.team[u]);
@@ -19733,6 +19763,7 @@ void Simulation::tick_projectiles(float dt) {
 					if (p.status_effect != 0)
 						if (const CombatProfile *att = projectile_status_profile(p)) apply_status((size_t)tidx, *att, p.source_id, p.team);
 					if (units_.hp[tidx] <= 0) {
+						if (units_.hp[tidx] < 0.0f) units_.hp[tidx] = 0.0f; // Health.Reduce: a unit killed by overkill is at 0, not below
 						units_.alive[tidx] = 0;
 						units_.action_state[tidx] = ACTION_DYING;
 						note_kill(p.source_id, units_.id[tidx]);
@@ -20060,6 +20091,7 @@ bool Simulation::status_tick(const StatusInstance &st) {
 						guard_answer(k, i, st.src);
 			return true;
 		}
+		if (units_.hp[i] < 0.0f) units_.hp[i] = 0.0f; // Health.Reduce: a unit killed by overkill is at 0, not below
 		units_.alive[i] = 0;
 		units_.action_state[i] = ACTION_DYING;
 		note_kill(st.src, units_.id[i]);
@@ -21000,6 +21032,7 @@ void Simulation::tick_death_damage(float dt) {
 			units_.hp[i] -= dmg;
 			if (units_.hp[i] > 0.0f) continue;
 			units_.hp[i] = 0.0f;
+			if (units_.hp[i] < 0.0f) units_.hp[i] = 0.0f; // Health.Reduce: a unit killed by overkill is at 0, not below
 			units_.alive[i] = 0;
 			units_.action_state[i] = ACTION_DYING;
 			stat_unit_lost(i, owner); // the dead entity's owner deals it
@@ -21177,6 +21210,7 @@ void Simulation::cause_damage_over_area(uint8_t splash, uint32_t attacker_id, ui
 		if (units_.team[u] == 0)
 			raise_alert(BattleAlert::ALERT_UNDER_ATTACK, units_.pos_x[u], units_.pos_z[u], units_.id[u], units_.team[u]);
 		if (units_.hp[u] > 0.0f) continue;
+		if (units_.hp[u] < 0.0f) units_.hp[u] = 0.0f; // Health.Reduce: a unit killed by overkill is at 0, not below
 		units_.alive[u] = 0;
 		units_.action_state[u] = ACTION_DYING;
 		note_kill(attacker_id, units_.id[u]);
@@ -23005,6 +23039,7 @@ void Simulation::cmd_delete(uint8_t player, const uint32_t *ids, size_t count) {
 		if (i >= 0 && units_.alive[i] && (units_.team[i] == player || control_all)) {
 			const uint8_t owner = units_.team[i];
 			units_.hp[i] = 0.0f;
+			if (units_.hp[i] < 0.0f) units_.hp[i] = 0.0f; // Health.Reduce: a unit killed by overkill is at 0, not below
 			units_.alive[i] = 0;
 			units_.action_state[i] = ACTION_DYING;
 			order_queues_.erase(id);
@@ -23072,6 +23107,7 @@ bool Simulation::cmd_cheat(uint8_t player, uint8_t action, int32_t parameter, ui
 			if (i >= 0) {
 				if (!units_.alive[i] || is_relic_unit(i)) continue;
 				units_.hp[i] = 0.0f;
+				if (units_.hp[i] < 0.0f) units_.hp[i] = 0.0f; // Health.Reduce: a unit killed by overkill is at 0, not below
 				units_.alive[i] = 0;
 				units_.action_state[i] = ACTION_DYING;
 				order_queues_.erase(selected[k]);
@@ -31778,10 +31814,25 @@ uint32_t Simulation::find_petra_rush_target(float &out_tx, float &out_tz, uint8_
 	// becomes the target and its owner the enemy.
 	if (const uint32_t id = petra_nearest_target(PETRA_ATTACK_RUSH, false, enemy, bx, bz, land, out_tx, out_tz))
 		return petra_target_obstruction(id, bx, bz, out_tx, out_tz);
-	for (int p = 0; p < MAX_PLAYERS; ++p) // rushTargetFinder(gameState): any enemy
-		if (p != enemy && petra_foe(p) && !is_defeated((uint8_t)p))
-			if (const uint32_t id = petra_nearest_target(PETRA_ATTACK_RUSH, false, (uint8_t)p, bx, bz, land, out_tx, out_tz))
-				return petra_target_obstruction(id, bx, bz, out_tx, out_tz);
+	// rushTargetFinder(gameState) with no player (attackPlan.js:1045-1099): the nearest of every
+	// enemy's undefended structures, not the first enemy that has one.
+	{
+		uint32_t fb_id = 0;
+		float fb_x = 0.0f, fb_z = 0.0f, fb_d = 1e30f;
+		for (int p = 0; p < MAX_PLAYERS; ++p) {
+			if (p == enemy || !petra_foe(p) || is_defeated((uint8_t)p)) continue;
+			float tx = 0.0f, tz = 0.0f;
+			const uint32_t id = petra_nearest_target(PETRA_ATTACK_RUSH, false, (uint8_t)p, bx, bz, land, tx, tz);
+			if (!id) continue;
+			const float dx = tx - bx, dz = tz - bz, d = dx * dx + dz * dz;
+			if (!fb_id || d < fb_d) { fb_id = id; fb_x = tx; fb_z = tz; fb_d = d; }
+		}
+		if (fb_id) {
+			out_tx = fb_x;
+			out_tz = fb_z;
+			return petra_target_obstruction(fb_id, bx, bz, out_tx, out_tz);
+		}
+	}
 	if (forced)
 		if (const uint32_t id = petra_nearest_target(PETRA_ATTACK_RUSH, true, enemy, bx, bz, land, out_tx, out_tz))
 			return petra_target_obstruction(id, bx, bz, out_tx, out_tz);
@@ -33427,20 +33478,28 @@ bool Simulation::petra_unit_reserved(uint32_t uid) const {
 	return petra_is_defender(uid);
 }
 
-uint32_t Simulation::find_petra_raid_target(float &out_tx, float &out_tz) const {
-	float bx = 36.0f, bz = 36.0f;
-	if (const auto *base = get_primary_petra_base()) { bx = base->x; bz = base->z; }
+uint32_t Simulation::find_petra_raid_target(float &out_tx, float &out_tz, const std::vector<uint32_t> *from_squad) const {
 	// attackManager.js:425-433: the first enemy structure of defenseManager.js targetList, in
 	// the order the structures were found.
-	(void)bx; (void)bz;
+	float fx = 0.0f, fz = 0.0f;
+	const bool nearest = from_squad && petra_squad_centre(*from_squad, fx, fz);
+	uint32_t best = 0;
+	float best_d2 = 0.0f;
 	for (const uint32_t id : petra_defense_targets_.ids) {
 		const auto it = building_id_to_idx_.find(id);
 		if (it == building_id_to_idx_.end() || !petra_defense_target(buildings_[it->second])) continue;
-		out_tx = buildings_[it->second].x;
-		out_tz = buildings_[it->second].z;
-		return id;
+		if (!nearest) {
+			out_tx = buildings_[it->second].x;
+			out_tz = buildings_[it->second].z;
+			return id;
+		}
+		// AttackPlan.getNearestTarget (UpdateTarget, attackPlan.js:2020): the nearest of the
+		// targetList from the army's position; a tie keeps the earlier entry.
+		const float dx = buildings_[it->second].x - fx, dz = buildings_[it->second].z - fz;
+		const float d2 = dx * dx + dz * dz;
+		if (!best || d2 < best_d2) { best = id; best_d2 = d2; out_tx = buildings_[it->second].x; out_tz = buildings_[it->second].z; }
 	}
-	return 0;
+	return best;
 }
 
 // attackManager.js raidTargetEntity / attackPlan.js "Raid": a few cavalry
@@ -33787,7 +33846,7 @@ void Simulation::petra_update_started_raid(AttackPlan &plan, float base_x, float
 		}
 		if (!target_ok) {
 			float tx = 0.0f, tz = 0.0f;
-			uint32_t tid = find_petra_raid_target(tx, tz);
+			uint32_t tid = find_petra_raid_target(tx, tz, &plan.squad);
 			if (tid) {
 				plan.target_building_id = tid;
 				plan.blocked = petra_pick_blocked_;
@@ -39794,6 +39853,8 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		}
 		if (ar.version >= S::SAVE_VERSION_CHASE_TARGET) ar.pod(U.chase_target[i]);
 		else U.chase_target[i] = 0; // a chase under way walks until the next strike
+		if (ar.version >= S::SAVE_VERSION_CHASE_RUN) ar.pod(U.chase_run[i]);
+		else U.chase_run[i] = 0; // a chase saved before the run latch walks until its next strike
 		if (ar.version >= S::SAVE_VERSION_GATHER_CLAIMS) {
 			ar.pod(U.gather_claim_res[i]); ar.pod(U.gather_claim[i]);
 		} else {
@@ -41859,6 +41920,7 @@ void Simulation::fauna_hit_unit(size_t f, size_t u) {
 	if (units_.team[u] < MAX_PLAYERS && petra_runs_for(units_.team[u]))
 		petra_ev_attacked_.push_back({(uint32_t)ticks_ + 1, units_.id[u], fauna_.id[f]});
 	if (units_.hp[u] <= 0.0f) {
+		if (units_.hp[u] < 0.0f) units_.hp[u] = 0.0f; // Health.Reduce: a unit killed by overkill is at 0, not below
 		units_.alive[u] = 0;
 		units_.action_state[u] = ACTION_DYING;
 		record_unit_death(u, GAIA_PLAYER);
@@ -41930,7 +41992,12 @@ void Simulation::tick_hunters() {
 		// The animal's footprint. Slaughter's MaxRange is 2 m even for archers, who walk up to it.
 		const float reach = (slaughter ? SLAUGHTER_RANGE : units_.attack_range[i]) + finfo.footprint;
 		const bool in_reach = dx * dx + dz * dz <= reach * reach;
-		if (in_reach) units_.chase_target[i] = tid; // COMBAT.ATTACKING: CHASING follows it from here
+		if (in_reach) { // COMBAT.ATTACKING: CHASING follows it from here
+			units_.chase_run[i] = (units_.chase_target[i] == tid ? (units_.chase_run[i] & CHASE_RUN_BIT) : 0) | CHASE_RANGE_BIT;
+			units_.chase_target[i] = tid;
+		} else if (units_.chase_target[i] == tid && (units_.chase_run[i] & CHASE_RANGE_BIT)) {
+			units_.chase_run[i] = unit_chase_fleeing(tid) ? CHASE_RUN_BIT : 0; // CHASING enter
+		}
 		if (!attack_ready(i, in_reach, slaughter ? SLAUGHTER_PREPARE : unit_combat_at(i).prepare)) continue;
 
 		float dmg;
@@ -44160,6 +44227,17 @@ void Simulation::defeat_player(uint8_t pid, uint8_t reason) {
 	note_session({SessionNotice::DEFEATED, pid, 0, reason, {}});
 }
 
+bool Simulation::remove_seat(uint8_t pid) {
+	if (pid >= MAX_PLAYERS || is_defeated(pid)) return false;
+	const uint8_t bit = (uint8_t)(1u << pid);
+	bool owns = false;
+	for (size_t u = 0; u < units_.count && !owns; ++u) owns = units_.team[u] == pid;
+	for (size_t b = 0; b < buildings_.size() && !owns; ++b) owns = buildings_[b].team == pid;
+	convert_to_gaia(bit); // Player.SetState: everything the seat owned is Gaia's now
+	if (owns) mark_players_defeated(bit);
+	return owns;
+}
+
 bool Simulation::cmd_resign(uint8_t pid) {
 	if (pid >= MAX_PLAYERS || is_defeated(pid) || game_over_ || victory_) return false;
 	const uint8_t bit = (uint8_t)(1u << pid);
@@ -45096,6 +45174,7 @@ void Simulation::trigger_survival_ownership(const TriggerEventData &data) {
 		if (u >= 0 && units_.alive[u]) {
 			// Engine.DestroyEntity: gone, not killed.
 			units_.hp[u] = 0.0f;
+			if (units_.hp[u] < 0.0f) units_.hp[u] = 0.0f; // Health.Reduce: a unit killed by overkill is at 0, not below
 			units_.alive[u] = 0;
 			units_.action_state[u] = ACTION_DYING;
 			units_.has_order[u] = 0;
@@ -45215,6 +45294,7 @@ void Simulation::tutorial_remove_champions() {
 		const TechClasses c = t < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(t).tech_classes : unit_tech_classes(units_.unit_type[i]);
 		if (!(c & TC_CHAMPION) || --keep >= 0) continue;
 		units_.hp[i] = 0.0f; // Health.Kill
+		if (units_.hp[i] < 0.0f) units_.hp[i] = 0.0f; // Health.Reduce: a unit killed by overkill is at 0, not below
 		units_.alive[i] = 0;
 		units_.action_state[i] = ACTION_DYING;
 		units_.has_order[i] = 0;
@@ -46494,6 +46574,7 @@ void Simulation::set_water_level(float h, float drown_depth) {
 		if (!units_.alive[i] || unit_is_ship(units_.unit_type[i])) continue;
 		if (!submerged(units_.pos_x[i], units_.pos_z[i])) continue;
 		units_.hp[i] = 0.0f;
+		if (units_.hp[i] < 0.0f) units_.hp[i] = 0.0f; // Health.Reduce: a unit killed by overkill is at 0, not below
 		units_.alive[i] = 0;
 		units_.action_state[i] = ACTION_DYING;
 		units_.has_order[i] = 0;
@@ -46515,6 +46596,7 @@ void Simulation::set_water_level(float h, float drown_depth) {
 			const int32_t u = lookup_unit(uid);
 			if (u < 0) continue;
 			units_.hp[u] = 0.0f;
+			if (units_.hp[u] < 0.0f) units_.hp[u] = 0.0f; // Health.Reduce: a unit killed by overkill is at 0, not below
 			units_.alive[u] = 0;
 			units_.action_state[u] = ACTION_DYING;
 			units_.pos_x[u] = b.x;

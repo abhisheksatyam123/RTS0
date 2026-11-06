@@ -290,6 +290,8 @@ void RtsoMain::refresh_lobby_seats() {
 		Label *who = memnew(Label);
 		who->set_text(c.name.empty() ? String("Player") : String::utf8(c.name.c_str()));
 		who->set_h_size_flags(Control::SIZE_EXPAND_FILL);
+		// 0 A.D. PlayerAssignmentItem.Client: an observer's name is 170 170 250.
+		if (c.watches) who->add_theme_color_override("font_color", Color(170 / 255.0f, 170 / 255.0f, 250 / 255.0f));
 		row->add_child(who);
 		OptionButton *pick = memnew(OptionButton);
 		pick->add_item(eff[c.id] < 8 ? "Next free slot (Player " + String::num_int64(eff[c.id] + 1) + ")" : String("Next free slot"), SEAT_AUTO);
@@ -308,6 +310,41 @@ void RtsoMain::refresh_lobby_seats() {
 		pick->connect("item_selected", Callable(this, "_on_lobby_seat_selected").bind((int)c.id));
 		row->add_child(pick);
 		lobby_seats->add_child(row);
+	}
+	// The slots, as 0 A.D.'s PlayerAssignment dropdown names them: a closed slot is
+	// "Removed" (255 140 140), an AI slot "AI: <name>" (70 150 70), a human slot the
+	// client that plays it (white) or "Unassigned" when nobody does (140 140 140).
+	// Shown for the host to read; the AI and Removed choices stay on Game Setup.
+	Label *slots_title = memnew(Label);
+	slots_title->set_text("Slots");
+	lobby_seats->add_child(slots_title);
+	for (int i = 0; i < (int)slots.size(); ++i) {
+		std::string who_plays;
+		bool held = false;
+		for (const auto &c : clients) {
+			if (eff[c.id] == i) {
+				who_plays = c.name;
+				held = true;
+			}
+		}
+		Label *slot = memnew(Label);
+		Color tint(1, 1, 1);
+		String text = "Player " + String::num_int64(i + 1);
+		if (slots[i].type == 'x') {
+			text += ": Removed";
+			tint = Color(255 / 255.0f, 140 / 255.0f, 140 / 255.0f);
+		} else if (slots[i].type == 'a') {
+			text += ": AI: " + (slots[i].name.is_empty() ? String("Petra Bot") : slots[i].name);
+			tint = Color(70 / 255.0f, 150 / 255.0f, 70 / 255.0f);
+		} else if (held) {
+			text += ": " + String::utf8(who_plays.c_str());
+		} else {
+			text += ": Unassigned";
+			tint = Color(140 / 255.0f, 140 / 255.0f, 140 / 255.0f);
+		}
+		slot->set_text(text);
+		slot->add_theme_color_override("font_color", tint);
+		lobby_seats->add_child(slot);
 	}
 }
 

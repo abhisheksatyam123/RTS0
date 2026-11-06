@@ -1822,15 +1822,11 @@ func _unassign_net_slot(k: int) -> void:
 		net_main.assign_net_client(holder, -1)
 
 ## Host: PlayerAssignmentsController.unassignInvalidPlayers, a lower player count
-## leaves the clients of the dropped slots unassigned.
+## leaves the clients of the dropped slots unassigned. Removed seats keep their index.
 func _unassign_net_slots_from(count: int) -> void:
-	var k := 0
 	for i in _slot_rows.size():
-		if i > 0 and int(_slot_rows[i]["kind"]) == 2:
-			continue
 		if i >= count:
-			_unassign_net_slot(k)
-		k += 1
+			_unassign_net_slot(i)
 
 ## The AI dialog's AI Player: Petra makes the slot an AI, None an unassigned one.
 func _set_slot_kind(slot: int, kind: int) -> void:
@@ -2411,8 +2407,7 @@ func _collect_setup() -> Dictionary:
 		var k := int(_slot_rows[i]["kind"])
 		if i == 0:
 			k = mini(k, 1) # Human or AI, never closed
-		if k == 2:
-			continue # closed: 0 A.D. drops the slot, so later players move up
+		# Removed (2) keeps its seat: 0 A.D. PlayerRemoved defeats it at start, so later players keep their numbers.
 		if k == 0 and i == _local_slot:
 			local = types.size()
 		types.append(k)
@@ -2520,6 +2515,8 @@ func _on_start_pressed() -> void:
 		# once all players are ready (0.28 ReadyController).
 		if bool(_net_state.get("can_start", false)):
 			save_persisted() # launchGame, before Random is resolved
+			_start_pressed = true
+			_update_net_controls()
 		_host_write_setup(true)
 		net_main._on_lobby_start_pressed()
 		return
@@ -2626,6 +2623,9 @@ func _show_error(msg: String) -> void:
 
 var net_main: Node = null
 var _mp_role := "none"           # "none", "host" or "client"
+# 0.28 StartGameButton.onPress: once pressed the button is disabled until the
+# match goes, so a second click cannot start the match twice.
+var _start_pressed := false
 var _net_state := {}             # net_main.get_net_setup_state()
 var _net_sent := {}              # host: the settings written last
 var _net_random_map := ""        # host: the map Random picked, kept while Random stays selected
@@ -2915,7 +2915,9 @@ func _update_net_controls() -> void:
 	var start := $VBox/HBox/Right/Buttons/BtnStart as Button
 	if _mp_role == "host":
 		var ok := bool(_net_state.get("can_start", false))
-		start.disabled = not ok
+		if not ok:
+			_start_pressed = false
+		start.disabled = _start_pressed or not ok
 		start.tooltip_text = START_TOOLTIP if ok else START_WAIT_TOOLTIP
 		return
 	var ready := clampi(int(_net_state.get("ready", 0)), 0, 2)
@@ -2971,14 +2973,13 @@ func _process(delta: float) -> void:
 		_host_write_setup(false)
 	_apply_mp_locks() # controls the page rebuilt since
 
-## The rows that are in the setup (Closed slots are dropped, as at Start):
-## the setup's slot k is row _net_rows()[k].
+## The rows that are in the setup. Removed seats stay (0 A.D. keeps the seat and defeats it
+## at start), so the setup's slot k is row _net_rows()[k].
 func _net_rows() -> Array:
 	var rows: Array = []
 	var n := mini(int(_slot_count_node().value), _slot_rows.size())
 	for i in range(n):
-		if i == 0 or int(_slot_rows[i]["kind"]) != 2:
-			rows.append(i)
+		rows.append(i)
 	return rows
 
 ## Host: the page into MatchSettings, which RtsoMain sends when it changed.
@@ -3229,7 +3230,10 @@ func _update_net_observers() -> void:
 		return
 	var names: Array = Array(_net_state.get("observers", [])).map(func(e): return str(e.get("name", "")))
 	var lbl: Label = %NetObservers
-	lbl.text = "Observers: " + ", ".join(names) if not names.is_empty() else ""
+	# 0 A.D. getGameDescription: the observers' heading ("Observer" or "Observers",
+	# by how many) over their names, one a line.
+	var heading := "Observer" if names.size() == 1 else "Observers"
+	lbl.text = (heading + ":\n" + "\n".join(names)) if not names.is_empty() else ""
 	lbl.visible = not names.is_empty()
 
 ## GameSettingControlManager with isSavedGame: the controller loaded a saved
