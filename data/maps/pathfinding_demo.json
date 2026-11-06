@@ -4173,13 +4173,15 @@
       "type": "gold",
       "x": 34.84,
       "z": 3.46,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "stone",
       "x": 40.71,
       "z": 3.9,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "tree/oak_large",
