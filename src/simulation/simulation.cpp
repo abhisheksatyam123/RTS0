@@ -16183,12 +16183,44 @@ bool Simulation::obstructed_search(size_t i, const nav::ShortPathGoal &goal, flo
 		std::vector<nav::Vec2> &path, size_t *searched) const {
 	thread_local std::vector<SteerObstacle> near;
 	const float x = units_.pos_x[i], z = units_.pos_z[i];
+	const float clr = unit_clearance_at(i);
+	const uint64_t sps = short_path_key_, gsig = forest_sig_of_gaia();
+	if (i < search_memo_.size()) {
+		const SearchMemo &m = search_memo_[i];
+		if (m.valid && m.sps == sps && m.gsig == gsig && m.clr == clr && m.range == range && m.ignore == ignore &&
+				m.goal_type == (uint8_t)goal.type && m.pos.x == x && m.pos.y == z &&
+				m.center.x == goal.center.x && m.center.y == goal.center.y && m.hw == goal.hw && m.hh == goal.hh &&
+				m.u.x == goal.u.x && m.u.y == goal.u.y && m.v.x == goal.v.x && m.v.y == goal.v.y) {
+			path = m.path;
+			if (searched) *searched += m.cost;
+			return m.reached;
+		}
+	}
 	near.clear();
 	if (near.capacity() < 32) near.reserve(32);
 	gaia_obstacles_near(x, z, range * (nav::BUILDING_STEER_CULL / nav::BUILDING_STEER_RANGE), near);
 	if (searched) *searched += near.size();
-	return nav::search_short_path_to_goal(nav::Vec2(x, z), goal, unit_clearance_at(i), range,
+	const bool reached = nav::search_short_path_to_goal(nav::Vec2(x, z), goal, clr, range,
 			nav::ConcatRange<SteerObstacle>{steer_obstacles_, near}, ignore, nav_grid_, path);
+	if (i >= search_memo_.size()) search_memo_.resize(i + 1);
+	SearchMemo &m = search_memo_[i];
+	m.valid = true;
+	m.reached = reached;
+	m.goal_type = (uint8_t)goal.type;
+	m.pos = nav::Vec2(x, z);
+	m.center = goal.center;
+	m.u = goal.u;
+	m.v = goal.v;
+	m.clr = clr;
+	m.range = range;
+	m.hw = goal.hw;
+	m.hh = goal.hh;
+	m.ignore = ignore;
+	m.sps = sps;
+	m.gsig = gsig;
+	m.cost = near.size();
+	m.path = path;
+	return reached;
 }
 
 // A unit's far or sub-goal search can cover 56 m of trees, 2-4 ms of CPU where a wood fills the box,
