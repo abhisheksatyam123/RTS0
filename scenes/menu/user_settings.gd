@@ -602,12 +602,18 @@ func phone_ui_factor() -> float:
 func _apply_gi() -> void:
 	var forward := RenderingServer.get_rendering_device() != null
 	var mode := cfg.get_value("gi") if forward else "off"
+	# The pixel-art look (pixelart) lifts contrast and saturation a little, so the pixel
+	# outlines and team colours still read at a distance. Off, the scene's own values stay.
+	var pixel := cfg.get_bool("pixelart")
 	for we in get_tree().root.find_children("*", "WorldEnvironment", true, false):
 		var env: Environment = we.environment
 		if env == null:
 			continue
 		env.sdfgi_enabled = mode != "off"
 		env.sdfgi_cascades = 1 if mode == "low" else 2
+		env.adjustment_enabled = pixel
+		env.adjustment_contrast = 1.1 if pixel else 1.0
+		env.adjustment_saturation = 1.12 if pixel else 1.0
 
 ## renderer.scale with renderer.upscale.technique, antialiasing and
 ## gui.scale on the main viewport (times phone_ui_factor()).
