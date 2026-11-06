@@ -487,6 +487,13 @@ jobs:
       - name: Lockstep playtest
         run: python3 tools/playtest_lockstep.py
 
+      - name: Multiplayer conquest victory (3 peers, 2 humans; then with 2 Petra seats)
+        run: |
+          SRC="src/simulation/simulation.cpp src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp src/network/net_host.cpp"
+          g++ -std=c++20 -O1 -g -fno-exceptions -UNDEBUG -Isrc tools/test_mp_victory.cpp $SRC -o /tmp/test_mp_victory
+          /tmp/test_mp_victory 7
+          /tmp/test_mp_victory 7 --petra
+
       - name: Headless match benchmark
         run: python3 tools/bench_match.py
 
