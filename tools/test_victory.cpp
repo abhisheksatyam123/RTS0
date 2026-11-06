@@ -89,6 +89,17 @@ int main() {
 		CHECK(sim->wave_number() >= 1);
 		delete sim;
 	}
+	// 2b. Surviving wave 5 ends the match like any win: game over, winner named (not just victory_).
+	{
+		Simulation *sim = fresh(VICTORY_CONQUEST, true);
+		sim->wave_number_ = 5;
+		sim->wave_timer_ = 34.9f;
+		run(*sim, 0.2f);
+		CHECK(sim->is_victory());
+		CHECK(sim->is_game_over());
+		CHECK(sim->winner_mask_ & 1);
+		delete sim;
+	}
 	// 3. Conquest: enemy needs both units and structures gone.
 	{
 		Simulation *sim = fresh(VICTORY_CONQUEST);
