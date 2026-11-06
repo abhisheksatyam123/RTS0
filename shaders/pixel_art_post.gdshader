@@ -73,8 +73,13 @@ void fragment() {
 	inner = clamp(inner - outer, 0.0, 1.0) * in_range;
 	outer *= in_range;
 
-	vec3 color = texture(screen_texture, SCREEN_UV).rgb;
-	color += inner * brighter_line;
-	color -= color * outer * darker_line;
-	ALBEDO = clamp(color, 0.0, 1.0);
+	// Blend only where a line is drawn (alpha 0 elsewhere): pixels without an outline keep
+	// whatever is already on screen, so transparent overlays (selection and placement
+	// footprints, range rings) and the colours of the scene survive the pass.
+	vec3 base = texture(screen_texture, SCREEN_UV).rgb;
+	vec3 dark = base * (1.0 - darker_line);
+	vec3 light = mix(base, vec3(1.0), brighter_line);
+	// Full alpha on a line: darker_line and brighter_line set the colour change itself.
+	ALBEDO = outer >= inner ? dark : light;
+	ALPHA = max(outer, inner);
 }
