@@ -313,6 +313,57 @@ void RtsoCameraRig::sync_pixel_art() {
 		pixel_mat_->set_shader_parameter("cam_near", cam->get_near());
 		pixel_mat_->set_shader_parameter("cam_far", cam->get_far());
 	}
+	sync_pixel_world(want);
+}
+
+// Pixel mode's low-res world: the SubViewport renders the shared 3D world at half the window's
+// size through a camera that copies cam each frame; its texture is drawn nearest-filtered on a
+// background layer, so the 3D pixels are sharp and the HUD (drawn above) stays sharp. The root
+// viewport stops rendering 3D (picking uses cam, so it still works).
+void RtsoCameraRig::sync_pixel_world(bool want) {
+	static constexpr float kPixelScale = 0.5f;
+	Viewport *root = get_viewport();
+	if (!root) return;
+	if (want) {
+		if (!pixel_vp_) {
+			pixel_vp_ = memnew(SubViewport);
+			pixel_vp_->set_name("PixelWorld");
+			add_child(pixel_vp_);
+			pixel_vp_->set_world_3d(root->get_world_3d());
+			pixel_cam_ = memnew(Camera3D);
+			pixel_vp_->add_child(pixel_cam_);
+			pixel_layer_ = memnew(CanvasLayer);
+			pixel_layer_->set_layer(-1);
+			add_child(pixel_layer_);
+			pixel_rect_ = memnew(TextureRect);
+			pixel_rect_->set_texture(pixel_vp_->get_texture());
+			pixel_rect_->set_texture_filter(CanvasItem::TEXTURE_FILTER_NEAREST);
+			pixel_rect_->set_stretch_mode(TextureRect::STRETCH_SCALE);
+			pixel_rect_->set_anchors_and_offsets_preset(Control::PRESET_FULL_RECT);
+			pixel_rect_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE); // clicks reach the world
+			pixel_layer_->add_child(pixel_rect_);
+		}
+		const Vector2 win = root->get_visible_rect().size;
+		const Vector2i low = Vector2i(Math::max(1, (int)(win.x * kPixelScale)), Math::max(1, (int)(win.y * kPixelScale)));
+		if (pixel_vp_->get_size() != low) pixel_vp_->set_size(low);
+		pixel_vp_->set_update_mode(SubViewport::UPDATE_ALWAYS);
+		pixel_layer_->show();
+		root->set_disable_3d(true);
+		// Mirror the rig's camera: pose, lens and planes.
+		pixel_cam_->set_global_transform(cam->get_global_transform());
+		pixel_cam_->set_projection(cam->get_projection());
+		pixel_cam_->set_fov(cam->get_fov());
+		pixel_cam_->set_near(cam->get_near());
+		pixel_cam_->set_far(cam->get_far());
+		pixel_cam_->set_keep_aspect_mode(cam->get_keep_aspect_mode());
+		pixel_cam_->set_size(cam->get_size());
+		pixel_cam_->set_cull_mask(cam->get_cull_mask());
+		if (!pixel_cam_->is_current()) pixel_cam_->make_current();
+	} else if (pixel_vp_) {
+		pixel_vp_->set_update_mode(SubViewport::UPDATE_DISABLED);
+		pixel_layer_->hide();
+		root->set_disable_3d(false);
+	}
 }
 
 void RtsoCameraRig::_process(double delta) {
