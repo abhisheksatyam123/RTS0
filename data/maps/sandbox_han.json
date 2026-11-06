@@ -4445,13 +4445,15 @@
       "type": "gold",
       "x": 35.93,
       "z": -63.67,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "gold",
       "x": 33.2,
       "z": -61.33,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "tree/cherry_blossom",

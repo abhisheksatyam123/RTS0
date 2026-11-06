@@ -4344,13 +4344,15 @@
       "type": "gold",
       "x": -38.5,
       "z": -78.5,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "stone",
       "x": -40.17,
       "z": -82.69,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "oak",
@@ -4404,13 +4406,15 @@
       "type": "gold",
       "x": 75.5,
       "z": -22.5,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "stone",
       "x": 72.84,
       "z": -27.28,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "oak",
@@ -4464,13 +4468,15 @@
       "type": "gold",
       "x": 20.5,
       "z": 90.5,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "stone",
       "x": 17.29,
       "z": 80.18,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "oak",
@@ -4524,13 +4530,15 @@
       "type": "gold",
       "x": -92.5,
       "z": 37.5,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "stone",
       "x": -95.86,
       "z": 32.4,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "oak",
@@ -8364,109 +8372,127 @@
       "type": "stone",
       "x": -107.6,
       "z": 61.86,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "stone",
       "x": 2.2,
       "z": -114.9,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "stone",
       "x": -21.35,
       "z": 78.02,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "stone",
       "x": -22.27,
       "z": 77.19,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "stone",
       "x": -24.56,
       "z": 78.36,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "stone",
       "x": -48.88,
       "z": 35.39,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "stone",
       "x": -51.93,
       "z": 36.75,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "stone",
       "x": 62.45,
       "z": 72.8,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "stone",
       "x": 63.62,
       "z": 73.88,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "stone",
       "x": 63.11,
       "z": 76.39,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "stone",
       "x": 59.93,
       "z": 73.46,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "stone",
       "x": 60.11,
       "z": 74.9,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "stone",
       "x": 34.24,
       "z": 50.22,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "stone",
       "x": 32.3,
       "z": 45.82,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "stone",
       "x": 35.01,
       "z": 49.16,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "gold",
       "x": 82.86,
       "z": 96.03,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "gold",
       "x": -112.58,
       "z": 0.13,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "stone",
       "x": -20.1,
       "z": -14.03,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "oak",
