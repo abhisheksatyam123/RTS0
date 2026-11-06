@@ -208,6 +208,7 @@ static constexpr uint32_t SAVE_VERSION_RALLY = 47; // each structure's rally res
 static constexpr uint32_t SAVE_VERSION_PETRA_STARTED_ATTACKS = 52;
 static constexpr uint32_t SAVE_VERSION_PATROL_WAIT = 58; // each patrolling unit's time at its waypoint
 static constexpr uint32_t SAVE_VERSION_PETRA_CHAT = 66; // Petra chat lines as kind, variant and players; trade-route warnings
+static constexpr uint32_t SAVE_VERSION_PETRA_QUEUE_PLANS = 144; // each queue's first two plans (queue.js plans) beside its accounts
 static constexpr uint32_t SAVE_VERSION_PETRA_QUEUES = 67; // Petra's 0.28 queues: 21 accounts with priorities, paused and switched
 // The save version that added each unit's kept short path (tick_state_io section 1) and the aura
 // sources in force (section 9).
@@ -7228,8 +7229,11 @@ void Simulation::cmd_move_individual(const uint32_t *unit_ids, size_t count, flo
 		units_.anchor_z[idx] = w.dest_z;
 		// HierarchicalPathfinder::MakeGoalReachable: a player's walk to a point the unit can't reach
 		// (out at sea, ashore for a ship, another island) ends where find_path ends the path, the
-		// nearest point it can reach. Petra's walks keep their goal.
-		if (beach_goal_ && wp.count > 0) {
+		// nearest point it can reach. Petra's walks keep their goal. The G163 end move snaps a land walk's
+		// goal on an impassable navcell about 5 m, not onto the goal's own ground: such a walk keeps its raw
+		// target, as base did (0.28 never moves a unit's target). Ships and water goals keep the copy.
+		const bool keep_raw = !unit_is_ship(units_.unit_type[idx]) && nav_grid_.point_goal_snaps(w.dest_x, w.dest_z, w.pass);
+		if (beach_goal_ && wp.count > 0 && !keep_raw) {
 			units_.target_x[idx] = units_.anchor_x[idx] = wp.xs[wp.count - 1];
 			units_.target_z[idx] = units_.anchor_z[idx] = wp.zs[wp.count - 1];
 		}
@@ -34097,6 +34101,7 @@ void Simulation::petra_refresh_queue_accounts(float dt) {
 		if (qm.want_age[i] > PetraQueueManager::want_ttl(i)) {
 			qm.wants[i] = PetraQueueAccount{};
 			qm.accounts[i] = PetraQueueAccount{};
+			for (auto &pl : qm.plans[i]) pl = PetraQueuePlan{};
 			qm.switched[i] = 0;
 		}
 	}
@@ -34324,6 +34329,8 @@ bool Simulation::petra_try_pay(uint8_t queue, float food, float wood, float gold
 		w.food = std::max(w.food, food); w.wood = std::max(w.wood, wood);
 		w.gold = std::max(w.gold, gold); w.stone = std::max(w.stone, stone);
 		qm.want_age[queue] = 0.0f;
+		// The head plan is the item this check is for (queue.js plans[0]).
+		qm.plans[queue][0] = PetraQueuePlan{food, wood, gold, stone, 1, {}};
 		return false;
 	}
 	if (!pay) return true;
@@ -34332,6 +34339,9 @@ bool Simulation::petra_try_pay(uint8_t queue, float food, float wood, float gold
 	petra_ps().pay(food, wood, gold, stone); // affordable: checked above
 	w = PetraQueueAccount{};
 	qm.want_age[queue] = 0.0f;
+	// The started plan leaves the queue; the next one is not known until it is checked (stage 1).
+	qm.plans[queue][0] = qm.plans[queue][1];
+	qm.plans[queue][1] = PetraQueuePlan{};
 	qm.switched[queue] = 0;
 	// The started plan's queueToReset goes back to its Config.priorities value.
 	if (const uint8_t r = qm.reset_on_start[queue]) {
@@ -40297,7 +40307,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 					if (v.pending > BLD_TYPE_COUNT) ar.ok = false;
 			} else v = PetraDefenseBuild{};
 		} else if constexpr (std::is_same_v<T, PetraQueueManager>) {
-			if (ar.version >= SAVE_VERSION_PETRA_QUEUES) {
+			if (ar.version >= SAVE_VERSION_PETRA_QUEUE_PLANS) {
 				ar.pod(v);
 				if constexpr (Ar::loading) {
 					for (int q = 0; q < PETRA_Q_COUNT; ++q)
@@ -40305,10 +40315,26 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 					if (v.special_tech >= TECH_COUNT) ar.ok = false; // a former pad byte: 0 in older saves
 				}
 			} else if constexpr (Ar::loading) {
-				// The six coarse queues: their wants come back within a turn, so they restart empty.
-				PetraQueueManagerV59 old;
-				ar.pod(old);
-				v.reset();
+				if (ar.version >= SAVE_VERSION_PETRA_QUEUES) {
+					// v67 to v143: the same queues without their plan lists (which start empty).
+					PetraQueueManagerV143 old;
+					ar.pod(old);
+					for (int q = 0; q < PETRA_Q_COUNT; ++q) {
+						v.accounts[q] = old.accounts[q]; v.wants[q] = old.wants[q]; v.want_age[q] = old.want_age[q];
+						v.priority[q] = old.priority[q]; v.paused[q] = old.paused[q]; v.switched[q] = old.switched[q];
+						v.reset_on_start[q] = old.reset_on_start[q];
+					}
+					v.special_tech = old.special_tech;
+					for (auto &pq : v.plans) for (auto &pl : pq) pl = PetraQueuePlan{};
+					for (int q = 0; q < PETRA_Q_COUNT; ++q)
+						if (v.reset_on_start[q] > PETRA_Q_COUNT) ar.ok = false;
+					if (v.special_tech >= TECH_COUNT) ar.ok = false;
+				} else {
+					// The six coarse queues: their wants come back within a turn, so they restart empty.
+					PetraQueueManagerV59 old;
+					ar.pod(old);
+					v.reset();
+				}
 			}
 		} else if constexpr (std::is_same_v<T, std::vector<S::PetraBaseDropsiteCheck>>) {
 			if (ar.version >= Simulation::SAVE_VERSION_PETRA_HUNT_SEARCH)
@@ -44226,6 +44252,17 @@ void Simulation::defeat_player(uint8_t pid, uint8_t reason) {
 	convert_to_gaia((uint8_t)(1u << pid));
 	mark_players_defeated((uint8_t)(1u << pid));
 	note_session({SessionNotice::DEFEATED, pid, 0, reason, {}});
+}
+
+bool Simulation::remove_seat(uint8_t pid) {
+	if (pid >= MAX_PLAYERS || is_defeated(pid)) return false;
+	const uint8_t bit = (uint8_t)(1u << pid);
+	bool owns = false;
+	for (size_t u = 0; u < units_.count && !owns; ++u) owns = units_.team[u] == pid;
+	for (size_t b = 0; b < buildings_.size() && !owns; ++b) owns = buildings_[b].team == pid;
+	convert_to_gaia(bit); // Player.SetState: everything the seat owned is Gaia's now
+	if (owns) mark_players_defeated(bit);
+	return owns;
 }
 
 bool Simulation::cmd_resign(uint8_t pid) {

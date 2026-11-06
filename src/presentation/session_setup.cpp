@@ -756,6 +756,10 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 		const bool seated = t < setup.slot_count && setup.slot_types[t] != 'x';
 		sim->set_player_active(t, seated, seated && setup.slot_types[t] == 'a');
 	}
+	// PlayerRemoved.js: a removed seat is defeated at start and its map entities turn Gaia.
+	for (uint8_t t = 0; t < rtso::MAX_PLAYERS && t < setup.slot_count; ++t) {
+		if (setup.slot_types[t] == 'x') sim->remove_seat(t);
+	}
 	clear_selection();
 	auto uview = sim->units();
 	for (size_t i = 0; i < uview.count; ++i) {
@@ -974,6 +978,10 @@ void RtsoMain::apply_match_settings() {
 			const bool seated = t < seats && ty != 2 && (!legacy_seat || t > 0 || ty == 0 || local_observer_);
 			sim->set_player_active((uint8_t)t, seated || t == 0, (!legacy_seat || t > 0 || local_observer_) && seated && ty == 1);
 		}
+	}
+	// PlayerRemoved.js: a removed seat is defeated at start and its map entities turn Gaia.
+	for (int t = 0; t < rtso::MAX_PLAYERS && t < slot_types.size(); ++t) {
+		if ((int)slot_types[t] == 2) sim->remove_seat((uint8_t)t);
 	}
 	apply_player_names(ms->get("slot_names")); // after seating: the diplomacy labels read civ and AI
 	UtilityFunctions::print("[RtsoMain] GameSetup ", map_id, " seed ", (int64_t)seed,
