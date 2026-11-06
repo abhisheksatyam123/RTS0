@@ -15,7 +15,6 @@ const BUSES := {
 	"Action": "sound.actiongain",
 	"UI": "sound.uigain",
 }
-const PIXEL_ART_SCALE := 0.5
 const SHADOW_ATLAS := [1024, 2048, 4096, 8192] # shadowquality -1 Low .. 2 Very High
 # shadowscovermap: a cutoff past the largest map's diagonal (Giant, 512 m).
 const SHADOW_COVER_MAP_DISTANCE := 2000.0
@@ -624,12 +623,8 @@ func _apply_viewport() -> void:
 	# FSR 1.0 needs Forward+; under GL Compatibility (no rendering device) it is bilinear.
 	var fsr_ok := RenderingServer.get_rendering_device() != null
 	vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR if tech == "fsr" and fsr_ok and vp.scaling_3d_scale < 1.0 else Viewport.SCALING_3D_MODE_BILINEAR
-	# 3D pixel-art look (pixelart): a low 3D scale gives the chunky pixels; the outline pass in
-	# camera_rig.cpp runs at that same resolution. Godot 4.3 has no nearest 3D upscale, so the
-	# upscale is bilinear (softer than a true nearest filter).
-	if cfg.get_bool("pixelart"):
-		vp.scaling_3d_scale = minf(vp.scaling_3d_scale, PIXEL_ART_SCALE)
-		vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_BILINEAR
+	# 3D pixel-art look (pixelart): the world renders in a low-res SubViewport owned by the
+	# camera rig (camera_rig.cpp sync_pixel_world), so this viewport keeps its own scale.
 	# The unit shader's pixel-art palette and team colour push (shaders/player_color.gdshader).
 	RenderingServer.global_shader_parameter_set("rtso_pixel_art", cfg.get_bool("pixelart"))
 	var aa := cfg.get_value("antialiasing")
