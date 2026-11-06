@@ -15,7 +15,7 @@ func _initialize() -> void:
 	var us = root.get_node("UserSettings")
 	us.cfg.set_value("pixelart", "true" if OS.get_environment("PIXELART") == "1" else "false")
 	var ms = root.get_node("MatchSettings")
-	ms.map_id = "random_mainland"
+	ms.map_id = OS.get_environment("SHOT_MAP") if OS.get_environment("SHOT_MAP") != "" else "random_mainland"
 	ms.seed = 42
 	ms.map_size = 192
 	ms.slot_teams = [1, 2]
