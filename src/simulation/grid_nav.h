@@ -2144,6 +2144,8 @@ struct NavGrid {
     // find_path_on's search on the navcells alone, before its pass on the terrain tiles. It leaves
     // (tx, tz) where MakeGoalReachable moved the goal (ashore, into the start's region).
     bool find_path_cells(float sx, float sz, float &tx, float &tz, WaypointPath &out, uint8_t pass) const;
+    // True for a point goal find_path_cells moves onto a passable navcell (the G163 end move).
+    bool point_goal_snaps(float tx, float tz, uint8_t pass) const;
 
     // 0.28's long pathfinder plans on the navcells units move on (CCmpPathfinder::TerrainUpdateHelper),
     // where every terrain tile steeper than MaxTerrainSlope is impassable and grown by the class
@@ -2343,8 +2345,10 @@ inline bool NavGrid::find_path_on(float sx, float sz, float tx, float tz, Waypoi
         // A path that ends short of the goal (MakeGoalReachable moved it, or JPS stopped at the
         // navcell nearest it) when the goal's tile region is the start's: navcells steep by their
         // averaged slope can close a pass whose tiles are level, and 0.28's MakeGoalReachable, on
-        // navcells no coarser than the tiles, leaves the goal where it is.
-        if (!fine && (out.count == 0 || out.xs[out.count - 1] != tx || out.zs[out.count - 1] != tz)) {
+        // navcells no coarser than the tiles, leaves the goal where it is. A point goal the G163 end
+        // move snapped is not such a path: 0.28 leaves a reachable point goal where it is, so the
+        // snapped end is no reason for the tile planner.
+        if (!fine && !point_goal_snaps(tx, tz, pass) && (out.count == 0 || out.xs[out.count - 1] != tx || out.zs[out.count - 1] != tz)) {
             const uint32_t from = tile_region_at(sx, sz, tile_snap_reach(), cls);
             fine = from != 0 && from == tile_region_at(tx, tz, tile_snap_reach(), cls);
         }
@@ -2362,6 +2366,20 @@ inline bool NavGrid::find_path_on(float sx, float sz, float tx, float tz, Waypoi
     out = tiles;
     if (narrow_gap) *narrow_gap = gap;
     return tiles_reached;
+}
+
+// find_path_cells moves a point goal on an impassable navcell to the passable navcell it snaps to (the
+// G163 end move, below). This is that test, for a goal. A water goal of a land unit is moved by the
+// water branch first, so it is not counted here.
+inline bool NavGrid::point_goal_snaps(float tx, float tz, uint8_t pass) const {
+    if (cells.blank()) return false;
+    const auto [cx, cy] = world_to_cell(tx, tz);
+    if (is_passable_for(cx, cy, pass)) return false;
+    if (!(pass & PASS_SHIP) && cells.inside(cx, cy) && cells.at(cx, cy) == NAV_WATER) return false;
+    for (int dy = -3; dy <= 3; ++dy)
+        for (int dx = -3; dx <= 3; ++dx)
+            if (is_passable_for(cx + dx, cy + dy, pass)) return true;
+    return false;
 }
 
 inline bool NavGrid::find_path_cells(float sx, float sz, float &tx, float &tz, WaypointPath &out, uint8_t pass) const {
@@ -2423,7 +2441,17 @@ inline bool NavGrid::find_path_cells(float sx, float sz, float &tx, float &tz, W
             tz = ((static_cast<float>(tcy) + 0.5f) / static_cast<float>(res)) * (map_half * 2.0f) - map_half;
         }
     }
+    // The end moves with its navcell, as 0 A.D.'s MakeGoalReachable does for an unreachable point goal
+    // (HierarchicalPathfinder::CreatePointGoalAt, HierarchicalPathfinder.cpp:681-718): the last
+    // waypoint is the centre of the passable navcell the goal snapped to, not the point inside the
+    // obstruction. Otherwise a unit walks to the obstruction and stalls there, its path ending on
+    // ground it cannot enter.
+    const int goal_cx = tcx, goal_cy = tcy;
     snap_to_passable(tcx, tcy, tx, tz);
+    if (tcx != goal_cx || tcy != goal_cy) {
+        tx = ((static_cast<float>(tcx) + 0.5f) / static_cast<float>(res)) * (map_half * 2.0f) - map_half;
+        tz = ((static_cast<float>(tcy) + 0.5f) / static_cast<float>(res)) * (map_half * 2.0f) - map_half;
+    }
     // A goal still on impassable cells (land for a ship) is no reason to fail either:
     // MakeGoalReachable below moves it to the nearest navcell the unit can reach.
     if (!is_passable_for(scx, scy, pass) || (!regions_ready_ && !is_passable_for(tcx, tcy, pass))) {
