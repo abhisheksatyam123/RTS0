@@ -20689,8 +20689,9 @@ void Simulation::tick_waves(float dt) {
 	wave_number_++;
 
 	if (wave_number_ > 5) {
-		victory_ = true;
-		mark_players_won(side_of(0));
+		// Wave defense is won like any other win: the winners are named, the rest go Gaia and
+		// the match is over (end_match sets victory_ and game_over_).
+		end_match(side_of(0), SessionNotice::END_GAME_MODE);
 		return;
 	}
 
