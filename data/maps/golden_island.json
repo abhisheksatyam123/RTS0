@@ -8694,331 +8694,386 @@
       "type": "stone",
       "x": 43.03,
       "z": -65.0,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "stone",
       "x": 86.51,
       "z": -42.64,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "stone",
       "x": 66.43,
       "z": 70.54,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "stone",
       "x": 69.1,
       "z": 66.89,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "stone",
       "x": 65.52,
       "z": 67.98,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "stone",
       "x": 70.25,
       "z": 62.95,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "stone",
       "x": 72.08,
       "z": 68.31,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "stone",
       "x": 15.83,
       "z": 59.9,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "stone",
       "x": 17.08,
       "z": 62.4,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "stone",
       "x": 21.13,
       "z": 57.86,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "stone",
       "x": 12.88,
       "z": 63.18,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "stone",
       "x": -114.9,
       "z": -6.98,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "stone",
       "x": -118.09,
       "z": -8.35,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "stone",
       "x": -118.38,
       "z": -4.47,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "stone",
       "x": -110.87,
       "z": 14.73,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "stone",
       "x": -111.55,
       "z": 17.6,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "stone",
       "x": -45.53,
       "z": 64.02,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "stone",
       "x": -82.88,
       "z": 89.48,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "stone",
       "x": 28.02,
       "z": 2.22,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "stone",
       "x": -9.41,
       "z": 37.77,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "stone",
       "x": -19.94,
       "z": 6.72,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "stone",
       "x": 27.39,
       "z": 48.15,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "gold",
       "x": -37.07,
       "z": 16.67,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "gold",
       "x": -38.9,
       "z": 13.9,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "gold",
       "x": -41.64,
       "z": 14.97,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "gold",
       "x": -8.41,
       "z": 64.67,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "gold",
       "x": -7.32,
       "z": 61.44,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "gold",
       "x": -9.52,
       "z": 59.17,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "gold",
       "x": 23.79,
       "z": 28.67,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "gold",
       "x": 23.43,
       "z": 25.64,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "gold",
       "x": 20.27,
       "z": 30.37,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "gold",
       "x": 100.3,
       "z": 3.5,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "gold",
       "x": 95.26,
       "z": 3.0,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "gold",
       "x": 93.78,
       "z": 7.67,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "gold",
       "x": 95.74,
       "z": 70.78,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "gold",
       "x": 90.77,
       "z": 76.44,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "gold",
       "x": 87.59,
       "z": 80.06,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "gold",
       "x": 2.11,
       "z": 119.99,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "gold",
       "x": 1.33,
       "z": 117.42,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "gold",
       "x": -0.55,
       "z": 119.28,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "gold",
       "x": -51.69,
       "z": 105.59,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "gold",
       "x": -53.12,
       "z": 101.73,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "gold",
       "x": -54.01,
       "z": 103.85,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "gold",
       "x": -43.0,
       "z": -105.84,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "gold",
       "x": -46.59,
       "z": -109.65,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "gold",
       "x": -46.82,
       "z": -104.11,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "gold",
       "x": -112.09,
       "z": 25.0,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "gold",
       "x": -14.96,
       "z": -105.09,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "gold",
       "x": 44.22,
       "z": -103.64,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "gold",
       "x": 42.96,
       "z": -106.18,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "gold",
       "x": 40.55,
       "z": -103.26,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "gold",
       "x": 9.32,
       "z": -13.46,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "gold",
       "x": 30.51,
       "z": 33.97,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "gold",
       "x": -1.68,
       "z": 64.08,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "gold",
       "x": -17.67,
       "z": 24.56,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "fan_palm",
@@ -11724,61 +11779,71 @@
       "type": "gold",
       "x": -82.36,
       "z": -63.48,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "gold",
       "x": -82.3,
       "z": -60.3,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "gold",
       "x": -79.32,
       "z": -62.56,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "stone",
       "x": -58.9,
       "z": -57.41,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "stone",
       "x": -54.84,
       "z": -55.66,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "stone",
       "x": -56.73,
       "z": -59.8,
-      "amount": 1000
+      "amount": 1000,
+      "max_gatherers": 12
     },
     {
       "type": "stone",
       "x": 15.7,
       "z": -29.09,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "stone",
       "x": -4.96,
       "z": 1.3,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "gold",
       "x": 0.76,
       "z": 9.85,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "gold",
       "x": -1.45,
       "z": -50.7,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     }
   ],
   "fauna": [
