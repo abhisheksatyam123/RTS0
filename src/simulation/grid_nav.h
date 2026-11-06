@@ -24,6 +24,15 @@
 
 namespace rtso {
 
+// std::floor truncated to an int, as static_cast<int>(std::floor(v)) (and (int)std::floor(v)): the
+// same integer for every value in int range. Built without SSE4.1, std::floor is a libm call, so
+// the grid lookups that floor on every query use this instead. The floor is exact: for a finite v,
+// (int)v truncates toward zero, and one less is the floor when v sits below that truncation.
+inline int floor_index(double v) {
+	const int t = static_cast<int>(v);
+	return static_cast<double>(t) > v ? t - 1 : t;
+}
+
 // ---------------------------------------------------------------------------
 // Minimal Grid<T> — standalone port of src/0ad/simulation2/helpers/Grid.h:412 concepts
 // Original uses Fixed, SAFE_ARRAY_DELETE, ENSURE, SparseGrid, GridUpdateInformation.
@@ -447,10 +456,10 @@ struct NavGrid {
     // The ends are in navcells (0 to res); visit(x, y) is called for each until it returns false.
     template <class Visit>
     static void walk_grid(int n, float fx0, float fy0, float fx1, float fy1, Visit &&visit) {
-        int x = std::clamp(static_cast<int>(std::floor(fx0)), 0, n - 1);
-        int y = std::clamp(static_cast<int>(std::floor(fy0)), 0, n - 1);
-        const int x1 = std::clamp(static_cast<int>(std::floor(fx1)), 0, n - 1);
-        const int y1 = std::clamp(static_cast<int>(std::floor(fy1)), 0, n - 1);
+        int x = std::clamp(floor_index(fx0), 0, n - 1);
+        int y = std::clamp(floor_index(fy0), 0, n - 1);
+        const int x1 = std::clamp(floor_index(fx1), 0, n - 1);
+        const int y1 = std::clamp(floor_index(fy1), 0, n - 1);
         const int di = x < x1 ? 1 : x1 < x ? -1 : 0;
         const int dj = y < y1 ? 1 : y1 < y ? -1 : 0;
         const float lx = fx1 - fx0, ly = fy1 - fy0;
@@ -587,7 +596,7 @@ struct NavGrid {
     float node_pos(int a) const { return static_cast<float>(a) * node_step() - map_half; }
     // The node nearest the world coordinate v (x or z).
     int node_of(float v) const {
-        return std::clamp(static_cast<int>(std::floor((v + map_half) / node_step() + 0.5f)), 0, std::max(node_res() - 1, 0));
+        return std::clamp(floor_index((v + map_half) / node_step() + 0.5f), 0, std::max(node_res() - 1, 0));
     }
 
     // Sets node k of class cls open (1) or not, and its bits.
@@ -651,8 +660,8 @@ struct NavGrid {
         const bool steep = any_steep_tile();
         const bool water = !tile_water_sum_.empty() && tile_water_sum_.back() != 0;
         const float tinv = static_cast<float>(tw) / (map_half * 2.0f), winv = static_cast<float>(res) / (map_half * 2.0f);
-        auto tile = [&](float v) { return std::clamp(static_cast<int>(std::floor((v + map_half) * tinv)), 0, tw - 1); };
-        auto cell = [&](float v) { return std::clamp(static_cast<int>(std::floor((v + map_half) * winv)), 0, res - 1); };
+        auto tile = [&](float v) { return std::clamp(floor_index((v + map_half) * tinv), 0, tw - 1); };
+        auto cell = [&](float v) { return std::clamp(floor_index((v + map_half) * winv), 0, res - 1); };
         tile_span_.resize(static_cast<size_t>(nw));
         for (int a = 0; a < nw; ++a) {
             const float v = node_pos(a);
@@ -700,7 +709,7 @@ struct NavGrid {
     bool water_cell_in(float x0, float z0, float x1, float z1, bool live = false) const {
         if (res <= 0) return false;
         const float inv = static_cast<float>(res) / (map_half * 2.0f);
-        auto cell = [&](float v) { return std::clamp(static_cast<int>(std::floor((v + map_half) * inv)), 0, res - 1); };
+        auto cell = [&](float v) { return std::clamp(floor_index((v + map_half) * inv), 0, res - 1); };
         if (live) {
             if (cells.blank()) return false;
             for (int y = cell(z0); y <= cell(z1); ++y)
@@ -851,9 +860,9 @@ struct NavGrid {
         // The half sizes, along x and z, of the box round the nodes it may cover.
         const float ex = turned ? hu * au + hv * av + reach : hu, ez = turned ? hu * av + hv * au + reach : hv;
         const int a0 = std::max(0, static_cast<int>(std::ceil((o.x - ex + map_half) / s)));
-        const int a1 = std::min(nw - 1, static_cast<int>(std::floor((o.x + ex + map_half) / s)));
+        const int a1 = std::min(nw - 1, floor_index((o.x + ex + map_half) / s));
         const int b0 = std::max(0, static_cast<int>(std::ceil((o.z - ez + map_half) / s)));
-        const int b1 = std::min(nw - 1, static_cast<int>(std::floor((o.z + ez + map_half) / s)));
+        const int b1 = std::min(nw - 1, floor_index((o.z + ez + map_half) / s));
         // Whether node (a, b) lies inside the turned rectangle.
         auto inside = [&](int a, int b) {
             const float dx = node_pos(a) - o.x, dz = node_pos(b) - o.z;
@@ -1037,7 +1046,7 @@ struct NavGrid {
     template <class F>
     void each_tile_obs_bucket(const TileObstruction &o, F &&f) const {
         const int bw = tile_obs_bw_;
-        auto bucket = [&](float v) { return std::clamp(static_cast<int>(std::floor((v + map_half) / TILE_OBS_BUCKET)), 0, bw - 1); };
+        auto bucket = [&](float v) { return std::clamp(floor_index((v + map_half) / TILE_OBS_BUCKET), 0, bw - 1); };
         const float e = std::max(o.hu, o.hv) * 1.4143f + TILE_PATH_CLEARANCE_LARGE + TILE_HAIR + (o.crowd ? TILE_CROWD_GROW : 0.0f);
         const int i0 = bucket(o.x - e), i1 = bucket(o.x + e), j0 = bucket(o.z - e), j1 = bucket(o.z + e);
         for (int j = j0; j <= j1; ++j)
@@ -1118,7 +1127,7 @@ struct NavGrid {
                 tile_obs_bw_ <= 0 || tile_obs_buckets_.size() != static_cast<size_t>(tile_obs_bw_) * static_cast<size_t>(tile_obs_bw_))
             return false;
         const int bw = tile_obs_bw_;
-        auto bucket = [&](float v) { return std::clamp(static_cast<int>(std::floor((v + map_half) / TILE_OBS_BUCKET)), 0, bw - 1); };
+        auto bucket = [&](float v) { return std::clamp(floor_index((v + map_half) / TILE_OBS_BUCKET), 0, bw - 1); };
         const float dx = bx - ax, dz = bz - az;
         const int j0 = bucket(std::min(az, bz) - g), j1 = bucket(std::max(az, bz) + g);
         for (int j = j0; j <= j1; ++j) {
@@ -1244,9 +1253,9 @@ struct NavGrid {
                 const int cx = static_cast<int>(c % static_cast<uint32_t>(res)), cy = static_cast<int>(c / static_cast<uint32_t>(res));
                 const float x0 = static_cast<float>(cx) * cw - map_half - g, x1 = static_cast<float>(cx + 1) * cw - map_half + g;
                 const float z0 = static_cast<float>(cy) * cw - map_half - g, z1 = static_cast<float>(cy + 1) * cw - map_half + g;
-                const int a0 = std::max(0, static_cast<int>(std::floor((x0 + map_half) / s)));
+                const int a0 = std::max(0, floor_index((x0 + map_half) / s));
                 const int a1 = std::min(nw - 1, static_cast<int>(std::ceil((x1 + map_half) / s)));
-                const int b0 = std::max(0, static_cast<int>(std::floor((z0 + map_half) / s)));
+                const int b0 = std::max(0, floor_index((z0 + map_half) / s));
                 const int b1 = std::min(nw - 1, static_cast<int>(std::ceil((z1 + map_half) / s)));
                 for (int b = b0; b <= b1; ++b)
                     for (int a = a0; a <= a1; ++a) {
@@ -1870,8 +1879,8 @@ struct NavGrid {
         float fz = (wz + map_half) / (map_half * 2.0f) * static_cast<float>(h_res - 1);
         fx = std::clamp(fx, 0.0f, static_cast<float>(h_res - 1));
         fz = std::clamp(fz, 0.0f, static_cast<float>(h_res - 1));
-        int x0 = static_cast<int>(std::floor(fx));
-        int z0 = static_cast<int>(std::floor(fz));
+        int x0 = floor_index(fx);
+        int z0 = floor_index(fz);
         int x1 = std::min(x0 + 1, h_res - 1);
         int z1 = std::min(z0 + 1, h_res - 1);
         float tx = fx - static_cast<float>(x0);
@@ -2063,7 +2072,7 @@ struct NavGrid {
         const HeightSampleCache& h = height_cache_;
         const int tw = h.tiles_w;
         const float inv = static_cast<float>(tw) / (map_half * 2.0f);
-        auto tile = [&](float v) { return std::clamp(static_cast<int>(std::floor((v + map_half) * inv)), 0, tw - 1); };
+        auto tile = [&](float v) { return std::clamp(floor_index((v + map_half) * inv), 0, tw - 1); };
         const size_t sw = static_cast<size_t>(tw) + 1;
         const size_t i0 = static_cast<size_t>(tile(x0)), i1 = static_cast<size_t>(tile(x1)) + 1;
         const size_t j0 = static_cast<size_t>(tile(z0)) * sw, j1 = (static_cast<size_t>(tile(z1)) + 1) * sw;

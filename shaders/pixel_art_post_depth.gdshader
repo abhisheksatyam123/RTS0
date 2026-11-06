@@ -37,7 +37,8 @@ void fragment() {
 	}
 	float outer = smoothstep(depth_threshold, depth_threshold + 0.1, depth_diff) * in_range;
 
-	vec3 color = texture(screen_texture, SCREEN_UV).rgb;
-	color -= color * outer * darker_line;
-	ALBEDO = clamp(color, 0.0, 1.0);
+	// Alpha-blended like the full shader: only outline pixels change.
+	vec3 base = texture(screen_texture, SCREEN_UV).rgb;
+	ALBEDO = base * (1.0 - darker_line);
+	ALPHA = outer;
 }
