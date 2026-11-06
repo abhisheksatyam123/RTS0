@@ -16116,6 +16116,19 @@ void Simulation::obstructed_short_path(size_t i, uint8_t failed, std::vector<uin
 	float range = short_path_search_range(failed);
 	if (centre >= range - ONE_METRE) range = std::min(centre + ONE_METRE, SHORT_PATH_MAX_RANGE);
 	const bool reached = obstructed_search(i, goal, range, building, path, searched);
+	// G84 (walks, a point the trees shut off): a walk within 16 m of its point, whose straight line is blocked by
+	// a static and whose search finds no way round, keeps its held path into the point (the rule below) for 35
+	// obstructed turns. 0.28's long path there ends short, where the walk stands, and its PathResult short-path
+	// hack (CCmpUnitMotion.h:939-972) sets m_FailedMovements to MAX_FAILED_MOVEMENTS - 2, so the walk fails two
+	// obstructed turns later. RTS0's held path is its long path through a gap its 8 m navcells leave open. A walk
+	// held six turns in a row gets that count; one that clears by steering in fewer keeps its path. Only
+	// motion_feedback's call (beyond_queue given) sets it.
+	if (!reached && short_range && !task && beyond_queue && failed >= 6 && held_to_target && units_.waypoint_cur[i] < held.count &&
+			goal.distance(nav::Vec2(held.xs[held.count - 1], held.zs[held.count - 1])) <= slack) {
+		constexpr uint8_t MAX_FAILED_TWO_SHORT = 33; // MAX_FAILED_MOVEMENTS - 2
+		if (units_.motion[i].failed < MAX_FAILED_TWO_SHORT) units_.motion[i].failed = MAX_FAILED_TWO_SHORT;
+		return;
+	}
 	WaypointPath &wp = unit_paths_[i];
 	// Beyond 56 m a path that does not reach the goal is installed below, with its tail: RTS0's long path
 	// there is the one through the wood.
@@ -31454,7 +31467,7 @@ bool Simulation::petra_relic_targeted(uint32_t relic_id) const {
 // Fields count 100000 m2 farther. Skipped are targets the army can't reach
 // (isValidTarget sameLand: same_land, else our base's land or across a sea) and
 // structures decaying with no arrows and no garrison.
-uint32_t Simulation::petra_nearest_target(uint8_t kind, bool forced, uint8_t enemy, float px, float pz, uint16_t same_land, float &out_tx, float &out_tz) const {
+uint32_t Simulation::petra_nearest_target(uint8_t kind, bool forced, uint8_t enemy, float px, float pz, uint16_t same_land, float &out_tx, float &out_tz, bool any_foe_defence) const {
 	petra_pick_blocked_ = false;
 	if (enemy >= MAX_PLAYERS && !(enemy == GAIA_PLAYER && has_victory(VK_RELIC))) return 0;
 	uint16_t from[8];
@@ -31491,7 +31504,8 @@ uint32_t Simulation::petra_nearest_target(uint8_t kind, bool forced, uint8_t ene
 			if (shoots(b.type) || !valid(b)) continue;
 			bool defended = false;
 			for (const auto &d : buildings_) {
-				if (d.team != enemy || d.hp <= 0.0f || !shoots(d.type)) continue;
+				if (d.hp <= 0.0f || !shoots(d.type)) continue;
+				if (d.team != enemy && !(any_foe_defence && d.team < MAX_PLAYERS && petra_foe(d.team))) continue;
 				const float dx = d.x - b.x, dz = d.z - b.z;
 				if (dx * dx + dz * dz < 20.0f * 20.0f) { defended = true; break; } // 80 m: 20 tiles
 			}
@@ -31827,7 +31841,7 @@ uint32_t Simulation::find_petra_rush_target(float &out_tx, float &out_tz, uint8_
 		for (int p = 0; p < MAX_PLAYERS; ++p) {
 			if (p == enemy || !petra_foe(p) || is_defeated((uint8_t)p)) continue;
 			float tx = 0.0f, tz = 0.0f;
-			const uint32_t id = petra_nearest_target(PETRA_ATTACK_RUSH, false, (uint8_t)p, bx, bz, land, tx, tz);
+			const uint32_t id = petra_nearest_target(PETRA_ATTACK_RUSH, false, (uint8_t)p, bx, bz, land, tx, tz, true);
 			if (!id) continue;
 			const float dx = tx - bx, dz = tz - bz, d = dx * dx + dz * dz;
 			if (!fb_id || d < fb_d) { fb_id = id; fb_x = tx; fb_z = tz; fb_d = d; }
