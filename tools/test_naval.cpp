@@ -2689,7 +2689,7 @@ static void test_dock_faces_water() {
 	static Simulation s;
 	fresh(s, beach_height);
 	s.set_player_active(1, true, true);
-	const Simulation::PlacementResult inland = s.check_placement(1, -2, -1, BLD_DOCK);   // centre (-2, 0): its front on the waterline
+	const Simulation::PlacementResult inland = s.check_placement(1, -3, -1, BLD_DOCK);   // 3-cell dock: its front on the waterline
 	const Simulation::PlacementResult shore = s.check_placement(1, -1, -1, BLD_DOCK);    // centre (0, 0): its front 8 m deep
 	const Simulation::PlacementResult offshore = s.check_placement(1, 1, -1, BLD_DOCK);  // centre (4, 0): all in the sea
 	std::printf("dock with its front on the waterline: %d, at the shore: %d, out at sea: %d (OK = %d)\n", (int)inland, (int)shore,
