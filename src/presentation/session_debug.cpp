@@ -618,6 +618,14 @@ PackedInt32Array RtsoMain::debug_spawn_fauna(int fauna_type, int count, bool own
 	return out;
 }
 
+int64_t RtsoMain::debug_spawn_treasure(int treasure_type, float dx, float dz) {
+	if (!sim) return 0;
+	float cx = 0.0f, cz = 0.0f;
+	for (const auto &b : sim->buildings())
+		if (b.team == local_player() && rtso::is_civic_centre(b.type)) { cx = b.x; cz = b.z; break; }
+	return (int64_t)sim->spawn_treasure(cx + dx, cz + dz, (uint8_t)treasure_type);
+}
+
 // Test hooks: a stone mine (template_gaia_rock: 7 x 7 m, 13 x 13 m with 24 gatherers) at
 // (x, z) from the player's civic centre; snap_placement_to_edges for a structure centred near
 // (x, z) from it with snapping on, after a stale placement angle.
