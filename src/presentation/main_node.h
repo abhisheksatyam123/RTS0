@@ -794,6 +794,24 @@ public:
 				return cam_rig->get_camera()->unproject_position(Vector3(rv.x[r], sim->get_terrain_height(rv.x[r], rv.z[r]), rv.z[r]));
 		return Vector2(-1, -1);
 	}
+	// Tests: where a fauna animal or a treasure is on screen, or (-1, -1) once it is gone.
+	Vector2 debug_fauna_screen(int64_t id) const {
+		if (!sim || !cam_rig || !cam_rig->get_camera()) return Vector2(-1, -1);
+		auto fv = sim->fauna();
+		for (size_t f = 0; f < fv.count; ++f)
+			if (fv.id[f] == (uint32_t)id)
+				return cam_rig->get_camera()->unproject_position(Vector3(fv.pos_x[f], sim->get_terrain_height(fv.pos_x[f], fv.pos_z[f]), fv.pos_z[f]));
+		return Vector2(-1, -1);
+	}
+	Vector2 debug_treasure_screen(int64_t id) const {
+		if (!sim || !cam_rig || !cam_rig->get_camera()) return Vector2(-1, -1);
+		for (const auto &t : sim->treasures())
+			if (t.id == (uint32_t)id)
+				return cam_rig->get_camera()->unproject_position(Vector3(t.x, sim->get_terrain_height(t.x, t.z), t.z));
+		return Vector2(-1, -1);
+	}
+	bool debug_fauna_alive(int64_t id) const { return sim && sim->is_fauna_id((uint32_t)id); }
+	bool debug_treasure_alive(int64_t id) const { return sim && sim->is_treasure_id((uint32_t)id); }
 	// Tests: where a structure's centre is on screen, or (-1, -1).
 	Vector2 debug_building_screen(int64_t bid) const {
 		if (!sim || !cam_rig || !cam_rig->get_camera()) return Vector2(-1, -1);
@@ -854,6 +872,7 @@ public:
 	PackedFloat32Array debug_capture_points(int64_t building_id) const; // tests: each player's points
 	Vector2 debug_spawn_offset(const String &template_id, int count, int player = -1) const;
 	PackedInt32Array debug_spawn_fauna(int fauna_type, int count, bool owned, float dx = 16.0f, float dz = 16.0f);
+	int64_t debug_spawn_treasure(int treasure_type, float dx = 16.0f, float dz = 16.0f); // tests: a treasure near the local civic centre
 	int64_t debug_spawn_mine(float x, float z, int max_gatherers);
 	String debug_unit_model_path(int civ, int unit_type);
 	String debug_template_model_path(const String &template_id);

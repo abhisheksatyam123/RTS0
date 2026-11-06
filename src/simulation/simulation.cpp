@@ -208,6 +208,7 @@ static constexpr uint32_t SAVE_VERSION_RALLY = 47; // each structure's rally res
 static constexpr uint32_t SAVE_VERSION_PETRA_STARTED_ATTACKS = 52;
 static constexpr uint32_t SAVE_VERSION_PATROL_WAIT = 58; // each patrolling unit's time at its waypoint
 static constexpr uint32_t SAVE_VERSION_PETRA_CHAT = 66; // Petra chat lines as kind, variant and players; trade-route warnings
+static constexpr uint32_t SAVE_VERSION_PETRA_QUEUE_PLANS = 144; // each queue's first two plans (queue.js plans) beside its accounts
 static constexpr uint32_t SAVE_VERSION_PETRA_QUEUES = 67; // Petra's 0.28 queues: 21 accounts with priorities, paused and switched
 // The save version that added each unit's kept short path (tick_state_io section 1) and the aura
 // sources in force (section 9).
@@ -7228,8 +7229,11 @@ void Simulation::cmd_move_individual(const uint32_t *unit_ids, size_t count, flo
 		units_.anchor_z[idx] = w.dest_z;
 		// HierarchicalPathfinder::MakeGoalReachable: a player's walk to a point the unit can't reach
 		// (out at sea, ashore for a ship, another island) ends where find_path ends the path, the
-		// nearest point it can reach. Petra's walks keep their goal.
-		if (beach_goal_ && wp.count > 0) {
+		// nearest point it can reach. Petra's walks keep their goal. The G163 end move snaps a land walk's
+		// goal on an impassable navcell about 5 m, not onto the goal's own ground: such a walk keeps its raw
+		// target, as base did (0.28 never moves a unit's target). Ships and water goals keep the copy.
+		const bool keep_raw = !unit_is_ship(units_.unit_type[idx]) && nav_grid_.point_goal_snaps(w.dest_x, w.dest_z, w.pass);
+		if (beach_goal_ && wp.count > 0 && !keep_raw) {
 			units_.target_x[idx] = units_.anchor_x[idx] = wp.xs[wp.count - 1];
 			units_.target_z[idx] = units_.anchor_z[idx] = wp.zs[wp.count - 1];
 		}
@@ -12506,9 +12510,16 @@ bool Simulation::unit_running(size_t i) const {
 	if (st != ACTION_ATTACK || units_.target_unit_id[i] == 0) return false;
 	const uint32_t tid = units_.target_unit_id[i];
 	if (units_.chase_target[i] != tid) return false; // APPROACHING
-	const int32_t t = lookup_unit(tid);
+	// Still in range (ATTACKING): nothing moves, so the target's state now is what counts.
+	if (units_.chase_run[i] & CHASE_RANGE_BIT) return unit_chase_fleeing(tid);
+	// CHASING: the run was decided when the chase began (CHASING enter), not on each tick.
+	return (units_.chase_run[i] & CHASE_RUN_BIT) != 0;
+}
+
+bool Simulation::unit_chase_fleeing(uint32_t target_id) const {
+	const int32_t t = lookup_unit(target_id);
 	if (t >= 0) return units_.alive[t] && units_.action_state[t] == ACTION_FLEE;
-	auto f = fauna_id_to_idx_.find(tid);
+	auto f = fauna_id_to_idx_.find(target_id);
 	return f != fauna_id_to_idx_.end() && fauna_.alive[f->second] && fauna_.behavior[f->second] == FAUNA_FLEE;
 }
 
@@ -16105,6 +16116,19 @@ void Simulation::obstructed_short_path(size_t i, uint8_t failed, std::vector<uin
 	float range = short_path_search_range(failed);
 	if (centre >= range - ONE_METRE) range = std::min(centre + ONE_METRE, SHORT_PATH_MAX_RANGE);
 	const bool reached = obstructed_search(i, goal, range, building, path, searched);
+	// G84 (walks, a point the trees shut off): a walk within 16 m of its point, whose straight line is blocked by
+	// a static and whose search finds no way round, keeps its held path into the point (the rule below) for 35
+	// obstructed turns. 0.28's long path there ends short, where the walk stands, and its PathResult short-path
+	// hack (CCmpUnitMotion.h:939-972) sets m_FailedMovements to MAX_FAILED_MOVEMENTS - 2, so the walk fails two
+	// obstructed turns later. RTS0's held path is its long path through a gap its 8 m navcells leave open. A walk
+	// held six turns in a row gets that count; one that clears by steering in fewer keeps its path. Only
+	// motion_feedback's call (beyond_queue given) sets it.
+	if (!reached && short_range && !task && beyond_queue && failed >= 6 && held_to_target && units_.waypoint_cur[i] < held.count &&
+			goal.distance(nav::Vec2(held.xs[held.count - 1], held.zs[held.count - 1])) <= slack) {
+		constexpr uint8_t MAX_FAILED_TWO_SHORT = 33; // MAX_FAILED_MOVEMENTS - 2
+		if (units_.motion[i].failed < MAX_FAILED_TWO_SHORT) units_.motion[i].failed = MAX_FAILED_TWO_SHORT;
+		return;
+	}
 	WaypointPath &wp = unit_paths_[i];
 	// Beyond 56 m a path that does not reach the goal is installed below, with its tail: RTS0's long path
 	// there is the one through the wood.
@@ -18300,6 +18324,14 @@ void Simulation::tick_combat(float dt) {
 			p.new_order_flags = units_.order_flags[i] | ORDER_FLAG_CHEER;
 			p.order_flags_modified = true;
 			p.new_chase = units_.id[t];
+			// At the target (ATTACKING): the run is decided again when the chase begins.
+			p.new_run = (units_.chase_target[i] == p.new_chase ? (units_.chase_run[i] & CHASE_RUN_BIT) : 0) | CHASE_RANGE_BIT;
+			p.chase_modified = true;
+		} else if (units_.chase_target[i] == units_.id[t] && (units_.chase_run[i] & CHASE_RANGE_BIT)) {
+			// CHASING enter: the target has moved out of range, so the run is decided now
+			// (UnitAI CHASING "enter": a fleeing target is run after).
+			p.new_chase = units_.id[t];
+			p.new_run = unit_chase_fleeing(p.new_chase) ? CHASE_RUN_BIT : 0;
 			p.chase_modified = true;
 		}
 
@@ -18376,7 +18408,10 @@ void Simulation::tick_combat(float dt) {
 		if (p.target_idx < 0) continue;
 
 		if (p.order_flags_modified) units_.order_flags[i] = p.new_order_flags;
-		if (p.chase_modified) units_.chase_target[i] = p.new_chase;
+		if (p.chase_modified) {
+			units_.chase_target[i] = p.new_chase;
+			units_.chase_run[i] = p.new_run;
+		}
 		if (p.timer_modified) units_.attack_timer[i] = p.new_timer;
 		if (p.late_cleared && i < attack_late_.size()) attack_late_[i] = 0.0f;
 		if (p.action_modified) units_.action_state[i] = p.new_action_state;
@@ -31432,7 +31467,7 @@ bool Simulation::petra_relic_targeted(uint32_t relic_id) const {
 // Fields count 100000 m2 farther. Skipped are targets the army can't reach
 // (isValidTarget sameLand: same_land, else our base's land or across a sea) and
 // structures decaying with no arrows and no garrison.
-uint32_t Simulation::petra_nearest_target(uint8_t kind, bool forced, uint8_t enemy, float px, float pz, uint16_t same_land, float &out_tx, float &out_tz) const {
+uint32_t Simulation::petra_nearest_target(uint8_t kind, bool forced, uint8_t enemy, float px, float pz, uint16_t same_land, float &out_tx, float &out_tz, bool any_foe_defence) const {
 	petra_pick_blocked_ = false;
 	if (enemy >= MAX_PLAYERS && !(enemy == GAIA_PLAYER && has_victory(VK_RELIC))) return 0;
 	uint16_t from[8];
@@ -31469,7 +31504,8 @@ uint32_t Simulation::petra_nearest_target(uint8_t kind, bool forced, uint8_t ene
 			if (shoots(b.type) || !valid(b)) continue;
 			bool defended = false;
 			for (const auto &d : buildings_) {
-				if (d.team != enemy || d.hp <= 0.0f || !shoots(d.type)) continue;
+				if (d.hp <= 0.0f || !shoots(d.type)) continue;
+				if (d.team != enemy && !(any_foe_defence && d.team < MAX_PLAYERS && petra_foe(d.team))) continue;
 				const float dx = d.x - b.x, dz = d.z - b.z;
 				if (dx * dx + dz * dz < 20.0f * 20.0f) { defended = true; break; } // 80 m: 20 tiles
 			}
@@ -31809,7 +31845,7 @@ uint32_t Simulation::find_petra_rush_target(float &out_tx, float &out_tz, uint8_
 		for (int p = 0; p < MAX_PLAYERS; ++p) {
 			if (p == enemy || !petra_foe(p) || is_defeated((uint8_t)p)) continue;
 			float tx = 0.0f, tz = 0.0f;
-			const uint32_t id = petra_nearest_target(PETRA_ATTACK_RUSH, false, (uint8_t)p, bx, bz, land, tx, tz);
+			const uint32_t id = petra_nearest_target(PETRA_ATTACK_RUSH, false, (uint8_t)p, bx, bz, land, tx, tz, true);
 			if (!id) continue;
 			const float dx = tx - bx, dz = tz - bz, d = dx * dx + dz * dz;
 			if (!fb_id || d < fb_d) { fb_id = id; fb_x = tx; fb_z = tz; fb_d = d; }
@@ -34083,6 +34119,7 @@ void Simulation::petra_refresh_queue_accounts(float dt) {
 		if (qm.want_age[i] > PetraQueueManager::want_ttl(i)) {
 			qm.wants[i] = PetraQueueAccount{};
 			qm.accounts[i] = PetraQueueAccount{};
+			for (auto &pl : qm.plans[i]) pl = PetraQueuePlan{};
 			qm.switched[i] = 0;
 		}
 	}
@@ -34310,6 +34347,8 @@ bool Simulation::petra_try_pay(uint8_t queue, float food, float wood, float gold
 		w.food = std::max(w.food, food); w.wood = std::max(w.wood, wood);
 		w.gold = std::max(w.gold, gold); w.stone = std::max(w.stone, stone);
 		qm.want_age[queue] = 0.0f;
+		// The head plan is the item this check is for (queue.js plans[0]).
+		qm.plans[queue][0] = PetraQueuePlan{food, wood, gold, stone, 1, {}};
 		return false;
 	}
 	if (!pay) return true;
@@ -34318,6 +34357,9 @@ bool Simulation::petra_try_pay(uint8_t queue, float food, float wood, float gold
 	petra_ps().pay(food, wood, gold, stone); // affordable: checked above
 	w = PetraQueueAccount{};
 	qm.want_age[queue] = 0.0f;
+	// The started plan leaves the queue; the next one is not known until it is checked (stage 1).
+	qm.plans[queue][0] = qm.plans[queue][1];
+	qm.plans[queue][1] = PetraQueuePlan{};
 	qm.switched[queue] = 0;
 	// The started plan's queueToReset goes back to its Config.priorities value.
 	if (const uint8_t r = qm.reset_on_start[queue]) {
@@ -39840,6 +39882,8 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		}
 		if (ar.version >= S::SAVE_VERSION_CHASE_TARGET) ar.pod(U.chase_target[i]);
 		else U.chase_target[i] = 0; // a chase under way walks until the next strike
+		if (ar.version >= S::SAVE_VERSION_CHASE_RUN) ar.pod(U.chase_run[i]);
+		else U.chase_run[i] = 0; // a chase saved before the run latch walks until its next strike
 		if (ar.version >= S::SAVE_VERSION_GATHER_CLAIMS) {
 			ar.pod(U.gather_claim_res[i]); ar.pod(U.gather_claim[i]);
 		} else {
@@ -40281,7 +40325,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 					if (v.pending > BLD_TYPE_COUNT) ar.ok = false;
 			} else v = PetraDefenseBuild{};
 		} else if constexpr (std::is_same_v<T, PetraQueueManager>) {
-			if (ar.version >= SAVE_VERSION_PETRA_QUEUES) {
+			if (ar.version >= SAVE_VERSION_PETRA_QUEUE_PLANS) {
 				ar.pod(v);
 				if constexpr (Ar::loading) {
 					for (int q = 0; q < PETRA_Q_COUNT; ++q)
@@ -40289,10 +40333,26 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 					if (v.special_tech >= TECH_COUNT) ar.ok = false; // a former pad byte: 0 in older saves
 				}
 			} else if constexpr (Ar::loading) {
-				// The six coarse queues: their wants come back within a turn, so they restart empty.
-				PetraQueueManagerV59 old;
-				ar.pod(old);
-				v.reset();
+				if (ar.version >= SAVE_VERSION_PETRA_QUEUES) {
+					// v67 to v143: the same queues without their plan lists (which start empty).
+					PetraQueueManagerV143 old;
+					ar.pod(old);
+					for (int q = 0; q < PETRA_Q_COUNT; ++q) {
+						v.accounts[q] = old.accounts[q]; v.wants[q] = old.wants[q]; v.want_age[q] = old.want_age[q];
+						v.priority[q] = old.priority[q]; v.paused[q] = old.paused[q]; v.switched[q] = old.switched[q];
+						v.reset_on_start[q] = old.reset_on_start[q];
+					}
+					v.special_tech = old.special_tech;
+					for (auto &pq : v.plans) for (auto &pl : pq) pl = PetraQueuePlan{};
+					for (int q = 0; q < PETRA_Q_COUNT; ++q)
+						if (v.reset_on_start[q] > PETRA_Q_COUNT) ar.ok = false;
+					if (v.special_tech >= TECH_COUNT) ar.ok = false;
+				} else {
+					// The six coarse queues: their wants come back within a turn, so they restart empty.
+					PetraQueueManagerV59 old;
+					ar.pod(old);
+					v.reset();
+				}
 			}
 		} else if constexpr (std::is_same_v<T, std::vector<S::PetraBaseDropsiteCheck>>) {
 			if (ar.version >= Simulation::SAVE_VERSION_PETRA_HUNT_SEARCH)
@@ -41977,7 +42037,12 @@ void Simulation::tick_hunters() {
 		// The animal's footprint. Slaughter's MaxRange is 2 m even for archers, who walk up to it.
 		const float reach = (slaughter ? SLAUGHTER_RANGE : units_.attack_range[i]) + finfo.footprint;
 		const bool in_reach = dx * dx + dz * dz <= reach * reach;
-		if (in_reach) units_.chase_target[i] = tid; // COMBAT.ATTACKING: CHASING follows it from here
+		if (in_reach) { // COMBAT.ATTACKING: CHASING follows it from here
+			units_.chase_run[i] = (units_.chase_target[i] == tid ? (units_.chase_run[i] & CHASE_RUN_BIT) : 0) | CHASE_RANGE_BIT;
+			units_.chase_target[i] = tid;
+		} else if (units_.chase_target[i] == tid && (units_.chase_run[i] & CHASE_RANGE_BIT)) {
+			units_.chase_run[i] = unit_chase_fleeing(tid) ? CHASE_RUN_BIT : 0; // CHASING enter
+		}
 		if (!attack_ready(i, in_reach, slaughter ? SLAUGHTER_PREPARE : unit_combat_at(i).prepare)) continue;
 
 		float dmg;
@@ -44205,6 +44270,17 @@ void Simulation::defeat_player(uint8_t pid, uint8_t reason) {
 	convert_to_gaia((uint8_t)(1u << pid));
 	mark_players_defeated((uint8_t)(1u << pid));
 	note_session({SessionNotice::DEFEATED, pid, 0, reason, {}});
+}
+
+bool Simulation::remove_seat(uint8_t pid) {
+	if (pid >= MAX_PLAYERS || is_defeated(pid)) return false;
+	const uint8_t bit = (uint8_t)(1u << pid);
+	bool owns = false;
+	for (size_t u = 0; u < units_.count && !owns; ++u) owns = units_.team[u] == pid;
+	for (size_t b = 0; b < buildings_.size() && !owns; ++b) owns = buildings_[b].team == pid;
+	convert_to_gaia(bit); // Player.SetState: everything the seat owned is Gaia's now
+	if (owns) mark_players_defeated(bit);
+	return owns;
 }
 
 bool Simulation::cmd_resign(uint8_t pid) {

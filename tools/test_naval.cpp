@@ -2218,7 +2218,9 @@ static void test_ship_round_wreck_corner() {
 		for (size_t k = 0; k < std::min(runs[0].size(), runs[1].size()); ++k) worst = std::max(worst, std::fabs(runs[1][k] - runs[0][k]));
 		std::printf("  boat at the fish at (%.1f, %.1f): %zu catches landed in 90 s by the wreck, %zu with none, %.2f s apart at most\n", f.x, f.z,
 				runs[1].size(), runs[0].size(), worst);
-		CHECK(runs[1].size() == runs[0].size() && runs[1].size() >= 3 && worst <= 2.0f);
+		// G163 snaps the dock's end onto the water navcell centre: the boat's rest point moves, and the
+		// wreck run gains about 1 s a trip (fish 3: 2.1 s over three trips; base 0.15 s).
+		CHECK(runs[1].size() == runs[0].size() && runs[1].size() >= 3 && worst <= 2.5f);
 	}
 	float ferry[2];
 	for (int w = 0; w < 2; ++w) {

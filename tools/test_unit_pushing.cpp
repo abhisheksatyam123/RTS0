@@ -3526,6 +3526,37 @@ int main() {
 		s->order_gather(&w, 1, tree); // the re-send, on the way back
 		CHECK(s->units_.motion[fi].failed == 20, "a re-send that keeps the walk keeps its failed count (SW6)");
 	}
+	{
+		// 47. A walk to a point inside a ring of 20 palms, 10.4 m out (G84, a walk to a point the trees shut off): the
+		// 8 m navcells leave a gap open where 0.28's 1 m cells with the clearance close the ring, so RTS0's long path
+		// is the straight line in. The spearman goes round the ring, stands at its edge and is obstructed each turn
+		// with that path held: on main its failed count climbs to MAX_FAILED_MOVEMENTS, 35 obstructed turns, and the
+		// walk ends at tick 1580. 0.28's long path ends at the ring's edge, where the walk fails two obstructed turns
+		// after the short-path hack (PathResult, CCmpUnitMotion.h:939-972); here it ends at tick 1472 after 8 turns.
+		auto s = std::make_unique<Simulation>();
+		setup(*s);
+		constexpr float X0 = -20.0f, GX = 10.0f, GZ = 0.0f, R = 2.6f, PI = 3.14159265f;
+		for (int k = 0; k < 20; ++k) {
+			const float a = 2.0f * PI * k / 20.0f;
+			s->spawn_resource_world(GX + R * std::cos(a), GZ + R * std::sin(a), RES_WOOD, 300, RES_SUB_NONE, 0, FLORA_TREE_CRETAN_DATE_PALM_PATCH);
+		}
+		const uint32_t w = s->spawn_unit(X0, 0.0f, 0, UNIT_SPEARMAN, 150.0f);
+		s->order_walk(&w, 1, GX, GZ, false, true);
+		int t = 0, rises = 0, last = 0;
+		while (t < 4000 && idx(*s, w) >= 0 && s->units_.action_state[idx(*s, w)] == ACTION_MOVE) {
+			s->tick(DT);
+			++t;
+			const int f = s->units_.motion[idx(*s, w)].failed;
+			if (f > last) ++rises;
+			last = f;
+		}
+		const int wi = idx(*s, w);
+		const float ex = s->units_.pos_x[wi] - GX, ez = s->units_.pos_z[wi] - GZ;
+		CHECK(wi >= 0 && s->units_.action_state[wi] != ACTION_MOVE && t * DT <= 120.0f,
+		      "a walk to a point the trees shut off ends within 120 s");
+		CHECK(rises <= 10, "and it ends within 10 obstructed turns, not 35 (a walk held six turns fails two later)");
+		CHECK(std::hypot(ex, ez) > 2.0f, "it stops where the ring holds it, short of the point");
+	}
 
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;

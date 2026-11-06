@@ -525,7 +525,9 @@ def gaia_resource(source, ltpl, wx, wz):
     entry = {"type": rtype, "x": wx, "z": wz, "amount": int(amount)}
     # RTS0's trees and fruit default to template_gaia_tree/fruit's 8 gatherers (banyan 12, baobab 9).
     mg = info.get("max_gatherers")
-    if mg is not None and mg != 8 and rtype not in ("stone", "gold", "fish"):
+    # Rocks and ore too: 0 A.D.'s cut rocks (2000) have 4 gatherers, the small mines 12, the large 24,
+    # so the amount alone cannot give the cap (a 2000 rock would take the default 12).
+    if mg is not None and mg != 8:
         entry["max_gatherers"] = mg
     return entry
 
