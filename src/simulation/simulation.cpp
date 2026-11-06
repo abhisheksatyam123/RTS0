@@ -399,7 +399,8 @@ struct UnitGrid {
 		nxt = arena.alloc_array<int32_t>(n ? n : 1);
 		occupied = arena.alloc_array<uint64_t>((size_t)(res * words_per_row));
 		if (!head || !nxt || !occupied) return false;
-		std::memset(head, 0xFF, sizeof(int32_t) * (size_t)(res * res)); // every head -1
+		// head is not cleared: every reader (pack, visit_radius_within) reads a cell's head only where its occupied bit is
+		// set, and this build writes that head before the bit is set. A cell's first unit starts its chain with -1.
 		std::memset(occupied, 0, sizeof(uint64_t) * (size_t)(res * words_per_row));
 		for (size_t i = 0; i < n; ++i) {
 			if (!alive[i]) {
@@ -407,11 +408,13 @@ struct UnitGrid {
 				continue;
 			}
 			int c = cell_of(px[i], pz[i]);
-			nxt[i] = head[c];
-			head[c] = (int32_t)i;
 			int cz = c / res;
 			int cx = c % res;
-			occupied[cz * words_per_row + (cx / 64)] |= uint64_t{1} << (cx % 64);
+			uint64_t &word = occupied[cz * words_per_row + (cx / 64)];
+			const uint64_t bit = uint64_t{1} << (cx % 64);
+			nxt[i] = (word & bit) ? head[c] : -1;
+			head[c] = (int32_t)i;
+			word |= bit;
 		}
 		return true;
 	}
