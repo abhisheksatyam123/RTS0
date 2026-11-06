@@ -7229,8 +7229,11 @@ void Simulation::cmd_move_individual(const uint32_t *unit_ids, size_t count, flo
 		units_.anchor_z[idx] = w.dest_z;
 		// HierarchicalPathfinder::MakeGoalReachable: a player's walk to a point the unit can't reach
 		// (out at sea, ashore for a ship, another island) ends where find_path ends the path, the
-		// nearest point it can reach. Petra's walks keep their goal.
-		if (beach_goal_ && wp.count > 0) {
+		// nearest point it can reach. Petra's walks keep their goal. The G163 end move snaps a land walk's
+		// goal on an impassable navcell about 5 m, not onto the goal's own ground: such a walk keeps its raw
+		// target, as base did (0.28 never moves a unit's target). Ships and water goals keep the copy.
+		const bool keep_raw = !unit_is_ship(units_.unit_type[idx]) && nav_grid_.point_goal_snaps(w.dest_x, w.dest_z, w.pass);
+		if (beach_goal_ && wp.count > 0 && !keep_raw) {
 			units_.target_x[idx] = units_.anchor_x[idx] = wp.xs[wp.count - 1];
 			units_.target_z[idx] = units_.anchor_z[idx] = wp.zs[wp.count - 1];
 		}
