@@ -53,6 +53,17 @@ uniform float tile_half = 0.0;
 // World units a terrain texture spans (0 A.D. terrains repeat every 8 tiles).
 uniform float tile_repeat = 8.0;
 
+// Pixel-art look (Options: pixelart; UserSettings sets it). Off, every line below that
+// tests it is skipped, so the 0 A.D. look is unchanged.
+global uniform float rtso_pixel_art;
+
+// The ground in perceptual steps (gamma space), so flat colour reads as palette blocks
+// rather than a smooth gradient the low-res pass would only shimmer.
+vec3 pixel_posterize(vec3 c, float levels) {
+	vec3 g = pow(max(c, vec3(0.0)), vec3(1.0 / 2.2));
+	return pow(floor(g * levels + 0.5) / levels, vec3(2.2));
+}
+
 varying vec2 v_uv;
 varying vec3 v_world_pos;
 varying vec3 v_world_normal;
@@ -98,9 +109,12 @@ void fragment() {
 
 	// Samples
 	// Lowlands grass (macro + micro tiling)
-	vec3 grass_sample = (texture(grass_tex, uv * 1.0).rgb * 0.65 + texture(grass_tex, uv * 2.8).rgb * 0.35) * grass_col.rgb;
+	// Pixel look: the fine octaves (x2.8, x3.2) are smaller than a low-res pixel, so only
+	// the macro sample stays and the ground keeps its colour blocks.
+	bool pixel = rtso_pixel_art > 0.5;
+	vec3 grass_sample = (texture(grass_tex, uv * 1.0).rgb * (pixel ? 1.0 : 0.65) + (pixel ? vec3(0.0) : texture(grass_tex, uv * 2.8).rgb * 0.35)) * grass_col.rgb;
 	// Dirt / pathway sample
-	vec3 dirt_sample = (texture(dirt_tex, uv * 1.2).rgb * 0.7 + texture(dirt_tex, uv * 3.2).rgb * 0.3) * dirt_col.rgb;
+	vec3 dirt_sample = (texture(dirt_tex, uv * 1.2).rgb * (pixel ? 1.0 : 0.7) + (pixel ? vec3(0.0) : texture(dirt_tex, uv * 3.2).rgb * 0.3)) * dirt_col.rgb;
 
 	// Triplanar sampling for cliffs to eliminate vertical UV stretching
 	vec3 tri_uv_x = texture(rock_tex, v_world_pos.zy * 0.15).rgb;
@@ -158,6 +172,15 @@ void fragment() {
 		float sw = (1.0 - smoothstep(water_level + 0.3, water_level + 1.4, shore_h)) * (1.0 - cliff_weight * 0.7);
 		vec3 shore_sample = texture(shore_tex, uv * 1.6).rgb;
 		final_color = mix(final_color, shore_sample, sw);
+	}
+
+	if (pixel) {
+		// Pixel look: a little more colour, then a palette step; steep faces a shade darker so
+		// a cliff's edge reads against the grass beneath it.
+		float lum = dot(final_color, vec3(0.2126, 0.7152, 0.0722));
+		final_color = max(mix(vec3(lum), final_color, 1.18), vec3(0.0));
+		final_color = pixel_posterize(final_color, 18.0);
+		final_color *= mix(1.0, 0.8, smoothstep(0.3, 0.7, cliff_weight));
 	}
 
 	// Optional territory border overlay if enabled

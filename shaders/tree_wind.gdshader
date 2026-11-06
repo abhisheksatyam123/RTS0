@@ -39,9 +39,19 @@ void vertex() {
 	VERTEX.xz += diff + diff2 * wind;
 }
 
+// Pixel-art look (Options: pixelart, set by UserSettings): foliage in palette steps, a touch
+// more colour, so the canopy reads as blocks of green against the ground.
+global uniform float rtso_pixel_art;
+
 void fragment() {
 	vec4 tex = texture(albedo_tex, UV) * albedo;
 	ALBEDO = tex.rgb * COLOR.rgb;
+	if (rtso_pixel_art > 0.5) {
+		float lum = dot(ALBEDO, vec3(0.2126, 0.7152, 0.0722));
+		vec3 c = max(mix(vec3(lum), ALBEDO, 1.2), vec3(0.0));
+		vec3 g = pow(c, vec3(1.0 / 2.2));
+		ALBEDO = pow(floor(g * 14.0 + 0.5) / 14.0, vec3(2.2));
+	}
 	ALPHA = tex.a;
 	ALPHA_SCISSOR_THRESHOLD = alpha_scissor;
 	ROUGHNESS = 0.9;

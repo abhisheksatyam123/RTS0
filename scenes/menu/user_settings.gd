@@ -630,6 +630,9 @@ func _apply_viewport() -> void:
 	if cfg.get_bool("pixelart"):
 		vp.scaling_3d_scale = minf(vp.scaling_3d_scale, PIXEL_ART_SCALE)
 		vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_BILINEAR
+	# rtso_pixel_art: terrain, trees and team colours on structures take the pixel-art palette
+	# (shaders/terrain.gdshader, foliage_wind, tree_wind, player_color). Off = the 0 A.D. look.
+	RenderingServer.global_shader_parameter_set("rtso_pixel_art", 1.0 if cfg.get_bool("pixelart") else 0.0)
 	var aa := cfg.get_value("antialiasing")
 	vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA if aa == "fxaa" else Viewport.SCREEN_SPACE_AA_DISABLED
 	match aa:
