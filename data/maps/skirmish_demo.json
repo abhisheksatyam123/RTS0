@@ -4602,13 +4602,15 @@
       "type": "gold",
       "x": 9.72,
       "z": -38.8,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "stone",
       "x": 0.22,
       "z": -48.99,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "berry",

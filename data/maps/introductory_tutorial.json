@@ -4267,13 +4267,15 @@
       "type": "stone",
       "x": -37.57,
       "z": -49.25,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "stone",
       "x": -34.68,
       "z": -46.85,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "berry",
@@ -4327,13 +4329,15 @@
       "type": "stone",
       "x": -38.95,
       "z": 71.3,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "stone",
       "x": -34.36,
       "z": 71.19,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "berry",
@@ -5235,13 +5239,15 @@
       "type": "gold",
       "x": -28.87,
       "z": 70.44,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "gold",
       "x": -24.74,
       "z": 68.88,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "tree/maple_autumn",
