@@ -704,8 +704,8 @@ int Simulation::terrain_tile_at(float x, float z) const {
 	const TerrainTiles &t = terrain_tiles_;
 	if (t.empty()) return -1;
 	const float cell = 2.0f * map_half_ / (float)t.res;
-	const int tx = std::clamp((int)std::floor((x + map_half_) / cell), 0, t.res - 1);
-	const int tz = std::clamp((int)std::floor((z + map_half_) / cell), 0, t.res - 1);
+	const int tx = std::clamp(floor_index((x + map_half_) / cell), 0, t.res - 1);
+	const int tz = std::clamp(floor_index((z + map_half_) / cell), 0, t.res - 1);
 	return t.at(tx, tz);
 }
 
@@ -1393,8 +1393,8 @@ size_t Simulation::snap_trees_to_tiles() {
 	for (size_t r = 0; r < resources_.count; ++r) {
 		if (!resources_.alive[r] || resources_.type[r] != RES_WOOD || resources_.subtype[r] != RES_SUB_NONE) continue;
 		const float x = resources_.x[r], z = resources_.z[r];
-		const int ti = std::clamp((int)std::floor((x + map_half_) / tile), 0, tr - 1);
-		const int tj = std::clamp((int)std::floor((z + map_half_) / tile), 0, tr - 1);
+		const int ti = std::clamp(floor_index((x + map_half_) / tile), 0, tr - 1);
+		const int tj = std::clamp(floor_index((z + map_half_) / tile), 0, tr - 1);
 		int best = -1;
 		float best_d2 = 1e30f, bx = x, bz = z;
 		for (int dj = -1; dj <= 1; ++dj)
@@ -1477,8 +1477,8 @@ uint32_t Simulation::spawn_building_world(float wx, float wz, uint8_t type, uint
 	const BuildingTypeInfo &binfo = building_type_info(type);
 	int footprint = binfo.footprint;
 	float half = footprint * GRID * 0.5f;
-	int cell_x = (int)std::floor((wx - half) / GRID);
-	int cell_y = (int)std::floor((wz - half) / GRID);
+	int cell_x = floor_index((wx - half) / GRID);
+	int cell_y = floor_index((wz - half) / GRID);
 
 	Building b;
 	b.id = bid;
@@ -2277,7 +2277,7 @@ void Simulation::rebuild_nav_grid() {
 					for (int x = cx0; x <= cx1; ++x) memo_key.push_back(nav_grid_.is_passable(x, y) ? 1 : 0);
 				const float gx0 = x0 + (-1.0f + 0.5f) * sub, gx1 = x0 + ((float)W + 0.5f) * sub;
 				const float gz0 = z0 + (-1.0f + 0.5f) * sub, gz1 = z0 + ((float)H + 0.5f) * sub;
-				auto tile = [&](float v) { return std::clamp((int)std::floor((v + nav_grid_.map_half) * tile_inv), 0, tiles - 1); };
+				auto tile = [&](float v) { return std::clamp(floor_index((v + nav_grid_.map_half) * tile_inv), 0, tiles - 1); };
 				if (tiles > 0) {
 					const int ti0 = tile(gx0), ti1 = tile(gx1), tj0 = tile(gz0), tj1 = tile(gz1);
 					for (int tj = tj0; tj <= tj1; ++tj)
@@ -2291,7 +2291,7 @@ void Simulation::rebuild_nav_grid() {
 				bool wet = water && !terrain_heights_.empty() && terrain_res_ > 1;
 				if (wet) {
 					const float scale = (float)(terrain_res_ - 1) / (2.0f * nav_grid_.map_half);
-					auto vertex = [&](float v) { return std::clamp((int)std::floor((v + nav_grid_.map_half) * scale), 0, terrain_res_ - 1); };
+					auto vertex = [&](float v) { return std::clamp(floor_index((v + nav_grid_.map_half) * scale), 0, terrain_res_ - 1); };
 					const int i0 = vertex(x0 - sub), i1 = std::min(vertex(xe + sub) + 1, terrain_res_ - 1);
 					const int j0 = vertex(z0 - sub), j1 = std::min(vertex(ze + sub) + 1, terrain_res_ - 1);
 					float lo = std::numeric_limits<float>::max();
@@ -2318,8 +2318,8 @@ void Simulation::rebuild_nav_grid() {
 					// Per navcell of the window, the shapes that can reach one of its 1 m navcells.
 					cover.assign((size_t)CW * CH, 0);
 					for (int k = 0; k < ns; ++k) {
-						const int nx0 = std::clamp((int)std::floor((sx0[k] - x0) / nav_cell), 0, CW - 1), nx1 = std::clamp((int)std::floor((sx1[k] - x0) / nav_cell), 0, CW - 1);
-						const int ny0 = std::clamp((int)std::floor((sz0[k] - z0) / nav_cell), 0, CH - 1), ny1 = std::clamp((int)std::floor((sz1[k] - z0) / nav_cell), 0, CH - 1);
+						const int nx0 = std::clamp(floor_index((sx0[k] - x0) / nav_cell), 0, CW - 1), nx1 = std::clamp(floor_index((sx1[k] - x0) / nav_cell), 0, CW - 1);
+						const int ny0 = std::clamp(floor_index((sz0[k] - z0) / nav_cell), 0, CH - 1), ny1 = std::clamp(floor_index((sz1[k] - z0) / nav_cell), 0, CH - 1);
 						for (int y = ny0; y <= ny1; ++y)
 							for (int x = nx0; x <= nx1; ++x) cover[(size_t)y * CW + x] |= uint64_t{1} << k;
 					}
@@ -3568,8 +3568,8 @@ bool Simulation::forest_cell_closed(int cx, int cy, float clr) const {
 		const float e = o.ext + clr;
 		if (o.x + e < x0 || o.x - e > x1 || o.z + e < z0 || o.z - e > z1) return;
 		const nav::Vec2 c(o.x, o.z), u = nav::footprint_u(o), v = nav::footprint_v(o), half(o.hu + clr, o.hv + clr);
-		const int i0 = std::max(0, (int)std::floor((o.x - e - x0) / s)), i1 = std::min(N - 1, (int)std::floor((o.x + e - x0) / s));
-		const int j0 = std::max(0, (int)std::floor((o.z - e - z0) / s)), j1 = std::min(N - 1, (int)std::floor((o.z + e - z0) / s));
+		const int i0 = std::max(0, floor_index((o.x - e - x0) / s)), i1 = std::min(N - 1, floor_index((o.x + e - x0) / s));
+		const int j0 = std::max(0, floor_index((o.z - e - z0) / s)), j1 = std::min(N - 1, floor_index((o.z + e - z0) / s));
 		for (int j = j0; j <= j1; ++j)
 			for (int i = i0; i <= i1; ++i)
 				if (nav::PointIsInSquare(nav::Vec2(x0 + ((float)i + 0.5f) * s, z0 + ((float)j + 0.5f) * s) - c, u, v, half))
@@ -4035,10 +4035,10 @@ void Simulation::ensure_resource_block_cells() const {
 		if (mine_footprint(r, m)) {
 			// A mine blocks each cell its turned square overlaps.
 			const float e = nav::footprint_extent(m);
-			const int gx0 = std::max(0, (int)std::floor((m.x - e + map_half_) / GRID));
-			const int gx1 = std::min(w - 1, (int)std::floor((m.x + e + map_half_) / GRID));
-			const int gz0 = std::max(0, (int)std::floor((m.z - e + map_half_) / GRID));
-			const int gz1 = std::min(w - 1, (int)std::floor((m.z + e + map_half_) / GRID));
+			const int gx0 = std::max(0, floor_index((m.x - e + map_half_) / GRID));
+			const int gx1 = std::min(w - 1, floor_index((m.x + e + map_half_) / GRID));
+			const int gz0 = std::max(0, floor_index((m.z - e + map_half_) / GRID));
+			const int gz1 = std::min(w - 1, floor_index((m.z + e + map_half_) / GRID));
 			nav::Footprint cell;
 			cell.hu = cell.hv = 0.5f * GRID;
 			for (int z = gz0; z <= gz1; ++z)
@@ -4051,10 +4051,10 @@ void Simulation::ensure_resource_block_cells() const {
 		}
 		// Trees and fruit block their template's square (resource_block_half).
 		const float h = resource_block_half(r);
-		const int gx0 = std::max(0, (int)std::floor((resources_.x[r] - h + map_half_) / GRID));
-		const int gx1 = std::min(w - 1, (int)std::floor((resources_.x[r] + h + map_half_) / GRID));
-		const int gz0 = std::max(0, (int)std::floor((resources_.z[r] - h + map_half_) / GRID));
-		const int gz1 = std::min(w - 1, (int)std::floor((resources_.z[r] + h + map_half_) / GRID));
+		const int gx0 = std::max(0, floor_index((resources_.x[r] - h + map_half_) / GRID));
+		const int gx1 = std::min(w - 1, floor_index((resources_.x[r] + h + map_half_) / GRID));
+		const int gz0 = std::max(0, floor_index((resources_.z[r] - h + map_half_) / GRID));
+		const int gz1 = std::min(w - 1, floor_index((resources_.z[r] + h + map_half_) / GRID));
 		for (int z = gz0; z <= gz1; ++z)
 			for (int x = gx0; x <= gx1; ++x) resource_block_cells_[(size_t)z * w + x] = 1;
 	}
@@ -4345,7 +4345,7 @@ Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, ui
 		const float half = nav_grid_.map_half;
 		const int tw = nav_grid_.steep_tile_res();
 		const float tile = 2.0f * half / (float)tw;
-		auto at = [&](float v) { return std::clamp((int)std::floor((v + half) / tile), 0, tw - 1); };
+		auto at = [&](float v) { return std::clamp(floor_index((v + half) / tile), 0, tw - 1); };
 		for (int j = at(z0 + in); j <= at(z1 - in); ++j)
 			for (int i = at(x0 + in); i <= at(x1 - in); ++i) {
 				const float wx0 = -half + i * tile, wz0 = -half + j * tile;
@@ -4487,8 +4487,8 @@ float Simulation::unpack_angle(uint32_t packed) {
 std::vector<std::pair<int, int>> Simulation::building_cells(const Building &b) const {
 	std::vector<std::pair<int, int>> cells;
 	const float e = nav::footprint_extent(b);
-	const int cx0 = (int)std::floor((b.x - e) / GRID), cx1 = (int)std::floor((b.x + e) / GRID);
-	const int cy0 = (int)std::floor((b.z - e) / GRID), cy1 = (int)std::floor((b.z + e) / GRID);
+	const int cx0 = floor_index((b.x - e) / GRID), cx1 = floor_index((b.x + e) / GRID);
+	const int cy0 = floor_index((b.z - e) / GRID), cy1 = floor_index((b.z + e) / GRID);
 	for (int cx = cx0; cx <= cx1; ++cx)
 		for (int cy = cy0; cy <= cy1; ++cy)
 			if (nav::footprint_overlaps_box(b, cx * GRID, cy * GRID, (cx + 1) * GRID, (cy + 1) * GRID))
@@ -4599,8 +4599,8 @@ Simulation::Building wall_piece_footprint(const Simulation::WallPiece &p) {
 	b.type = p.type;
 	b.footprint = building_type_info(p.type).footprint;
 	const float half = b.footprint * Simulation::GRID * 0.5f;
-	b.cell_x = (int)std::floor((p.x - half) / Simulation::GRID);
-	b.cell_y = (int)std::floor((p.z - half) / Simulation::GRID);
+	b.cell_x = floor_index((p.x - half) / Simulation::GRID);
+	b.cell_y = floor_index((p.z - half) / Simulation::GRID);
 	const float half_w = is_wallset_piece(p.type, p.half_w) ? p.half_w : half;
 	b.rot = p.rot;
 	b.civ = p.civ;
@@ -6569,7 +6569,7 @@ Simulation::TradeGain Simulation::garrisoned_trade_gain(size_t trader_idx, Trade
 	}
 	if (traders == 0) return g;
 	const double mult = 1.0 + MERCHANT_SHIP_GARRISON_GAIN * traders;
-	auto scale = [mult](int v) { return (int)std::floor(mult * v + 0.5); };
+	auto scale = [mult](int v) { return floor_index(mult * v + 0.5); };
 	g.trader = scale(g.trader);
 	g.market1 = scale(g.market1);
 	g.market2 = scale(g.market2);
@@ -6733,8 +6733,8 @@ bool Simulation::pick_spawn_point_box(float cx, float cz, float rot, float along
 	// A circle's half size is its radius plus half a gap on both axes (CIRCLE: m_Size0 + gap / 2).
 	const float hx = circle ? circle_r + gap * 0.5f : along_u + gap * 0.5f;
 	const float hy = circle ? hx : along_v + gap * 0.5f;
-	int dist_x = std::max(1, (int)std::floor(hx / gap));
-	int dist_y = std::max(1, (int)std::floor(hy / gap));
+	int dist_x = std::max(1, floor_index(hx / gap));
+	int dist_y = std::max(1, floor_index(hy / gap));
 	if (rows == 1) { dist_x *= 2; dist_y *= 2; } // more points for large units
 	// Geometry::GetPerimeterDistance / GetPerimeterCoordinates.
 	auto perimeter_distance = [](int xm, int ym, int x, int y) {
@@ -6762,7 +6762,7 @@ bool Simulation::pick_spawn_point_box(float cx, float cz, float rot, float along
 		// 6 * (dist_x + r) points in row r: the rally point's angle from the front as a share of them.
 		constexpr float PI = 3.14159265359f;
 		const float angle = det::atan2(rally_x - cx, rally_z - cz) - rot;
-		for (int r = 0; r < nrows; ++r) offset[r] = (int)std::floor(angle * 3.0f * (float)(dist_x + r) / PI + 0.5f); // ToInt_RoundToNearest
+		for (int r = 0; r < nrows; ++r) offset[r] = floor_index(angle * 3.0f * (float)(dist_x + r) / PI + 0.5f); // ToInt_RoundToNearest
 	} else if (has_rally) {
 		// Geometry::NearestPointOnSquare, in the (u, v) frame.
 		const float rx = rally_x - cx, rz = rally_z - cz;
@@ -23235,7 +23235,7 @@ int Simulation::bribe_cost(uint8_t player, uint8_t target, bool failed) const {
 	// (spy_counter: x1.5), x FailureCostRatio 0.25 for a failed bribe; floored.
 	double m = (target < MAX_PLAYERS && players_[target].has_tech(TECH_SPY_COUNTER)) ? 1.5 : 1.0;
 	if (failed) m *= 0.25;
-	return (int)std::floor(m * 500.0);
+	return floor_index(m * 500.0);
 }
 
 Simulation::BribeResult Simulation::cmd_bribe(uint8_t player, uint8_t target) {
@@ -27051,7 +27051,7 @@ void Simulation::petra_build_first_base() {
 		const float near[2] = {points[best].x, points[best].z};
 		float x = 0.0f, z = 0.0f;
 		if (petra_find_economic_cc_location(goal, RES_WOOD, false, x, z, near)) {
-			lay((int)std::floor(x / GRID - 0.5f * (float)info.footprint), (int)std::floor(z / GRID - 0.5f * (float)info.footprint));
+			lay(floor_index(x / GRID - 0.5f * (float)info.footprint), floor_index(z / GRID - 0.5f * (float)info.footprint));
 			return;
 		}
 		// RTS0, not 0.28: with no tile reaching the cut (0.28 waits, or tries an oversea dock),
@@ -27508,7 +27508,7 @@ bool Simulation::petra_perform_barter() {
 	for (uint8_t buy : kCodes) {
 		if (buy == RES_FOOD) continue;
 		int rate_min = 80;
-		if (avail[buy] < 5000.0f && avail[RES_FOOD] > 5000.0f) rate_min -= 20 - (int)std::floor(avail[buy] / 250.0f);
+		if (avail[buy] < 5000.0f && avail[RES_FOOD] > 5000.0f) rate_min -= 20 - floor_index(avail[buy] / 250.0f);
 		const int rate = barter_rate(buy, RES_FOOD);
 		if (rate < rate_min) continue;
 		const float choice = (float)rate / (100.0f + avail[buy]);
@@ -27595,7 +27595,7 @@ int Simulation::petra_compute_target_traders(const float stocks[RES_COUNT]) cons
 bool Simulation::petra_line_in_enemy_territory(float x1, float z1, float x2, float z2) const {
 	constexpr float STEP = 70.0f / 4.0f; // 1 unit = 4 m
 	const float dx = x2 - x1, dz = z2 - z1;
-	const int n = (int)std::floor(std::sqrt(dx * dx + dz * dz) / STEP) + 1;
+	const int n = floor_index(std::sqrt(dx * dx + dz * dz) / STEP) + 1;
 	for (int i = 1; i < n; ++i) {
 		const int owner = territory_owner_at(x1 + dx * (float)i / (float)n, z1 + dz * (float)i / (float)n);
 		if (owner > 0 && owner < MAX_PLAYERS && petra_foe((uint8_t)owner)) return true;
@@ -27715,7 +27715,7 @@ int Simulation::petra_find_market_location(float &out_x, float &out_z, int &out_
 				if (owner != petra_pid_ && !(allied_victory() && owner >= 0 && is_ally(petra_pid_, (uint8_t)owner))) { frontier = true; break; }
 			}
 			if (frontier) continue;
-			const int cx = (int)std::floor((wx - half) / GRID), cz = (int)std::floor((wz - half) / GRID);
+			const int cx = floor_index((wx - half) / GRID), cz = floor_index((wz - half) / GRID);
 			if (!petra_can_place(cx, cz, info.footprint, BLD_MARKET) || petra_dangerous_location(wx, wz, half)) continue; // isDangerousLocation
 			best_val = max_val;
 			best_d2 = max_val;
@@ -28258,8 +28258,8 @@ uint16_t Simulation::petra_access_at(float x, float z) const {
 			}
 		}
 	}
-	const int cx = std::clamp((int)std::floor((x + half) / cell), 0, res - 1);
-	const int cz = std::clamp((int)std::floor((z + half) / cell), 0, res - 1);
+	const int cx = std::clamp(floor_index((x + half) / cell), 0, res - 1);
+	const int cz = std::clamp(floor_index((z + half) / cell), 0, res - 1);
 	const size_t k = (size_t)cz * res + cx;
 	if (const uint16_t l = a.land[k]) return l;
 	// Off land, the nearest land within 4 nav cells, ring by ring, kept for the next lookup there.
@@ -28711,7 +28711,7 @@ bool Simulation::petra_can_fish_safely(float x, float z, uint16_t sea) const {
 // callers pass the box their reads need plus the reach.
 void Simulation::petra_resource_maps(std::vector<uint8_t> (&maps)[3], float x0, float x1, float z0, float z1) const {
 	constexpr float kCcTile = 2.0f;
-	const int w = std::max(1, (int)std::floor(2.0f * map_half_ / kCcTile));
+	const int w = std::max(1, floor_index(2.0f * map_half_ / kCcTile));
 	static constexpr uint8_t kRes[3] = {RES_WOOD, RES_STONE, RES_GOLD};
 	for (auto &m : maps) m.assign((size_t)w * w, 0);
 	for (size_t r = 0; r < resources_.count; ++r) {
@@ -28726,8 +28726,8 @@ void Simulation::petra_resource_maps(std::vector<uint8_t> (&maps)[3], float x0, 
 		const float strength = (float)(resources_.max_amount[r] > 0 ? resources_.max_amount[r] : resources_.amount[r]) / (sparse ? 90.0f : 50.0f);
 		const float md = (sparse ? 48.0f : 36.0f) / 4.0f / kCcTile, md2 = md * md;
 		const float cx = std::floor((resources_.x[r] + map_half_) / kCcTile), cy = std::floor((resources_.z[r] + map_half_) / kCcTile);
-		const int ix0 = (int)std::floor(std::max(0.0f, cx - md)), iy0 = (int)std::floor(std::max(0.0f, cy - md));
-		const int ix1 = (int)std::floor(std::min((float)(w - 1), cx + md)), iy1 = (int)std::floor(std::min((float)(w - 1), cy + md));
+		const int ix0 = floor_index(std::max(0.0f, cx - md)), iy0 = floor_index(std::max(0.0f, cy - md));
+		const int ix1 = floor_index(std::min((float)(w - 1), cx + md)), iy1 = floor_index(std::min((float)(w - 1), cy + md));
 		for (int y = iy0; y < iy1; ++y)
 			for (int x = ix0; x < ix1; ++x) {
 				const float r2 = ((float)x - cx) * ((float)x - cx) + ((float)y - cy) * ((float)y - cy);
@@ -28762,7 +28762,7 @@ bool Simulation::petra_find_dock_position(uint16_t land, uint16_t sea, int &out_
 	};
 	auto sea_ok = [&](uint16_t s) { return sea ? s == sea : s != 0; };
 	constexpr float kCcTile = 2.0f; // the territory tile, 8 m
-	const int w = std::max(1, (int)std::floor(2.0f * map_half_ / kCcTile));
+	const int w = std::max(1, floor_index(2.0f * map_half_ / kCcTile));
 	const BuildingTypeInfo &info = building_type_info(BLD_DOCK);
 	const int foot = info.footprint;
 	const float half = 0.5f * (float)foot * GRID; // halfDepth and halfWidth: a square footprint
@@ -28795,7 +28795,7 @@ bool Simulation::petra_find_dock_position(uint16_t land, uint16_t sea, int &out_
 	// getResourcesAround: the diamond of 80 m, each cell weighted by its closeness, wood twice.
 	auto resources_around = [&](int ix, int iy) {
 		if (maps[0].empty()) build_maps();
-		const int size = (int)std::floor(80.0f / 4.0f / kCcTile);
+		const int size = floor_index(80.0f / 4.0f / kCcTile);
 		float total = 0.0f, nbcell = 0.0f;
 		for (int k = 0; k < 3; ++k) {
 			const float weigh0 = k == 0 ? 2.0f : 1.0f;
@@ -28967,7 +28967,7 @@ bool Simulation::petra_find_dock_position(uint16_t land, uint16_t sea, int &out_
 			const float x = ((float)c.ix + 0.5f) * kCcTile - map_half_, z = ((float)c.iz + 0.5f) * kCcTile - map_half_;
 			// getNonObstructedTile: the dock on this tile or one beside it, out of danger
 			// (isDangerousLocation).
-			const int cx0 = (int)std::floor(x / GRID - 0.5f * (float)foot), cz0 = (int)std::floor(z / GRID - 0.5f * (float)foot);
+			const int cx0 = floor_index(x / GRID - 0.5f * (float)foot), cz0 = floor_index(z / GRID - 0.5f * (float)foot);
 			int cx = 0, cz = 0;
 			bool fits = false;
 			for (int r = 0; r <= 1 && !fits; ++r)
@@ -29193,7 +29193,7 @@ void Simulation::petra_manage_naval(float dt) {
 				auto ait = building_id_to_idx_.find(base.anchor_building_id);
 				if (ait == building_id_to_idx_.end() || buildings_[ait->second].build_progress < 1.0f) continue;
 				const uint16_t land = petra_building_land(buildings_[ait->second], &topo);
-				const int sx = (int)std::floor(base.x / GRID), sz = (int)std::floor(base.z / GRID);
+				const int sx = floor_index(base.x / GRID), sz = floor_index(base.z / GRID);
 				for (int r = 2; r <= 30 && !placed; ++r)
 					for (int dx = -r; dx <= r && !placed; ++dx)
 						for (int dz = -r; dz <= r && !placed; ++dz) {
@@ -29983,7 +29983,7 @@ uint32_t Simulation::petra_place_dropsite(uint8_t res, float min_quality, bool *
 	const int k = res == RES_WOOD ? 0 : res == RES_STONE ? 1 : res == RES_GOLD ? 2 : -1;
 	if (k < 0) return 0;
 	constexpr float kCcTile = 2.0f;
-	const int w = std::max(1, (int)std::floor(2.0f * map_half_ / kCcTile));
+	const int w = std::max(1, floor_index(2.0f * map_half_ / kCcTile));
 	std::vector<uint8_t> ours((size_t)w * w, 0);
 	int bx0 = w, bz0 = w, bx1 = -1, bz1 = -1;
 	for (int iz = 0; iz < w; ++iz)
@@ -30031,7 +30031,7 @@ uint32_t Simulation::petra_place_dropsite(uint8_t res, float min_quality, bool *
 				if (d2 < 20.0f * 20.0f) total *= (std::sqrt(d2) - min_dropsite_dist) / 5.0f;
 			}
 			if (total <= best) continue;
-			const int cx0 = (int)std::floor(x / GRID - 0.5f * (float)foot), cz0 = (int)std::floor(z / GRID - 0.5f * (float)foot);
+			const int cx0 = floor_index(x / GRID - 0.5f * (float)foot), cz0 = floor_index(z / GRID - 0.5f * (float)foot);
 			bool fits = false;
 			for (int r = 0; r <= 1 && !fits; ++r)
 				for (int dz = -r; dz <= r && !fits; ++dz)
@@ -30172,7 +30172,7 @@ bool Simulation::petra_build_new_base(int res) {
 	}
 	const BuildingTypeInfo &info = building_type_info(btype);
 	const int foot = info.footprint;
-	const int cx = (int)std::floor(x / GRID - 0.5f * (float)foot), cz = (int)std::floor(z / GRID - 0.5f * (float)foot);
+	const int cx = floor_index(x / GRID - 0.5f * (float)foot), cz = floor_index(z / GRID - 0.5f * (float)foot);
 	if (!petra_try_pay_structure(PETRA_Q_CIVIL_CENTRE, btype)) return false;
 	return petra_spawn_foundation(cx, cz, btype) != 0;
 }
@@ -30238,7 +30238,7 @@ constexpr float kCcTile = 2.0f;
 // out of danger (getNonObstructedTile, isDangerousLocation).
 bool Simulation::petra_cc_tile_ok(uint8_t btype, float x, float z) const {
 	const int foot = building_type_info(btype).footprint;
-	const int cx = (int)std::floor(x / GRID - 0.5f * (float)foot), cz = (int)std::floor(z / GRID - 0.5f * (float)foot);
+	const int cx = floor_index(x / GRID - 0.5f * (float)foot), cz = floor_index(z / GRID - 0.5f * (float)foot);
 	if (!petra_can_place(cx, cz, foot, btype)) return false;
 	// isDangerousLocation: near an invading army, or within an enemy shooting structure's range
 	// plus the footprint's half size (isUnderEnemyFire).
@@ -30267,7 +30267,7 @@ bool Simulation::petra_find_strategic_cc_location(uint8_t btype, float &out_x, f
 	const uint16_t own_land = topo.naval_map ? home_land : (pb ? petra_land_at(pb->x, pb->z) : 0);
 	const uint16_t own_access = pb ? petra_access_at(pb->x, pb->z) : 0;
 	const float favoured = ((btype == BLD_MILITARY_COLONY ? 220.0f : 280.0f) - 40.0f * petra_config_.defensive) / 4.0f;
-	const int w = std::max(1, (int)std::floor(2.0f * map_half_ / kCcTile));
+	const int w = std::max(1, floor_index(2.0f * map_half_ / kCcTile));
 	const float border = 80.0f / 4.0f;
 	bool found = false;
 	float best = 0.0f;
@@ -30324,7 +30324,7 @@ bool Simulation::petra_find_strategic_cc_location(uint8_t btype, float &out_x, f
 // unless a ship could carry them.
 bool Simulation::petra_find_economic_cc_location(uint8_t btype, uint8_t res, bool from_strategic, float &out_x, float &out_z,
                                                  const float *proximity) {
-	const int w = std::max(1, (int)std::floor(2.0f * map_half_ / kCcTile));
+	const int w = std::max(1, floor_index(2.0f * map_half_ / kCcTile));
 	const size_t n = (size_t)w * (size_t)w;
 	// ccResourceMaps for wood, stone and metal.
 	static constexpr uint8_t kRes[3] = {RES_WOOD, RES_STONE, RES_GOLD};
@@ -30341,8 +30341,8 @@ bool Simulation::petra_find_economic_cc_location(uint8_t btype, uint8_t res, boo
 		const float strength = (float)(resources_.max_amount[r] > 0 ? resources_.max_amount[r] : resources_.amount[r]) / (sparse ? 90.0f : 50.0f);
 		const float md = (sparse ? 120.0f : 60.0f) / 4.0f / kCcTile, md2 = md * md;
 		const float cx = std::floor((resources_.x[r] + map_half_) / kCcTile), cy = std::floor((resources_.z[r] + map_half_) / kCcTile);
-		const int x0 = (int)std::floor(std::max(0.0f, cx - md)), y0 = (int)std::floor(std::max(0.0f, cy - md));
-		const int x1 = (int)std::floor(std::min((float)(w - 1), cx + md)), y1 = (int)std::floor(std::min((float)(w - 1), cy + md));
+		const int x0 = floor_index(std::max(0.0f, cx - md)), y0 = floor_index(std::max(0.0f, cy - md));
+		const int x1 = floor_index(std::min((float)(w - 1), cx + md)), y1 = floor_index(std::min((float)(w - 1), cy + md));
 		std::vector<uint8_t> &m = maps[k];
 		for (int y = y0; y < y1; ++y) {
 			const float dy2 = ((float)y - cy) * ((float)y - cy);
@@ -30410,7 +30410,7 @@ bool Simulation::petra_find_economic_cc_location(uint8_t btype, uint8_t res, boo
 				const uint16_t l = petra_land_at(x, z);
 				if (!l || (proxy_land && !ships && l != proxy_land)) continue;
 				// getNonObstructedTile(radius + 8 m): one more cell of room on every side.
-				const int cx = (int)std::floor(x / GRID - 0.5f * (float)foot), cz = (int)std::floor(z / GRID - 0.5f * (float)foot);
+				const int cx = floor_index(x / GRID - 0.5f * (float)foot), cz = floor_index(z / GRID - 0.5f * (float)foot);
 				if (!petra_can_place(cx - 1, cz - 1, foot + 2, btype) || !petra_cc_tile_ok(btype, x, z)) continue;
 				found = true;
 				best = val;
@@ -30598,7 +30598,7 @@ bool Simulation::petra_find_defensive_location(uint8_t btype, int &out_cx, int &
 			}
 			if (bad) continue;
 			// getNonObstructedTile: a spot for the footprint in or beside this cell.
-			const int c0x = (int)std::floor(x / GRID - (float)foot * 0.5f), c0z = (int)std::floor(z / GRID - (float)foot * 0.5f);
+			const int c0x = floor_index(x / GRID - (float)foot * 0.5f), c0z = floor_index(z / GRID - (float)foot * 0.5f);
 			bool placed = false;
 			for (int r = 0; r <= 1 && !placed; ++r)
 				for (int dz = -r; dz <= r && !placed; ++dz)
@@ -31002,7 +31002,7 @@ void Simulation::petra_manage_research(float dt) {
 	// turn (headquarters.js:2303).
 	if (petra_ps().phase >= 2 && home && petra_turn_mod(3)) {
 		const int cap = petra_config_max_pop(200);
-		const int pop_for_forge = std::min(std::max((int)std::floor(65.0f * petra_pop_scaling_for(petra_config_.pop_scaling, cap)), 30), cap / 2);
+		const int pop_for_forge = std::min(std::max(floor_index(65.0f * petra_pop_scaling_for(petra_config_.pop_scaling, cap)), 30), cap / 2);
 		const bool saving = petra_attack_mgr_.save_resources != 0;
 		const uint8_t civ = petra_ps().civ;
 		auto can_build = [&](uint8_t t) {
@@ -32769,7 +32769,7 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 			bool ready = !squad.empty() && (plan.forced || max_everywhere);
 			if (capped && !plan.forced) {
 				int length_min = 16;
-				if (pop_cap < 300) length_min -= (int)std::floor(8.0f * (float)(300 - pop_cap) / 300.0f);
+				if (pop_cap < 300) length_min -= floor_index(8.0f * (float)(300 - pop_cap) / 300.0f);
 				if ((min_everywhere && !squad.empty()) || squad.size() > (size_t)length_min) {
 					ready = true;
 				} else {
@@ -35355,7 +35355,7 @@ void Simulation::petra_bases_map(PetraBasesMap &m) const {
 	for (const Building &b : buildings_)
 		if (b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked && (is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY))
 			m.anchors.push_back({b.x, b.z, petra_access_at(b.x, b.z), b.id});
-	m.w = std::max(1, (int)std::floor(2.0f * map_half_ / GRID));
+	m.w = std::max(1, floor_index(2.0f * map_half_ / GRID));
 	m.x0 = m.z0 = 0;
 	m.x1 = m.z1 = -1;
 	m.base.clear();
@@ -35425,7 +35425,7 @@ void Simulation::petra_update_tile_bases() {
 }
 
 int Simulation::PetraBasesMap::at(float x, float z, float half) const {
-	const int ix = (int)std::floor((x + half) / GRID), iz = (int)std::floor((z + half) / GRID);
+	const int ix = floor_index((x + half) / GRID), iz = floor_index((z + half) / GRID);
 	if (ix < x0 || ix > x1 || iz < z0 || iz > z1) return 0;
 	return base[(size_t)(iz - z0) * (x1 - x0 + 1) + (ix - x0)];
 }
@@ -35488,10 +35488,10 @@ bool Simulation::petra_find_position(uint8_t btype, const float *base_at, const 
 	auto influence = [&](float wx, float wz, float reach_m, float strength) {
 		const float cx = std::round((wx + map_half_) / GRID) - (float)m.x0, cy = std::round((wz + map_half_) / GRID) - (float)m.z0;
 		const float md = reach_m / 4.0f / GRID, md2 = md * md, str = strength / md;
-		const int x0 = (int)std::floor(std::max(0.0f, cx - md)), y0 = (int)std::floor(std::max(0.0f, cy - md));
+		const int x0 = floor_index(std::max(0.0f, cx - md)), y0 = floor_index(std::max(0.0f, cy - md));
 		// addInfluence stops short of the map's last column only; this box's last column and row
 		// are our own territory, so they are in reach.
-		const int x1 = (int)std::floor(std::min((float)bw, cx + md)), y1 = (int)std::floor(std::min((float)bh, cy + md));
+		const int x1 = floor_index(std::min((float)bw, cx + md)), y1 = floor_index(std::min((float)bh, cy + md));
 		for (int y = y0; y < y1; ++y)
 			for (int x = x0; x < x1; ++x) {
 				const float r2 = ((float)x - cx) * ((float)x - cx) + ((float)y - cy) * ((float)y - cy);
@@ -35523,7 +35523,7 @@ bool Simulation::petra_find_position(uint8_t btype, const float *base_at, const 
 		const float reach = 36.0f / 4.0f + GRID;
 		petra_resource_maps(maps, (float)m.x0 * GRID - map_half_ - reach, (float)(m.x1 + 1) * GRID - map_half_ + reach,
 		                    (float)m.z0 * GRID - map_half_ - reach, (float)(m.z1 + 1) * GRID - map_half_ + reach);
-		const int w = std::max(1, (int)std::floor(2.0f * map_half_ / GRID));
+		const int w = std::max(1, floor_index(2.0f * map_half_ / GRID));
 		const float edge = 80.0f / 4.0f;
 		for (int iz = 0; iz < bh; ++iz)
 			for (int ix = 0; ix < bw; ++ix) {
@@ -38023,7 +38023,7 @@ void Simulation::petra_manage_diplomacy(float dt) {
 			const float ally = players_[p].res[r];
 			const bool needed = wanted[r];
 			if (donor && available[r] > 200.0f && ally < 0.2f * available[r]) {
-				amounts[r] = std::max(0, (int)std::floor(0.3f * available[r] - ally));
+				amounts[r] = std::max(0, floor_index(0.3f * available[r] - ally));
 				any |= amounts[r] > 0;
 			} else if (donor && (float)pop_current(p) < std::min(30.0f, 0.5f * (float)own_pop) &&
 			           petra_ps().res[r] > 500.0f && ally < 100.0f) {
@@ -44420,8 +44420,8 @@ bool Simulation::survival_placement_obstructed(float x0, float z0, float x1, flo
 	if (!survival) return false;
 	// Grid points from the map's corner (0 A.D. position 0) whose square overlaps the bounds.
 	const float h = kSurvivalObstructorHalf, st = kSurvivalObstructorStep;
-	const int i0 = std::max(0, (int)std::floor((x0 - h + map_half_) / st)), i1 = (int)std::ceil((x1 + h + map_half_) / st);
-	const int j0 = std::max(0, (int)std::floor((z0 - h + map_half_) / st)), j1 = (int)std::ceil((z1 + h + map_half_) / st);
+	const int i0 = std::max(0, floor_index((x0 - h + map_half_) / st)), i1 = (int)std::ceil((x1 + h + map_half_) / st);
+	const int j0 = std::max(0, floor_index((z0 - h + map_half_) / st)), j1 = (int)std::ceil((z1 + h + map_half_) / st);
 	const int last = (int)std::ceil(2.0f * map_half_ / st) - 1;
 	for (int j = j0; j <= std::min(j1, last); ++j)
 		for (int i = i0; i <= std::min(i1, last); ++i) {
@@ -45713,7 +45713,7 @@ void Simulation::random_template_composition(const std::vector<uint16_t> &names,
 	for (double &v : f) sum += (v = (double)sim_rng_.range_float(0.0f, 1.0f));
 	int left = count;
 	for (size_t i = 0; i < names.size(); ++i) {
-		const int n = i + 1 == names.size() ? left : std::min(left, (int)std::floor(f[i] / sum * (double)count + 0.5)); // Math.round
+		const int n = i + 1 == names.size() ? left : std::min(left, floor_index(f[i] / sum * (double)count + 0.5)); // Math.round
 		if (!n) continue;
 		auto it = std::find_if(counts.begin(), counts.end(), [&](const auto &c) { return c.first == names[i]; });
 		if (it == counts.end()) counts.push_back({names[i], n});
@@ -45898,7 +45898,7 @@ void Simulation::danubius_composition(float minutes, bool siege, int total, std:
 	}
 	const float champ = std::clamp((minutes - 25.0f) / 75.0f, 0.0f, 1.0f);         // championRatio
 	const bool hero = sim_rng_.range_float(0.0f, 1.0f) < std::clamp((minutes - 25.0f) / 60.0f, 0.0f, 1.0f); // heroProbability
-	const int siege_n = siege ? 1 + std::min(2, (int)std::floor(minutes / 30.0f)) : 0;                 // siegeCount
+	const int siege_n = siege ? 1 + std::min(2, floor_index(minutes / 30.0f)) : 0;                 // siegeCount
 	const float healer = sim_rng_.range_float(0.0f, 0.1f);                                          // healerRatio
 	balanced_template_composition({{heroes, hero ? 1 : 0, 0.0f}, {t.siege, siege_n, 0.0f}, {t.healers, 0, healer},
 	                               {t.champions, 0, champ}, {t.citizen_soldiers, 0, 1.0f - champ}},
@@ -46349,7 +46349,7 @@ void Simulation::trigger_jebel_barkal_init() {
 	}
 	for (const Holder &h : holders) {
 		auto it = building_id_to_idx_.find(h.id);
-		const int n = (int)std::floor((float)get_garrison_capacity(h.id) * h.ratio);
+		const int n = floor_index((float)get_garrison_capacity(h.id) * h.ratio);
 		if (n <= 0 || it == building_id_to_idx_.end()) continue;
 		std::vector<std::pair<uint16_t, int>> counts;
 		random_template_composition(*h.templates, n, counts);
@@ -46384,7 +46384,7 @@ void Simulation::trigger_jebel_barkal_city_patrol() {
 	if (spawn_points.empty()) return;
 	const float minutes = (float)triggers_.time_ms / 60000.0f, size = 2.0f * map_half_;
 	const float wanted = size > 192.0f ? jebel_by_time(minutes, 3.0f, 3.0f + 7.0f * (size - 128.0f) / 384.0f) : 0.0f;
-	const int spawn = (int)std::floor(std::max(0.0f, wanted) - (float)groups.size());
+	const int spawn = floor_index(std::max(0.0f, wanted) - (float)groups.size());
 	std::vector<const TriggerPoint *> path_points;
 	for (const TriggerPoint &p : triggers_.points)
 		if (p.ref == 'A') path_points.push_back(&p);
