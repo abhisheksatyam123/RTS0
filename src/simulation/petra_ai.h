@@ -178,7 +178,56 @@ enum PetraQueue : uint8_t {
 // of the item it last failed to pay for, and the want lapses after WANT_TTL seconds without
 // a retry, when the account's reserve returns to the free pool (queue emptied). Retries come
 // on 0.28's played-turn cadences (every 3rd to 5th 1.6 s turn: up to 8 s), so a want outlives them.
+// A queued plan's cost (queue.js Plan.getCost) and whether it can go now (isGo).
+struct PetraQueuePlan {
+	float food = 0.0f;
+	float wood = 0.0f;
+	float gold = 0.0f;
+	float stone = 0.0f;
+	uint8_t go = 0;
+	uint8_t pad[3] = {};
+};
+static_assert(sizeof(PetraQueuePlan) == 20, "no hidden padding: saved raw");
+// queue.js maxAccountWanted reads the first two plans of each queue.
+inline constexpr int PETRA_QUEUE_PLAN_DEPTH = 2;
+
 struct PetraQueueManager {
+	static constexpr int QUEUE_COUNT = PETRA_Q_COUNT;
+	static constexpr float WANT_TTL = 10.0f;
+	// Queues retried less often keep their want across one cadence: a new base every 10th
+	// turn (checkBaseExpansion), a wonder every 30th (headquarters.js:2314).
+	static constexpr float want_ttl(int q) {
+		return q == PETRA_Q_WONDER ? 31 * 1.6f : q == PETRA_Q_CIVIL_CENTRE ? 11 * 1.6f : WANT_TTL;
+	}
+	PetraQueueAccount accounts[QUEUE_COUNT] = {};
+	PetraQueueAccount wants[QUEUE_COUNT] = {};
+	float want_age[QUEUE_COUNT] = {};
+	int16_t priority[QUEUE_COUNT] = {};  // changePriority; 0 = the queue's Config.priorities value
+	uint8_t paused[QUEUE_COUNT] = {};    // checkPausedQueues
+	uint8_t switched[QUEUE_COUNT] = {};  // switchResource: drawn on once until it starts an item
+	uint8_t reset_on_start[QUEUE_COUNT] = {}; // queueToReset: 1 + the queue whose priority resets when this one starts its item
+	// researchTradeBonus / researchPopulationBonus: the technology they queued in minorTech,
+	// waiting to be paid for (0: none); every other minor technology waits behind it.
+	uint8_t special_tech = 0;
+	uint8_t pad[2] = {};
+	// The plans each queue holds, head first (queue.js plans[0], plans[1]). Stage 1: the head is
+	// the item a failed affordability check registers (petra_try_pay); the second is not yet filled.
+	PetraQueuePlan plans[QUEUE_COUNT][PETRA_QUEUE_PLAN_DEPTH] = {};
+	void reset() {
+		for (int i = 0; i < QUEUE_COUNT; ++i) {
+			accounts[i] = PetraQueueAccount{};
+			wants[i] = PetraQueueAccount{};
+			want_age[i] = want_ttl(i) + 1.0f;
+			priority[i] = 0;
+			paused[i] = switched[i] = reset_on_start[i] = 0;
+		}
+		special_tech = 0;
+		for (auto &q : plans) for (auto &pl : q) pl = PetraQueuePlan{};
+	}
+};
+static_assert(sizeof(PetraQueueManager) == 864 + sizeof(PetraQueuePlan) * PETRA_QUEUE_PLAN_DEPTH * PetraQueueManager::QUEUE_COUNT, "no hidden padding: saved raw");
+
+struct PetraQueueManagerV143 {
 	static constexpr int QUEUE_COUNT = PETRA_Q_COUNT;
 	static constexpr float WANT_TTL = 10.0f;
 	// Queues retried less often keep their want across one cadence: a new base every 10th
@@ -208,7 +257,7 @@ struct PetraQueueManager {
 		special_tech = 0;
 	}
 };
-static_assert(sizeof(PetraQueueManager) == 864, "no hidden padding: saved raw");
+static_assert(sizeof(PetraQueueManagerV143) == 864, "the saved layout before v144");
 // The six-queue layout of saves before v60 (emergency, villager, military, tech, trade, naval).
 struct PetraQueueManagerV59 {
 	PetraQueueAccount accounts[6];

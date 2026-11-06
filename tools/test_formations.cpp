@@ -908,8 +908,10 @@ static void test_push_front_resumes() {
 	s.order_walk(inf.data(), inf.size(), 0.0f, 20.0f);
 	s.set_push_front_order(false);
 	bool at_near = false, resumed = false;
-	for (int k = 0; k < 600 && !resumed; ++k) {
-		run(s, 0.1f);
+	// Every tick: the controller is idle for one tick at the pushed point (G163 snaps the first walk's
+	// end onto a navcell centre 4 m away, one tick later), and a 0.1 s sample can miss that tick.
+	for (int k = 0; k < 1200 && !resumed; ++k) {
+		run(s, 0.05f);
 		const Simulation::FormationController *fc = ctrl(s, fid);
 		if (!fc) break;
 		if (fc->order == Simulation::FORDER_IDLE && fc->goal_z > 15.0f) at_near = true;
