@@ -100,6 +100,9 @@ struct UnitSoA {
 	// UnitAI COMBAT: the unit or animal this unit was last in attack range of (ATTACKING), 0 for none.
 	// Chasing that target after it (CHASING) runs while it flees; approaching a new one walks.
 	uint32_t *chase_target = nullptr;
+	// 0 A.D. CHASING enter: bit 0 when the chase began on a fleeing target, so the unit runs for the whole
+	// chase (UnitAI "if target IsFleeing this.Run()"); bit 1 while the unit is in range of its target.
+	uint8_t *chase_run = nullptr;
 	// Position's rotation: the way the unit faces, as a unit vector (x, z). UnitMotion turns it at the
 	// template's TurnRate; (0, 1) faces +z, 0 A.D.'s rotation 0.
 	float *heading_x = nullptr;
@@ -126,7 +129,7 @@ struct UnitSoA {
 		FREE(pack_state); FREE(pack_elapsed);
 		FREE(order_kind); FREE(order_flags); FREE(order_target); FREE(order_x); FREE(order_z); FREE(order_x2); FREE(order_z2); FREE(attacked_by); FREE(work_kind); FREE(work_target);
 		FREE(xp_partial); FREE(hunt_fauna); FREE(short_path); FREE(motion);
-		FREE(aura_hp_mult); FREE(flee_from); FREE(flee_dist); FREE(gather_rate); FREE(gather_res); FREE(gather_claim_res); FREE(gather_claim); FREE(patrol_wait); FREE(chase_target);
+		FREE(aura_hp_mult); FREE(flee_from); FREE(flee_dist); FREE(gather_rate); FREE(gather_res); FREE(gather_claim_res); FREE(gather_claim); FREE(patrol_wait); FREE(chase_target); FREE(chase_run);
 		FREE(heading_x); FREE(heading_z);
 		#undef FREE
 		cap = count = 0;
@@ -210,6 +213,7 @@ struct UnitSoA {
 		realloc_aligned(gather_claim, c * sizeof(uint32_t));
 		realloc_aligned(patrol_wait, c * sizeof(float));
 		realloc_aligned(chase_target, c * sizeof(uint32_t));
+		realloc_aligned(chase_run, c * sizeof(uint8_t));
 		realloc_aligned(heading_x, c * sizeof(float));
 		realloc_aligned(heading_z, c * sizeof(float));
 		realloc_aligned(short_path, c * sizeof(ShortPathMemo));
@@ -270,6 +274,7 @@ struct UnitSoA {
 		gather_claim[i] = 0;
 		patrol_wait[i] = 0.0f;
 		chase_target[i] = 0;
+		chase_run[i] = 0;
 		heading_x[i] = 0.0f; heading_z[i] = 1.0f;
 		short_path[i] = ShortPathMemo{};
 		motion[i] = MotionTurn{};
@@ -336,6 +341,7 @@ struct UnitSoA {
 			gather_claim[idx] = gather_claim[last];
 			patrol_wait[idx] = patrol_wait[last];
 			chase_target[idx] = chase_target[last];
+			chase_run[idx] = chase_run[last];
 			heading_x[idx] = heading_x[last]; heading_z[idx] = heading_z[last];
 			short_path[idx] = short_path[last];
 			motion[idx] = motion[last];
