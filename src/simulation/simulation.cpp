@@ -16116,6 +16116,19 @@ void Simulation::obstructed_short_path(size_t i, uint8_t failed, std::vector<uin
 	float range = short_path_search_range(failed);
 	if (centre >= range - ONE_METRE) range = std::min(centre + ONE_METRE, SHORT_PATH_MAX_RANGE);
 	const bool reached = obstructed_search(i, goal, range, building, path, searched);
+	// G84 (walks, a point the trees shut off): a walk within 16 m of its point, whose straight line is blocked by
+	// a static and whose search finds no way round, keeps its held path into the point (the rule below) for 35
+	// obstructed turns. 0.28's long path there ends short, where the walk stands, and its PathResult short-path
+	// hack (CCmpUnitMotion.h:939-972) sets m_FailedMovements to MAX_FAILED_MOVEMENTS - 2, so the walk fails two
+	// obstructed turns later. RTS0's held path is its long path through a gap its 8 m navcells leave open. A walk
+	// held six turns in a row gets that count; one that clears by steering in fewer keeps its path. Only
+	// motion_feedback's call (beyond_queue given) sets it.
+	if (!reached && short_range && !task && beyond_queue && failed >= 6 && held_to_target && units_.waypoint_cur[i] < held.count &&
+			goal.distance(nav::Vec2(held.xs[held.count - 1], held.zs[held.count - 1])) <= slack) {
+		constexpr uint8_t MAX_FAILED_TWO_SHORT = 33; // MAX_FAILED_MOVEMENTS - 2
+		if (units_.motion[i].failed < MAX_FAILED_TWO_SHORT) units_.motion[i].failed = MAX_FAILED_TWO_SHORT;
+		return;
+	}
 	WaypointPath &wp = unit_paths_[i];
 	// Beyond 56 m a path that does not reach the goal is installed below, with its tail: RTS0's long path
 	// there is the one through the wood.
