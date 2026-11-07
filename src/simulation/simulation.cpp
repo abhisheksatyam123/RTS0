@@ -823,6 +823,7 @@ void Simulation::reset() {
 	recent_death_head_ = 0;
 	recent_deaths_.fill(RecentDeath{});
 	fauna_.count = 0;
+	lingering_corpses_.clear();
 	fauna_id_to_idx_.clear();
 	transport_passengers_.clear();
 	flight_.clear();
@@ -31848,7 +31849,12 @@ uint32_t Simulation::petra_nearest_target(uint8_t kind, bool forced, uint8_t ene
 				const float dx = d.x - b.x, dz = d.z - b.z;
 				if (dx * dx + dz * dz < 20.0f * 20.0f) { defended = true; break; } // 80 m: 20 tiles
 			}
-			if (!defended) consider(b.id, b.x, b.z, 0.0f);
+			// attackPlan.js:1085-1089 keeps a building at an exact tie of distance and takes the
+			// later one in entity order, so a tie goes to the higher id.
+			if (!defended) {
+				const float dx = b.x - px, dz = b.z - pz, d = dx * dx + dz * dz;
+				if (best == 0 || d < best_d || (d == best_d && b.id > best)) { best_d = d; best = b.id; out_tx = b.x; out_tz = b.z; }
+			}
 		}
 		if (best || !forced) return best;
 	}
@@ -40424,6 +40430,16 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		std::fill(std::begin(s.fauna_aim_vx_), std::end(s.fauna_aim_vx_), 0.0f); // older saves: at rest
 		std::fill(std::begin(s.fauna_aim_vz_), std::end(s.fauna_aim_vz_), 0.0f);
 	}
+	if (ar.version >= S::SAVE_VERSION_LINGERING_CORPSE) {
+		io_vec(ar, s.lingering_corpses_, S::FaunaStorage::MAX_FAUNA, [&](S::LingeringCorpse &lc) {
+			ar.pod(lc.x);
+			ar.pod(lc.z);
+			ar.pod(lc.timer);
+			ar.pod(lc.fauna_type);
+		});
+	} else if constexpr (Ar::loading) {
+		s.lingering_corpses_.clear(); // older saves: none
+	}
 	if constexpr (Ar::loading) {
 		if (s.fauna_.count > S::FaunaStorage::MAX_FAUNA) { ar.ok = false; return; }
 		s.fauna_id_to_idx_.clear();
@@ -42540,6 +42556,8 @@ void Simulation::fauna_killed(size_t f, size_t /*killer*/) {
 	fauna_.alive[f] = 0;
 	fauna_.behavior[f] = FAUNA_CARCASS;
 	const uint32_t rid = spawn_carcass(f);
+	if (rid == 0 && fauna_.food_amount[f] <= 0 && lingering_corpses_.size() < FaunaStorage::MAX_FAUNA) // no meat: a corpse that lies for a while
+		lingering_corpses_.push_back({fx, fz, LINGERING_CORPSE_TIME, fauna_.fauna_type[f]});
 	for (size_t h = 0; h < n; ++h) {
 		if (units_.target_unit_id[h] != tid || !units_.alive[h]) continue;
 		units_.target_unit_id[h] = 0;
@@ -42566,6 +42584,8 @@ void Simulation::fauna_killed(size_t f, size_t /*killer*/) {
 }
 
 void Simulation::tick_fauna(float dt) {
+	if (!lingering_corpses_.empty()) // a corpse with no meat lies for its time, then goes
+		std::erase_if(lingering_corpses_, [&](LingeringCorpse &lc) { lc.timer -= dt; return lc.timer <= 0.0f; });
 	tick_hunters();
 	if (fauna_.count == 0) return;
 
