@@ -42308,8 +42308,8 @@ void Simulation::fauna_attacked(size_t f, uint32_t attacker_id, bool melee) {
 					tx = t >= 0 ? units_.pos_x[t] : fauna_.pos_x[it->second];
 					tz = t >= 0 ? units_.pos_z[t] : fauna_.pos_z[it->second];
 					// ATTACKING reach, edge to edge: the animal's and the target's collision radii come off the centre distance.
-					const float tc = t >= 0 ? unit_collision_radius(units_.unit_type[t]) : fauna_type_info(fauna_.fauna_type[it->second]).footprint;
-					const float r = info.attack_range + info.footprint + tc;
+					const float tc = t >= 0 ? unit_collision_radius(units_.unit_type[t]) : fauna_type_info(fauna_.fauna_type[it->second]).footprint * 0.25f;
+					const float r = info.attack_range + info.footprint * 0.25f + tc; // footprints are 0 A.D. metres, 4 m to a unit
 					if (det::hypot(tx - fauna_.pos_x[f], tz - fauna_.pos_z[f]) <= r) return;
 				}
 			}
@@ -42925,11 +42925,11 @@ void Simulation::tick_fauna(float dt) {
 			bool keep = t >= 0 ? can_bite(t) : tf >= 0;
 			const float tx = t >= 0 ? units_.pos_x[t] : tf >= 0 ? fauna_.pos_x[tf] : fx;
 			const float tz = t >= 0 ? units_.pos_z[t] : tf >= 0 ? fauna_.pos_z[tf] : fz;
-			const float tclear = t >= 0 ? unit_collision_radius(units_.unit_type[t]) : tf >= 0 ? fauna_type_info(fauna_.fauna_type[tf]).footprint : 0.0f;
+			const float tclear = t >= 0 ? unit_collision_radius(units_.unit_type[t]) : tf >= 0 ? fauna_type_info(fauna_.fauna_type[tf]).footprint * 0.25f : 0.0f;
 			const float dx = tx - fx, dz = tz - fz;
 			const float td2 = dx * dx + dz * dz;
 			const float len = std::sqrt(td2);
-			const float bite_gap = std::max(0.0f, len - info.footprint - tclear); // edge to edge (IsInTargetRange)
+			const float bite_gap = std::max(0.0f, len - info.footprint * 0.25f - tclear); // edge to edge (IsInTargetRange)
 			// ShouldAbandonChase runs on the 1 s APPROACHING / CHASING Timer (while out of attack range),
 			// stopping non-violent animals once the target leaves vision (CheckTargetIsInVisionRange).
 			const uint64_t chase_period = (uint64_t)std::max(1L, std::lround(1.0f / dt));

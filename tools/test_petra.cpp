@@ -6635,7 +6635,13 @@ static void test_decay_garrison() {
 	const int cap = ours ? s->buildings_[it->second].garrison_cap : 0;
 	std::printf("  decaying tower in enemy land: needs %d, garrisoned %zu, still ours %s\n", need, inside, ours ? "yes" : "no");
 	CHECK(need > 0, "a tower in enemy territory decays");
-	CHECK(ours && (int)inside >= std::min(need, cap), "Petra garrisons a decaying tower (TYPE_DECAY)");
+	// A soldier that reaches an enemy inside its attack range fights it (edge to edge, IsInTargetRange),
+	// so it counts as busy rather than missing from the garrison.
+	int fighting = 0;
+	for (size_t u = 0; u < s->units_.count; ++u)
+		if (s->units_.alive[u] && s->units_.team[u] == 1 && s->units_.unit_type[u] == UNIT_SPEARMAN &&
+				s->units_.action_state[u] == ACTION_ATTACK) ++fighting;
+	CHECK(ours && (int)inside + fighting >= std::min(need, cap), "Petra garrisons a decaying tower (TYPE_DECAY)");
 	// A barracks is held only just after Petra captures it (addDecayingStructure justCaptured).
 	const uint32_t bar = s->spawn_building_world(tx, tz + 16.0f, BLD_BARRACKS, 0);
 	auto bi = s->building_id_to_idx_.find(bar);
