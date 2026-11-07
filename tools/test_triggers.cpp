@@ -316,6 +316,27 @@ static void check_polar_sea() {
 	const int w1 = wolves();
 	CHECK(w1 >= (int)pts.size() && w1 <= 3 * (int)pts.size(), "first wave: %d wolves at %zu points", w1, pts.size());
 	CHECK(s.trigger_state().attack_orders.size() == (size_t)w1, "%zu attack orders for %d wolves", s.trigger_state().attack_orders.size(), w1);
+	// TriggerHelper.SpawnUnits: each wolf stands on a PickSpawnPoint spot round its A point's 2 m
+	// circle, at least a unit's radius from the point and from every other wolf of the wave (a ring
+	// 0.6 m out, as before, put wolves on the point's own 1 m reach and overlapping).
+	{
+		std::vector<std::pair<float, float>> at;
+		for (const TriggerAttackOrder &o : s.trigger_state().attack_orders) {
+			const size_t f = s.fauna_id_to_idx_[o.fauna_id];
+			at.push_back({s.fauna_.home_x[f], s.fauna_.home_z[f]}); // where it was spawned (the wave has moved on by now)
+		}
+		int near_point = 0, close_pair = 0;
+		for (size_t i = 0; i < at.size(); ++i) {
+			float dmin = 1e9f;
+			for (const TriggerPoint &p : pts)
+				if (p.ref == 'A') dmin = std::min(dmin, std::hypot(at[i].first - p.x, at[i].second - p.z));
+			near_point += dmin >= 1.0f && dmin <= 3.0f;
+			for (size_t j = i + 1; j < at.size(); ++j)
+				close_pair += std::hypot(at[i].first - at[j].first, at[i].second - at[j].second) < 1.0f;
+		}
+		CHECK(near_point == (int)at.size(), "%d of %zu wolves not 1-3 m from an A point", (int)at.size() - near_point, at.size());
+		CHECK(close_pair == 0, "%d wolf pairs overlap (under 1 m apart)", close_pair);
+	}
 	// Each pack goes for organic player units, the nearest first.
 	float d_start = 0.0f, d_later = 0.0f;
 	int ordered = 0;
