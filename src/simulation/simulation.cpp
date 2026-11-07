@@ -823,6 +823,7 @@ void Simulation::reset() {
 	recent_death_head_ = 0;
 	recent_deaths_.fill(RecentDeath{});
 	fauna_.count = 0;
+	lingering_corpses_.clear();
 	fauna_id_to_idx_.clear();
 	transport_passengers_.clear();
 	flight_.clear();
@@ -40424,6 +40425,16 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		std::fill(std::begin(s.fauna_aim_vx_), std::end(s.fauna_aim_vx_), 0.0f); // older saves: at rest
 		std::fill(std::begin(s.fauna_aim_vz_), std::end(s.fauna_aim_vz_), 0.0f);
 	}
+	if (ar.version >= S::SAVE_VERSION_LINGERING_CORPSE) {
+		io_vec(ar, s.lingering_corpses_, S::FaunaStorage::MAX_FAUNA, [&](S::LingeringCorpse &lc) {
+			ar.pod(lc.x);
+			ar.pod(lc.z);
+			ar.pod(lc.timer);
+			ar.pod(lc.fauna_type);
+		});
+	} else if constexpr (Ar::loading) {
+		s.lingering_corpses_.clear(); // older saves: none
+	}
 	if constexpr (Ar::loading) {
 		if (s.fauna_.count > S::FaunaStorage::MAX_FAUNA) { ar.ok = false; return; }
 		s.fauna_id_to_idx_.clear();
@@ -42540,6 +42551,8 @@ void Simulation::fauna_killed(size_t f, size_t /*killer*/) {
 	fauna_.alive[f] = 0;
 	fauna_.behavior[f] = FAUNA_CARCASS;
 	const uint32_t rid = spawn_carcass(f);
+	if (rid == 0 && fauna_.food_amount[f] <= 0 && lingering_corpses_.size() < FaunaStorage::MAX_FAUNA) // no meat: a corpse that lies for a while
+		lingering_corpses_.push_back({fx, fz, LINGERING_CORPSE_TIME, fauna_.fauna_type[f]});
 	for (size_t h = 0; h < n; ++h) {
 		if (units_.target_unit_id[h] != tid || !units_.alive[h]) continue;
 		units_.target_unit_id[h] = 0;
@@ -42566,6 +42579,8 @@ void Simulation::fauna_killed(size_t f, size_t /*killer*/) {
 }
 
 void Simulation::tick_fauna(float dt) {
+	if (!lingering_corpses_.empty()) // a corpse with no meat lies for its time, then goes
+		std::erase_if(lingering_corpses_, [&](LingeringCorpse &lc) { lc.timer -= dt; return lc.timer <= 0.0f; });
 	tick_hunters();
 	if (fauna_.count == 0) return;
 
