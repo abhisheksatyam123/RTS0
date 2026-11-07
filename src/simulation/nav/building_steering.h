@@ -753,9 +753,10 @@ bool steer_around_obstacles(Vec2 pos, Vec2 aim, float radius,
 		memo.key = 0;
 	}
 	// A searched waypoint is followed while the way to it stays clear, as 0.28's PerformMove follows its short
-	// path (CCmpUnitMotion.h:1299-1326) until it is reached or obstructed. Dropping it on a tick the line to the
-	// aim is clear, and searching it again on the next, turned a walker 90 degrees each tick with zero step when
-	// a bounce of 0.08 m crossed the line (golden_island seed 1, spearman 3045, 1400-1495 s).
+	// path (CCmpUnitMotion.h:1299-1326) until it is reached or obstructed (HandleObstructedMove, 1369-1447).
+	// Dropping it on a tick the line to the aim is clear, and searching it again on the next, turned a walker 90
+	// degrees each tick with zero step when a bounce of 0.08 m crossed the line (golden_island seed 1, spearman
+	// 3045, 1400-1495 s).
 	if (follow && same_aim && memo.key == key && !by_buildings && !small_maybe) {
 		const Vec2 w(memo.x, memo.z);
 		fetch_small();
