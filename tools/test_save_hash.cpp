@@ -66,6 +66,7 @@ static void run(Simulation &s, int ticks) {
 	for (int t = 0; t < ticks; ++t) s.tick(Simulation::FIXED_STEP);
 }
 
+static int watch_compared = 0; // units whose walk was mid-watch (tree_replanned, watch_turns > 0) when compared
 // Field-level comparison of what compute_sim_hash reads, so a failure names the culprit.
 static void compare(const Simulation &a, const Simulation &b) {
 	auto ua = a.units(), ub = b.units();
@@ -96,6 +97,17 @@ static void compare(const Simulation &a, const Simulation &b) {
 		CMP("unit action_state", i, ua.action_state[i], ub.action_state[i]);
 		CMP("unit unit_type", i, ua.unit_type[i], ub.unit_type[i]);
 		CMP("unit team", i, ua.team[i], ub.team[i]);
+		// C1 tree watch (save v145): a walk counted for the watch, and the fallback's flag, survive a save. The count of
+		// walks compared mid-watch is kept for inspection only (not printed).
+		{
+			const WaypointPath &pa = a.unit_paths_[i], &pb = b.unit_paths_[i];
+			CMP("path tree_replanned", i, pa.tree_replanned, pb.tree_replanned);
+			CMP("path tree_off", i, pa.tree_off, pb.tree_off);
+			CMP("path watch_cur", i, pa.watch_cur, pb.watch_cur);
+			CMP("path watch_best", i, pa.watch_best, pb.watch_best);
+			CMP("path watch_turns", i, pa.watch_turns, pb.watch_turns);
+			if (pa.tree_replanned && pa.watch_turns > 0) ++watch_compared;
+		}
 		CMP("unit carry", i, ua.carry[i], ub.carry[i]);
 		CMP("unit res_type_carried", i, ua.res_type_carried[i], ub.res_type_carried[i]);
 		CMP("unit stance", i, ua.stance[i], ub.stance[i]);
@@ -937,6 +949,85 @@ static void check_tick_caches(TurnManager &tm, const char *path) {
 		            mines(*fresh).c_str());
 }
 
+// C1 tree watch across a save (save v145). The fuzz walker's palm groves (review/probes/fuzz1.cpp, seed 2) are replayed
+// until a walker is watched (its leg tree-re-planned, the watch counting past 1 turn) after tick 40. That walker is saved
+// there, loaded into a second sim, and both play on: the watch fields and the walker's positions must match tick for tick.
+static void check_tree_watch_save(TurnManager &tm, const char *path) {
+	const double M = 0.25; // metres -> world units, as the fuzz probe places them
+	uint64_t lcg = 2ull * 2654435761ull + 99; // fuzz1's stream for seed 2
+	auto urand = [&]() { lcg = lcg * 6364136223846793005ull + 1442695040888963407ull; return (double)(lcg >> 11) / 9007199254740992.0; };
+	auto make = [&](const std::vector<std::pair<double, double>> &palms, double wx, double wz, double gx, double gz, uint32_t &id) {
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(4242);
+		s->reset();
+		for (const auto &p : palms) s->spawn_resource_world((float)(p.first * M), (float)(p.second * M), RES_WOOD, 300, RES_SUB_NONE, 0, FLORA_TREE_CRETAN_DATE_PALM_PATCH);
+		s->rebuild_nav_grid();
+		id = s->spawn_unit((float)(wx * M), (float)(wz * M), 0, UNIT_SPEARMAN, 150.0f);
+		s->order_walk(&id, 1, (float)(gx * M), (float)(gz * M), false, true);
+		return s;
+	};
+	int trials_watched = 0;
+	const int before = failures;
+	// 400 trials: the watch engages on few layouts once the 1 m re-plan's structure rule stops palm canopy closing ground
+	// (the fuzz set's first watched walk is trial 82, at tick 80). The search stops at the first one.
+	for (int t = 0; t < 400 && trials_watched == 0; ++t) {
+		// fuzz1's layout draw, in its order (the RNG stream must match the probe's for the same trial)
+		const double sp = 5.0 + 7.0 * urand(), rm = 0.4 * urand(), side = 24.0 + 36.0 * urand(), jit = 0.6;
+		const int half = (int)std::lround(side / sp / 2.0);
+		std::vector<std::pair<double, double>> palms;
+		for (int i = -half; i <= half; ++i)
+			for (int k = -half; k <= half; ++k) {
+				if (urand() < rm) continue;
+				palms.push_back({i * sp + (urand() * 2 - 1) * jit, k * sp + (urand() * 2 - 1) * jit});
+			}
+		const double wx = -22.0 - 12.0 * urand(), wz = -25.0 + 50.0 * urand();
+		const double gx = -15.0 + 50.0 * urand(), gz = -25.0 + 50.0 * urand();
+		bool clear = true;
+		for (const auto &p : palms) if (std::hypot(p.first - wx, p.second - wz) < 3.0) { clear = false; break; }
+		if (!clear) continue;
+		uint32_t id = 0;
+		auto a = make(palms, wx, wz, gx, gz, id);
+		int32_t ia = -1;
+		int k = -1;
+		for (int tk = 1; tk <= 1500 && k < 0; ++tk) {
+			a->tick(0.05f);
+			ia = a->lookup_unit(id);
+			if (ia < 0) break;
+			const WaypointPath &wp = a->unit_paths_[ia];
+			if (tk >= 40 && wp.tree_replanned && wp.watch_turns >= 2) k = tk;
+		}
+		if (k < 0) continue;
+		++trials_watched;
+		std::printf("tree watch: trial %d watched at tick %d; saved there\n", t, k);
+		if (!a->save_state(path)) { std::printf("FAIL save (tree watch)\n"); ++failures; return; }
+		auto b = std::make_unique<Simulation>();
+		if (!b->load_state(path)) { std::printf("FAIL load (tree watch)\n"); ++failures; return; }
+		int32_t ib = b->lookup_unit(id);
+		if (ia < 0 || ib < 0) { std::printf("FAIL: the walker is missing after the load\n"); ++failures; return; }
+		const WaypointPath &wa = a->unit_paths_[ia], &wb = b->unit_paths_[ib];
+		CMP("watch tree_replanned", 0, wa.tree_replanned, wb.tree_replanned);
+		CMP("watch tree_off", 0, wa.tree_off, wb.tree_off);
+		CMP("watch watch_cur", 0, wa.watch_cur, wb.watch_cur);
+		CMP("watch watch_best", 0, wa.watch_best, wb.watch_best);
+		CMP("watch watch_turns", 0, wa.watch_turns, wb.watch_turns);
+		for (int tk = 0; tk < 300; ++tk) {
+			a->tick(0.05f);
+			b->tick(0.05f);
+			ia = a->lookup_unit(id);
+			ib = b->lookup_unit(id);
+			if (ia < 0 || ib < 0) break;
+			CMP("watch unit pos_x", tk, a->units_.pos_x[ia], b->units_.pos_x[ib]);
+			CMP("watch unit pos_z", tk, a->units_.pos_z[ia], b->units_.pos_z[ib]);
+			CMP("watch path watch_turns", tk, a->unit_paths_[ia].watch_turns, b->unit_paths_[ib].watch_turns);
+			CMP("watch path tree_off", tk, a->unit_paths_[ia].tree_off, b->unit_paths_[ib].tree_off);
+		}
+		if (tm.compute_sim_hash(*a) != tm.compute_sim_hash(*b)) { std::printf("  DIFF watch: the hash differs 300 ticks after the load\n"); ++failures; }
+		print_diffs();
+	}
+	if (trials_watched == 0) { std::printf("FAIL tree watch: no trial reached a watched walk (the check has nothing to test)\n"); ++failures; }
+	else if (failures == before) std::printf("tree watch: a walk saved mid-watch resumes identically (300 ticks): ok\n");
+}
+
 int main() {
 	static Simulation live, loaded;
 	TurnManager tm;
@@ -951,6 +1042,7 @@ int main() {
 	check_attack_move_structures(tm, "/tmp/rts0_test_save_hash.sav");
 	check_field_links(tm, "/tmp/rts0_test_save_hash.sav");
 	check_tick_caches(tm, "/tmp/rts0_test_save_hash.sav");
+	check_tree_watch_save(tm, "/tmp/rts0_test_save_hash.sav");
 	build(live);
 	const char *path = "/tmp/rts0_test_save_hash.sav";
 	// Save points: early game, mid game (armies, fields, traders), later.
