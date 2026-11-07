@@ -32022,6 +32022,9 @@ uint32_t Simulation::petra_target_obstruction(uint32_t id, float px, float pz, f
 		const bool gate = is_gate_type(b.type);
 		// We can reach the target, but nonetheless check that we did not cross any enemy gate.
 		if (dist < radius + 10.0f / 4.0f && !gate) continue;
+		// attackPlan.js:1147-1149 skips a structure whose angle is zero (both its static and gate
+		// obstruction tests), so an unrotated structure is never the blocker here.
+		if (b.rot == 0.0f) continue;
 		// Blocked by this structure: advancing 1.8 m (1 + 0.8 clearance) toward the target
 		// would bring us inside its obstruction. RTS0's path ends on a navcell centre, up to
 		// a navcell short of where 0.28's would stop, so the step adds one.
