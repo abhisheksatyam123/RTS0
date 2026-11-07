@@ -1486,6 +1486,8 @@ func _build_slot_headings() -> void:
 		# evenly into the gaps on both sides rather than cutting it to "Colo".
 		l.clip_text = h != "Color"
 		if not l.clip_text:
+			# A 12 px heading fits the narrow column, so it no longer runs into "Player Placement".
+			l.add_theme_font_size_override("font_size", 12)
 			l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		header.add_child(l)
 	# Panels/Buttons/CivInfoButton.js: the info icon at the Civilization heading's end.
