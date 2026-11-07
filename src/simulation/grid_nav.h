@@ -2680,12 +2680,10 @@ inline void NavGrid::avoid_tree_subcells(float sx, float sz, float &gx, float &g
     if (!reached_goal) {
         target = mend_p;
         if (!reached_end) {
-            nearest();
-            target = near_c;
-            if (target < 0) {
-                ++tree_sub_fallbacks;
-                return;
-            }
+            // Neither the goal nor the navcell end is reached: no tree re-plan. The nearest reached subcell would end
+            // the leg at a shore point that the unit's clearance bars, so the walk never gets past it (G168).
+            ++tree_sub_fallbacks;
+            return;
         }
     }
     // The box cells from the start to the target.
