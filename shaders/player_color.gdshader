@@ -30,6 +30,13 @@ uniform sampler2D specular_tex : filter_linear, hint_default_black;
 uniform bool use_parallax = false;
 uniform sampler2D height_tex : filter_linear, hint_default_white;
 uniform float parallax_scale = 0.0075;
+// Set from the pixelart option (user_settings.gd, RenderingServer.global_shader_parameter_set).
+// On: the owner's colour is pushed a little more saturated so it reads at phone zoom, and the
+// albedo is quantised to a small palette in sRGB steps (PIXEL_ART_LEVELS per channel). Off, the
+// shader is unchanged.
+global uniform bool rtso_pixel_art;
+const float PIXEL_ART_LEVELS = 12.0;
+const float PIXEL_ART_TEAM_SAT = 1.3;
 // Close-up units and buildings set this per node; crowd MultiMeshes pass the
 // owner's colour in INSTANCE_CUSTOM (alpha 1 + variant_u).
 instance uniform vec4 player_color : source_color = vec4(1.0);
@@ -147,8 +154,19 @@ void fragment() {
 			pick += int(step(object_cut[i / 4][i % 4], u));
 		tint = object_colors[pick].rgb;
 	}
+	if (rtso_pixel_art) {
+		float lum = dot(tint, vec3(0.299, 0.587, 0.114));
+		tint = clamp(mix(vec3(lum), tint, PIXEL_ART_TEAM_SAT), 0.0, 1.0);
+	}
 	vec3 owner = mix(vec3(1.0), tint, m);
-	ALBEDO = tex.rgb * owner / max(baked, vec3(0.05)) * (use_vertex_color ? COLOR.rgb : vec3(1.0));
+	vec3 albedo_col = tex.rgb * owner / max(baked, vec3(0.05)) * (use_vertex_color ? COLOR.rgb : vec3(1.0));
+	if (rtso_pixel_art) {
+		// Quantise in sRGB so the steps are even to the eye, not crushed in the darks.
+		vec3 srgb = pow(clamp(albedo_col, 0.0, 1.0), vec3(1.0 / 2.2));
+		srgb = floor(srgb * PIXEL_ART_LEVELS + 0.5) / PIXEL_ART_LEVELS;
+		albedo_col = pow(srgb, vec3(2.2));
+	}
+	ALBEDO = albedo_col;
 	ROUGHNESS = roughness;
 	METALLIC = metallic;
 	SPECULAR = specular;

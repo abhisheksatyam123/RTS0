@@ -625,6 +625,8 @@ func _apply_viewport() -> void:
 	vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR if tech == "fsr" and fsr_ok and vp.scaling_3d_scale < 1.0 else Viewport.SCALING_3D_MODE_BILINEAR
 	# 3D pixel-art look (pixelart): the world renders in a low-res SubViewport owned by the
 	# camera rig (camera_rig.cpp sync_pixel_world), so this viewport keeps its own scale.
+	# The unit shader's pixel-art palette and team colour push (shaders/player_color.gdshader).
+	RenderingServer.global_shader_parameter_set("rtso_pixel_art", cfg.get_bool("pixelart"))
 	var aa := cfg.get_value("antialiasing")
 	vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA if aa == "fxaa" else Viewport.SCREEN_SPACE_AA_DISABLED
 	match aa:
