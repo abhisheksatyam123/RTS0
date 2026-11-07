@@ -30,8 +30,15 @@ func _ready() -> void:
 	if open_structree:
 		tabs.current_tab = 1
 		open_structree = false
+	tabs.tab_changed.connect(func(_t): _render_title())
 	tabs.tab_changed.connect(func(_t): _render_tooltips())
+	_render_title()
 	_render_tooltips()
+
+## civinfo.xml:20-22 "Civilization Overview" on its own tab; the shared title stays on the Structure Tree.
+func _render_title() -> void:
+	var title: Label = $Center/Panel/VBox/Header/Title
+	title.text = L10n.t("Civilization Overview") if _tabs.current_tab == 0 else L10n.t("Civilization Overview and Structure Tree")
 
 ## colorizeHotkey's "[key]" in the hotkey colour, or "Unassigned hotkey: name".
 func _hotkey_text(name: String) -> String:
