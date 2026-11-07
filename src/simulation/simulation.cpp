@@ -13818,6 +13818,13 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		} else if (corner_reached && !noted) {
 			units_.short_path[i].key = round_units ? round_corner : 0;
 		}
+		// A waypoint reached this tick ends the step there (the next tick searches from the corner, as above). The
+		// rest of the step is not spent past it: a kept corner walked past, where its clearance meets a house, let
+		// the unit into the house's clearance, where the line to the aim reads clear and it walked into the face.
+		if (corner_reached && !kept_on) {
+			move_dx = dx;
+			move_dz = dz;
+		}
 		want_x[i] = move_dx;
 		want_z[i] = move_dz;
 		npx[i] = std::clamp(px[i] + move_dx, -map_half_, map_half_);
