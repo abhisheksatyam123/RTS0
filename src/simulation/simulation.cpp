@@ -42434,8 +42434,11 @@ void Simulation::tick_hunters() {
 		// RepeatTime 1 s, Domestic animals only.
 		const bool slaughter = finfo.is_domestic() && unit_has_slaughter(ut, units_.tmpl[i]);
 		const float dx = units_.pos_x[i] - fx, dz = units_.pos_z[i] - fz;
-		// The animal's footprint. Slaughter's MaxRange is 2 m even for archers, who walk up to it.
-		const float reach = (slaughter ? SLAUGHTER_RANGE : units_.attack_range[i]) + finfo.footprint;
+		// Edge to edge (IsInTargetRange): the hunter's and the animal's collision radii come off the centre
+		// distance. The animal's footprint is 0 A.D. metres, 4 m to a unit. Slaughter's MaxRange is 2 m even
+		// for archers, who walk up to it.
+		const float reach = (slaughter ? SLAUGHTER_RANGE : units_.attack_range[i]) + finfo.footprint * 0.25f +
+				unit_collision_radius(ut);
 		const bool in_reach = dx * dx + dz * dz <= reach * reach;
 		if (in_reach) { // COMBAT.ATTACKING: CHASING follows it from here
 			units_.chase_run[i] = (units_.chase_target[i] == tid ? (units_.chase_run[i] & CHASE_RUN_BIT) : 0) | CHASE_RANGE_BIT;
