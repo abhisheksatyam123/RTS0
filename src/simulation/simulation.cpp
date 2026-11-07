@@ -7625,10 +7625,7 @@ void Simulation::order_gather(const uint32_t *unit_ids_in, size_t count_in, uint
 		const uint8_t failed_kept = units_.motion[uidx].failed;
 		if (!keep) drop_walk_path((size_t)uidx);
 		set_order(uidx, ORDER_GATHER, flags, resource_id, rx, rz);
-		if (same_return) {
-			units_.motion[uidx].failed = failed_kept;
-			units_.motion[uidx].resent = 1; // tick_gather's return re-entry is this walk, not a new leg
-		}
+		if (same_return) units_.motion[uidx].failed = failed_kept;
 	}
 	if (!walkers.empty()) order_walk(walkers.data(), walkers.size(), rx, rz);
 }
@@ -16904,9 +16901,6 @@ void Simulation::tick_gather(float dt) {
 		// its order.
 		// A unit already returning re-picks its dropsite without a new leg: 0.28's re-sent order keeps its walk.
 		const bool was_returning = units_.action_state[i] == ACTION_RETURN_DROPSITE;
-		// The marker order_gather left on a same_return re-send is read once, on the tick it takes effect.
-		const bool resent = units_.motion[i].resent != 0;
-		units_.motion[i].resent = 0;
 		if ((units_.action_state[i] == ACTION_GATHER && full_for_target(i)) ||
 				units_.action_state[i] == ACTION_RETURN_DROPSITE) {
 			float best_d2 = 1e9f;
@@ -17037,9 +17031,7 @@ void Simulation::tick_gather(float dt) {
 					units_.target_z[i] = drop_z;
 					units_.has_order[i] = 1;
 					units_.action_state[i] = ACTION_RETURN_DROPSITE;
-					// A new leg is a new MoveTo, which resets the count (0.28 APPROACHING enter), unless it is the
-					// bounce of a same_return re-send, which is the walk going on (order_gather keeps its count).
-					if (!was_returning && !resent) units_.motion[i].failed = 0;
+					if (!was_returning) units_.motion[i].failed = 0; // a new leg is a new MoveTo, which resets the count (0.28 APPROACHING enter)
 				}
 			} else {
 				// RETURNINGRESOURCE enter with no dropsite (FindNearestDropsite null): FinishOrder,

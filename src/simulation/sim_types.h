@@ -2389,9 +2389,7 @@ struct MotionTurn {
 	uint8_t way_known = 0;   // a free turn has set way_x, way_z
 	uint8_t span_repeats = 0; // reversals over the span in a row
 	uint8_t span_two = 0;    // span2_x, span2_z are set
-	// order_gather's same_return re-send of a walk back with its full load: the GATHER bounce that tick_gather then
-	// sends back to the same dropsite keeps the walk's count (G168 follow-up; was an explicit padding byte, saved as 0).
-	uint8_t resent = 0;
+	uint8_t span_pad = 0;    // explicit, so the saved struct holds no hidden padding
 	// G119: the unit's rest position: where a standing unit stood when this turn began. separation() bins a standing unit
 	// by it, as it bins a stepping unit by where its first step began, so a push within the turn never moves it between
 	// pushing squares. Saved after the 48-byte record from SAVE_VERSION_PUSH_REST on.
