@@ -2687,7 +2687,7 @@ static void test_petra_islands_wood_reserve() {
 	s->petra_attack_mgr_.save_resources = 1;
 	s->players_[0].res[RES_WOOD] = 600.0f;
 	CHECK(!s->petra_wood_starved(), "not short while the trees stand");
-	for (size_t r : home_trees) s->resources_.amount[r] = 0;
+	for (size_t r : home_trees) s->set_resource_amount(s->resources_.id[r], 0); // the sim API: marks the trees' squares (C1)
 	CHECK(s->petra_wood_starved(), "short once they are cut");
 	CHECK(!s->petra_try_pay(PETRA_Q_HOUSE, 0.0f, 150.0f, 0.0f, 0.0f), "a house waits");
 	CHECK(!s->petra_try_pay(PETRA_Q_MAJOR_TECH, 500.0f, 500.0f, 0.0f, 0.0f), "the phase waits for its account");
@@ -5695,7 +5695,7 @@ static void test_placement_miss_memory_exact() {
 				const int cx = hcx + dx, cz = hcz + dz;
 				for (size_t i = 0; i < s->resources_.count; ++i) {
 					const int rx = (int)std::floor(s->resources_.x[i] / G), rz = (int)std::floor(s->resources_.z[i] / G);
-					if (rx >= cx && rx < cx + foot && rz >= cz && rz < cz + foot) s->resources_.amount[i] = 0;
+					if (rx >= cx && rx < cx + foot && rz >= cz && rz < cz + foot) { s->resources_.amount[i] = 0; s->note_tree_edit(); }
 				}
 				s->resource_block_tick_ = UINT64_MAX;
 				freed = s->petra_can_place(cx, cz, foot, BLD_TEMPLE);
@@ -5747,7 +5747,7 @@ static void test_dropsite_sites() {
 		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { hx = b.x; hz = b.z; }
 	auto &r = s->resources_;
 	for (size_t i = 0; i < r.count; ++i)
-		if (r.alive[i] && std::hypot(r.x[i] - hx, r.z[i] - hz) < 45.0f) r.amount[i] = 0;
+		if (r.alive[i] && std::hypot(r.x[i] - hx, r.z[i] - hz) < 45.0f) { r.amount[i] = 0; s->note_tree_edit(); }
 	// Toward the map centre a forest of 30 trees 22-30 units out, the other way a grove of 3.
 	const float ux = hx > 0.0f ? -1.0f : 1.0f, uz = hz > 0.0f ? -1.0f : 1.0f;
 	for (int i = 0; i < 6; ++i)
@@ -6479,8 +6479,8 @@ static void test_gather_limits() {
 	CHECK(tree != SIZE_MAX && mine != SIZE_MAX, "a tree and a mine on the map");
 	if (tree == SIZE_MAX || mine == SIZE_MAX) return;
 	for (size_t k = 0; k < r.count; ++k)
-		if (k != tree && k != mine) r.amount[k] = 0;
-	r.amount[tree] = r.amount[mine] = 5000;
+		if (k != tree && k != mine) { r.amount[k] = 0; s->note_tree_edit(); }
+	r.amount[tree] = r.amount[mine] = 5000; s->note_tree_edit();
 	for (size_t f = 0; f < s->fauna_.count; ++f) s->fauna_.food_amount[f] = 0;
 	// No foundations: a gatherer with no supply would help build a dropsite for its resource.
 	for (auto &b : s->buildings_)
@@ -6911,7 +6911,7 @@ static void test_petra_wood_poor_corral() {
 	CHECK(farm && !corral, "a large land short of food with wood wants a field");
 	s->players_[0].res[RES_WOOD] = 0.0f;
 	for (size_t r = 0; r < s->resources_.count; ++r)
-		if (s->resources_.type[r] == RES_WOOD) s->resources_.amount[r] = 0;
+		if (s->resources_.type[r] == RES_WOOD) { s->resources_.amount[r] = 0; s->note_tree_edit(); }
 	s->petra_kept_ = PetraKept{};
 	s->petra_config_first_base();
 	std::printf("  wood-poor start: needFarm %d, needCorral %d\n", (int)s->petra_kept_.need_farm, (int)s->petra_kept_.need_corral);
@@ -9292,7 +9292,7 @@ static void test_queued_dropsite_starts() {
 	}
 	auto &r = s->resources_;
 	for (size_t i = 0; i < r.count; ++i)
-		if (r.alive[i]) r.amount[i] = 0;
+		if (r.alive[i]) { r.amount[i] = 0; s->note_tree_edit(); }
 	// A grove of three trees: a site well under checkResourceLevels' 50.
 	const float ux = hx > 0.0f ? -1.0f : 1.0f;
 	std::vector<size_t> grove;
@@ -9330,7 +9330,7 @@ static void test_queued_dropsite_starts() {
 	s->petra_check_resource_levels(501);
 	CHECK(storehouses() == before + 1 && dc.pending == 0, "the queued storehouse starts on a site under 50");
 	// With no resource left by any site, the queued plan takes the general placement in its base.
-	for (size_t i : grove) r.amount[i] = 0;
+	for (size_t i : grove) { r.amount[i] = 0; s->note_tree_edit(); }
 	for (auto &b : s->buildings_)
 		if (b.team == 1) b.build_progress = 1.0f;
 	s->petra_turn_built_ = false;
