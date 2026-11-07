@@ -12,6 +12,7 @@
 #include "../graphics/assets/packed_siege_models.h"
 #include "../animation/psa_loader.h"
 #include <cassert>
+#include <cmath>
 #include <chrono>
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/variant/transform3d.hpp>
@@ -266,16 +267,19 @@ void RtsoWorldView::cleanup() {
 		}
 	}
 	for (int k = 0; k < TREE_KINDS; ++k)
-		for (int v = 0; v < TREE_VARIANTS; ++v) tree_mm[k][v].unref();
+		for (int v = 0; v < TREE_VARIANTS; ++v) tree_deco_[k][v].release();
 	for (int k = 0; k < FLORA_KINDS; ++k)
-		for (int v = 0; v < TREE_VARIANTS; ++v) flora_mm[k][v].unref();
+		for (int v = 0; v < TREE_VARIANTS; ++v) flora_deco_[k][v].release();
 	for (int k = 0; k < MINE_KINDS; ++k) mine_mm[k].unref();
 	for (int k = 0; k < rtso::TREASURE_TYPE_COUNT; ++k) treasure_mm[k].unref();
-	for (int k = 0; k < rtso::SCENERY_TYPE_COUNT; ++k) scenery_variants_[k].clear();
+	for (int k = 0; k < rtso::SCENERY_TYPE_COUNT; ++k) {
+		for (auto &sv : scenery_variants_[k]) sv.deco.release();
+		scenery_variants_[k].clear();
+	}
 	food_mm.unref();
 	fish_mm.unref();
-	ruins_mm.unref();
-	scenery_mm.unref();
+	ruins_deco_.release();
+	scenery_deco_.release();
 	arrow_mm.unref();
 	bolt_mm.unref();
 	stone_proj_mm.unref();
@@ -670,10 +674,7 @@ void RtsoWorldView::_ready() {
 	};
 	for (int k = 0; k < TREE_KINDS; ++k) {
 		for (int v = 0; v < TREE_VARIANTS; ++v) {
-			tree_mm[k][v] = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "tree").mesh), true);
-			tree_mmi[k][v] = memnew(MultiMeshInstance3D);
-			tree_mmi[k][v]->set_multimesh(tree_mm[k][v]);
-			add_child(tree_mmi[k][v]);
+			tree_deco_[k][v].mesh = tinted(rtso::ModelLibrary::get("vegetation", "tree").mesh);
 		}
 	}
 	pick_tree_kinds("mediterranean");
@@ -719,8 +720,7 @@ void RtsoWorldView::_ready() {
 	food_mm = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "fruit_bush").mesh), true);
 
 	food_mmi = memnew(MultiMeshInstance3D); food_mmi->set_multimesh(food_mm); add_child(food_mmi);
-	ruins_mm = create_multimesh(tinted(rtso::ModelLibrary::get("buildings", "ruins").mesh), true);
-	ruins_mmi = memnew(MultiMeshInstance3D); ruins_mmi->set_multimesh(ruins_mm); add_child(ruins_mmi);
+	ruins_deco_.mesh = tinted(rtso::ModelLibrary::get("buildings", "ruins").mesh);
 	{
 		Ref<BoxMesh> box;
 		box.instantiate();
@@ -729,11 +729,8 @@ void RtsoWorldView::_ready() {
 		mat.instantiate();
 		mat->set_flag(BaseMaterial3D::FLAG_ALBEDO_FROM_VERTEX_COLOR, true);
 		mat->set_roughness(0.9f);
-		scenery_mm = create_multimesh(box, true);
-		scenery_mmi = memnew(MultiMeshInstance3D);
-		scenery_mmi->set_multimesh(scenery_mm);
-		scenery_mmi->set_material_override(mat);
-		add_child(scenery_mmi);
+		scenery_deco_.mesh = box;
+		scenery_deco_.material = mat;
 	}
 	load_scenery_actors();
 	fish_mm = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "fish").mesh), true);
@@ -1166,10 +1163,7 @@ void RtsoWorldView::load_scenery_actors() {
 			if (mesh.is_null()) continue;
 			enable_instance_tint(mesh);
 			SceneryVariant k;
-			k.mm = create_multimesh(mesh, true);
-			MultiMeshInstance3D *mmi = memnew(MultiMeshInstance3D);
-			mmi->set_multimesh(k.mm);
-			add_child(mmi);
+			k.deco.mesh = mesh;
 			scenery_variants_[t].push_back(k);
 		}
 	}
@@ -2189,11 +2183,8 @@ void RtsoWorldView::ensure_flora(int k) {
 	for (int v = 0; v < flora_variants[k]; ++v) {
 		const auto &e = models[v];
 		enable_instance_tint(e.mesh);
-		flora_mm[k][v] = create_multimesh(flora_sways_[k] ? wind_mesh(e.mesh) : e.mesh, true);
+		flora_deco_[k][v].mesh = flora_sways_[k] ? wind_mesh(e.mesh) : e.mesh;
 		flora_y[k][v] = e.y_offset * flora_scale[k];
-		flora_mmi[k][v] = memnew(MultiMeshInstance3D);
-		flora_mmi[k][v]->set_multimesh(flora_mm[k][v]);
-		add_child(flora_mmi[k][v]);
 	}
 }
 
@@ -4154,8 +4145,7 @@ void RtsoWorldView::pick_tree_kinds(const std::string &biome) {
 		tree_variants[slot] = n;
 		for (int v = 0; v < n; ++v) {
 			enable_instance_tint(models[v].mesh);
-			tree_mm[slot][v]->set_instance_count(0);
-			tree_mm[slot][v]->set_mesh(wind_mesh(models[v].mesh));
+			deco_set_mesh(tree_deco_[slot][v], wind_mesh(models[v].mesh));
 			tree_y[slot][v] = models[v].y_offset * kd.scale;
 		}
 	}
@@ -4166,7 +4156,7 @@ void RtsoWorldView::pick_tree_kinds(const std::string &biome) {
 		tree_y[0][0] = rtso::ModelLibrary::get("vegetation", "tree").y_offset;
 	}
 	for (int k = 0; k < TREE_KINDS; ++k)
-		for (int v = k < tree_kind_count ? tree_variants[k] : 0; v < TREE_VARIANTS; ++v) tree_mm[k][v]->set_instance_count(0);
+		for (int v = k < tree_kind_count ? tree_variants[k] : 0; v < TREE_VARIANTS; ++v) deco_clear(tree_deco_[k][v]);
 }
 
 // 0 A.D. random maps paint forest floor under every forest and dirt round
@@ -4762,6 +4752,91 @@ static void set_mm_buffer_checked(const Ref<MultiMesh> &mm, const PackedFloat32A
 	const int stride = 12 + (mm->is_using_colors() ? 4 : 0) + (mm->is_using_custom_data() ? 4 : 0);
 	assert(buf.size() == (int64_t)n * stride);
 	if (buf.size() == (int64_t)n * stride) mm->set_buffer(buf);
+}
+
+// Decorative batches: one MultiMeshInstance3D per kDecoCellSize square, created the
+// first time an instance lands in it. The node sits at the square's centre, so the
+// visibility range is measured from there, and the instances are written relative to it.
+void RtsoWorldView::DecoBatch::release() {
+	mesh.unref();
+	material.unref();
+	for (DecoCell &c : cells) c.mm.unref();
+	cells.clear();
+	index.clear();
+}
+
+RtsoWorldView::DecoCell &RtsoWorldView::deco_cell(DecoBatch &b, float x, float z) {
+	const int cx = (int)std::floor(x / kDecoCellSize);
+	const int cz = (int)std::floor(z / kDecoCellSize);
+	const int64_t key = ((int64_t)cx << 32) ^ (int64_t)(uint32_t)(int32_t)cz;
+	auto it = b.index.find(key);
+	if (it != b.index.end()) return b.cells[it->second];
+	DecoCell c;
+	c.centre = Vector3((cx + 0.5f) * kDecoCellSize, 0.0f, (cz + 0.5f) * kDecoCellSize);
+	c.mm = create_multimesh(b.mesh, b.use_colors);
+	c.mmi = memnew(MultiMeshInstance3D);
+	c.mmi->set_multimesh(c.mm);
+	c.mmi->set_position(c.centre);
+	c.mmi->set_visibility_range_end(kDecoVisRange);
+	c.mmi->set_visibility_range_end_margin(kDecoVisFade);
+	c.mmi->set_visibility_range_fade_mode(GeometryInstance3D::VISIBILITY_RANGE_FADE_SELF);
+	if (b.material.is_valid()) c.mmi->set_material_override(b.material);
+	add_child(c.mmi);
+	b.index.emplace(key, b.cells.size());
+	b.cells.push_back(c);
+	return b.cells.back();
+}
+
+void RtsoWorldView::deco_count(DecoBatch &b, float x, float z) {
+	deco_cell(b, x, z).count++;
+}
+
+void RtsoWorldView::deco_write(DecoBatch &b, const Transform3D &xf, const Color &tint) {
+	DecoCell &c = deco_cell(b, xf.origin.x, xf.origin.z);
+	assert(c.next < c.count);
+	Transform3D local = xf;
+	local.origin -= c.centre;
+	c.mm->set_instance_transform(c.next, local);
+	c.mm->set_instance_color(c.next++, tint);
+}
+
+void RtsoWorldView::deco_set_mesh(DecoBatch &b, const Ref<Mesh> &mesh) {
+	b.mesh = mesh;
+	for (DecoCell &c : b.cells) {
+		c.mm->set_mesh(mesh);
+		set_mm_count(c.mm, 0);
+	}
+}
+
+void RtsoWorldView::deco_clear(DecoBatch &b) {
+	for (DecoCell &c : b.cells) set_mm_count(c.mm, 0);
+}
+
+// Calls f on every decorative batch.
+template <typename F> void RtsoWorldView::deco_each_batch(F &&f) {
+	for (int k = 0; k < TREE_KINDS; ++k)
+		for (int v = 0; v < TREE_VARIANTS; ++v) f(tree_deco_[k][v]);
+	for (int k = 0; k < FLORA_KINDS; ++k)
+		for (int v = 0; v < TREE_VARIANTS; ++v) f(flora_deco_[k][v]);
+	f(ruins_deco_);
+	f(scenery_deco_);
+	for (int k = 0; k < rtso::SCENERY_TYPE_COUNT; ++k)
+		for (SceneryVariant &sv : scenery_variants_[k]) f(sv.deco);
+}
+
+void RtsoWorldView::deco_begin_all() {
+	deco_each_batch([](DecoBatch &b) {
+		for (DecoCell &c : b.cells) c.count = c.next = 0;
+	});
+}
+
+void RtsoWorldView::deco_commit_all() {
+	deco_each_batch([this](DecoBatch &b) {
+		for (DecoCell &c : b.cells) {
+			set_mm_count(c.mm, c.count);
+			c.next = 0;
+		}
+	});
 }
 
 void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedInt32Array &selected_ids) {
@@ -5977,7 +6052,8 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	update_birds(sim, delta);
 	if (props_key != static_props_key_) {
 	static_props_key_ = props_key;
-	size_t n_tree = 0, fd = 0, nru = 0, fish_n = 0, n_mine[MINE_KINDS] = {};
+	deco_begin_all();
+	size_t fd = 0, fish_n = 0, n_mine[MINE_KINDS] = {};
 	if (sim->current_map_biome() != mine_biome_) pick_mine_models(sim->current_map_biome());
 	if (sim->game_time() < mine_large_time_ || sim->current_map_id() != mine_large_map_) {
 		mine_large_.clear();
@@ -5996,9 +6072,8 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	};
 	for (const auto &r : fres) {
 		if (r.subtype == rtso::RES_SUB_GRAIN || r.subtype == rtso::RES_SUB_MEAT) continue; // a field's grain or animal carcass
-		if (r.subtype == rtso::RES_SUB_RUINS) nru++;
-		else if (r.type == rtso::RES_WOOD) n_tree++;
-		else if (r.type == rtso::RES_GOLD || r.type == rtso::RES_STONE) n_mine[mine_of(r)]++;
+		if (r.subtype == rtso::RES_SUB_RUINS || r.type == rtso::RES_WOOD) continue; // decorative batches count them
+		if (r.type == rtso::RES_GOLD || r.type == rtso::RES_STONE) n_mine[mine_of(r)]++;
 		else if (r.subtype == rtso::RES_SUB_FISH) fish_n++;
 		else if (r.type == rtso::RES_FOOD) fd++;
 	}
@@ -6011,29 +6086,42 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		if (r.subtype != rtso::RES_SUB_NONE || (r.type != rtso::RES_WOOD && r.type != rtso::RES_FOOD)) return 0;
 		return r.flora;
 	};
-	size_t n_kind[TREE_KINDS][TREE_VARIANTS] = {}, n_flora[FLORA_KINDS][TREE_VARIANTS] = {};
+	// Pass 1 of the decorative batches: count each cell's instances, then size the cells.
+	// Pass 2 below writes the same instances in the same order, so every write lands in a
+	// slot counted here. The chain of tests matches pass 2.
 	for (const auto &r : fres) {
+		if (r.subtype == rtso::RES_SUB_GRAIN) continue;
 		if (const int f = flora_of(r)) {
-			n_flora[f][tree_variant_of(r.id, flora_variants[f])]++;
+			deco_count(flora_deco_[f][tree_variant_of(r.id, flora_variants[f])], r.x, r.z);
 			if (r.type == rtso::RES_FOOD) fd--;
 			continue;
 		}
-		if (r.type == rtso::RES_WOOD && r.subtype != rtso::RES_SUB_GRAIN) {
+		if (r.subtype == rtso::RES_SUB_RUINS) {
+			deco_count(ruins_deco_, r.x, r.z);
+			continue;
+		}
+		if (r.type == rtso::RES_WOOD) {
 			const int k = (int)(r.id % (uint32_t)tree_kind_count);
-			n_kind[k][tree_variant_of(r.id, tree_variants[k])]++;
+			deco_count(tree_deco_[k][tree_variant_of(r.id, tree_variants[k])], r.x, r.z);
 		}
 	}
-	for (int k = 0; k < tree_kind_count; ++k)
-		for (int v = 0; v < tree_variants[k]; ++v) set_mm_count(tree_mm[k][v], (int)n_kind[k][v]);
-	for (int k = 1; k < FLORA_KINDS; ++k)
-		for (int v = 0; v < flora_variants[k]; ++v) set_mm_count(flora_mm[k][v], (int)n_flora[k][v]);
+	{
+		// Gaia scenery: a box per type without an actor mesh, else its variant's batch.
+		const auto &sv = sim->scenery();
+		for (const auto &sc : sv) {
+			if (los_brightness(sc.x, sc.z) <= 0.0f) continue;
+			auto &kinds = scenery_variants_[sc.type < rtso::SCENERY_TYPE_COUNT ? sc.type : 0];
+			if (kinds.empty()) deco_count(scenery_deco_, sc.x, sc.z);
+			else deco_count(kinds[sc.id % diverse_variants((int)kinds.size())].deco, sc.x, sc.z);
+		}
+	}
+	deco_commit_all();
 	for (int k = 0; k < MINE_KINDS; ++k) set_mm_count(mine_mm[k], (int)n_mine[k]);
 	if (food_mm.is_valid())
 		set_mm_count(food_mm, (int)fd);
-	set_mm_count(ruins_mm, (int)nru);
 	set_mm_count(fish_mm, (int)fish_n);
 
-	size_t ia[TREE_KINDS][TREE_VARIANTS] = {}, iflora[FLORA_KINDS][TREE_VARIANTS] = {}, imine[MINE_KINDS] = {}, ifd = 0, iru = 0, ifish = 0;
+	size_t imine[MINE_KINDS] = {}, ifd = 0, ifish = 0;
 	const auto &e_ruins = rtso::ModelLibrary::get("buildings", "ruins");
 	String cat_veg = "vegetation";
 	String id_food = "fruit_bush"; const auto &e_food = rtso::ModelLibrary::get(cat_veg, id_food);
@@ -6051,19 +6139,16 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			const int v = tree_variant_of(r.id, flora_variants[f]);
 			const float sc = flora_scale[f];
 			Transform3D xf(rot.scaled(Vector3(sc, sc, sc)), Vector3(rx, ry + flora_y[f][v], rz));
-			flora_mm[f][v]->set_instance_transform((int)iflora[f][v], xf);
-			flora_mm[f][v]->set_instance_color((int)iflora[f][v]++, tint);
+			deco_write(flora_deco_[f][v], xf, tint);
 		} else if (r.subtype == rtso::RES_SUB_RUINS) {
 			Transform3D xf(rot, Vector3(rx, ry + e_ruins.y_offset, rz));
-			ruins_mm->set_instance_transform((int)iru, xf);
-			ruins_mm->set_instance_color((int)iru++, tint);
+			deco_write(ruins_deco_, xf, tint);
 		} else if (r.type == rtso::RES_WOOD) {
 			const int k = (int)(h % (uint32_t)tree_kind_count);
 			const int v = tree_variant_of(r.id, tree_variants[k]);
 			const float sc = tree_scale[k];
 			Transform3D xf(rot.scaled(Vector3(sc, sc, sc)), Vector3(rx, ry + tree_y[k][v], rz));
-			tree_mm[k][v]->set_instance_transform((int)ia[k][v], xf);
-			tree_mm[k][v]->set_instance_color((int)ia[k][v]++, tint);
+			deco_write(tree_deco_[k][v], xf, tint);
 		} else if (r.type == rtso::RES_GOLD || r.type == rtso::RES_STONE) {
 			const int k = mine_of(r);
 			Transform3D xf(rot, Vector3(rx, ry + mine_y[k], rz));
@@ -6112,22 +6197,6 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	// u axis). A type without a mesh is a box the size of its obstruction.
 	{
 		const auto &sv = sim->scenery();
-		int ns = 0;
-		for (auto &kinds : scenery_variants_)
-			for (auto &k : kinds) k.count = 0;
-		for (const auto &sc : sv) {
-			if (los_brightness(sc.x, sc.z) <= 0.0f) continue;
-			auto &kinds = scenery_variants_[sc.type < rtso::SCENERY_TYPE_COUNT ? sc.type : 0];
-			if (kinds.empty()) ++ns;
-			else ++kinds[sc.id % diverse_variants((int)kinds.size())].count;
-		}
-		set_mm_count(scenery_mm, ns);
-		for (auto &kinds : scenery_variants_)
-			for (auto &k : kinds) {
-				set_mm_count(k.mm, k.count);
-				k.count = 0;
-			}
-		int is = 0;
 		for (const auto &sc : sv) {
 			const float lit = los_brightness(sc.x, sc.z);
 			if (lit <= 0.0f) continue;
@@ -6137,15 +6206,13 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			if (!kinds.empty()) {
 				SceneryVariant &k = kinds[sc.id % diverse_variants((int)kinds.size())];
 				const Basis b = Basis(Vector3(0, 1, 0), sc.angle).scaled_local(Vector3(scale, scale, scale));
-				k.mm->set_instance_transform(k.count, Transform3D(b, Vector3(sc.x, sim->get_terrain_height(sc.x, sc.z), sc.z)));
-				k.mm->set_instance_color(k.count++, Color(lit, lit, lit, 1.0f));
+				deco_write(k.deco, Transform3D(b, Vector3(sc.x, sim->get_terrain_height(sc.x, sc.z), sc.z)), Color(lit, lit, lit, 1.0f));
 				continue;
 			}
 			const float h = std::max(0.2f, info.height * scale * (info.wooden ? 0.35f : 0.6f));
 			Basis b = Basis(Vector3(0, 1, 0), sc.angle).scaled_local(Vector3(2.0f * sc.half_w, h, 2.0f * sc.half_d));
-			scenery_mm->set_instance_transform(is, Transform3D(b, Vector3(sc.x, sim->get_terrain_height(sc.x, sc.z) + 0.5f * h, sc.z)));
 			const Color base = info.wooden ? Color(0.45f, 0.32f, 0.2f) : Color(0.72f, 0.69f, 0.62f);
-			scenery_mm->set_instance_color(is++, Color(base.r * lit, base.g * lit, base.b * lit, 1.0f));
+			deco_write(scenery_deco_, Transform3D(b, Vector3(sc.x, sim->get_terrain_height(sc.x, sc.z) + 0.5f * h, sc.z)), Color(base.r * lit, base.g * lit, base.b * lit, 1.0f));
 		}
 	}
 	} // end static_props_key_ dirty check

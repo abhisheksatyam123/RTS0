@@ -4,6 +4,8 @@
 #include <godot_cpp/classes/node3d.hpp>
 #include <godot_cpp/classes/multi_mesh_instance3d.hpp>
 #include <godot_cpp/classes/multi_mesh.hpp>
+#include <godot_cpp/classes/material.hpp>
+#include <godot_cpp/variant/transform3d.hpp>
 #include <godot_cpp/classes/mesh_instance3d.hpp>
 #include <godot_cpp/classes/sprite3d.hpp>
 #include <godot_cpp/classes/animation_player.hpp>
@@ -171,6 +173,38 @@ private:
 	std::vector<BuildingVis> building_pool;
 	std::unordered_map<uint32_t, size_t> building_slot;
 
+	// Decorative static batches (trees, flora, ruins, scenery) are split into squares of
+	// kDecoCellSize world units, one MultiMeshInstance3D per square, so the squares past
+	// kDecoVisRange (plus the fade margin) leave the draw list. A square's instance
+	// transforms are relative to its centre; colours and picking are unchanged.
+	static constexpr float kMetresPerDecoUnit = 4.0f;
+	static constexpr float kDecoCellSize = 8.0f;                        // 32 m
+	static constexpr float kDecoVisRange = 120.0f / kMetresPerDecoUnit; // 120 m from the camera
+	static constexpr float kDecoVisFade = 12.0f / kMetresPerDecoUnit;   // fade over the last 12 m
+	struct DecoCell {
+		MultiMeshInstance3D *mmi = nullptr;
+		Ref<MultiMesh> mm;
+		Vector3 centre;
+		int count = 0; // instances counted this sync
+		int next = 0;  // next instance slot written this sync
+	};
+	struct DecoBatch {
+		Ref<Mesh> mesh;
+		bool use_colors = true;
+		Ref<Material> material; // override on each cell (the scenery boxes)
+		std::vector<DecoCell> cells;
+		std::unordered_map<int64_t, size_t> index;
+		void release();
+	};
+	DecoCell &deco_cell(DecoBatch &b, float x, float z);
+	void deco_count(DecoBatch &b, float x, float z);
+	void deco_write(DecoBatch &b, const Transform3D &xf, const Color &tint);
+	void deco_set_mesh(DecoBatch &b, const Ref<Mesh> &mesh);
+	void deco_clear(DecoBatch &b);
+	template <typename F> void deco_each_batch(F &&f);
+	void deco_begin_all();
+	void deco_commit_all();
+
 	// static resources batched
 	// Up to TREE_KINDS tree models per biome (pick_tree_kinds), chosen per
 	// tree by its id like 0 A.D. random maps mix a biome's forest templates.
@@ -178,8 +212,7 @@ private:
 	// ..., tools/fetch_0ad_trees.py), one per tree by its id as 0 A.D. picks variants.
 	static constexpr int TREE_KINDS = 3;
 	static constexpr int TREE_VARIANTS = 4;
-	MultiMeshInstance3D *tree_mmi[TREE_KINDS][TREE_VARIANTS] = {};
-	Ref<MultiMesh> tree_mm[TREE_KINDS][TREE_VARIANTS];
+	DecoBatch tree_deco_[TREE_KINDS][TREE_VARIANTS];
 	float tree_scale[TREE_KINDS] = { 1.0f, 1.0f, 1.0f };
 	float tree_y[TREE_KINDS][TREE_VARIANTS] = {};
 	int tree_variants[TREE_KINDS] = { 1, 1, 1 };
@@ -190,8 +223,7 @@ private:
 	// random map's rmbiome trees) draw that plant, one batch per kind; FLORA_DEFAULT
 	// ones take the biome's pick above.
 	static constexpr int FLORA_KINDS = rtso::FLORA_COUNT; // the 27 families, then one per template (flora_data.h)
-	MultiMeshInstance3D *flora_mmi[FLORA_KINDS][TREE_VARIANTS] = {};
-	Ref<MultiMesh> flora_mm[FLORA_KINDS][TREE_VARIANTS];
+	DecoBatch flora_deco_[FLORA_KINDS][TREE_VARIANTS];
 	float flora_scale[FLORA_KINDS] = {};
 	float flora_y[FLORA_KINDS][TREE_VARIANTS] = {};
 	int flora_variants[FLORA_KINDS] = {};
@@ -310,7 +342,6 @@ private:
 	MultiMeshInstance3D *fish_mmi = nullptr;   // fish.glb (0 A.D. fauna/fish_generic.xml)
 	Ref<MultiMesh> food_mm, fish_mm;
 	// Gaia ruins (a stone/metal supply, buildings/ruins.glb) and treasures (a placeholder chest).
-	MultiMeshInstance3D *ruins_mmi = nullptr;
 	// One multimesh per treasure type: its 0.28 actor (gaia_data.h TreasureTypeInfo::model_id).
 	MultiMeshInstance3D *treasure_mmi[rtso::TREASURE_TYPE_COUNT] = {};
 	Ref<MultiMesh> treasure_mm[rtso::TREASURE_TYPE_COUNT];
@@ -320,13 +351,12 @@ private:
 	size_t treasure_scan_count_ = ~(size_t)0;
 	void ensure_treasure(int k);
 	void ensure_map_models(const rtso::Simulation *sim);
-	Ref<MultiMesh> ruins_mm;
+	DecoBatch ruins_deco_;
 	// Gaia scenery (fences, columns, obelisks): 0 A.D.'s actor meshes from
-	// data/scenery_actors.json, one MultiMesh per type and mesh variant; a box of
+	// data/scenery_actors.json, one batch per type and mesh variant; a box of
 	// the obstruction's size for a type without one.
-	MultiMeshInstance3D *scenery_mmi = nullptr;
-	Ref<MultiMesh> scenery_mm;
-	struct SceneryVariant { Ref<MultiMesh> mm; int count = 0; };
+	DecoBatch scenery_deco_;
+	struct SceneryVariant { DecoBatch deco; };
 	std::vector<SceneryVariant> scenery_variants_[rtso::SCENERY_TYPE_COUNT];
 	void load_scenery_actors();
 	// 0 A.D. ambient birds (template_bird: birds/buzzard, the hawk actor): no
