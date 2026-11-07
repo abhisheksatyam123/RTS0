@@ -6246,7 +6246,6 @@ void RmsGenerator::place_danubius_entities(Simulation &sim, const HeightmapGrid 
 		// impassable ring keep_resources_passable pulls anything outside in across, so an animal
 		// drawn from the square's corners ended up on the rim's water, cliffs or edge bars.
 		const bool circ = sim.circular_map();
-		const float disk = half - MAP_EDGE_DIST - 1.5f;
 		auto centre = [&](float &x, float &z) { // g_Map.randomCoordinate(true)
 			if (circ) { // uniform on the disk of radius size / 2 - MAP_BORDER_WIDTH
 				const float r = (half - 3.0f) * std::sqrt(hunt.range_float(0.0f, 1.0f)), a = hunt.range_float(0.0f, 6.2831853f);
@@ -6257,23 +6256,13 @@ void RmsGenerator::place_danubius_entities(Simulation &sim, const HeightmapGrid 
 			x = std::floor(hunt.range_float(-half + 3.0f, half - 3.0f));
 			z = std::floor(hunt.range_float(-half + 3.0f, half - 3.0f));
 		};
-		auto in_map = [&](float x, float z) {
-			if (circ) return det::hypot(x, z) < disk;
-			return std::fabs(x) < half - 3.0f && std::fabs(z) < half - 3.0f;
-		};
-		// A navcell a standing structure or a tree closes is not walkable: the animal would stand there
-		// for good. Trees close the cells within about 3 m of their trunks, walls and houses a little more.
-		auto near_structure = [&](float x, float z) {
-			for (const auto &b : sim.buildings())
-				if (std::fabs(x - b.x) < b.half_size + 3.0f && std::fabs(z - b.z) < b.half_size + 3.0f) return true;
-			return false;
-		};
+		auto in_map = [&](float x, float z) { return std::fabs(x) < half - 3.0f && std::fabs(z) < half - 3.0f; };
 		auto banks = [&](float player_gap) {
 			return [&, player_gap](float x, float z) {
 				if (!in_map(x, z)) return false;
 				const size_t v = (size_t)seas_vertex(hm, x, z);
 				return to_island[v] > 2.0f && to_water[v] > 5.0f && far_from_players(x, z, player_gap) && clear_of(gauls, x, z, 5.0f + 3.0f) &&
-				       !near_any(food, x, z, 10.0f) && !steep_near_world(hm, x, z) && !near_resource(x, z, 3.5f, false) && !near_structure(x, z);
+				       !near_any(food, x, z, 10.0f);
 			};
 		};
 		auto islands = [&](float x, float z) {
@@ -6281,7 +6270,7 @@ void RmsGenerator::place_danubius_entities(Simulation &sim, const HeightmapGrid 
 			const size_t v = (size_t)seas_vertex(hm, x, z);
 			return lay.islands[v] && in_island[v] >= 4.0f && clear_of(metal, x, z, 4.0f) && clear_of(stone, x, z, 4.0f) &&
 			       !near_any(food, x, z, 3.0f) && !near_any(wood, x, z, 1.5f) && clear_of(outposts, x, z, 2.0f + 1.5f) &&
-			       clear_of(towers, x, z, 2.0f + 1.5f) && !steep_near_world(hm, x, z) && !near_resource(x, z, 3.5f, true) && !near_structure(x, z);
+			       clear_of(towers, x, z, 2.0f + 1.5f);
 		};
 		const float n = seas_scale(5.0f, 20.0f, half);
 		for (const ScriptAnimal &a : {ScriptAnimal{FAUNA_SHEEP, 5, 5, 0, 4}, ScriptAnimal{FAUNA_GOAT, 5, 5, 0, 4},

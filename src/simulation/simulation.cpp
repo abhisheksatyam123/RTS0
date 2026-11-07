@@ -13503,7 +13503,11 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		bool backing_off = false;
 		if (units_.action_state[i] == ACTION_ATTACK && units_.target_unit_id[i] != 0 && !using_path) {
 			const float minr = units_.attack_range[i] * unit_min_range_ratio(units_.unit_type[i], units_.tmpl[i]);
-			if (minr > 0.0f && d2 < minr * minr) {
+			// Attack.js MinRange is measured edge to edge against a unit target (IsInTargetRange).
+			float gap = std::sqrt(d2);
+			if (const int32_t bt = lookup_unit(units_.target_unit_id[i]); bt >= 0)
+				gap = std::max(0.0f, gap - unit_collision_radius(units_.unit_type[i]) - unit_collision_radius(units_.unit_type[bt]));
+			if (minr > 0.0f && gap < minr) {
 				backing_off = true;
 				if (d2 < 1e-6f) { dx = 1.0f; dz = 0.0f; }
 				dx = -dx; dz = -dz;
@@ -18077,6 +18081,15 @@ bool Simulation::in_attack_range(size_t i, float d2, float target_offset) const 
 	return in_parabolic_range(d2, unit_height_offset(i) + unit_attack_origin_y(i), target_offset, attack_reach(i));
 }
 
+// 0 A.D. UnitAI CheckTargetRange -> CCmpObstructionManager::IsInTargetRange: the attack range is
+// measured edge to edge between the two obstruction shapes (DistanceToTarget), so the two units'
+// collision radii come off the centre distance. Returns the squared gap (0 when they overlap).
+float Simulation::unit_gap2(size_t i, size_t j) const {
+	const float d = det::hypot(units_.pos_x[i] - units_.pos_x[j], units_.pos_z[i] - units_.pos_z[j]);
+	const float g = std::max(0.0f, d - unit_collision_radius(units_.unit_type[i]) - unit_collision_radius(units_.unit_type[j]));
+	return g * g;
+}
+
 // 0 A.D. "focus-fire" (Commands.js -> BuildingAI.AddFocusTarget). A target counts only when
 // it is in the structure's targetUnits: an enemy unit, structure, livestock or dangerous animal inside
 // its arrow range, as the arrow pass in tick_combat measures it (seen or not).
@@ -18158,11 +18171,9 @@ void Simulation::tick_pack(float dt) {
 		if (units_.target_unit_id[i] != 0) {
 			int32_t t = lookup_unit(units_.target_unit_id[i]);
 			if (t >= 0 && units_.alive[t] && is_hostile(units_.team[i], units_.team[t])) {
-				float dx = units_.pos_x[i] - units_.pos_x[t];
-				float dz = units_.pos_z[i] - units_.pos_z[t];
-				const float d2 = dx * dx + dz * dz;
 				const float minr = units_.attack_range[i] * unit_min_range_ratio(units_.unit_type[i], units_.tmpl[i]);
-				target_in_range = d2 >= minr * minr && in_attack_range(i, d2, unit_height_offset((size_t)t));
+				const float g2 = unit_gap2(i, (size_t)t);
+				target_in_range = g2 >= minr * minr && in_attack_range(i, g2, unit_height_offset((size_t)t));
 			}
 		} else if (units_.target_building_id[i] != 0 && st != ACTION_BUILD) {
 			auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
@@ -18302,8 +18313,6 @@ void Simulation::tick_combat(float dt) {
 			if (st != ACTION_ATTACK || units_.target_unit_id[i] == 0) return;
 			const int32_t t = lookup_unit(units_.target_unit_id[i]);
 			if (t < 0 || (is_relic_unit(t) && units_.order_kind[i] == ORDER_CAPTURE_RELIC)) return; // driven elsewhere
-			const float dx = units_.pos_x[t] - units_.pos_x[i], dz = units_.pos_z[t] - units_.pos_z[i];
-			const float d2 = dx * dx + dz * dz;
 			const float minr = attack_reach(i) * unit_min_range_ratio(units_.unit_type[i]);
 			if (units_.alive[t] && can_attack(units_.team[i], units_.team[t]) && unit_can_target(i, (size_t)t) &&
 					guard_keeps_target(i, (size_t)t)) {
@@ -18314,7 +18323,7 @@ void Simulation::tick_combat(float dt) {
 				return;
 			}
 			if (units_.alive[t] && can_attack(units_.team[i], units_.team[t]) && unit_can_target(i, (size_t)t) &&
-					((in_attack_range(i, d2, unit_height_offset((size_t)t)) && d2 >= minr * minr) ||
+					((in_attack_range(i, unit_gap2(i, (size_t)t), unit_height_offset((size_t)t)) && unit_gap2(i, (size_t)t) >= minr * minr) ||
 					 attack_under_way(i))) {
 				units_.has_order[i] = 0; // no chase
 				target_idx[i] = t;
@@ -18630,13 +18639,10 @@ void Simulation::tick_combat(float dt) {
 		if (is_siege_tower_at(i)) return; // Attack.js leaves it to BuildingAI (3b)
 		p.target_idx = t;
 
-		const float dx = units_.pos_x[i] - units_.pos_x[t];
-		const float dz = units_.pos_z[i] - units_.pos_z[t];
-		const float d2 = dx * dx + dz * dz;
-
 		// 0 A.D. CCmpRangeManager GetEffectiveParabolicRange (in_attack_range)
 		const float minr = units_.attack_range[i] * unit_min_range_ratio(units_.unit_type[i], units_.tmpl[i]);
-		const bool in_range = in_attack_range(i, d2, unit_height_offset((size_t)t)) && d2 >= minr * minr; // Attack.js MinRange
+		const float g2 = unit_gap2(i, (size_t)t);
+		const bool in_range = in_attack_range(i, g2, unit_height_offset((size_t)t)) && g2 >= minr * minr; // Attack.js MinRange
 
 		float tm = units_.attack_timer[i];
 		if (!in_range && range_check_due(i, dt)) {
@@ -22302,8 +22308,7 @@ bool Simulation::guard_keeps_target(size_t i, size_t t) const {
 		return !b.wrecked && structure_gap(b, units_.pos_x[t], units_.pos_z[t], unit_clearance_at(t)) <= attack_reach(t);
 	}
 	if (!units_.alive[g]) return false;
-	const float dx = units_.pos_x[g] - units_.pos_x[t], dz = units_.pos_z[g] - units_.pos_z[t];
-	return in_attack_range(t, dx * dx + dz * dz, unit_height_offset((size_t)g));
+	return in_attack_range(t, unit_gap2(t, (size_t)g), unit_height_offset((size_t)g));
 }
 
 // Guard.js OnAttacked -> UnitAI GuardedAttacked: guard i answers whoever hit the unit g it
@@ -22339,9 +22344,8 @@ void Simulation::guard_answer(size_t i, size_t g, uint32_t attacker) {
 	const bool stand = units_.stance[i] == STANCE_STAND_GROUND || unit_walk_speed(i) <= 0.0f;
 	const float reach = attack_reach(i);
 	if (const int32_t a = lookup_unit(attacker); a >= 0) {
-		const float dx = units_.pos_x[a] - units_.pos_x[i], dz = units_.pos_z[a] - units_.pos_z[i];
 		if (units_.attack_damage[i] > 0.0f && units_.alive[a] && can_attack(units_.team[i], units_.team[a]) &&
-				(!stand || in_attack_range(i, dx * dx + dz * dz, unit_height_offset((size_t)a))))
+				(!stand || in_attack_range(i, unit_gap2(i, (size_t)a), unit_height_offset((size_t)a))))
 			attack(attacker, 0, units_.pos_x[a], units_.pos_z[a]);
 		return;
 	}
@@ -42303,7 +42307,9 @@ void Simulation::fauna_attacked(size_t f, uint32_t attacker_id, bool melee) {
 				if (has) {
 					tx = t >= 0 ? units_.pos_x[t] : fauna_.pos_x[it->second];
 					tz = t >= 0 ? units_.pos_z[t] : fauna_.pos_z[it->second];
-					const float r = info.attack_range + 0.6f; // tick_fauna's ATTACKING reach
+					// ATTACKING reach, edge to edge: the animal's and the target's collision radii come off the centre distance.
+					const float tc = t >= 0 ? unit_collision_radius(units_.unit_type[t]) : fauna_type_info(fauna_.fauna_type[it->second]).footprint * 0.25f;
+					const float r = info.attack_range + info.footprint * 0.25f + tc; // footprints are 0 A.D. metres, 4 m to a unit
 					if (det::hypot(tx - fauna_.pos_x[f], tz - fauna_.pos_z[f]) <= r) return;
 				}
 			}
@@ -42428,8 +42434,11 @@ void Simulation::tick_hunters() {
 		// RepeatTime 1 s, Domestic animals only.
 		const bool slaughter = finfo.is_domestic() && unit_has_slaughter(ut, units_.tmpl[i]);
 		const float dx = units_.pos_x[i] - fx, dz = units_.pos_z[i] - fz;
-		// The animal's footprint. Slaughter's MaxRange is 2 m even for archers, who walk up to it.
-		const float reach = (slaughter ? SLAUGHTER_RANGE : units_.attack_range[i]) + finfo.footprint;
+		// Edge to edge (IsInTargetRange): the hunter's and the animal's collision radii come off the centre
+		// distance. The animal's footprint is 0 A.D. metres, 4 m to a unit. Slaughter's MaxRange is 2 m even
+		// for archers, who walk up to it.
+		const float reach = (slaughter ? SLAUGHTER_RANGE : units_.attack_range[i]) + finfo.footprint * 0.25f +
+				unit_collision_radius(ut);
 		const bool in_reach = dx * dx + dz * dz <= reach * reach;
 		if (in_reach) { // COMBAT.ATTACKING: CHASING follows it from here
 			units_.chase_run[i] = (units_.chase_target[i] == tid ? (units_.chase_run[i] & CHASE_RUN_BIT) : 0) | CHASE_RANGE_BIT;
@@ -42919,13 +42928,15 @@ void Simulation::tick_fauna(float dt) {
 			bool keep = t >= 0 ? can_bite(t) : tf >= 0;
 			const float tx = t >= 0 ? units_.pos_x[t] : tf >= 0 ? fauna_.pos_x[tf] : fx;
 			const float tz = t >= 0 ? units_.pos_z[t] : tf >= 0 ? fauna_.pos_z[tf] : fz;
+			const float tclear = t >= 0 ? unit_collision_radius(units_.unit_type[t]) : tf >= 0 ? fauna_type_info(fauna_.fauna_type[tf]).footprint * 0.25f : 0.0f;
 			const float dx = tx - fx, dz = tz - fz;
 			const float td2 = dx * dx + dz * dz;
 			const float len = std::sqrt(td2);
+			const float bite_gap = std::max(0.0f, len - info.footprint * 0.25f - tclear); // edge to edge (IsInTargetRange)
 			// ShouldAbandonChase runs on the 1 s APPROACHING / CHASING Timer (while out of attack range),
 			// stopping non-violent animals once the target leaves vision (CheckTargetIsInVisionRange).
 			const uint64_t chase_period = (uint64_t)std::max(1L, std::lround(1.0f / dt));
-			const bool chase_timer_due = len > info.attack_range + 0.6f && (ticks_ + i) % chase_period == 0;
+			const bool chase_timer_due = bite_gap > info.attack_range && (ticks_ + i) % chase_period == 0;
 			if (keep && chase_timer_due && info.stance != FAUNA_STANCE_VIOLENT)
 				keep = td2 < info.vision * info.vision;
 			if (!keep) {
@@ -42941,7 +42952,7 @@ void Simulation::tick_fauna(float dt) {
 			// In COMBAT, flee_distance (unused there) marks state: 0 in APPROACHING, 1 in ATTACKING,
 			// and in CHASING (entered from ATTACKING) 1.5 when walking or 2.0 when running.
 			const bool holds_ground = info.stance == FAUNA_STANCE_DEFENSIVE || info.stance == FAUNA_STANCE_PASSIVE_DEFENSIVE;
-			if (len > info.attack_range + 0.6f && holds_ground && fauna_.flee_distance[i] > 0.0f) {
+			if (bite_gap > info.attack_range && holds_ground && fauna_.flee_distance[i] > 0.0f) {
 				// ATTACKING OutOfRange: Attack.js RepeatRangeCheck runs about once a second on its own
 				// timer (Attack.js:515-527), not only at the swing, and StopAttacking("OutOfRange")
 				// then goes to FINDINGNEWTARGET, since with respondChase false
@@ -42956,7 +42967,7 @@ void Simulation::tick_fauna(float dt) {
 				fauna_.state_timer[i] = timer(info.feed_time_min, info.feed_time_max);
 				continue;
 			}
-			if (len > info.attack_range + 0.6f) {
+			if (bite_gap > info.attack_range) {
 				// Out of reach: the next bite comes PrepareTime after it gets there (Attack.js).
 				fauna_.attack_timer[i] = std::max(fauna_.attack_timer[i], info.attack_prepare);
 				// COMBAT APPROACHING walks; CHASING (entered from ATTACKING when flee_distance == 1.0f)
