@@ -31849,7 +31849,12 @@ uint32_t Simulation::petra_nearest_target(uint8_t kind, bool forced, uint8_t ene
 				const float dx = d.x - b.x, dz = d.z - b.z;
 				if (dx * dx + dz * dz < 20.0f * 20.0f) { defended = true; break; } // 80 m: 20 tiles
 			}
-			if (!defended) consider(b.id, b.x, b.z, 0.0f);
+			// attackPlan.js:1085-1089 keeps a building at an exact tie of distance and takes the
+			// later one in entity order, so a tie goes to the higher id.
+			if (!defended) {
+				const float dx = b.x - px, dz = b.z - pz, d = dx * dx + dz * dz;
+				if (best == 0 || d < best_d || (d == best_d && b.id > best)) { best_d = d; best = b.id; out_tx = b.x; out_tz = b.z; }
+			}
 		}
 		if (best || !forced) return best;
 	}
