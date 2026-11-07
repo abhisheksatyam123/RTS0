@@ -42888,12 +42888,14 @@ void Simulation::tick_fauna(float dt) {
 			// and in CHASING (entered from ATTACKING) 1.5 when walking or 2.0 when running.
 			const bool holds_ground = info.stance == FAUNA_STANCE_DEFENSIVE || info.stance == FAUNA_STANCE_PASSIVE_DEFENSIVE;
 			if (len > info.attack_range + 0.6f && holds_ground && fauna_.flee_distance[i] > 0.0f) {
-				// ATTACKING OutOfRange: the swing's range check fails, and with respondChase false
-				// (ShouldChaseTargetedEntity) it goes to FINDINGNEWTARGET instead of CHASING, so
-				// it stands until that swing and then finishes the order. A defensive animal picks
-				// a new target within min(range + vision / 2, vision) on its next idle scan.
+				// ATTACKING OutOfRange: Attack.js RepeatRangeCheck runs about once a second on its own
+				// timer (Attack.js:515-527), not only at the swing, and StopAttacking("OutOfRange")
+				// then goes to FINDINGNEWTARGET, since with respondChase false
+				// (ShouldChaseTargetedEntity, UnitAI.js:5182) it does not chase. So the animal gives up
+				// within about a second of stepping out, here at once (the check's timing is not
+				// modelled). A defensive animal picks a new target within min(range + vision / 2,
+				// vision) on its next idle scan.
 				fauna_.vel_x[i] = fauna_.vel_z[i] = 0.0f;
-				if (fauna_.attack_timer[i] > 0.0f) continue;
 				if (resume_queued(i)) continue;
 				fauna_.behavior[i] = FAUNA_IDLE_GRAZE;
 				fauna_.target_unit_id[i] = 0;
