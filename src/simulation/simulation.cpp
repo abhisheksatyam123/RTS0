@@ -15061,6 +15061,7 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 		float body = 0.0f; // set below: the furthest on an axis a body could overlap this one's
 		// `walker` (see the queries below): pass over the pairs with a unit that stands further than
 		// `body` on either axis.
+		const int32_t qxi = sqx[i], qzi = sqz[i]; // i's pushing square, for the square gate in push
 		auto push = [&](const UnitGrid::Packed &e, auto walker) SEP_INLINE {
 			float lim = skip;
 			if constexpr (decltype(walker)::value) {
@@ -15108,7 +15109,7 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 			// It runs after the bodies' overlap above, so a pair across a square's corner still exempts an
 			// overlapping body from MinimalForce; only its own push is skipped.
 			if (same_group || mi == mj) {
-				const int32_t dsx = sqx[i] - sqx[j], dsz = sqz[i] - sqz[j];
+				const int32_t dsx = qxi - sqx[j], dsz = qzi - sqz[j];
 				if (dsx > 1 || dsx < -1 || dsz > 1 || dsz < -1 || (dsx != 0 && dsz != 0)) return;
 			}
 			// Half the offset of the averages; no pair pushes beyond `reach`.
