@@ -32965,6 +32965,20 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 						break;
 					}
 				}
+				// attackPlan.js StartAttack:1312-1315: with no sea between the rally and the target and
+				// their land accesses differing, no path exists and the plan aborts (returns false), its
+				// units released. A rally reached by a walk that cannot get there would otherwise attack
+				// where it stands.
+				if (plan.path_x.empty() && petra_access_at(plan.staging_x, plan.staging_z) != petra_access_at(plan.target_x, plan.target_z)) {
+					petra_release_squad(squad);
+					if (&plan == &petra_attack_plan_) petra_strike_force_.unit_ids.clear();
+					plan.initial_squad_size = 0;
+					plan.target_building_id = 0;
+					plan.completing = false;
+					plan.state = AttackPlan::UNEXECUTED;
+					plan.state_timer = 0.0f;
+					return;
+				}
 				petra_start_march(plan);
 				break;
 			}
