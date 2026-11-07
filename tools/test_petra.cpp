@@ -2687,7 +2687,7 @@ static void test_petra_islands_wood_reserve() {
 	s->petra_attack_mgr_.save_resources = 1;
 	s->players_[0].res[RES_WOOD] = 600.0f;
 	CHECK(!s->petra_wood_starved(), "not short while the trees stand");
-	for (size_t r : home_trees) s->resources_.amount[r] = 0;
+	for (size_t r : home_trees) s->set_resource_amount(s->resources_.id[r], 0); // the sim API: marks the trees' squares (C1)
 	CHECK(s->petra_wood_starved(), "short once they are cut");
 	CHECK(!s->petra_try_pay(PETRA_Q_HOUSE, 0.0f, 150.0f, 0.0f, 0.0f), "a house waits");
 	CHECK(!s->petra_try_pay(PETRA_Q_MAJOR_TECH, 500.0f, 500.0f, 0.0f, 0.0f), "the phase waits for its account");
@@ -3655,6 +3655,32 @@ static void test_raid_target_discovery_order() {
 	std::printf("  raid target: first found %s, order kept through a save %s\n", first == far ? "yes" : "no", kept ? "yes" : "no");
 	CHECK(first == far, "a raid goes for the first structure Petra found, not the nearest");
 	CHECK(kept, "the targetList keeps its discovery order through a save");
+}
+
+// attackPlan.js UpdateTarget: a raid whose target falls takes the nearest structure of the
+// targetList from its army's position (getNearestTarget), not the first listed.
+static void test_raid_retarget_nearest() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	float cx = 0.0f, cz = 0.0f;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { cx = b.x; cz = b.z; }
+	const uint32_t far = s->spawn_building_world(cx + 60.0f, cz, BLD_HOUSE, 0, 1.0f);
+	const uint32_t near = s->spawn_building_world(cx + 14.0f, cz, BLD_HOUSE, 0, 1.0f);
+	s->petra_defense_targets_.ids = {far, near}; // the far one was listed first
+	const uint32_t raider = s->spawn_unit(cx + 12.0f, cz + 2.0f, 1, UNIT_CAVALRY);
+	float tx = 0.0f, tz = 0.0f;
+	const uint32_t first = s->find_petra_raid_target(tx, tz);
+	const std::vector<uint32_t> squad{raider};
+	const uint32_t nearest = s->find_petra_raid_target(tx, tz, &squad);
+	std::printf("  raid retarget: first listed %s, nearest to the squad %s\n", first == far ? "yes" : "no", nearest == near ? "yes" : "no");
+	CHECK(first == far, "the initial raid pick is the first structure listed");
+	CHECK(nearest == near, "a retarget from the squad's position takes the nearest structure");
 }
 
 // attackManager.js pass 4. (a) switchDefenseToAttack aims the retake plan at the captor
@@ -5669,7 +5695,7 @@ static void test_placement_miss_memory_exact() {
 				const int cx = hcx + dx, cz = hcz + dz;
 				for (size_t i = 0; i < s->resources_.count; ++i) {
 					const int rx = (int)std::floor(s->resources_.x[i] / G), rz = (int)std::floor(s->resources_.z[i] / G);
-					if (rx >= cx && rx < cx + foot && rz >= cz && rz < cz + foot) s->resources_.amount[i] = 0;
+					if (rx >= cx && rx < cx + foot && rz >= cz && rz < cz + foot) { s->resources_.amount[i] = 0; s->note_tree_edit(); }
 				}
 				s->resource_block_tick_ = UINT64_MAX;
 				freed = s->petra_can_place(cx, cz, foot, BLD_TEMPLE);
@@ -5721,7 +5747,7 @@ static void test_dropsite_sites() {
 		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { hx = b.x; hz = b.z; }
 	auto &r = s->resources_;
 	for (size_t i = 0; i < r.count; ++i)
-		if (r.alive[i] && std::hypot(r.x[i] - hx, r.z[i] - hz) < 45.0f) r.amount[i] = 0;
+		if (r.alive[i] && std::hypot(r.x[i] - hx, r.z[i] - hz) < 45.0f) { r.amount[i] = 0; s->note_tree_edit(); }
 	// Toward the map centre a forest of 30 trees 22-30 units out, the other way a grove of 3.
 	const float ux = hx > 0.0f ? -1.0f : 1.0f, uz = hz > 0.0f ? -1.0f : 1.0f;
 	for (int i = 0; i < 6; ++i)
@@ -6453,8 +6479,8 @@ static void test_gather_limits() {
 	CHECK(tree != SIZE_MAX && mine != SIZE_MAX, "a tree and a mine on the map");
 	if (tree == SIZE_MAX || mine == SIZE_MAX) return;
 	for (size_t k = 0; k < r.count; ++k)
-		if (k != tree && k != mine) r.amount[k] = 0;
-	r.amount[tree] = r.amount[mine] = 5000;
+		if (k != tree && k != mine) { r.amount[k] = 0; s->note_tree_edit(); }
+	r.amount[tree] = r.amount[mine] = 5000; s->note_tree_edit();
 	for (size_t f = 0; f < s->fauna_.count; ++f) s->fauna_.food_amount[f] = 0;
 	// No foundations: a gatherer with no supply would help build a dropsite for its resource.
 	for (auto &b : s->buildings_)
@@ -6609,7 +6635,13 @@ static void test_decay_garrison() {
 	const int cap = ours ? s->buildings_[it->second].garrison_cap : 0;
 	std::printf("  decaying tower in enemy land: needs %d, garrisoned %zu, still ours %s\n", need, inside, ours ? "yes" : "no");
 	CHECK(need > 0, "a tower in enemy territory decays");
-	CHECK(ours && (int)inside >= std::min(need, cap), "Petra garrisons a decaying tower (TYPE_DECAY)");
+	// A soldier that reaches an enemy inside its attack range fights it (edge to edge, IsInTargetRange),
+	// so it counts as busy rather than missing from the garrison.
+	int fighting = 0;
+	for (size_t u = 0; u < s->units_.count; ++u)
+		if (s->units_.alive[u] && s->units_.team[u] == 1 && s->units_.unit_type[u] == UNIT_SPEARMAN &&
+				s->units_.action_state[u] == ACTION_ATTACK) ++fighting;
+	CHECK(ours && (int)inside + fighting >= std::min(need, cap), "Petra garrisons a decaying tower (TYPE_DECAY)");
 	// A barracks is held only just after Petra captures it (addDecayingStructure justCaptured).
 	const uint32_t bar = s->spawn_building_world(tx, tz + 16.0f, BLD_BARRACKS, 0);
 	auto bi = s->building_id_to_idx_.find(bar);
@@ -6885,7 +6917,7 @@ static void test_petra_wood_poor_corral() {
 	CHECK(farm && !corral, "a large land short of food with wood wants a field");
 	s->players_[0].res[RES_WOOD] = 0.0f;
 	for (size_t r = 0; r < s->resources_.count; ++r)
-		if (s->resources_.type[r] == RES_WOOD) s->resources_.amount[r] = 0;
+		if (s->resources_.type[r] == RES_WOOD) { s->resources_.amount[r] = 0; s->note_tree_edit(); }
 	s->petra_kept_ = PetraKept{};
 	s->petra_config_first_base();
 	std::printf("  wood-poor start: needFarm %d, needCorral %d\n", (int)s->petra_kept_.need_farm, (int)s->petra_kept_.need_corral);
@@ -9266,7 +9298,7 @@ static void test_queued_dropsite_starts() {
 	}
 	auto &r = s->resources_;
 	for (size_t i = 0; i < r.count; ++i)
-		if (r.alive[i]) r.amount[i] = 0;
+		if (r.alive[i]) { r.amount[i] = 0; s->note_tree_edit(); }
 	// A grove of three trees: a site well under checkResourceLevels' 50.
 	const float ux = hx > 0.0f ? -1.0f : 1.0f;
 	std::vector<size_t> grove;
@@ -9304,7 +9336,7 @@ static void test_queued_dropsite_starts() {
 	s->petra_check_resource_levels(501);
 	CHECK(storehouses() == before + 1 && dc.pending == 0, "the queued storehouse starts on a site under 50");
 	// With no resource left by any site, the queued plan takes the general placement in its base.
-	for (size_t i : grove) r.amount[i] = 0;
+	for (size_t i : grove) { r.amount[i] = 0; s->note_tree_edit(); }
 	for (auto &b : s->buildings_)
 		if (b.team == 1) b.build_progress = 1.0f;
 	s->petra_turn_built_ = false;
@@ -10555,6 +10587,67 @@ static void test_out_of_plan() {
 	}
 }
 
+// attackPlan.js Abort removes every unit from an aborted plan at once. RTS0's REGROUP keeps
+// units on another land until a ship brings them home, but a unit on a land with no sea link
+// to the withdrawal land can never be shipped, so it is released to the free army
+// (petra_abort_plan does the same for stranded units). A unit on a linked land still waits.
+// Danubius, seed 42 (naval): five lands have no sea link to Petra's land.
+static void test_regroup_stranded_released() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->set_petra_difficulty(3);
+	s->set_petra_behavior(0);
+	s->generate_random_map(MAP_DANUBIUS, 42, 2, 96.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	uint16_t home = 0;
+	const Simulation::PetraNavalTopo &topo = s->petra_classified_topo(home);
+	const bool naval = topo.naval_map;
+	const uint16_t dest = s->petra_land_at(tx, tz);
+	// One land with no sea link to Petra's land and one with a link, both found on the grid.
+	uint16_t cut = 0, linked = 0;
+	float cx = 0.0f, cz = 0.0f, lx = 0.0f, lz = 0.0f;
+	for (float x = -128.0f; x <= 128.0f; x += 2.0f)
+		for (float z = -128.0f; z <= 128.0f; z += 2.0f) {
+			const uint16_t l = s->petra_land_at(x, z);
+			if (!l || l == dest) continue;
+			if (!cut && topo.sea_between(l, dest) == 0) { cut = l; cx = x; cz = z; }
+			else if (!linked && topo.sea_between(l, dest) != 0) { linked = l; lx = x; lz = z; }
+		}
+	CHECK(naval && dest != 0 && cut != 0 && linked != 0, "Danubius is naval, with a land cut off from Petra's land and one that is linked to it");
+	if (!naval || !cut || !linked) return;
+	Simulation::AttackPlan plan;
+	plan.kind = PETRA_ATTACK_ATTACK;
+	plan.state = Simulation::AttackPlan::REGROUP;
+	plan.retreat_x = tx;
+	plan.retreat_z = tz;
+	const uint32_t stranded_a = s->spawn_unit(cx, cz, 1, UNIT_SPEARMAN);
+	const uint32_t stranded_b = s->spawn_unit(cx + 0.5f, cz, 1, UNIT_SPEARMAN);
+	const uint32_t linked_a = s->spawn_unit(lx, lz, 1, UNIT_SPEARMAN);
+	plan.squad = {stranded_a, stranded_b, linked_a};
+	auto land_of = [&](uint32_t uid) -> uint16_t {
+		const int32_t k = s->lookup_unit(uid);
+		return k < 0 ? (uint16_t)0 : s->petra_land_at(s->units_.pos_x[k], s->units_.pos_z[k]);
+	};
+	CHECK(land_of(stranded_a) == cut && land_of(stranded_b) == cut && land_of(linked_a) == linked, "the test soldiers stand on the lands they were placed on");
+	s->petra_update_attack_plan(plan, tx, tz);
+	auto in_squad = [&](uint32_t uid) { return std::find(plan.squad.begin(), plan.squad.end(), uid) != plan.squad.end(); };
+	auto in_army = [&](uint32_t uid) {
+		const auto &army = s->petra_army_ids_[1];
+		return std::binary_search(army.begin(), army.end(), uid);
+	};
+	const bool released = !in_squad(stranded_a) && !in_squad(stranded_b) && in_army(stranded_a) && in_army(stranded_b);
+	std::printf("  regroup: soldiers cut off from home %s the plan, the linked soldier %s\n", released ? "leave" : "stay in",
+	            in_squad(linked_a) ? "waits for its ship" : "left the plan");
+	CHECK(released, "a soldier with no sea link to the withdrawal land leaves the plan (Abort) and joins the free army");
+	CHECK(in_squad(linked_a), "a soldier on a land with a sea link keeps waiting for its ship home");
+	CHECK(plan.state == Simulation::AttackPlan::REGROUP, "the plan keeps regrouping while a linked soldier is still away");
+}
+
 // attackPlan.js UpdateTarget: a unit target is followed as it moves, and once it garrisons
 // in an enemy structure that structure becomes the target.
 static void test_attack_follows_unit_target() {
@@ -10752,6 +10845,7 @@ int main(int argc, char **argv) {
 	RUN(test_siege_attack_moves_at_structures);
 	RUN(test_attack_manager_pass4);
 	RUN(test_raid_target_discovery_order);
+	RUN(test_raid_retarget_nearest);
 	RUN(test_attack_targets_target_player);
 	RUN(test_siege_prefers_any_gate);
 	RUN(test_raid_sizes_vary);
@@ -10804,6 +10898,7 @@ int main(int argc, char **argv) {
 	RUN(test_soldier_fights_back);
 	RUN(test_defender_orders);
 	RUN(test_out_of_plan);
+	RUN(test_regroup_stranded_released);
 	RUN(test_attack_follows_unit_target);
 	RUN(test_raids_at_once);
 	RUN(test_defense_ignores_ships);

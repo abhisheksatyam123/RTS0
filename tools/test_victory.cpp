@@ -89,6 +89,17 @@ int main() {
 		CHECK(sim->wave_number() >= 1);
 		delete sim;
 	}
+	// 2b. Surviving wave 5 ends the match like any win: game over, winner named (not just victory_).
+	{
+		Simulation *sim = fresh(VICTORY_CONQUEST, true);
+		sim->wave_number_ = 5;
+		sim->wave_timer_ = 34.9f;
+		run(*sim, 0.2f);
+		CHECK(sim->is_victory());
+		CHECK(sim->is_game_over());
+		CHECK(sim->winner_mask_ & 1);
+		delete sim;
+	}
 	// 3. Conquest: enemy needs both units and structures gone.
 	{
 		Simulation *sim = fresh(VICTORY_CONQUEST);
@@ -785,6 +796,30 @@ int main() {
 				const auto uv = sim.units();
 				CHECK(std::fabs(uv.pos_x[h] - 12.0f) < 3.0f && std::fabs(uv.pos_z[h]) < 3.0f);
 			}
+		}
+	}
+
+	// 19b. SpawnRegicideHero's spawn preference: a Civic Centre first, then another structure,
+	// then a ship, then any unit (getSpawnPreference). With no Civic Centre the hero steps out
+	// beside the barracks, not into the ship or beside the archer.
+	{
+		Simulation sim;
+		sim.set_player_active(0, true, false);
+		sim.spawn_building_world(-30.0f, 0.0f, BLD_BARRACKS, 0);
+		const uint32_t ship = sim.spawn_unit(0.0f, 0.0f, 0, UNIT_TRIREME);
+		sim.spawn_unit(30.0f, 0.0f, 0, UNIT_ARCHER);
+		sim.set_regicide_garrison(true);
+		sim.set_victory_condition(VICTORY_REGICIDE);
+		sim.tick(0.05f);
+		const uint32_t hero = sim.regicide_hero(0);
+		CHECK(hero != 0);
+		const auto *aboard = sim.get_transport_passengers(ship);
+		CHECK(!aboard || std::find(aboard->begin(), aboard->end(), hero) == aboard->end());
+		const int32_t h = sim.lookup_unit(hero);
+		CHECK(h >= 0);
+		if (h >= 0) {
+			const auto uv = sim.units();
+			CHECK(std::fabs(uv.pos_x[h] + 30.0f) < 12.0f && std::fabs(uv.pos_z[h]) < 12.0f);
 		}
 	}
 
@@ -1495,6 +1530,31 @@ int main() {
 		std::remove(wpath);
 		run(*sim, 90.0f);
 		CHECK(sim->is_game_over() && sim->winner_mask_ == 0b101);
+		delete sim;
+	}
+	// 7d. Removed Game Setup seat (PlayerRemoved.js + InitGame.js): the seat is defeated at
+	// start and everything it owns turns Gaia, so it is no longer a live enemy.
+	{
+		Simulation *sim = fresh(VICTORY_CONQUEST);
+		sim->set_player_active(1, false, false); // slot 'x' as session_setup seats it
+		size_t owned = 0;
+		for (size_t u = 0; u < sim->units_.count; ++u) owned += sim->units_.team[u] == 1;
+		for (auto &b : sim->buildings_) owned += b.team == 1;
+		CHECK(owned > 0);
+		CHECK(sim->remove_seat(1));
+		CHECK(sim->is_defeated(1));
+		for (size_t u = 0; u < sim->units_.count; ++u) CHECK(sim->units_.team[u] != 1);
+		for (auto &b : sim->buildings_) CHECK(b.team != 1);
+		CHECK(!sim->is_defeated(0));
+		run(*sim, 1.0f);
+		CHECK(!sim->is_defeated(0));
+		CHECK(!sim->remove_seat(1)); // already defeated: nothing to do
+		// A seat with nothing on the map is not defeated (no defeat triggers, no participant).
+		size_t owned15 = 0;
+		for (size_t u = 0; u < sim->units_.count; ++u) owned15 += sim->units_.team[u] == 15;
+		for (auto &b : sim->buildings_) owned15 += b.team == 15;
+		CHECK(sim->remove_seat(15) == (owned15 > 0));
+		CHECK(sim->is_defeated(15) == (owned15 > 0));
 		delete sim;
 	}
 

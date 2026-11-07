@@ -9,6 +9,7 @@ extends SceneTree
 # Exit code 0 = pass.
 
 const CORRAL := 13
+const RES_FOOD := 3
 
 const TT = preload("res://scenes/common/tooltips.gd")
 
@@ -85,5 +86,31 @@ func run() -> void:
 	sheep = t.filter(func(x): return x.contains("(Sheep)"))
 	print("    ", sheep.map(func(x): return x.replace("\n", " | ")))
 	check(sheep.size() == 1 and sheep[0].contains("Cost: Food 250 ") and sheep[0].contains("\nShift-click to train 5."), "Shift held: the cost for 5 and the batch line")
+	# Trains a sheep through the panel: a click on its row queues one, the stock pays for it,
+	# and the corral works the order off (0.28's ProductionQueue: the cost is taken at queueing).
+	print("  training a sheep through the panel")
+	await shift(false)
+	main.debug_set_resource(RES_FOOD, 1000.0)
+	await frames(2)
+	var corral_id: int = main.debug_selection_state()["building"]
+	var rl := roster()
+	var sheep_row := -1
+	for i in rl.item_count:
+		if TT.plain(str(rl.get_item_tooltip(i))).contains("(Sheep)"):
+			sheep_row = i
+	check(corral_id != 0 and sheep_row >= 0, "the corral is selected and lists the sheep")
+	var food0 := float(main.debug_player_state(-1)["res"][RES_FOOD])
+	main._on_roster_item_clicked(sheep_row, Vector2(), MOUSE_BUTTON_LEFT)
+	await frames(4)
+	var food1 := float(main.debug_player_state(-1)["res"][RES_FOOD])
+	check(food0 - food1 >= 50.0, "the sheep is paid for at queueing: food %.0f -> %.0f" % [food0, food1])
+	check(main.debug_building_queue(corral_id) >= 1, "the corral holds the training order")
+	var drained := false
+	for i in 1200:
+		await frames(2)
+		if main.debug_building_queue(corral_id) == 0:
+			drained = true
+			break
+	check(drained, "the corral works the order off")
 	print("RESULT: %s" % ("PASS" if failures == 0 else "FAIL (%d)" % failures))
 	quit(0 if failures == 0 else 1)

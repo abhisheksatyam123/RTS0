@@ -227,6 +227,10 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_input_state"), &RtsoMain::debug_input_state);
 	ClassDB::bind_method(D_METHOD("debug_unit_pos", "unit_id"), &RtsoMain::debug_unit_pos);
 	ClassDB::bind_method(D_METHOD("debug_resource_screen", "resource_id"), &RtsoMain::debug_resource_screen);
+	ClassDB::bind_method(D_METHOD("debug_fauna_screen", "fauna_id"), &RtsoMain::debug_fauna_screen);
+	ClassDB::bind_method(D_METHOD("debug_treasure_screen", "treasure_id"), &RtsoMain::debug_treasure_screen);
+	ClassDB::bind_method(D_METHOD("debug_fauna_alive", "fauna_id"), &RtsoMain::debug_fauna_alive);
+	ClassDB::bind_method(D_METHOD("debug_treasure_alive", "treasure_id"), &RtsoMain::debug_treasure_alive);
 	ClassDB::bind_method(D_METHOD("debug_unit_ground", "unit_id", "goal"), &RtsoMain::debug_unit_ground, DEFVAL(false));
 	ClassDB::bind_method(D_METHOD("debug_right_line"), &RtsoMain::debug_right_line);
 	ClassDB::bind_method(D_METHOD("debug_ground_at", "screen"), &RtsoMain::debug_ground_at);
@@ -246,6 +250,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_capture_points", "building_id"), &RtsoMain::debug_capture_points);
 	ClassDB::bind_method(D_METHOD("debug_spawn_offset", "template_id", "count", "player"), &RtsoMain::debug_spawn_offset, DEFVAL(-1));
 	ClassDB::bind_method(D_METHOD("debug_spawn_fauna", "fauna_type", "count", "owned", "dx", "dz"), &RtsoMain::debug_spawn_fauna, DEFVAL(16.0f), DEFVAL(16.0f));
+	ClassDB::bind_method(D_METHOD("debug_spawn_treasure", "treasure_type", "dx", "dz"), &RtsoMain::debug_spawn_treasure, DEFVAL(16.0f), DEFVAL(16.0f));
 	ClassDB::bind_method(D_METHOD("debug_spawn_mine", "x", "z", "max_gatherers"), &RtsoMain::debug_spawn_mine);
 	ClassDB::bind_method(D_METHOD("debug_unit_model_path", "civ", "unit_type"), &RtsoMain::debug_unit_model_path);
 	ClassDB::bind_method(D_METHOD("debug_template_model_path", "template_id"), &RtsoMain::debug_template_model_path);

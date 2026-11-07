@@ -1011,7 +1011,10 @@ int main() {
 			s.tick(Simulation::FIXED_STEP);
 			const int32_t w = fidx(s, wolf), ui = uidx(s, u);
 			if (w < 0 || ui < 0) break;
-			closest = std::min(closest, std::hypot(s.fauna_.pos_x[w] - s.units_.pos_x[ui], s.fauna_.pos_z[w] - s.units_.pos_z[ui]));
+			// Edge to edge: the wolf's and the spearman's collision radii come off the centre distance.
+			const float gap = std::max(0.0f, std::hypot(s.fauna_.pos_x[w] - s.units_.pos_x[ui], s.fauna_.pos_z[w] - s.units_.pos_z[ui]) -
+					fauna_type_info(FAUNA_WOLF).footprint - unit_collision_radius(s.units_.unit_type[ui]));
+			closest = std::min(closest, gap);
 		}
 		std::printf("pathing: wolf got within %.1f of the spearman\n", closest);
 		CHECK(closest < fauna_type_info(FAUNA_WOLF).attack_range + 1.0f);
@@ -1214,6 +1217,33 @@ int main() {
 		s.fauna_attacked((size_t)b, near, false);
 		CHECK(s.fauna_.behavior[b] == FAUNA_ATTACK && s.fauna_.target_unit_id[b] == near);
 		std::printf("animal combat: mid-swing keeps its target, defensive bear ignores an archer %.1f out\n", vis + 2.0f);
+	}
+
+	// 20. A unit's run is decided when its chase begins (CHASING enter: "if target IsFleeing
+	//     this.Run()"), so it runs for the whole chase even after the animal stops fleeing; a chase
+	//     that began on a calm animal walks, even if the animal flees later.
+	{
+		fresh(s);
+		const uint32_t deer = s.spawn_fauna(0.0f, 0.0f, FAUNA_DEER);
+		const uint32_t h = s.spawn_unit(-4.0f, 0.0f, 0, UNIT_SPEARMAN);
+		const int32_t hi = s.lookup_unit(h);
+		const int32_t d = fidx(s, deer);
+		s.fauna_.behavior[d] = FAUNA_FLEE;
+		CHECK(s.unit_chase_fleeing(deer));
+		// The chase starts on the fleeing deer, so the latch is set (tick_unit_ai's CHASING entry).
+		s.units_.action_state[hi] = ACTION_ATTACK;
+		s.units_.target_unit_id[hi] = deer;
+		s.units_.chase_target[hi] = deer;
+		s.units_.chase_run[hi] = s.unit_chase_fleeing(deer) ? 1 : 0;
+		s.fauna_.behavior[d] = FAUNA_IDLE_GRAZE; // the deer stops fleeing mid-chase
+		CHECK(!s.unit_chase_fleeing(deer));
+		CHECK(s.unit_running((size_t)hi));
+		// A chase that began on the calm deer walks, and stays walking if the deer flees later.
+		s.units_.chase_run[hi] = 0;
+		CHECK(!s.unit_running((size_t)hi));
+		s.fauna_.behavior[d] = FAUNA_FLEE;
+		CHECK(!s.unit_running((size_t)hi));
+		std::printf("chase run: a chase on a fleeing animal keeps running after it stops; a walking chase stays walking\n");
 	}
 
 	// FA17: an animal killed by something other than a hunter (tower arrows, a dead shooter) still

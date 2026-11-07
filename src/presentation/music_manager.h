@@ -78,9 +78,9 @@ public:
 	enum State { OFF = 0, MENU, PEACE, BATTLE, VICTORY, DEFEAT, CUSTOM };
 
 	static constexpr const char *kPath = "res://assets/audio/music/";
-	// sound.musicgain 0.2 beside sound.actiongain 0.7 in 0.28; the buses are relative to
-	// their defaults, so the music sits that ratio lower. (music.js musicGain is never read.)
-	static constexpr float kGainDb = -10.5f;
+	// sound.musicgain 0.2 beside sound.actiongain 0.7 in 0.28: 20*log10(0.2/0.7) = -10.9 dB,
+	// since the buses are relative to their defaults. (music.js musicGain is never read.)
+	static constexpr float kGainDb = -10.9f;
 
 	~RtsoMusic() {
 		if (load_ && load_->thread.joinable()) load_->thread.join();
@@ -138,14 +138,23 @@ public:
 	void set_locked(bool l) { locked_ = l; }
 	// messages.js "play-tracks" (the "retro me" cheat): storeTracks as the custom list,
 	// setState(CUSTOM), then locked so battles don't change it; empty unlocks.
+	// storeTracks clears every type and completeTracks refills the defaults, so the
+	// civ's peace list is dropped. While locked in CUSTOM, setState returns early:
+	// the playing list keeps going and only the stored tracks change.
 	void play_custom(const std::vector<std::string> &tracks) {
+		if (tracks.empty()) {
+			locked_ = false;
+			return;
+		}
+		bool keep_playing = locked_ && state_ == CUSTOM;
 		locked_ = false;
-		if (!tracks.empty()) {
-			tracks_[CUSTOM] = tracks;
+		reset_tracks();
+		tracks_[CUSTOM] = tracks;
+		if (!keep_playing) {
 			state_ = OFF; // restart even when already custom
 			set_state(CUSTOM);
 		}
-		locked_ = !tracks.empty();
+		locked_ = true;
 	}
 	godot::String current_track() const { return current_name_; }
 	// The playlist from the current track on, wrapping (the summary carries it on).

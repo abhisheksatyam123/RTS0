@@ -175,6 +175,15 @@ struct PlayerState {
 	}
 };
 
+// C1 tree masks: one tree's footprint in the NavGrid::tree_sub masks, per class, as (word, bits) pairs. Cached per
+// resource while its square (x, z, block half) and the map stay the same (Simulation::build_tree_masks); a derived
+// cache, so it is not part of tick_state_io.
+struct TreeFootprint {
+	float x = 0.0f, z = 0.0f, h = 0.0f;
+	bool valid = false;
+	std::vector<std::pair<uint32_t, uint64_t>> words[2];
+};
+
 class Simulation {
 public:
 	// Player Petra drives. Area C ("Fix and scale the AI") makes Petra per-player.
@@ -191,7 +200,9 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 143; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 146; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_PUSH_REST = 146; // each unit's MotionTurn rest position (G119), after its 48-byte record
+	static constexpr uint32_t SAVE_VERSION_TREE_WATCH = 145; // each unit's path tree watch (tree_replanned, tree_off, watch_cur/best/turns) after its saved record
 	static constexpr uint32_t SAVE_VERSION_AIM_VELOCITY = 143; // each unit's and animal's last-turn velocity (aim_vx/aim_vz; fauna beside fauna_)
 	static constexpr uint32_t SAVE_VERSION_PETRA_ROUTE_CACHE = 139; // Petra's last checkRoutes result (tradeRoute kept between trade events)
 	static constexpr uint32_t SAVE_VERSION_FAUNA_QUEUED_TARGET = 137; // each animal's set-aside attack target (fauna_queued_target_)
@@ -237,6 +248,8 @@ public:
 	static constexpr uint32_t SAVE_VERSION_MOTION_SPAN = 142; // each unit's reversal watch (MotionTurn way_*, span_*, 48 bytes); a 141 save reads the 20-byte MotionTurn
 	static constexpr uint32_t SAVE_VERSION_PETRA_ASSIGNED_AGAINST = 141; // each defense army's assignedTo and assignedAgainst (kept across turns)
 	static constexpr uint32_t SAVE_VERSION_PETRA_BLOCKED = 140; // each Petra attack plan's isBlocked (its target is a blocker on the way)
+	static constexpr uint32_t SAVE_VERSION_CHASE_RUN = 144; // each unit's chase run and range bits (chase_run)
+	static constexpr uint8_t CHASE_RUN_BIT = 1, CHASE_RANGE_BIT = 2; // chase_run: running; in range last tick
 	static constexpr uint32_t SAVE_VERSION_RALLY_EMERGENCY = 138; // Petra's autogarrison rally flag (rally_emergency)
 	static constexpr uint32_t SAVE_VERSION_RALLY_COMMANDS = 97; // each rally position's command and unit or treasure
 	static constexpr uint32_t SAVE_VERSION_PETRA_RAID_SIEGE = 95; // the Petra raid's name and siege class
@@ -550,6 +563,7 @@ public:
 	void face_away_from(size_t i, float x, float z);
 	float unit_run_multiplier(size_t i) const;
 	bool unit_running(size_t i) const;
+	bool unit_chase_fleeing(uint32_t target_id) const; // a unit or animal that is fleeing now (CHASING enter)
 	// 0 A.D. Identity classes, RestrictedClasses, Bonuses and Spread of the unit at SoA index i.
 	const CombatProfile &unit_combat_at(size_t i) const { return unit_combat(units_.tmpl[i], units_.unit_type[i]); }
 	// The passability class Clearance of the unit at SoA index i from buildings (unit_building_clearance).
@@ -899,6 +913,7 @@ public:
 		terrain_res_ = res;
 		terrain_water_height_ = water_h;
 		terrain_lowest_known_ = false;
+		water_masks_dirty_ = true; // C1: the water mask follows the ground (refresh_water_masks)
 	}
 	void set_map_info(const std::string &id, const std::string &name, const std::string &biome) {
 		current_map_id_ = id;
@@ -1613,6 +1628,10 @@ public:
 	// structures turn Gaia and it watches the rest of the match.
 	// `reason` is the chat line's (DefeatPlayer's message): objective unless the script names one.
 	void defeat_player(uint8_t pid, uint8_t reason = SessionNotice::END_OBJECTIVE);
+	// 0 A.D. PlayerRemoved.js + InitGame.js: a removed seat is defeated at start, and
+	// Player.SetState hands everything it owns to Gaia. Quiet (Defeat(undefined): no chat
+	// line). Returns whether the seat owned anything; a seat with nothing stays undefeated.
+	bool remove_seat(uint8_t pid);
 	// 0 A.D. "resign" (Commands.js: cmpPlayer.Defeat("%(player)s has resigned.")): the
 	// issuing player is defeated as by conquest. Its units and structures turn Gaia, its
 	// allies play on, and it watches the rest of the match. False when it is already out.
@@ -2907,6 +2926,9 @@ private:
 	// gave it, with waypoints left, more than LONG_PATH_MIN_DIST from where it is going.
 	bool follows_long_path(size_t i) const;
 	void obstructed_long_path(size_t i, uint8_t failed);
+	// C1 tree watch: a tree-re-planned leg on which the unit gets no 1 m nearer its waypoint for 12 turns is re-planned on
+	// the navcells alone (WaypointPath::tree_off). Called on each turn end the unit steps (motion_feedback).
+	void watch_tree_leg(size_t i);
 	// HandleObstructedMove's short path (ComputePathToGoal) for a land unit's walk whose way trees or
 	// structures block: kept as the unit's path to its goal (unit_paths_). With `beyond_queue`, a far or
 	// sub-goal search the unit is due (its goal's centre beyond 56 m) is queued there, not run
@@ -3199,7 +3221,8 @@ private:
 	// circle of radius circle_r when that is above 0.
 	bool pick_spawn_point_box(float cx, float cz, float rot, float along_u, float along_v, float circle_r,
 			bool has_rally, float rally_x, float rally_z, uint8_t type, uint32_t skip_uid,
-			float &out_x, float &out_z, uint16_t tmpl = CIV_UNIT_TEMPLATE_COUNT) const;
+			float &out_x, float &out_z, uint16_t tmpl = CIV_UNIT_TEMPLATE_COUNT,
+			const std::vector<SpawnSpot> *taken = nullptr) const;
 	// Structures heal their garrison each second and unload it below EjectHealth (GarrisonHolder.js).
 	void tick_garrison_holders();
 	bool can_board(size_t transport_idx, size_t unit_idx) const;
@@ -3261,6 +3284,14 @@ private:
 	// The fog a player sees (FOW_* per cell) from its line of sight, los_shared_mask included.
 	void fill_fow_from_los(std::vector<uint8_t> &grid, uint8_t player) const;
 	void rebuild_nav_grid(); // Phase1: rebuild NavGrid from buildings+water (mirrors CCmpObstructionManager rasterize)
+	// C5 (step 2): the tree masks from the live trees (the one builder), and their lazy refresh (see simulation.cpp).
+	void build_tree_masks(std::vector<uint64_t> (&out)[2]) const;
+	void refresh_tree_masks() const;
+	// A tree's square may have joined or left the masks: the next refresh rebuilds them.
+	void note_tree_edit() { tree_masks_dirty_ = true; }
+	// C1 water: NavGrid::water_sub, the 1 m depth rule over the NAV_WATER navcells (see simulation.cpp).
+	void build_water_masks(std::vector<uint64_t> &out) const;
+	void refresh_water_masks() const;
 	// The static obstructions of the long paths on the terrain tiles (NavGrid::set_tile_obstructions):
 	// with `structures` the structures, scenery and mines; the trees, bushes and treasures when they
 	// changed.
@@ -3282,7 +3313,8 @@ private:
 		if (circular_map()) return x1 * x1 + z1 * z1 > x0 * x0 + z0 * z0;
 		return std::max(std::fabs(x1), std::fabs(z1)) > std::max(std::fabs(x0), std::fabs(z0));
 	}
-	bool find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass = PASS_INFANTRY) const;
+	bool find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass = PASS_INFANTRY,
+		bool navcells_only = false) const;
 	int territory_owner_at(float x, float z) const; // G2: query territory_grid_
 	void rebuild_territory(); // G2: rebuild territory/influence grids from TC/Fortress/Tower
 	void rebuild_auras(); // G4: rebuild AuraManager from temples/heroes/carnyx/female citizens
@@ -3293,6 +3325,7 @@ public:
 	// Attack.js IsTargetInRange: d2 (squared gap) within unit i's attack range, the target's
 	// height above the ground or water target_offset (GetEffectiveParabolicRange).
 	bool in_attack_range(size_t i, float d2, float target_offset) const;
+	float unit_gap2(size_t i, size_t j) const; // squared edge-to-edge gap between two units (IsInTargetRange)
 private:
 	void apply_health_auras(); // Health/Max auras: rescale max_hp and hp as units enter or leave them
 	float structure_max_capture(const Building &b) const; // Capturable/CapturePoints with its owner's modifiers and auras
@@ -3624,6 +3657,15 @@ private:
 	mutable uint64_t resource_block_tick_ = UINT64_MAX;
 	mutable size_t resource_block_count_ = SIZE_MAX;
 	mutable int resource_block_w_ = 0;
+	// C5 (step 2): NavGrid::tree_sub is stale (a tree's square joined or left). refresh_tree_masks rebuilds it before
+	// any path query reads it; rebuild_nav_grid rebuilds it in full and clears this.
+	mutable bool tree_masks_dirty_ = false;
+	mutable std::vector<TreeFootprint> tree_footprints_; // by resource index (build_tree_masks)
+	mutable float tree_fp_map_half_ = -1.0f;            // the map the cached footprints were made for
+	mutable int tree_fp_res_ = -1;
+	// C1 water: NavGrid::water_sub is stale (the navcells' classes changed). rebuild_nav_grid sets it, and
+	// refresh_water_masks clears it before a path query reads it.
+	mutable bool water_masks_dirty_ = true;
 	void ensure_resource_block_cells() const;
 	// check_placement over the cells `cells` of a footprint whose bounds are [x0, x1] x [z0, z1]
 	// and centre (cx, cz); `rect` is a turned footprint (a WallSet piece) or null for a square, and
@@ -3754,6 +3796,8 @@ private:
 	bool regicide_hero_lost(int t) const;
 	uint8_t player_color_[MAX_PLAYERS] = {0, 1, 2, 3, 4, 5, 6, 7};
 	void remove_player_structures(); // Nomad
+	// Danubius only (generate_random_map): each land animal on an unwalkable navcell steps to the nearest walkable one.
+	void settle_danubius_fauna();
 	bool explore_map_ = false;
 	float wonder_duration_ = 600.0f;
 	float relic_duration_ = 180.0f;
@@ -3766,7 +3810,8 @@ private:
 	void tick_triggers(float dt);
 	void tick_cinema(float dt);
 	// Where TriggerHelper.SpawnUnits puts a unit of `type` at trigger point p (false: on the point).
-	bool trigger_point_spawn_spot(const TriggerPoint &p, uint8_t type, float &x, float &z) const;
+	bool trigger_point_spawn_spot(const TriggerPoint &p, uint8_t type, float &x, float &z,
+			const std::vector<SpawnSpot> *taken = nullptr) const;
 	void cinema_drop_deleted_path(uint16_t idx); // a deleted path no longer queued
 	void set_cinema_enabled(bool enabled);
 	void register_map_triggers(MapType type);
@@ -4026,8 +4071,11 @@ private:
 	uint32_t find_petra_attack_target(float &out_tx, float &out_tz, uint16_t same_land = 0, const AttackPlan *plan = nullptr,
 	                                  bool must_start = false, bool note = true) const;
 	uint8_t petra_enemy_player(uint8_t kind, bool first = true, bool *gaia_relics = nullptr) const;
-	uint32_t petra_nearest_target(uint8_t kind, bool forced, uint8_t enemy, float px, float pz, uint16_t same_land, float &out_tx, float &out_tz) const;
-	uint32_t find_petra_raid_target(float &out_tx, float &out_tz) const;
+	// any_foe_defence: a rush's defence test counts every enemy's defensive fire (rushTargetFinder with no player).
+	uint32_t petra_nearest_target(uint8_t kind, bool forced, uint8_t enemy, float px, float pz, uint16_t same_land, float &out_tx, float &out_tz, bool any_foe_defence = false) const;
+	// from: a raid retargeting from its squad's position takes the nearest entry (getNearestTarget);
+	// without one, the first listed (attackManager's initial pick).
+	uint32_t find_petra_raid_target(float &out_tx, float &out_tz, const std::vector<uint32_t> *from_squad = nullptr) const;
 	bool petra_defense_target(const Building &b) const; // defenseManager.js targetList
 	uint8_t petra_target_owner(uint32_t id) const;
 	bool petra_defendable(float x, float z) const;
@@ -5002,6 +5050,7 @@ private:
 		float sigma = 0.0f;
 		float new_timer = 0.0f;
 		uint32_t new_chase = 0;
+		uint8_t new_run = 0;
 		uint8_t new_order_flags = 0;
 		uint8_t new_action_state = 0;
 		uint8_t effect = 0;

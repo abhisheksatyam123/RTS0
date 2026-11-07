@@ -2390,8 +2390,13 @@ struct MotionTurn {
 	uint8_t span_repeats = 0; // reversals over the span in a row
 	uint8_t span_two = 0;    // span2_x, span2_z are set
 	uint8_t span_pad = 0;    // explicit, so the saved struct holds no hidden padding
+	// G119: the unit's rest position: where a standing unit stood when this turn began. separation() bins a standing unit
+	// by it, as it bins a stepping unit by where its first step began, so a push within the turn never moves it between
+	// pushing squares. Saved after the 48-byte record from SAVE_VERSION_PUSH_REST on.
+	float rest_x = 0.0f, rest_z = 0.0f;
 };
-static_assert(sizeof(MotionTurn) == 48, "MotionTurn is saved raw");
+static_assert(offsetof(MotionTurn, rest_x) == 48, "MotionTurn's 48-byte record is saved first");
+static_assert(sizeof(MotionTurn) == 56, "MotionTurn is saved raw (its record, then rest)");
 
 struct CivHeroAura {
 	const char *id;
@@ -2452,6 +2457,7 @@ struct CivTeamBonus {
 	const char *name;
 	const char *description;
 	uint64_t units[CIV_TEMPLATE_WORDS_MAX]; // civ_unit_template_table() rows affected
+	bool owner_only = false; // 0 A.D. civ bonus (requirements civ): the owner's own player, never its allies
 };
 
 // units/plane UnitMotionFlying (0.28), the one flying template: horizontal speeds and rates x the
@@ -2653,6 +2659,12 @@ inline float civ_unit_train_time_mult(uint8_t civ, TechClasses c) {
 // Each civ's bonus counts once even when several allies share the civ, as 0 A.D.
 // auras of the same name don't stack. `res` is the ResourceType for cost stats;
 // `tmpl` the unit for unit stats; `building` the building for building and tech stats.
+// Whether a team bonus row applies to a player of civ own_civ with allies of civs ally_civs.
+inline bool civ_team_bonus_reaches(const CivTeamBonus &b, uint8_t own_civ, uint16_t ally_civs) {
+	if (b.owner_only) return b.civ == own_civ;
+	return (ally_civs & civ_bit(b.civ)) || (!b.allies_only && b.civ == own_civ);
+}
+
 inline float civ_team_bonus_mult(uint8_t own_civ, uint16_t ally_civs, uint8_t stat, int8_t res = -1,
 		uint16_t tmpl = 0xFFFF, uint8_t building = BLD_TYPE_COUNT) {
 	float m = 1.0f;
@@ -2660,7 +2672,7 @@ inline float civ_team_bonus_mult(uint8_t own_civ, uint16_t ally_civs, uint8_t st
 	for (uint16_t i = 0; i < CIV_TEAM_BONUS_COUNT; ++i) {
 		const CivTeamBonus &b = t[i];
 		if (b.stat != stat || b.res != res) continue;
-		if (!(ally_civs & civ_bit(b.civ)) && (b.allies_only || b.civ != own_civ)) continue;
+		if (!civ_team_bonus_reaches(b, own_civ, ally_civs)) continue;
 		if (stat == TEAM_BONUS_UNIT_COST || stat == TEAM_BONUS_UNIT_TRAIN_TIME || stat == TEAM_BONUS_UNIT_COST_ADD) {
 			if (tmpl >= CIV_UNIT_TEMPLATE_COUNT || !((b.units[tmpl >> 6] >> (tmpl & 63)) & 1u)) continue;
 		} else if (stat != TEAM_BONUS_FOOD_TRICKLE && stat != TEAM_BONUS_TRADE_INTERNATIONAL) {
@@ -2678,7 +2690,7 @@ inline float civ_team_bonus_cost_add(uint8_t own_civ, uint16_t ally_civs, int8_t
 	for (uint16_t i = 0; i < CIV_TEAM_BONUS_COUNT; ++i) {
 		const CivTeamBonus &b = t[i];
 		if (b.stat != TEAM_BONUS_UNIT_COST_ADD || b.res != res) continue;
-		if (!(ally_civs & civ_bit(b.civ)) && (b.allies_only || b.civ != own_civ)) continue;
+		if (!civ_team_bonus_reaches(b, own_civ, ally_civs)) continue;
 		if (tmpl >= CIV_UNIT_TEMPLATE_COUNT || !((b.units[tmpl >> 6] >> (tmpl & 63)) & 1u)) continue;
 		add += b.value;
 	}
@@ -2692,7 +2704,7 @@ inline float civ_team_food_trickle(uint8_t own_civ, uint16_t ally_civs) {
 	for (uint16_t i = 0; i < CIV_TEAM_BONUS_COUNT; ++i) {
 		const CivTeamBonus &b = t[i];
 		if (b.stat != TEAM_BONUS_FOOD_TRICKLE) continue;
-		if (!(ally_civs & civ_bit(b.civ)) && (b.allies_only || b.civ != own_civ)) continue;
+		if (!civ_team_bonus_reaches(b, own_civ, ally_civs)) continue;
 		add += b.value;
 	}
 	return add;

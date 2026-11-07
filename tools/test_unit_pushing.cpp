@@ -2664,15 +2664,21 @@ int main() {
 		CHECK(done[WALK] > 0 && done[WALK] * DT <= 60.0f, "a walk to a point beyond two palm walls gets there within 60 s");
 		CHECK(done[RETURNER] > 0 && done[RETURNER] * DT <= 60.0f && max_failed[RETURNER] <= 10,
 		      "a returner gets its load to a storehouse beyond them within 60 s, never 10 turns obstructed in a row");
-		for (int run : {(int)WALK, (int)RETURNER})
-			CHECK(first_round[run] && first_x[run] == end_x[run] && first_z[run] == end_z[run],
-			      "the first far path round the near wall, cut short by the search box, keeps the way on to the point");
+		// Scenario 37's expectation, updated for the tree-aware long path (C1, scenario 37 decision): the walk's route runs
+		// through the palm gap with no failed turn, so it lays no far path to keep the way on from. Its arrival (above) is
+		// its check. The returner still lays that far path, and it must keep the way on to the point.
+		CHECK(first_n[WALK] == 0 && max_failed[WALK] == 0,
+		      "C1: the walk's route runs through the palm gap with no failed turn, so it lays no far path to cut short");
+		CHECK(first_round[RETURNER] && first_x[RETURNER] == end_x[RETURNER] && first_z[RETURNER] == end_z[RETURNER],
+		      "the returner's first far path round the near wall, cut short by the search box, keeps the way on to the point");
 		CHECK(done[RESENT] > 0 && done[RESENT] * DT <= 90.0f, "and so does a returner ordered to gather again every 1.6 s, within 90 s");
 		CHECK(done[SPENT] > 0 && done[SPENT] * DT <= 60.0f,
 		      "her order drops a path to the storehouse walked to its end short of it, and she drops her load within 60 s");
 		CHECK(done[SUBGOAL] > 0 && done[SUBGOAL] * DT <= 60.0f, "a walk 65 units off whose path bends past a palm wall gets there within 60 s");
-		CHECK(sub_held_n >= 2 && first_round[SUBGOAL] && sub_tail && std::fabs(sub_gap - 1.0f) <= 0.01f,
-		      "its third failed turn lays a way round the wall to the circle round its path's next waypoint, the rest of that path after it");
+		// Scenario 37's expectation, updated for C1 (as above): the bent walk's route is planned through the tree masks, so it
+		// never fails a turn and no third-turn circle is laid. Its arrival (above) is its check.
+		CHECK(max_failed[SUBGOAL] == 0 && first_n[SUBGOAL] == 0,
+		      "C1: the bent walk's route runs round the wall with no failed turn, so no third-turn circle is laid");
 		// RANGE: the held path's next waypoint d units east of him, past a palm wall of half-height h.
 		int range_ok = 0, range_n = 0;
 		for (float d : {2.5f, 3.0f, 4.0f})
@@ -3134,6 +3140,10 @@ int main() {
 			started += t > 0;
 			if (t > 0) slowest = std::max(slowest, t * DT);
 		}
+		// Bound 30 s (HEAD's), not loosened. The 1 m re-plan (C1) measures 20.30, 12.40 and 20.15 s here, the worst at
+		// 20.30 s. The slower dock is 0.28-correct on two counts: the palm detour (0.28's long path walks round the
+		// Cretan date palm patches, as its rasterised obstructions say), and the 1 m water depth rule (0.28 closes a
+		// subcell of deep water by its own depth, not the 8 m navcell as a whole: the re-plan does the same).
 		CHECK(started == 3 && slowest <= 30.0f, "a dock site its builders ring two rows deep starts: the units on it walk off through them");
 
 		// Ordinary sites on flat ground: a house with 3 builders and an idle woman on it, a barracks with 8 builders
@@ -3525,6 +3535,37 @@ int main() {
 		s->units_.motion[fi].failed = 20;
 		s->order_gather(&w, 1, tree); // the re-send, on the way back
 		CHECK(s->units_.motion[fi].failed == 20, "a re-send that keeps the walk keeps its failed count (SW6)");
+	}
+	{
+		// 47. A walk to a point inside a ring of 20 palms, 10.4 m out (G84, a walk to a point the trees shut off): the
+		// 8 m navcells leave a gap open where 0.28's 1 m cells with the clearance close the ring, so RTS0's long path
+		// is the straight line in. The spearman goes round the ring, stands at its edge and is obstructed each turn
+		// with that path held: on main its failed count climbs to MAX_FAILED_MOVEMENTS, 35 obstructed turns, and the
+		// walk ends at tick 1580. 0.28's long path ends at the ring's edge, where the walk fails two obstructed turns
+		// after the short-path hack (PathResult, CCmpUnitMotion.h:939-972); here it ends at tick 1472 after 8 turns.
+		auto s = std::make_unique<Simulation>();
+		setup(*s);
+		constexpr float X0 = -20.0f, GX = 10.0f, GZ = 0.0f, R = 2.6f, PI = 3.14159265f;
+		for (int k = 0; k < 20; ++k) {
+			const float a = 2.0f * PI * k / 20.0f;
+			s->spawn_resource_world(GX + R * std::cos(a), GZ + R * std::sin(a), RES_WOOD, 300, RES_SUB_NONE, 0, FLORA_TREE_CRETAN_DATE_PALM_PATCH);
+		}
+		const uint32_t w = s->spawn_unit(X0, 0.0f, 0, UNIT_SPEARMAN, 150.0f);
+		s->order_walk(&w, 1, GX, GZ, false, true);
+		int t = 0, rises = 0, last = 0;
+		while (t < 4000 && idx(*s, w) >= 0 && s->units_.action_state[idx(*s, w)] == ACTION_MOVE) {
+			s->tick(DT);
+			++t;
+			const int f = s->units_.motion[idx(*s, w)].failed;
+			if (f > last) ++rises;
+			last = f;
+		}
+		const int wi = idx(*s, w);
+		const float ex = s->units_.pos_x[wi] - GX, ez = s->units_.pos_z[wi] - GZ;
+		CHECK(wi >= 0 && s->units_.action_state[wi] != ACTION_MOVE && t * DT <= 120.0f,
+		      "a walk to a point the trees shut off ends within 120 s");
+		CHECK(rises <= 10, "and it ends within 10 obstructed turns, not 35 (a walk held six turns fails two later)");
+		CHECK(std::hypot(ex, ez) > 2.0f, "it stops where the ring holds it, short of the point");
 	}
 
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);

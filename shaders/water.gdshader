@@ -27,6 +27,11 @@ uniform sampler2D height_tex : hint_default_black, filter_linear, repeat_disable
 uniform float terrain_half = 0.0;
 uniform float water_level = 0.0;
 uniform float murkiness : hint_range(0.0, 2.0) = 0.8;
+// Shoreline wet band (AAA look item 6): a darker, greener strip of water just off the shore,
+// from the same depth as the foam, out to wet_band_width metres. Depth-only, so it runs on
+// Compatibility too.
+uniform float wet_band_width : hint_range(0.0, 3.0) = 1.2;
+uniform float wet_band_strength : hint_range(0.0, 1.0) = 0.35;
 
 // 0 A.D.'s animated water normals (art/textures/animated/water/lake), two
 // frames scrolled against each other at two scales as water_high.fs does
@@ -97,6 +102,9 @@ void fragment() {
 	float roll = 0.5 + 0.5 * sin(depth * 14.0 - t * 3.0 + wave_n1 * 2.0);
 	float foam = shore * mix(0.35, 1.0, roll) * depth_on * rtso_water_fancy;
 	final_color = mix(final_color, foam_color.rgb, foam * foam_color.a);
+	// Wet band: the water just off the shore reads darker and greener, the way wet sand does.
+	float wet = (1.0 - smoothstep(0.0, wet_band_width, depth)) * wet_band_strength * depth_on;
+	final_color = mix(final_color, final_color * vec3(0.55, 0.72, 0.7), wet);
 	// The seabed shows through at the shore and fades out with depth.
 	water_base.a = mix(water_base.a, clamp(depth * 1.6, 0.25, water_base.a), depth_on);
 	water_base.a = max(water_base.a, foam * foam_color.a);

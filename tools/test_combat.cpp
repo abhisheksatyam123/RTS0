@@ -771,7 +771,10 @@ static void test_timing_projectiles() {
 			t += DT;
 			const float dx = s.units_.pos_x[ai] - s.units_.pos_x[di], dz = s.units_.pos_z[ai] - s.units_.pos_z[di];
 			const float r = s.units_.attack_range[ai];
-			if (reached < 0.0f && dx * dx + dz * dz <= r * r) reached = t;
+			// In reach edge to edge (IsInTargetRange): the two collision radii come off the centre distance.
+			const float gap = std::max(0.0f, std::sqrt(dx * dx + dz * dz) - unit_collision_radius(s.units_.unit_type[ai]) -
+					unit_collision_radius(s.units_.unit_type[di]));
+			if (reached < 0.0f && gap <= r) reached = t;
 			if (s.units_.hp[di] < last_hp) {
 				if (first < 0.0f) first = t; else second = t;
 				last_hp = s.units_.hp[di];

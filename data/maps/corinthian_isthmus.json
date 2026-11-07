@@ -30450,13 +30450,15 @@
       "type": "stone",
       "x": 111.23,
       "z": -200.61,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "gold",
       "x": 41.09,
       "z": -245.39,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "tree/cretan_date_palm_patch",
@@ -30879,13 +30881,15 @@
       "type": "stone",
       "x": -42.29,
       "z": 190.2,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "gold",
       "x": -7.39,
       "z": 262.05,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "tree/cretan_date_palm_patch",
@@ -31215,13 +31219,15 @@
       "type": "stone",
       "x": -207.11,
       "z": 37.51,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "gold",
       "x": -201.88,
       "z": 94.21,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "tree/cretan_date_palm_patch",
@@ -31735,13 +31741,15 @@
       "type": "gold",
       "x": 152.67,
       "z": -51.63,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "stone",
       "x": 232.51,
       "z": -49.16,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "poplar",
@@ -31989,19 +31997,22 @@
       "type": "stone",
       "x": 1.07,
       "z": -132.0,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "gold",
       "x": -1.16,
       "z": -174.55,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "gold",
       "x": 37.25,
       "z": -147.09,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "tree/cretan_date_palm_patch",
@@ -32177,7 +32188,8 @@
       "type": "stone",
       "x": 107.92,
       "z": -0.44,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "tree/cretan_date_palm_patch",
@@ -32371,13 +32383,15 @@
       "type": "stone",
       "x": 123.58,
       "z": -253.36,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "stone",
       "x": 278.08,
       "z": -143.93,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "tree/cretan_date_palm_patch",
@@ -32577,13 +32591,15 @@
       "type": "stone",
       "x": -321.77,
       "z": 47.56,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "stone",
       "x": -276.76,
       "z": 132.68,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "tree/cretan_date_palm_patch",
@@ -32783,13 +32799,15 @@
       "type": "stone",
       "x": 12.55,
       "z": 268.81,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "stone",
       "x": 64.95,
       "z": 271.25,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "tree/cretan_date_palm_patch",
@@ -36274,7 +36292,8 @@
       "type": "gold",
       "x": 255.98,
       "z": -114.83,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "carob",
@@ -48933,31 +48952,36 @@
       "type": "gold",
       "x": -167.84,
       "z": -6.22,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "gold",
       "x": -29.81,
       "z": 326.41,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "gold",
       "x": -153.33,
       "z": 254.84,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "gold",
       "x": -304.99,
       "z": 27.48,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "gold",
       "x": 89.97,
       "z": -60.6,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "tree/cretan_date_palm_tall",

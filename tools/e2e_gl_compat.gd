@@ -39,8 +39,14 @@ func run() -> void:
 	for f in DirAccess.get_files_at("res://shaders"):
 		if not f.ends_with(".gdshader"):
 			continue
+		var src := FileAccess.get_file_as_string("res://shaders/" + f)
+		# A Forward+ / Mobile only shader (hint_normal_roughness_texture) is never loaded under
+		# Compatibility: camera_rig.cpp uses the _depth variant there. Skip it, as the game does.
+		if src.contains("hint_normal_roughness_texture"):
+			print("  skip %s: Forward+ only (Compatibility uses its _depth variant)" % f)
+			continue
 		var sh := Shader.new()
-		sh.code = FileAccess.get_file_as_string("res://shaders/" + f).replace("instance uniform ", "uniform ")
+		sh.code = src.replace("instance uniform ", "uniform ")
 		var mat := ShaderMaterial.new()
 		mat.shader = sh
 		if sh.get_mode() == Shader.MODE_SPATIAL:

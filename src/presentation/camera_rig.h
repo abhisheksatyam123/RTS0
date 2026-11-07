@@ -5,6 +5,12 @@
 #include <godot_cpp/classes/camera3d.hpp>
 #include <godot_cpp/classes/mesh_instance3d.hpp>
 #include <godot_cpp/classes/shader_material.hpp>
+#include <godot_cpp/classes/sub_viewport.hpp>
+#include <godot_cpp/classes/camera3d.hpp>
+#include <godot_cpp/classes/canvas_layer.hpp>
+#include <godot_cpp/classes/texture_rect.hpp>
+#include <godot_cpp/classes/viewport_texture.hpp>
+#include <godot_cpp/classes/world3d.hpp>
 #include <godot_cpp/classes/input_event.hpp>
 #include <godot_cpp/variant/vector3.hpp>
 #include <godot_cpp/variant/dictionary.hpp>
@@ -25,7 +31,14 @@ class RtsoCameraRig : public Node3D {
 	MeshInstance3D *pixel_quad_ = nullptr;
 	Ref<ShaderMaterial> pixel_mat_; // its cam_near / cam_far follow the camera
 	bool pixel_on_ = false;
+	// Pixel mode's world: a low-res SubViewport that shares the main world and renders through a
+	// camera mirroring cam, shown nearest-filtered on a background layer under the sharp HUD.
+	SubViewport *pixel_vp_ = nullptr;
+	Camera3D *pixel_cam_ = nullptr;
+	CanvasLayer *pixel_layer_ = nullptr;
+	TextureRect *pixel_rect_ = nullptr;
 	void sync_pixel_art();
+	void sync_pixel_world(bool want);
 	Vector3 target_pos;
 	float speed = 28.0f;
 	float zoom_height = 30.0f; // the camera's distance from its look-at point (0.28 m_Zoom)

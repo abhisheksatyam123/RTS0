@@ -15,7 +15,6 @@ const BUSES := {
 	"Action": "sound.actiongain",
 	"UI": "sound.uigain",
 }
-const PIXEL_ART_SCALE := 0.5
 const SHADOW_ATLAS := [1024, 2048, 4096, 8192] # shadowquality -1 Low .. 2 Very High
 # shadowscovermap: a cutoff past the largest map's diagonal (Giant, 512 m).
 const SHADOW_COVER_MAP_DISTANCE := 2000.0
@@ -602,12 +601,18 @@ func phone_ui_factor() -> float:
 func _apply_gi() -> void:
 	var forward := RenderingServer.get_rendering_device() != null
 	var mode := cfg.get_value("gi") if forward else "off"
+	# The pixel-art look (pixelart) lifts contrast and saturation a little, so the pixel
+	# outlines and team colours still read at a distance. Off, the scene's own values stay.
+	var pixel := cfg.get_bool("pixelart")
 	for we in get_tree().root.find_children("*", "WorldEnvironment", true, false):
 		var env: Environment = we.environment
 		if env == null:
 			continue
 		env.sdfgi_enabled = mode != "off"
 		env.sdfgi_cascades = 1 if mode == "low" else 2
+		env.adjustment_enabled = pixel
+		env.adjustment_contrast = 1.1 if pixel else 1.0
+		env.adjustment_saturation = 1.12 if pixel else 1.0
 
 ## renderer.scale with renderer.upscale.technique, antialiasing and
 ## gui.scale on the main viewport (times phone_ui_factor()).
@@ -618,12 +623,8 @@ func _apply_viewport() -> void:
 	# FSR 1.0 needs Forward+; under GL Compatibility (no rendering device) it is bilinear.
 	var fsr_ok := RenderingServer.get_rendering_device() != null
 	vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR if tech == "fsr" and fsr_ok and vp.scaling_3d_scale < 1.0 else Viewport.SCALING_3D_MODE_BILINEAR
-	# 3D pixel-art look (pixelart): a low 3D scale gives the chunky pixels; the outline pass in
-	# camera_rig.cpp runs at that same resolution. Godot 4.3 has no nearest 3D upscale, so the
-	# upscale is bilinear (softer than a true nearest filter).
-	if cfg.get_bool("pixelart"):
-		vp.scaling_3d_scale = minf(vp.scaling_3d_scale, PIXEL_ART_SCALE)
-		vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_BILINEAR
+	# 3D pixel-art look (pixelart): the world renders in a low-res SubViewport owned by the
+	# camera rig (camera_rig.cpp sync_pixel_world), so this viewport keeps its own scale.
 	var aa := cfg.get_value("antialiasing")
 	vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA if aa == "fxaa" else Viewport.SCREEN_SPACE_AA_DISABLED
 	match aa:
