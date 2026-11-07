@@ -24,6 +24,10 @@
 //   group where the projectile lands (DelayedDamage.js), its attack_slaughter group
 //   on each Slaughter strike at a domestic animal, and an animal's own attack_melee
 //   on each bite; heard where they happen while the viewer sees that spot.
+// - Footsteps (CUnitAnimation: a walk clip's Sound group plays once per loop): a moving
+//   human's walk group (actor/human/movement/walk.xml, hstep_dirt_MN_*) or run group
+//   (run.xml, hstep_run_dirt_*), a mounted unit's (actor/mounted/movement/walk.xml, mstep11*),
+//   a wagon's and a catafalque's grass steps (fs_grass*); heard where the viewer sees them.
 
 #include <godot_cpp/classes/audio_stream_player.hpp>
 #include <godot_cpp/classes/dir_access.hpp>
@@ -157,6 +161,48 @@ inline const std::vector<godot::String> &voice_group_clips(const char *lang, boo
 	return out;
 }
 
+// Footstep groups by a unit's movement template (0.28 template_unit_infantry, _support,
+// _champion_infantry, _hero use actor/human/movement; _cavalry, _elephant, _dog and the cavalry
+// heroes and champions use actor/mounted/movement; _support_wagon and _catafalque use fs_grass).
+// Siege engines and ships make none (template_unit_siege*.xml and template_unit_ship.xml have
+// no walk group in the audit).
+enum class FootKind : uint8_t { NONE, HUMAN, MOUNTED, GRASS };
+
+inline FootKind foot_kind(uint8_t unit_type, uint16_t tmpl) {
+	switch (unit_type) {
+		case UNIT_WAGON: case UNIT_CATAFALQUE: return FootKind::GRASS;
+		case UNIT_CAVALRY: case UNIT_CAMEL: case UNIT_CHARIOT: case UNIT_SCYTHED_CHARIOT:
+		case UNIT_ELEPHANT: case UNIT_WORKER_ELEPHANT: case UNIT_WAR_DOG:
+			return FootKind::MOUNTED;
+		case UNIT_TRIREME: case UNIT_FISHING_BOAT: case UNIT_MERCHANT_SHIP:
+		case UNIT_CATAPULT: case UNIT_SIEGE_RAM: case UNIT_BOLT_SHOOTER:
+			return FootKind::NONE;
+		default: break;
+	}
+	// A hero or champion of the cavalry templates (hero_*_cavalry_*, champion_cavalry_*).
+	if (tmpl < CIV_UNIT_TEMPLATE_COUNT && std::strstr(civ_unit_template(tmpl).id, "cavalry")) return FootKind::MOUNTED;
+	return FootKind::HUMAN;
+}
+
+// Distance a unit walks per footstep (sim units, 4 m each): a human stride 2 m, a mounted one 3 m,
+// a dog's 2 m. Chosen to match 0 A.D.'s walk cycles at RTS0's walk speeds (unverified in-game).
+inline float foot_stride(FootKind k, uint8_t unit_type) {
+	if (k == FootKind::MOUNTED) return unit_type == UNIT_WAR_DOG ? 0.5f : 0.75f;
+	return 0.5f;
+}
+
+// A footstep group's clips: walk or run for humans, the mstep group for mounted units, fs_grass for
+// wagons and catafalques. Empty for NONE.
+inline const std::vector<godot::String> &foot_clips(FootKind k, bool run) {
+	static const std::vector<godot::String> none;
+	switch (k) {
+		case FootKind::HUMAN: return sound_group("actor/human/movement", run ? "hstep_run_dirt" : "hstep_dirt");
+		case FootKind::MOUNTED: return sound_group("actor/mounted/movement", "mstep");
+		case FootKind::GRASS: return sound_group("actor/singlesteps", "fs_grass");
+		default: return none;
+	}
+}
+
 // A unit's death group: its roster template's, else its UnitType's generic template's;
 // a human's {phenotype}_death by its phenotype (voice_kind).
 inline uint8_t unit_death_sound(uint16_t tmpl, uint8_t unit_type) {
@@ -221,17 +267,19 @@ public:
 	using ScreenPanFn = std::function<bool(godot::Vector3 pos, godot::Vector3 &heard_at, float &dist, bool &max_rolloff)>;
 	void set_screen_pan(ScreenPanFn fn) { screen_pan_ = std::move(fn); }
 	// A positional sound at pos with its 0.28 falloff and stereo placement, then the spatial callback.
-	void spatial_at(const godot::Ref<godot::AudioStream> &s, godot::Vector3 pos, float volume_db, float pitch) {
+	// false when the sound is off screen beyond its buffers (not played).
+	bool spatial_at(const godot::Ref<godot::AudioStream> &s, godot::Vector3 pos, float volume_db, float pitch) {
 		godot::Vector3 heard = pos;
 		float dist = 0.0f;
 		bool max_rolloff = false;
 		if (screen_pan_) {
-			if (!screen_pan_(pos, heard, dist, max_rolloff)) return;
+			if (!screen_pan_(pos, heard, dist, max_rolloff)) return false;
 		} else {
 			const float dx = pos.x - listener_x_, dz = pos.z - listener_z_;
 			dist = std::sqrt(dx * dx + dz * dz);
 		}
 		spatial_(s, heard, volume_db + 20.0f * std::log10(falloff_gain(dist, max_rolloff ? 0.7f : 0.5f)), pitch);
+		return true;
 	}
 
 	// Plays a random member of a sound group, omnipresent (0 A.D. Omnipresent /
@@ -465,6 +513,7 @@ public:
 		}
 		fauna_seen_.swap(fauna_seen);
 		if (fire) tick_work_sounds(sim, me, uv, t);
+		if (fire) tick_footsteps(sim, me, uv, t);
 		// BattleDetection.js OnGlobalAttacked: damage my entities dealt to other players,
 		// counted by the sim at each hit (Simulation::battle_damage_dealt).
 		const double dealt = sim->battle_damage_dealt(me);
@@ -577,6 +626,7 @@ public:
 		listener_z_ = z;
 	}
 	int work_sounds_played() const { return work_sounds_; }
+	int footsteps_played() const { return footsteps_; }
 	int workers_at_work() const { return workers_at_work_; } // gathering or building, anywhere
 	int workers_in_earshot() const { return workers_heard_; }
 	godot::Vector2 listener() const { return godot::Vector2(listener_x_, listener_z_); }
@@ -768,6 +818,56 @@ private:
 		work_loops_.swap(next);
 	}
 
+	// Footsteps: a moving unit (alive, not standing still) walks one stride of its footstep
+	// group per step, the group's run variant while it is faster than its walk speed. Its
+	// stride progress is kept per unit id and dropped the moment it stops, so the next walk
+	// starts from its first step. Heard within 40 units (160 m) where the viewer sees the
+	// unit, at most kFootMaxPerWindow every quarter second. Reads the sim's velocities only.
+	void tick_footsteps(const Simulation *sim, uint8_t me, const Simulation::UnitView &uv, double t) {
+		if (!spatial_) return;
+		constexpr float kHear2 = 40.0f * 40.0f;
+		constexpr int kFootMaxPerWindow = 3;
+		constexpr float kMinSpeed = 0.05f; // sim units a second
+		const double dt = foot_primed_ ? std::clamp(t - foot_t_, 0.0, 0.25) : 0.0;
+		foot_t_ = t;
+		foot_primed_ = true;
+		if (t - foot_window_start_ >= 0.25 || foot_window_start_ > t) {
+			foot_window_start_ = t;
+			foot_in_window_ = 0;
+		}
+		foot_next_.clear();
+		for (size_t i = 0; i < uv.count; ++i) {
+			if (!uv.alive[i]) continue;
+			const float vx = uv.vel_x[i], vz = uv.vel_z[i];
+			const float speed = std::sqrt(vx * vx + vz * vz);
+			if (speed < kMinSpeed) continue;
+			const uint8_t ut = uv.unit_type[i];
+			const FootKind fk = foot_kind(ut, uv.tmpl ? uv.tmpl[i] : CIV_UNIT_TEMPLATE_NONE);
+			if (fk == FootKind::NONE) continue;
+			const uint32_t id = uv.id[i];
+			auto it = foot_phase_.find(id);
+			float phase = it == foot_phase_.end() ? 0.0f : it->second;
+			phase += speed * (float)dt / foot_stride(fk, ut);
+			const bool step = phase >= 1.0f;
+			if (step) phase = std::fmod(phase, 1.0f);
+			foot_next_[id] = phase;
+			if (!step) continue;
+			const float dx = uv.pos_x[i] - listener_x_, dz = uv.pos_z[i] - listener_z_;
+			if (dx * dx + dz * dz > kHear2) continue;
+			if (foot_in_window_ >= kFootMaxPerWindow) continue;
+			if (!sim->is_entity_visible_to_viewer(uv.pos_x[i], uv.pos_z[i], uv.team[i], me)) continue;
+			const bool run = uv.speed && speed > 1.25f * uv.speed[i];
+			const auto &clips = foot_clips(fk, run);
+			if (clips.empty()) continue;
+			godot::Ref<godot::AudioStream> snd = stream(clips[rng_() % clips.size()]);
+			if (snd.is_null()) continue;
+			if (!spatial_at(snd, godot::Vector3(uv.pos_x[i], 0.5f, uv.pos_z[i]), -6.0f, 1.0f)) continue; // gain 0.5
+			++foot_in_window_;
+			++footsteps_;
+		}
+		foot_phase_.swap(foot_next_);
+	}
+
 	struct WorkLoop {
 		uint16_t kind = 0;
 		double start = 0.0;
@@ -775,6 +875,11 @@ private:
 		uint32_t played = 0;
 	};
 	std::unordered_map<uint32_t, WorkLoop> work_loops_;
+	std::unordered_map<uint32_t, float> foot_phase_, foot_next_; // unit id -> stride progress (0-1)
+	double foot_t_ = 0.0, foot_window_start_ = 0.0;
+	bool foot_primed_ = false;
+	int foot_in_window_ = 0;
+	int footsteps_ = 0;
 	float listener_x_ = 0.0f, listener_z_ = 0.0f;
 	std::unordered_map<uint32_t, size_t> res_index_;
 	double res_index_time_ = -100.0;
