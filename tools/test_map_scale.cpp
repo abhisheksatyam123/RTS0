@@ -42,6 +42,7 @@
 #include <cstring>
 #include <cmath>
 #include <cstdio>
+#include <map>
 #include <set>
 #include <vector>
 
@@ -896,6 +897,46 @@ int main() {
 				if (!ok) { ++foreign; std::printf("  %s: %d %s\n", map_type_info(m.mt).id, have[f], fauna_type_info((uint8_t)f).template_name); }
 			}
 			CHECK(missing == 0 && foreign == 0, "%s: %d of the script's species missing, %d it lacks", map_type_info(m.mt).id, missing, foreign);
+		}
+	}
+	{
+		// danubius.js's animals (the hunt on the banks and islands, the Gallic ritual's goats, the
+		// top-up herds) each stand on a walkable navcell at load and walk off in 30 s. The Danubius
+		// map is circular: a herd drawn from the square's corners was pulled in across the rim's
+		// water, cliffs and edge bars, where it never moved. Walkable is the nav grid's own test (land
+		// animals: NavGrid is_passable_for infantry), so it follows what fauna_can_step allows.
+		for (uint32_t seed : {3u, 7u, 11u, 12u, 23u}) {
+			static Simulation s;
+			s.reset();
+			s.generate_random_map(MAP_DANUBIUS, seed, 2, 128.0f);
+			const NavGrid &ng = s.nav_grid();
+			struct At { float x, z; uint8_t type; };
+			std::map<uint32_t, At> start;
+			int stranded = 0, land = 0;
+			{
+				const auto fv = s.fauna();
+				for (size_t i = 0; i < fv.count; ++i) {
+					if (!fv.alive[i] || fv.owner[i] != GAIA_PLAYER || fauna_type_info(fv.fauna_type[i]).is_naval()) continue;
+					++land;
+					start[fv.id[i]] = {fv.pos_x[i], fv.pos_z[i], fv.fauna_type[i]};
+					const auto [cx, cy] = ng.world_to_cell(fv.pos_x[i], fv.pos_z[i]);
+					if (!ng.is_passable_for(cx, cy, PASS_INFANTRY)) ++stranded;
+				}
+			}
+			CHECK(land > 100 && stranded == 0, "danubius seed %u: %d land animals, %d on unwalkable navcells at load", seed, land, stranded);
+			for (int t = 0; t < 30 * 20; ++t) s.tick(Simulation::FIXED_STEP);
+			const auto fv = s.fauna();
+			std::map<uint32_t, std::pair<float, float>> now;
+			for (size_t i = 0; i < fv.count; ++i) now[fv.id[i]] = {fv.pos_x[i], fv.pos_z[i]};
+			int still = 0, alive = 0;
+			for (const auto &[id, a] : start) {
+				auto it = now.find(id);
+				if (it == now.end()) continue; // killed
+				++alive;
+				still += std::hypot(it->second.first - a.x, it->second.second - a.z) < 0.5f;
+			}
+			// Some animals of a herd stand while the herd grazes; a stranded one never leaves its navcell.
+			CHECK(alive > 0 && still * 4 < alive, "danubius seed %u: %d of %d animals never walked in 30 s", seed, still, alive);
 		}
 	}
 	{
