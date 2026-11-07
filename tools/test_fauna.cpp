@@ -1011,7 +1011,10 @@ int main() {
 			s.tick(Simulation::FIXED_STEP);
 			const int32_t w = fidx(s, wolf), ui = uidx(s, u);
 			if (w < 0 || ui < 0) break;
-			closest = std::min(closest, std::hypot(s.fauna_.pos_x[w] - s.units_.pos_x[ui], s.fauna_.pos_z[w] - s.units_.pos_z[ui]));
+			// Edge to edge: the wolf's and the spearman's collision radii come off the centre distance.
+			const float gap = std::max(0.0f, std::hypot(s.fauna_.pos_x[w] - s.units_.pos_x[ui], s.fauna_.pos_z[w] - s.units_.pos_z[ui]) -
+					fauna_type_info(FAUNA_WOLF).footprint - unit_collision_radius(s.units_.unit_type[ui]));
+			closest = std::min(closest, gap);
 		}
 		std::printf("pathing: wolf got within %.1f of the spearman\n", closest);
 		CHECK(closest < fauna_type_info(FAUNA_WOLF).attack_range + 1.0f);
