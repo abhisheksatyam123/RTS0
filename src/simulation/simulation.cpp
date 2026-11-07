@@ -32649,11 +32649,17 @@ void Simulation::petra_assign_bombers() {
 // none, where one of our units stands.
 void Simulation::petra_attack_home(float &x, float &z) const {
 	x = z = 36.0f;
-	if (const auto *base = get_primary_petra_base()) {
-		x = base->x; z = base->z;
-		auto it = building_id_to_idx_.find(base->anchor_building_id);
-		if (it != building_id_to_idx_.end() && buildings_[it->second].hp > 0.0f && !buildings_[it->second].wrecked) return;
-	}
+	// attackPlan.js rallyPoint (40-75): the first base whose anchor stands, then any own entity
+	// with a position, buildings included, before units.
+	auto anchor_stands = [&](const PetraBase &base) {
+		auto it = building_id_to_idx_.find(base.anchor_building_id);
+		return it != building_id_to_idx_.end() && buildings_[it->second].hp > 0.0f && !buildings_[it->second].wrecked;
+	};
+	if (const PetraBase *primary = get_primary_petra_base(); primary && anchor_stands(*primary)) { x = primary->x; z = primary->z; return; }
+	for (const PetraBase &base : petra_bases_)
+		if (anchor_stands(base)) { x = base.x; z = base.z; return; }
+	for (const auto &b : buildings_)
+		if (b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked) { x = b.x; z = b.z; return; }
 	for (size_t i = 0; i < units_.count; ++i)
 		if (units_.alive[i] && units_.team[i] == petra_pid_ && !unit_is_ship(units_.unit_type[i])) {
 			x = units_.pos_x[i]; z = units_.pos_z[i]; return;
