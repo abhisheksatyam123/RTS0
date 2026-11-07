@@ -80,6 +80,7 @@ const Scenario kScenarios[] = {
 	{"small", 150, 1001},
 	{"medium", 600, 2002},
 	{"large", 1500, 3003},
+	{"huge", 2400, 4004}, // the 1000+ unit large battle (tick p99 is its stress figure)
 };
 
 // Units are grouped per team so re-issued orders can address them without
@@ -223,7 +224,7 @@ struct Result {
 	size_t units_start = 0, units_end = 0;
 	size_t ticks_run = 0;
 	bool game_over = false;
-	double total_ms = 0, mean_ms = 0, p95_ms = 0, max_ms = 0;
+	double total_ms = 0, mean_ms = 0, p95_ms = 0, p99_ms = 0, max_ms = 0;
 	uint32_t sim_hash = 0;
 	uint64_t state_fnv = 0;
 	uint64_t trace = 0;
@@ -273,6 +274,7 @@ Result run_scenario(const Scenario &sc, int ticks, bool trace) {
 	r.total_ms = total / 1000.0;
 	r.mean_ms = n ? (total / (double)n) / 1000.0 : 0.0;
 	r.p95_ms = n ? sorted[std::min(n - 1, (size_t)std::ceil(0.95 * (double)n) - 1)] / 1000.0 : 0.0;
+	r.p99_ms = n ? sorted[std::min(n - 1, (size_t)std::ceil(0.99 * (double)n) - 1)] / 1000.0 : 0.0;
 	r.max_ms = n ? sorted[n - 1] / 1000.0 : 0.0;
 	r.units_end = sim->units().count;
 	r.sim_hash = tm.compute_sim_hash(*sim);
@@ -332,8 +334,8 @@ int main(int argc, char **argv) {
 		ticks, (double)Simulation::FIXED_STEP, JobSystem::instance().worker_count(),
 		serial ? "serial" : "pool", trace ? "on" : "off");
 
-	std::printf("%-8s %-13s %6s %9s %9s %9s %10s %4s %-12s %-18s %-18s\n",
-		"scenario", "units", "ticks", "mean_ms", "p95_ms", "max_ms", "total_ms", "over",
+	std::printf("%-8s %-13s %6s %9s %9s %9s %9s %10s %4s %-12s %-18s %-18s\n",
+		"scenario", "units", "ticks", "mean_ms", "p95_ms", "p99_ms", "max_ms", "total_ms", "over",
 		"sim_hash", "state_fnv64", "trace");
 	int ran = 0;
 	for (const Scenario &sc : kScenarios) {
@@ -345,8 +347,8 @@ int main(int argc, char **argv) {
 		std::snprintf(units, sizeof units, "%zu->%zu", r.units_start, r.units_end);
 		char trace_s[24] = "-";
 		if (r.traced) std::snprintf(trace_s, sizeof trace_s, "0x%016llx", (unsigned long long)r.trace);
-		std::printf("%-8s %-13s %6zu %9.4f %9.4f %9.4f %10.2f %4s 0x%08X   0x%016llx %s\n",
-			r.name, units, r.ticks_run, r.mean_ms, r.p95_ms, r.max_ms, r.total_ms,
+		std::printf("%-8s %-13s %6zu %9.4f %9.4f %9.4f %9.4f %10.2f %4s 0x%08X   0x%016llx %s\n",
+			r.name, units, r.ticks_run, r.mean_ms, r.p95_ms, r.p99_ms, r.max_ms, r.total_ms,
 			r.game_over ? "yes" : "no", r.sim_hash,
 			(unsigned long long)r.state_fnv, trace_s);
 		std::fflush(stdout);
@@ -356,8 +358,8 @@ int main(int argc, char **argv) {
 		++ran;
 		char units[32];
 		std::snprintf(units, sizeof units, "%zu->%zu", r.units_start, r.units_end);
-		std::printf("%-8s %-13s %6zu %9.4f %9.4f %9.4f %10.2f %4s 0x%08X   0x%016llx %s\n",
-			r.name, units, r.ticks_run, r.mean_ms, r.p95_ms, r.max_ms, r.total_ms,
+		std::printf("%-8s %-13s %6zu %9.4f %9.4f %9.4f %9.4f %10.2f %4s 0x%08X   0x%016llx %s\n",
+			r.name, units, r.ticks_run, r.mean_ms, r.p95_ms, r.p99_ms, r.max_ms, r.total_ms,
 			r.game_over ? "yes" : "no", r.sim_hash,
 			(unsigned long long)r.state_fnv, "-");
 		std::fflush(stdout);
