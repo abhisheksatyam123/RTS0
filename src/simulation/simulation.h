@@ -3795,6 +3795,8 @@ private:
 	bool regicide_hero_lost(int t) const;
 	uint8_t player_color_[MAX_PLAYERS] = {0, 1, 2, 3, 4, 5, 6, 7};
 	void remove_player_structures(); // Nomad
+	// Danubius only (generate_random_map): each land animal on an unwalkable navcell steps to the nearest walkable one.
+	void settle_danubius_fauna();
 	bool explore_map_ = false;
 	float wonder_duration_ = 600.0f;
 	float relic_duration_ = 180.0f;

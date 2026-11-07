@@ -2290,6 +2290,31 @@ std::vector<float> distance_to_mask(const std::vector<uint8_t> &mask, int res, f
 
 float grid_spacing(const HeightmapGrid &hm) { return 2.0f * hm.map_half / (float)(hm.res - 1); }
 
+// keep_resources_passable's steep test on the heightmap: a tile whose corners differ by more than
+// LAND_MAX_TERRAIN_SLOPE per metre (NavGrid's is_steep). steep_near_world: the point's tile or one of
+// its eight neighbours, so an animal stands a tile off the steep ground a land unit can't cross.
+static bool steep_tile_at(const HeightmapGrid &hm, int ti, int tj) {
+	ti = std::clamp(ti, 0, hm.res - 2);
+	tj = std::clamp(tj, 0, hm.res - 2);
+	float lo = hm.data[(size_t)tj * hm.res + ti], hi = lo;
+	for (int dj = 0; dj < 2; ++dj)
+		for (int di = 0; di < 2; ++di) {
+			const float h = hm.data[(size_t)(tj + dj) * hm.res + (ti + di)];
+			lo = std::min(lo, h);
+			hi = std::max(hi, h);
+		}
+	return (hi - lo) / grid_spacing(hm) > LAND_MAX_TERRAIN_SLOPE;
+}
+
+static bool steep_near_world(const HeightmapGrid &hm, float x, float z) {
+	const float sp = grid_spacing(hm);
+	const int ti = (int)std::floor((x + hm.map_half) / sp), tj = (int)std::floor((z + hm.map_half) / sp);
+	for (int dj = -1; dj <= 1; ++dj)
+		for (int di = -1; di <= 1; ++di)
+			if (steep_tile_at(hm, ti + di, tj + dj)) return true;
+	return false;
+}
+
 // distance_to_mask(!mask) where only the vertices inside `mask` are read: the
 // transform runs on the mask's bounding box plus a ring of one vertex, which
 // gives the same values there (every path out of the box crosses the ring,
@@ -6217,17 +6242,38 @@ void RmsGenerator::place_danubius_entities(Simulation &sim, const HeightmapGrid 
 				if ((px - x) * (px - x) + (pz - z) * (pz - z) <= d * d) return true;
 			return false;
 		};
+		// A circular map's passable area is its disk (validTilePassable): the rim past it is the
+		// impassable ring keep_resources_passable pulls anything outside in across, so an animal
+		// drawn from the square's corners ended up on the rim's water, cliffs or edge bars.
+		const bool circ = sim.circular_map();
+		const float disk = half - MAP_EDGE_DIST - 1.5f;
 		auto centre = [&](float &x, float &z) { // g_Map.randomCoordinate(true)
+			if (circ) { // uniform on the disk of radius size / 2 - MAP_BORDER_WIDTH
+				const float r = (half - 3.0f) * std::sqrt(hunt.range_float(0.0f, 1.0f)), a = hunt.range_float(0.0f, 6.2831853f);
+				x = std::floor(det::cos(a) * r);
+				z = std::floor(det::sin(a) * r);
+				return;
+			}
 			x = std::floor(hunt.range_float(-half + 3.0f, half - 3.0f));
 			z = std::floor(hunt.range_float(-half + 3.0f, half - 3.0f));
 		};
-		auto in_map = [&](float x, float z) { return std::fabs(x) < half - 3.0f && std::fabs(z) < half - 3.0f; };
+		auto in_map = [&](float x, float z) {
+			if (circ) return det::hypot(x, z) < disk;
+			return std::fabs(x) < half - 3.0f && std::fabs(z) < half - 3.0f;
+		};
+		// A navcell a standing structure or a tree closes is not walkable: the animal would stand there
+		// for good. Trees close the cells within about 3 m of their trunks, walls and houses a little more.
+		auto near_structure = [&](float x, float z) {
+			for (const auto &b : sim.buildings())
+				if (std::fabs(x - b.x) < b.half_size + 3.0f && std::fabs(z - b.z) < b.half_size + 3.0f) return true;
+			return false;
+		};
 		auto banks = [&](float player_gap) {
 			return [&, player_gap](float x, float z) {
 				if (!in_map(x, z)) return false;
 				const size_t v = (size_t)seas_vertex(hm, x, z);
 				return to_island[v] > 2.0f && to_water[v] > 5.0f && far_from_players(x, z, player_gap) && clear_of(gauls, x, z, 5.0f + 3.0f) &&
-				       !near_any(food, x, z, 10.0f);
+				       !near_any(food, x, z, 10.0f) && !steep_near_world(hm, x, z) && !near_resource(x, z, 3.5f, false) && !near_structure(x, z);
 			};
 		};
 		auto islands = [&](float x, float z) {
@@ -6235,7 +6281,7 @@ void RmsGenerator::place_danubius_entities(Simulation &sim, const HeightmapGrid 
 			const size_t v = (size_t)seas_vertex(hm, x, z);
 			return lay.islands[v] && in_island[v] >= 4.0f && clear_of(metal, x, z, 4.0f) && clear_of(stone, x, z, 4.0f) &&
 			       !near_any(food, x, z, 3.0f) && !near_any(wood, x, z, 1.5f) && clear_of(outposts, x, z, 2.0f + 1.5f) &&
-			       clear_of(towers, x, z, 2.0f + 1.5f);
+			       clear_of(towers, x, z, 2.0f + 1.5f) && !steep_near_world(hm, x, z) && !near_resource(x, z, 3.5f, true) && !near_structure(x, z);
 		};
 		const float n = seas_scale(5.0f, 20.0f, half);
 		for (const ScriptAnimal &a : {ScriptAnimal{FAUNA_SHEEP, 5, 5, 0, 4}, ScriptAnimal{FAUNA_GOAT, 5, 5, 0, 4},
@@ -13660,7 +13706,8 @@ void RmsGenerator::keep_resources_passable(Simulation &sim, uint8_t type) {
 		const float x = fv.pos_x[f], z = fv.pos_z[f];
 		if (sim.get_terrain_height(x, z) < dry_h || reached_near(x, z, 1.0f)) continue; // fish and whales stay at sea
 		float nx, nz;
-		if (nearest(x, z, [&](float px, float pz) { return reached_at(px, pz) && sim.get_terrain_height(px, pz) >= dry_h; }, nx, nz))
+		// Danubius: never onto steep ground, which a land animal can't cross (NavGrid's steep tiles).
+		if (nearest(x, z, [&](float px, float pz) { return reached_at(px, pz) && sim.get_terrain_height(px, pz) >= dry_h && !(type == MAP_DANUBIUS && steep_at(px, pz)); }, nx, nz))
 			sim.set_fauna_position(fv.id[f], nx, nz);
 	}
 }
@@ -14531,7 +14578,12 @@ void RmsGenerator::top_up_resources(Simulation &sim, const HeightmapGrid &hm, fl
 			if ((p.first - x) * (p.first - x) + (p.second - z) * (p.second - z) < d * d) return false;
 		return true;
 	};
+	// Danubius is a circular map: its passable area is the disk inside the impassable rim
+	// (keep_resources_passable pulls anything past it in across), so open land is on the disk.
+	const bool danube_disk = config.map_type == MAP_DANUBIUS && sim.circular_map();
+	const float disk = half - MAP_EDGE_DIST - 1.5f;
 	auto open_land = [&](float x, float z) {
+		if (danube_disk && (det::hypot(x, z) >= disk || steep_near_world(hm, x, z))) return false;
 		return x > -half + 3.0f && x < half - 3.0f && z > -half + 3.0f && z < half - 3.0f &&
 		       hm.sample_world(x, z) >= water_h + 0.4f && hm.compute_slope_world(x, z) <= 0.7f && free_at(x, z);
 	};
@@ -14653,11 +14705,28 @@ void RmsGenerator::top_up_resources(Simulation &sim, const HeightmapGrid &hm, fl
 		if (!pick(kBaseGap, food, 10.0f, x, z)) break;
 		food.push_back({x, z});
 		const int n = std::min(hunt_left, fi.is_dangerous() ? rng.range_int(1, 2) : main_hunt ? rng.range_int(5, 7) : rng.range_int(2, 3));
-		for (int i = 0; i < n; ++i) {
-			const float a = 6.2831853f * (float)i / (float)n, r = rng.range_float(1.0f, main_hunt ? 4.0f : 2.0f);
-			sim.spawn_fauna(x + det::cos(a) * r, z + det::sin(a) * r, ftype);
+		if (!danube_disk) {
+			for (int i = 0; i < n; ++i) {
+				const float a = 6.2831853f * (float)i / (float)n, r = rng.range_float(1.0f, main_hunt ? 4.0f : 2.0f);
+				sim.spawn_fauna(x + det::cos(a) * r, z + det::sin(a) * r, ftype);
+			}
+			hunt_left -= n;
+			continue;
 		}
-		hunt_left -= n;
+		// Danubius: each animal of the herd is placed on open land of its own (0.28's SimpleGroup
+		// places every element against the constraint, retrying), so none lands in the river's
+		// water or on a steep bank, or past the disk, however far the herd spreads.
+		int placed = 0;
+		for (int i = 0; i < n; ++i)
+			for (int t = 0; t < 30; ++t) {
+				const float a = rng.range_float(0.0f, 6.2831853f), r = rng.range_float(1.0f, main_hunt ? 4.0f : 2.0f);
+				const float px = x + det::cos(a) * r, pz = z + det::sin(a) * r;
+				if (!open_land(px, pz)) continue;
+				sim.spawn_fauna(px, pz, ftype);
+				++placed;
+				break;
+			}
+		hunt_left -= placed;
 	}
 }
 
