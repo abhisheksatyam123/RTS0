@@ -609,28 +609,33 @@ int main(int argc, char **argv) {
 	float water0 = s.water_height();
 	int ticks = 0;
 	uint64_t clock_ms = 0; // the match clock (the trigger clock stands still on maps without triggers)
-	if (attack_move) {
-		// Scripted orders where Petra does not play (ship_combat_demo: no Civic Centre, its ships
-		// idle all game): every team-0 unit attacks a team-1 unit, dealt round-robin, after two
-		// game minutes (gorge's first units come in over the first minute or two).
-		const uint64_t step_ms = (uint64_t)std::lround(Simulation::FIXED_STEP * 1000.0f);
-		while (clock_ms < 120000) {
-			s.tick(Simulation::FIXED_STEP);
-			++ticks;
-			clock_ms += step_ms;
-		}
-		std::vector<uint32_t> mine, theirs;
+	uint64_t last_drive_ms = 0;
+	// Scripted orders where Petra does not play (ship_combat_demo: no Civic Centre, its ships
+	// idle all game): from two game minutes on, every idle team-0 unit attack-moves to the
+	// nearest team-1 unit, re-issued each minute (a one-shot attack leaves the ships idle once
+	// their first target dies). Gorge's first units come in over the first minute or two.
+	auto drive_attack = [&]() {
+		std::vector<uint32_t> idle;
+		std::vector<size_t> theirs;
 		for (size_t i = 0; i < s.units_.count; ++i) {
 			if (!s.units_.alive[i]) continue;
-			if (s.units_.team[i] == 0) mine.push_back(s.units_.id[i]);
-			else if (s.units_.team[i] == 1) theirs.push_back(s.units_.id[i]);
+			if (s.units_.team[i] == 0 && !s.units_.has_order[i]) idle.push_back(s.units_.id[i]);
+			else if (s.units_.team[i] == 1) theirs.push_back(i);
 		}
-		for (size_t k = 0; k < mine.size() && !theirs.empty(); ++k) {
-			const uint32_t target = theirs[k % theirs.size()];
-			s.order_attack(&mine[k], 1, target);
+		if (theirs.empty()) return;
+		for (uint32_t id : idle) {
+			const int32_t u = s.lookup_unit(id);
+			if (u < 0) continue;
+			size_t best = theirs[0];
+			float bd = 1e30f;
+			for (size_t t : theirs) {
+				const float dx = s.units_.pos_x[t] - s.units_.pos_x[u], dz = s.units_.pos_z[t] - s.units_.pos_z[u];
+				if (dx * dx + dz * dz < bd) { bd = dx * dx + dz * dz; best = t; }
+			}
+			s.order_attack_move(&id, 1, s.units_.pos_x[best], s.units_.pos_z[best]);
 		}
-		std::printf("scripted attack: %zu team-0 units attack %zu team-1 units\n", mine.size(), theirs.size());
-	}
+		if (!idle.empty()) std::printf("attack-move: %zu idle team-0 units, %zu team-1 units left\n", idle.size(), theirs.size());
+	};
 	while (clock_ms < end_ms && !s.game_over_) {
 		// Timers due this step.
 		const uint32_t now = s.triggers_.time_ms;
@@ -647,6 +652,10 @@ int main(int argc, char **argv) {
 		++ticks;
 		clock_ms += (uint64_t)std::lround(Simulation::FIXED_STEP * 1000.0f);
 		const double ts = clock_ms / 1000.0;
+		if (attack_move && clock_ms >= 120000 && clock_ms - last_drive_ms >= 60000) {
+			last_drive_ms = clock_ms;
+			drive_attack();
+		}
 		if (first) {
 			std::printf("[%7.1fs] after OnInitGame: triggers %zu, timers %zu, watched %zu, invulnerable %zu, range queries %zu\n", ts,
 					s.triggers_.triggers.size(), s.triggers_.timers.size(), s.triggers_.watched.size(), s.triggers_.invulnerable.size(),
@@ -663,7 +672,7 @@ int main(int argc, char **argv) {
 		for (const auto &d : s.take_trigger_dialogs()) std::printf("[%7.1fs] DIALOG to %02x: %s\n", ts, d.players, d.caption.c_str());
 		for (const auto &n : s.take_session_notices()) {
 			if (n.kind == Simulation::SessionNotice::DEFEATED) std::printf("[%7.1fs] DEFEATED p%u (%s)\n", ts, n.player + 1, notice_reason(n.tech));
-			else if (n.kind == Simulation::SessionNotice::WON) std::printf("[%7.1fs] WON p%u mask %02x (%s)\n", ts, n.player + 1, n.other, notice_reason(n.tech));
+			else if (n.kind == Simulation::SessionNotice::WON) std::printf("[%7.1fs] WON winners mask %02x (%s)\n", ts, n.other, notice_reason(n.tech));
 			else if (n.kind == Simulation::SessionNotice::LOST) std::printf("[%7.1fs] LOST p%u mask %02x (%s)\n", ts, n.player + 1, n.other, notice_reason(n.tech));
 		}
 		// The scans below every half second (the first tick and the match's end too).
