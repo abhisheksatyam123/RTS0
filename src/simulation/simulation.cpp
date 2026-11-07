@@ -13752,6 +13752,10 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		// 1299-1326).
 		const bool corner_reached = steered && step > 0.0f && d2 <= step * step;
 		const bool kept_on = corner_reached && !round_units && after.more;
+		// The last waypoint of a short path the unit keeps, reached within this step (kept_on is false there). Taken
+		// before the memo moves on or is cleared below, while its key still carries the kept-path tag.
+		const bool kept_last = corner_reached && !round_units && !after.more &&
+		    nav::is_kept_path_key(units_.short_path[i].key, short_path_key_);
 		float rest_x = aim_x, rest_z = aim_z; // where the rest of a step that reaches the waypoint heads
 		// A note put back over the memo stays as it is: the waypoint reached is of a search made afresh
 		// this tick, and the next tick's search starts from it again.
@@ -13766,10 +13770,11 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		} else if (corner_reached && !noted) {
 			units_.short_path[i].key = round_units ? round_corner : 0;
 		}
-		// A waypoint reached this tick ends the step there (the next tick searches from the corner, as above). The
-		// rest of the step is not spent past it: a kept corner walked past, where its clearance meets a house, let
-		// the unit into the house's clearance, where the line to the aim reads clear and it walked into the face.
-		if (corner_reached && !kept_on) {
+		// The last waypoint of a kept path reached this tick ends the step there: a kept corner walked past, where its
+		// clearance meets a house, let the unit into the house's clearance, where the line to the aim reads clear and
+		// it walked into the face. Other corners keep the step past them (MIGRATION.md #810: landing on every corner
+		// cost the crossing groups in test_unit_pushing their margin).
+		if (kept_last) {
 			move_dx = dx;
 			move_dz = dz;
 		}
