@@ -494,6 +494,8 @@ jobs:
           /tmp/test_mp_victory 7
           /tmp/test_mp_victory 7 --petra
 
+      - name: Trigger-scripted maps played to their end (cinema, timers, garrison, unit tests, treasure islands)
+        run: python3 tools/test_scripted_maps.py
       - name: Headless match benchmark
         run: python3 tools/bench_match.py
 
