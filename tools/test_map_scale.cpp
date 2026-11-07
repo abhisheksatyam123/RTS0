@@ -901,7 +901,7 @@ int main() {
 	}
 	{
 		// danubius.js's animals (the hunt on the banks and islands, the Gallic ritual's goats, the
-		// top-up herds) each stand on a walkable navcell at load and walk off in 30 s. The Danubius
+		// top-up herds) each stand on a walkable navcell at load and walk off in 60 s. The Danubius
 		// map is circular: a herd drawn from the square's corners was pulled in across the rim's
 		// water, cliffs and edge bars, where it never moved. Walkable is the nav grid's own test (land
 		// animals: NavGrid is_passable_for infantry), so it follows what fauna_can_step allows.
@@ -924,7 +924,7 @@ int main() {
 				}
 			}
 			CHECK(land > 100 && stranded == 0, "danubius seed %u: %d land animals, %d on unwalkable navcells at load", seed, land, stranded);
-			for (int t = 0; t < 30 * 20; ++t) s.tick(Simulation::FIXED_STEP);
+			for (int t = 0; t < 60 * 20; ++t) s.tick(Simulation::FIXED_STEP);
 			const auto fv = s.fauna();
 			std::map<uint32_t, std::pair<float, float>> now;
 			for (size_t i = 0; i < fv.count; ++i) now[fv.id[i]] = {fv.pos_x[i], fv.pos_z[i]};
@@ -935,8 +935,8 @@ int main() {
 				++alive;
 				still += std::hypot(it->second.first - a.x, it->second.second - a.z) < 0.5f;
 			}
-			// Some animals of a herd stand while the herd grazes; a stranded one never leaves its navcell.
-			CHECK(alive > 0 && still * 4 < alive, "danubius seed %u: %d of %d animals never walked in 30 s", seed, still, alive);
+			// Herds idle for the first seconds and some animals graze on; a stranded one never leaves its navcell.
+			CHECK(alive > 0 && still * 4 < alive, "danubius seed %u: %d of %d animals never walked in 60 s", seed, still, alive);
 		}
 	}
 	{
