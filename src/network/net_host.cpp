@@ -692,7 +692,11 @@ void NetHost::handle_incoming_packet(const uint8_t *data, size_t size, const std
 			}
 		}
 
-		if (!peer && (hdr.flags & NET_FLAG_CONNECT_REQ)) {
+		if (!peer && (hdr.flags & NET_FLAG_CONNECT_REQ) && banned_addresses_.count(from_ip)) {
+			// 0 A.D. NetServer HandleConnect: a banned address is turned away
+			// before a session is made (NDR_BANNED), each time it asks.
+			send_wire_packet(from_ip, from_port, 0, NET_FLAG_DISCONNECT, NDR_BANNED, nullptr, 0, false);
+		} else if (!peer && (hdr.flags & NET_FLAG_CONNECT_REQ)) {
 			// Sessions that left keep their entry (ids stay unique), so count
 			// only the connected ones, as 0 A.D. counts m_Sessions.
 			const size_t live = (size_t)std::count_if(peers_.begin(), peers_.end(),
