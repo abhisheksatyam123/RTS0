@@ -3206,7 +3206,8 @@ private:
 	// circle of radius circle_r when that is above 0.
 	bool pick_spawn_point_box(float cx, float cz, float rot, float along_u, float along_v, float circle_r,
 			bool has_rally, float rally_x, float rally_z, uint8_t type, uint32_t skip_uid,
-			float &out_x, float &out_z, uint16_t tmpl = CIV_UNIT_TEMPLATE_COUNT) const;
+			float &out_x, float &out_z, uint16_t tmpl = CIV_UNIT_TEMPLATE_COUNT,
+			const std::vector<SpawnSpot> *taken = nullptr) const;
 	// Structures heal their garrison each second and unload it below EjectHealth (GarrisonHolder.js).
 	void tick_garrison_holders();
 	bool can_board(size_t transport_idx, size_t unit_idx) const;
@@ -3773,7 +3774,8 @@ private:
 	void tick_triggers(float dt);
 	void tick_cinema(float dt);
 	// Where TriggerHelper.SpawnUnits puts a unit of `type` at trigger point p (false: on the point).
-	bool trigger_point_spawn_spot(const TriggerPoint &p, uint8_t type, float &x, float &z) const;
+	bool trigger_point_spawn_spot(const TriggerPoint &p, uint8_t type, float &x, float &z,
+			const std::vector<SpawnSpot> *taken = nullptr) const;
 	void cinema_drop_deleted_path(uint16_t idx); // a deleted path no longer queued
 	void set_cinema_enabled(bool enabled);
 	void register_map_triggers(MapType type);
