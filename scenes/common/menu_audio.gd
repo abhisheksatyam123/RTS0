@@ -25,9 +25,9 @@ const MUSIC_PATH := "res://assets/audio/music/"
 const MENU_TRACKS := ["Honor_Bound.ogg", "An_old_Warhorse_goes_to_Pasture.ogg", "Calm_Before_the_Storm.ogg",
 		"Juno_Protect_You.ogg"]
 # 0.28 plays music at sound.musicgain (0.2) beside actions at 0.7; RTS0's buses are
-# relative to their defaults, so the music sits that ratio (about -10.5 dB) lower.
+# relative to their defaults, so the music sits that ratio (20*log10(0.2/0.7) = -10.9 dB) lower.
 # (music.js's musicGain 0.3 is never read.)
-const MUSIC_DB := -10.5
+const MUSIC_DB := -10.9
 const CLICK := "res://assets/sounds/ui/ui_button_click.ogg"
 
 var _music: AudioStreamPlayer

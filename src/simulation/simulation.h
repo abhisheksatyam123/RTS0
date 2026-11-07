@@ -3206,7 +3206,8 @@ private:
 	// circle of radius circle_r when that is above 0.
 	bool pick_spawn_point_box(float cx, float cz, float rot, float along_u, float along_v, float circle_r,
 			bool has_rally, float rally_x, float rally_z, uint8_t type, uint32_t skip_uid,
-			float &out_x, float &out_z, uint16_t tmpl = CIV_UNIT_TEMPLATE_COUNT) const;
+			float &out_x, float &out_z, uint16_t tmpl = CIV_UNIT_TEMPLATE_COUNT,
+			const std::vector<SpawnSpot> *taken = nullptr) const;
 	// Structures heal their garrison each second and unload it below EjectHealth (GarrisonHolder.js).
 	void tick_garrison_holders();
 	bool can_board(size_t transport_idx, size_t unit_idx) const;
@@ -3773,7 +3774,8 @@ private:
 	void tick_triggers(float dt);
 	void tick_cinema(float dt);
 	// Where TriggerHelper.SpawnUnits puts a unit of `type` at trigger point p (false: on the point).
-	bool trigger_point_spawn_spot(const TriggerPoint &p, uint8_t type, float &x, float &z) const;
+	bool trigger_point_spawn_spot(const TriggerPoint &p, uint8_t type, float &x, float &z,
+			const std::vector<SpawnSpot> *taken = nullptr) const;
 	void cinema_drop_deleted_path(uint16_t idx); // a deleted path no longer queued
 	void set_cinema_enabled(bool enabled);
 	void register_map_triggers(MapType type);
@@ -4033,7 +4035,8 @@ private:
 	uint32_t find_petra_attack_target(float &out_tx, float &out_tz, uint16_t same_land = 0, const AttackPlan *plan = nullptr,
 	                                  bool must_start = false, bool note = true) const;
 	uint8_t petra_enemy_player(uint8_t kind, bool first = true, bool *gaia_relics = nullptr) const;
-	uint32_t petra_nearest_target(uint8_t kind, bool forced, uint8_t enemy, float px, float pz, uint16_t same_land, float &out_tx, float &out_tz) const;
+	// any_foe_defence: a rush's defence test counts every enemy's defensive fire (rushTargetFinder with no player).
+	uint32_t petra_nearest_target(uint8_t kind, bool forced, uint8_t enemy, float px, float pz, uint16_t same_land, float &out_tx, float &out_tz, bool any_foe_defence = false) const;
 	// from: a raid retargeting from its squad's position takes the nearest entry (getNearestTarget);
 	// without one, the first listed (attackManager's initial pick).
 	uint32_t find_petra_raid_target(float &out_tx, float &out_tz, const std::vector<uint32_t> *from_squad = nullptr) const;

@@ -20099,91 +20099,106 @@
       "type": "stone",
       "x": -51.35,
       "z": -55.27,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 48
     },
     {
       "type": "stone",
       "x": -19.46,
       "z": 57.3,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 48
     },
     {
       "type": "stone",
       "x": 39.57,
       "z": -70.85,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 48
     },
     {
       "type": "gold",
       "x": -86.35,
       "z": -23.21,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "gold",
       "x": -51.23,
       "z": -81.08,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "gold",
       "x": 31.0,
       "z": -103.18,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "gold",
       "x": 72.18,
       "z": -47.37,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "gold",
       "x": 66.71,
       "z": 5.63,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "gold",
       "x": 76.17,
       "z": 37.04,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "gold",
       "x": 52.1,
       "z": 97.66,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "gold",
       "x": -11.78,
       "z": 96.09,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "gold",
       "x": -59.6,
       "z": 78.39,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "gold",
       "x": -57.35,
       "z": 42.82,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "gold",
       "x": -50.57,
       "z": 1.51,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     },
     {
       "type": "gold",
       "x": -4.67,
       "z": -68.8,
-      "amount": 5000
+      "amount": 5000,
+      "max_gatherers": 24
     }
   ],
   "fauna": [
