@@ -6721,7 +6721,7 @@ bool Simulation::pick_spawn_point(const Building &b, uint8_t type, uint32_t skip
 // "large" class) is never set down within its clearance of a structure or a mine either (below).
 bool Simulation::pick_spawn_point_box(float cx, float cz, float rot, float along_u, float along_v, float circle_r,
 		bool has_rally, float rally_x, float rally_z, uint8_t type, uint32_t skip_uid,
-		float &out_x, float &out_z, uint16_t tmpl) const {
+		float &out_x, float &out_z, uint16_t tmpl, const std::vector<SpawnSpot> *taken) const {
 	float rad = unit_collision_radius(type);
 	if (rad <= 0.0f) rad = 0.25f;
 	const float gap = rad * 3.0f;
@@ -6835,6 +6835,12 @@ bool Simulation::pick_spawn_point_box(float cx, float cz, float rot, float along
 			const float dx = units_.pos_x[j] - px, dz = units_.pos_z[j] - pz, md = rad + unit_collision_radius(units_.unit_type[j]);
 			if (dx * dx + dz * dz < md * md) return false;
 		}
+		// Spots already taken this turn by the batch being placed (a wave of animals, which are not units).
+		if (taken)
+			for (const SpawnSpot &t : *taken) {
+				const float dx = t.x - px, dz = t.z - pz, md = rad + t.r;
+				if (dx * dx + dz * dz < md * md) return false;
+			}
 		return true;
 	};
 	for (int k = 0; k < 2 * (dist_x + dist_y + 2 * nrows); k = k > 0 ? -k : 1 - k)
@@ -44154,12 +44160,17 @@ void Simulation::trigger_polar_sea_wave() {
 	};
 	for (const TriggerPoint &p : triggers_.points) {
 		if (p.ref != 'A') continue;
-		// TriggerHelper.SpawnUnits: all at the trigger point; spread a little so they don't overlap.
+		// TriggerHelper.SpawnUnits: each wolf on the Footprint.PickSpawnPoint spots round the point's
+		// 2 m circle (trigger_point_spawn_spot), the earlier wolves of the wave taken.
 		std::vector<uint32_t> pack;
+		std::vector<SpawnSpot> taken;
 		for (int k = 0; k < wave; ++k) {
-			const float a = 6.2831853f * (float)k / (float)wave;
-			const float r = wave > 1 ? 0.6f : 0.0f;
-			if (const uint32_t id = spawn_fauna(p.x + det::cos(a) * r, p.z + det::sin(a) * r, kPolarSeaWolves)) pack.push_back(id);
+			float x, z;
+			trigger_point_spawn_spot(p, UNIT_VILLAGER, x, z, &taken); // animals have no unit radius: a villager's stands in
+			if (const uint32_t id = spawn_fauna(x, z, kPolarSeaWolves)) {
+				pack.push_back(id);
+				taken.push_back({x, z, unit_collision_radius(UNIT_VILLAGER)});
+			}
 		}
 		if (pack.empty()) continue;
 		const size_t f0 = fauna_id_to_idx_[pack[0]];
@@ -44293,10 +44304,12 @@ bool Simulation::cmd_resign(uint8_t pid) {
 	return true;
 }
 
-bool Simulation::trigger_point_spawn_spot(const TriggerPoint &p, uint8_t type, float &x, float &z) const {
+bool Simulation::trigger_point_spawn_spot(const TriggerPoint &p, uint8_t type, float &x, float &z,
+		const std::vector<SpawnSpot> *taken) const {
 	// TriggerHelper.SpawnUnits: Footprint.PickSpawnPoint round the point's <Circle radius="2.0"/>
 	// (metres x0.28, as pick_spawn_point_box's MaxSpawnDistance), else the point itself.
-	if (pick_spawn_point_box(p.x, p.z, 0.0f, 0.0f, 0.0f, 2.0f * 0.28f, false, 0.0f, 0.0f, type, 0, x, z)) return true;
+	if (pick_spawn_point_box(p.x, p.z, 0.0f, 0.0f, 0.0f, 2.0f * 0.28f, false, 0.0f, 0.0f, type, 0, x, z,
+			CIV_UNIT_TEMPLATE_COUNT, taken)) return true;
 	x = p.x;
 	z = p.z;
 	return false;
