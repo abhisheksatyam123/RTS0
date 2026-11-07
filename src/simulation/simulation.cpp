@@ -14763,6 +14763,7 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 	// and Push adds to it.
 	const uint64_t per_turn = (uint64_t)std::max(1L, std::lround(PUSH_TURN / dt));
 	const bool turn_ends = (ticks_ + 1) % per_turn == 0;
+	const bool turn_begins = ticks_ % per_turn == 0; // G119: standing units' rest positions are taken on a turn's first tick
 	// The standing buildings and the mines that block movement now, for the building pass below and
 	// for tick_fauna's steps (fauna_can_step), so it is built every tick, with or without units.
 	sep_obstacles_.clear();
@@ -14934,6 +14935,7 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 		if (i < n) {
 			frx[i] = have_steps ? steps.from_x[i] : px[i];
 			frz[i] = have_steps ? steps.from_z[i] : pz[i];
+			if (turn_begins) units_.motion[i].rest_x = px[i], units_.motion[i].rest_z = pz[i]; // G119
 			if (tie) {
 				tie[i] = pushes[i] && units_.action_state[i] == ACTION_ATTACK ? units_.target_unit_id[i] : 0;
 				swing[i] = 0;
@@ -14945,8 +14947,8 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 			u.sx = px[i] + frx[i];
 			u.sz = pz[i] + frz[i];
 			const MotionTurn &m = units_.motion[i];
-			u.ix = m.stepped ? m.from_x : frx[i];
-			u.iz = m.stepped ? m.from_z : frz[i];
+			u.ix = m.stepped ? m.from_x : m.rest_x; // G119: a standing unit bins by its turn-start position
+			u.iz = m.stepped ? m.from_z : m.rest_z;
 			u.r = unit_collision_radius(type);
 			u.w = unit_push_weight(units_.tmpl[i], type);
 			u.id = units_.id[i];
@@ -15059,6 +15061,7 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 		float body = 0.0f; // set below: the furthest on an axis a body could overlap this one's
 		// `walker` (see the queries below): pass over the pairs with a unit that stands further than
 		// `body` on either axis.
+		const int32_t qxi = sqx[i], qzi = sqz[i]; // i's pushing square, for the square gate in push
 		auto push = [&](const UnitGrid::Packed &e, auto walker) SEP_INLINE {
 			float lim = skip;
 			if constexpr (decltype(walker)::value) {
@@ -15106,7 +15109,7 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 			// It runs after the bodies' overlap above, so a pair across a square's corner still exempts an
 			// overlapping body from MinimalForce; only its own push is skipped.
 			if (same_group || mi == mj) {
-				const int32_t dsx = sqx[i] - sqx[j], dsz = sqz[i] - sqz[j];
+				const int32_t dsx = qxi - sqx[j], dsz = qzi - sqz[j];
 				if (dsx > 1 || dsx < -1 || dsz > 1 || dsz < -1 || (dsx != 0 && dsz != 0)) return;
 			}
 			// Half the offset of the averages; no pair pushes beyond `reach`.
@@ -15756,11 +15759,11 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 		JobSystem::instance().for_each_index(n, [&](size_t i) {
 			MotionTurn &m = units_.motion[i];
 			if (!units_.alive[i] || !units_.has_order[i]) {
-				m = MotionTurn{.pressure = m.pressure};
+				m = MotionTurn{.pressure = m.pressure, .rest_x = m.rest_x, .rest_z = m.rest_z};
 				return;
 			}
 			if (!flight_.empty() && unit_flies(i)) {
-				m = MotionTurn{.pressure = m.pressure};
+				m = MotionTurn{.pressure = m.pressure, .rest_x = m.rest_x, .rest_z = m.rest_z};
 				return;
 			}
 			if (steps.want_x[i] != 0.0f || steps.want_z[i] != 0.0f) {
@@ -15782,7 +15785,7 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 	for (size_t i = 0; i < n; ++i) {
 		MotionTurn &m = units_.motion[i];
 		if (!units_.alive[i] || !units_.has_order[i]) {
-			m = MotionTurn{.pressure = m.pressure};
+			m = MotionTurn{.pressure = m.pressure, .rest_x = m.rest_x, .rest_z = m.rest_z};
 			continue;
 		}
 		// COMBAT.APPROACHING / CHASING Timer, every second: ShouldAbandonChase drops a unit target
@@ -15791,19 +15794,19 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 				units_.target_unit_id[i] != 0 && (formations_.empty() || formation_group_[i] == 0)) {
 			const int32_t t = lookup_unit(units_.target_unit_id[i]);
 			if (t >= 0 && attack_target_hidden(i, (size_t)t)) {
-				m = MotionTurn{.pressure = m.pressure};
+				m = MotionTurn{.pressure = m.pressure, .rest_x = m.rest_x, .rest_z = m.rest_z};
 				abandon_chase(i);
 				continue;
 			}
 		}
 		// UnitMotionFlying never reports a failed move: a plane flies on (tick_flight).
 		if (!flight_.empty() && unit_flies(i)) {
-			m = MotionTurn{.pressure = m.pressure};
+			m = MotionTurn{.pressure = m.pressure, .rest_x = m.rest_x, .rest_z = m.rest_z};
 			continue;
 		}
 		// A hunter whose path ends short of the animal (on the shore of its island) gets no closer.
 		if (turn_ends && units_.action_state[i] == ACTION_ATTACK && units_.target_unit_id[i] != 0 && hunt_falls_short(i)) {
-			m = MotionTurn{.pressure = m.pressure};
+			m = MotionTurn{.pressure = m.pressure, .rest_x = m.rest_x, .rest_z = m.rest_z};
 			give_up_hunt(i);
 			continue;
 		}
@@ -21722,7 +21725,7 @@ void Simulation::order_guard(const uint32_t *unit_ids_in, size_t count_in, uint3
 // ---------------------------------------------------------------------------
 
 void Simulation::set_order(size_t i, uint8_t kind, uint8_t flags, uint32_t target, float x, float z) {
-	units_.motion[i] = MotionTurn{.pressure = units_.motion[i].pressure}; // UnitMotion MoveTo: a new move starts unobstructed
+	units_.motion[i] = MotionTurn{.pressure = units_.motion[i].pressure, .rest_x = units_.motion[i].rest_x, .rest_z = units_.motion[i].rest_z}; // UnitMotion MoveTo: a new move starts unobstructed
 	if (kind != ORDER_WALK_AND_FIGHT && !attack_move_structures_.empty()) {
 		auto &v = attack_move_structures_;
 		if (const auto at = std::lower_bound(v.begin(), v.end(), units_.id[i]); at != v.end() && *at == units_.id[i]) v.erase(at);
@@ -25748,6 +25751,7 @@ void Simulation::petra_staff_foundations() {
 	// Builders path around buildings now (VertexPathfinder steering), so this
 	// only catches foundations nobody can reach; 0 A.D. has no such timer.
 	constexpr float kStallRelease = 40.0f;
+	constexpr float kStallReleaseWalking = 150.0f; // a builder still on its path: a long walk, not a stall
 	auto is_anchor = [](uint8_t t) { return is_civic_centre(t) || t == BLD_MILITARY_COLONY; };
 	// baseManager.js:1131 update: a constructing base's anchor in a foe's territory, within
 	// 8000 m² (22.4 units) of that player's civic centre, is destroyed.
@@ -25849,6 +25853,7 @@ void Simulation::petra_staff_foundations() {
 		needs.push_back({w.id, b.x, b.z, want, &w, naval_map ? petra_building_land(b, &topo) : (uint16_t)0, constructing_anchor(b), want});
 	}
 
+	std::vector<const PetraFoundationWatch *> walked; // foundations with a builder still on its path past kStallRelease
 	const std::unordered_set<uint32_t> launched = petra_launched_units();
 	int workers = 0, building = 0;
 	// A builder dropping its load first (petra_order_build) has the build queued behind it:
@@ -25880,7 +25885,13 @@ void Simulation::petra_staff_foundations() {
 					if (a.id == n.anchor) { --a.missing; ++building; }
 				break;
 			}
-			if (n.watch->stall >= kStallRelease) {
+			// A builder still walking its path is not blocked: a long walk to a foundation takes
+			// longer than kStallRelease with no progress, so release it only once it has stopped
+			// on its path (or after a long stall, when the path itself has failed).
+			const float *pxs = nullptr, *pzs = nullptr;
+			const bool walking = unit_waypoints_left(i, &pxs, &pzs) > 0;
+			if (walking && n.watch->stall >= kStallRelease && n.watch->stall < kStallReleaseWalking) walked.push_back(n.watch);
+			if (n.watch->stall >= kStallRelease && (!walking || n.watch->stall >= kStallReleaseWalking)) {
 				// Our movement only paths MOVE orders, so a builder blocked by
 				// terrain never arrives; free it and try a different worker.
 				n.watch->banned.push_back(units_.id[i]);
@@ -25894,8 +25905,10 @@ void Simulation::petra_staff_foundations() {
 			break;
 		}
 	}
-	for (auto &n : needs)
-		if (n.watch->stall >= kStallRelease) n.watch->stall = 0.0f;
+	for (auto &n : needs) {
+		const bool still_walking = std::find(walked.begin(), walked.end(), n.watch) != walked.end();
+		if (n.watch->stall >= kStallReleaseWalking || (n.watch->stall >= kStallRelease && !still_walking)) n.watch->stall = 0.0f;
+	}
 	// assignToFoundations counts every unit whose target-foundation it is, those still crossing
 	// to it too: a builders' crossing is its land's first foundation's builders until it lands.
 	if (naval_map)
@@ -40171,7 +40184,15 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		if (ar.version >= SAVE_VERSION_MOTION) {
 			ar.pod(U.short_path[i]);
 			if (ar.version >= S::SAVE_VERSION_MOTION_SPAN) {
-				ar.pod(U.motion[i]);
+				// The 48-byte record first; the rest position follows it from SAVE_VERSION_PUSH_REST on (G119).
+				constexpr size_t kMotionSavedBytes = offsetof(MotionTurn, rest_x);
+				ar.padded_bytes(U.motion[i], kMotionSavedBytes, [](MotionTurn &d, const MotionTurn &v) {
+					std::memcpy(&d, &v, kMotionSavedBytes);
+				});
+				if (ar.version >= S::SAVE_VERSION_PUSH_REST) {
+					ar.pod(U.motion[i].rest_x);
+					ar.pod(U.motion[i].rest_z);
+				}
 			} else if constexpr (Ar::loading) {
 				// Saves before the span: the 20-byte MotionTurn, with no span to count over yet.
 				struct MotionTurnBefore {
@@ -40185,6 +40206,10 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		} else {
 			U.short_path[i] = ShortPathMemo{};
 			U.motion[i] = MotionTurn{};
+		}
+		// A save before the rest position: a standing unit bins where it stands (G119).
+		if constexpr (Ar::loading) {
+			if (ar.version < S::SAVE_VERSION_PUSH_REST) U.motion[i].rest_x = U.pos_x[i], U.motion[i].rest_z = U.pos_z[i];
 		}
 		if (legacy_status && ar.version >= SAVE_VERSION_STATUS_SOURCE) {
 			ar.pod(legacy[i].poison_src); ar.pod(legacy[i].poison_owner);

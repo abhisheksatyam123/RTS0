@@ -13,10 +13,13 @@ Exit codes: 0 = every seed stayed in sync, 1 = OOS found, 2 = build failure.
 from __future__ import annotations
 
 import argparse
+import fcntl
 import os
+import random
 import re
 import shlex
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -240,6 +243,46 @@ class Peer:
     def wait(self, timeout=None):
         left = max(1.0, self._deadline - time.time())
         return self._proc.wait(timeout=left if timeout is None else min(timeout, left))
+
+
+# The UDP ports the net cases use: --net-port + 0..16 (run_host_gone_case also
+# takes +6 + 10).
+NET_PORT_SPAN = 17
+
+
+def acquire_suite_lock(out_dir: str):
+    """One suite at a time per output directory: a second suite on the same
+    ports fails whichever case they both reach, and which case that is changes
+    from run to run. The lock is held until the process exits."""
+    handle = open(os.path.join(out_dir, "lockstep.lock"), "w")
+    try:
+        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        print("[lock] another lockstep suite is running in this directory; waiting for it", flush=True)
+        fcntl.flock(handle, fcntl.LOCK_EX)
+    return handle
+
+
+def free_net_port_block(span: int) -> int:
+    """A base port whose span consecutive UDP ports on 127.0.0.1 are all free now.
+    A port held by any other process (a suite in another directory, or a peer
+    left behind) makes the case that uses it fail with 'socket start failed'."""
+    rng = random.Random()
+    for _ in range(200):
+        base = rng.randrange(20000, 60000 - span)
+        socks = []
+        try:
+            for port in range(base, base + span):
+                sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                socks.append(sock)
+                sock.bind(("127.0.0.1", port))
+            return base
+        except OSError:
+            continue
+        finally:
+            for sock in socks:
+                sock.close()
+    raise RuntimeError("no free UDP port block found")
 
 
 def run_net_case(binary: str, seed: int, turns: int, speed: float, loss: float,
@@ -1062,7 +1105,8 @@ def main() -> int:
                     help="wall-clock speed-up for the UDP session (1 = real time)")
     ap.add_argument("--net-loss", type=float, default=0.05,
                     help="fraction of datagrams each peer drops on send")
-    ap.add_argument("--net-port", type=int, default=20611)
+    ap.add_argument("--net-port", type=int, default=None,
+                    help="base UDP port of the net cases (default: a free block of %d)" % NET_PORT_SPAN)
     ap.add_argument("--net-defeat-turn", type=int, default=450,
                     help="wipe out the joiner's player at this turn of the UDP session (0 = off)")
     args = ap.parse_args()
@@ -1074,6 +1118,9 @@ def main() -> int:
 
     out_dir = os.path.abspath(args.out_dir)
     os.makedirs(out_dir, exist_ok=True)
+    suite_lock = acquire_suite_lock(out_dir)  # noqa: F841: held until exit
+    if args.net_port is None:
+        args.net_port = free_net_port_block(NET_PORT_SPAN)
     binary_path = os.path.join(out_dir, args.binary)
     need_build = args.rebuild or not os.path.exists(binary_path)
     if not need_build:
