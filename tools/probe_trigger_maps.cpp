@@ -585,6 +585,10 @@ int main(int argc, char **argv) {
 		std::printf("trigger points:");
 		for (auto &[r, n] : refs) std::printf(" %c=%d", r, n);
 		std::printf("\n");
+		if (std::getenv("PROBE_POINTS"))
+			for (const auto &p : s.triggers_.points)
+				if (p.ref == (uint8_t)std::getenv("PROBE_POINTS")[0])
+					std::printf("  point %c at (%.1f,%.1f) owner %u\n", p.ref, p.x, p.z, p.owner);
 		for (const auto &p : s.triggers_.points) {
 			const float h = s.get_terrain_height(p.x, p.z);
 			if (std::fabs(p.x) > half || std::fabs(p.z) > half || h < s.water_height())
@@ -837,7 +841,9 @@ int main(int argc, char **argv) {
 	for (const Spawned &sp : spawned) {
 		if (sp.t + 60.0f > tend) continue;
 		// Turreted on a wall or garrisoned (Jebel Barkal walls, Danubius towers): never meant to move.
-		if (const int32_t k = s.lookup_unit(sp.id); k >= 0 && (s.turret_height_.count(sp.id) || s.units_.action_state[k] == ACTION_GARRISONED)) continue;
+		// Defensive village defenders (SpawnInitialCCDefenders) hold their ground by design.
+		if (const int32_t k = s.lookup_unit(sp.id); k >= 0 && (s.turret_height_.count(sp.id) || s.units_.action_state[k] == ACTION_GARRISONED ||
+				s.units_.stance[k] == STANCE_DEFENSIVE)) continue;
 		++total;
 		if (!sp.moved && !sp.checked_stuck) {
 			if (stuck < 10) {
@@ -893,6 +899,10 @@ int main(int argc, char **argv) {
 		std::printf("FAIL: no end within %.0f minutes\n", minutes);
 		return 1;
 	}
+	for (const auto &b : s.buildings_)
+		if (b.team < players && b.hp > 0.0f && !b.wrecked)
+			std::printf("  left: p%u %s (type %u) at (%.1f,%.1f) hp %.0f h %.2f water %.2f\n", b.team + 1, building_type_info(b.type).model_id,
+					b.type, b.x, b.z, b.hp, s.get_terrain_height(b.x, b.z), s.water_height());
 	return 0;
 }
 #endif // PROBE_LOADER_ONLY
