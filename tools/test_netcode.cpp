@@ -811,6 +811,12 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
             std::printf("[net-peer] join: refused code=%d\n", net.authResult());
             return 4;
         }
+        // A banned address is turned away before the handshake (NDR_BANNED): no
+        // authentication result, only the host's disconnect. Same refusal.
+        if (!host && net.connectionLost() && net.disconnectReason() == NDR_BANNED) {
+            std::printf("[net-peer] join: refused code=%d\n", ARC_BANNED);
+            return 4;
+        }
         if (now_us() - t_start > 10'000'000ull) {
             std::fprintf(stderr, "[net-peer] %s: no connection after 10s (%u of %u)\n", host ? "host" : "join",
                          joined, need);
