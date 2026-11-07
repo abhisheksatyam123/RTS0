@@ -316,6 +316,13 @@ jobs:
             src/network/net_host.cpp -lpthread -o /tmp/test_triggers
           /tmp/test_triggers
 
+      - name: Tutorials played to their end (introductory, economy walkthrough)
+        run: |
+          g++ -std=c++20 -O2 -Isrc tools/play_tutorial.cpp src/simulation/simulation.cpp \
+            src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
+            src/network/net_host.cpp -lpthread -o /tmp/play_tutorial
+          /tmp/play_tutorial introductory_tutorial
+          /tmp/play_tutorial starting_economy_walkthrough
       - name: Building steering scenarios
         run: |
           g++ -std=c++20 -O2 -Isrc tools/test_building_steering.cpp src/simulation/simulation.cpp \
