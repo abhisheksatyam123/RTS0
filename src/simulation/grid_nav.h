@@ -212,6 +212,11 @@ struct NavGrid {
     // Obstructs navcell (x, y) for good: a mine's cover or the map's edge (not a wood's closure, wood_closed_from).
     void obstruct(int x, int y) {
         cells.at(x, y) = NAV_OBSTRUCTED;
+        clear_wood_closure(x, y);
+    }
+    // Drops a wood's closure record for navcell (x, y) and keeps its value: the navcell is closed for good (a gate's line
+    // or covered cell the gate pass leaves closed), so structural_open must not read through the wood to what it stood as.
+    void clear_wood_closure(int x, int y) {
         const long long k = static_cast<long long>(y) * cells.w + x; // the index cells.at wrote (a mine's loop may pass the edge)
         if (!wood_closed_from.empty() && k >= 0 && k < static_cast<long long>(wood_closed_from.size())) wood_closed_from[static_cast<size_t>(k)] = 0;
     }
@@ -2804,12 +2809,11 @@ inline bool NavGrid::find_path_on(float sx, float sz, float tx, float tz, Waypoi
         const int mines = avoid_mine_subcells(sx, sz, gx, gz, out, pass);
         if (mines == 2) return false;
         // C1: the trees' subcells, after the mines' (avoid_tree_subcells).
-        // A point goal the G163 end move snapped is the path's end: the tree search ranks to it and ends on it, not on the
-        // requested point inside the obstruction (its last vertex used rx, rz). Without the move this is the requested goal.
-        if (!navcells_only) {
-            const bool snapped = point_goal_snaps(tx, tz, pass);
-            avoid_tree_subcells(sx, sz, gx, gz, out, pass, snapped ? gx : tx, snapped ? gz : tz);
-        }
+        // The tree search ranks to the navcell path's end (gx, gz), not the requested point. That end is the requested goal
+        // unless find_path_cells moved it: the G163 snap of a point inside an obstruction, the water branch's shore point
+        // for a water goal (point_goal_snaps is false for those, so the requested point would end the walk in the water),
+        // or a region move. A walk to a water point stopped at the shore must not be extended into the water.
+        if (!navcells_only) avoid_tree_subcells(sx, sz, gx, gz, out, pass, gx, gz);
     }
     if ((pass & PASS_SHIP) || cells.blank()) return reached;
     const int cls = tile_class(pass);

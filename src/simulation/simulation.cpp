@@ -2298,11 +2298,14 @@ void Simulation::rebuild_nav_grid() {
 			for (int k = 0; k < gp.nline; ++k) {
 				const int c = gp.line[k];
 				if (in(gd.door, gd.doors, c) || shared_way(c)) continue;
+				// A line cell the wood closed (wood_closed_from) stays closed for good: obstruct() clears its closure record.
 				if (nav_grid_.is_passable(c % res, c / res)) gp.part[gp.nparts++] = c;
-				else nav_grid_.cells.data[(size_t)c] = NAV_OBSTRUCTED;
+				else nav_grid_.obstruct(c % res, c / res);
 			}
-			for (int k = 0; k < gd.ncovered; ++k)
+			for (int k = 0; k < gd.ncovered; ++k) {
 				if (nav_grid_.is_passable(gd.covered[k] % res, gd.covered[k] / res)) gp.part[gp.nparts++] = gd.covered[k];
+				else nav_grid_.clear_wood_closure(gd.covered[k] % res, gd.covered[k] / res);
+			}
 		}
 		for (GateParts &gp : gate_parts)
 			for (int k = 0; k < gp.nparts; ++k) gp.orig[k] = nav_grid_.cells.data[(size_t)gp.part[k]];
@@ -17250,11 +17253,8 @@ void Simulation::tick_gather(float dt) {
 	}
 	// A worked-out mine no longer blocks paths, nor a wood thinned enough to cross, nor a felled tree its square (C1).
 	forest_removals_only_ = forest_current;
-	// A felled tree's square leaves tree_sub. Mark it before the rebuild: rebuild_nav_grid rebuilds the masks only when
-	// they are stale, and without this mark a rebuild that runs here (a wood reopened, or a mine gone) kept the felled
-	// tree's squares in the 1 m re-plan until some later tree edit, and a save made meanwhile reloaded without them.
-	if (tree_gone) note_tree_edit();
 	if (update_forest_cells() || mine_gone) rebuild_nav_grid();
+	else if (tree_gone) note_tree_edit(); // a felled tree's square leaves tree_sub (refreshed before the next path query)
 }
 
 // Repairable.js GetRepairRate: MaxHitpoints / (RepairTimeRatio x BuildTime), RepairTimeRatio 2.0,

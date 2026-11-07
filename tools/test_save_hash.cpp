@@ -1028,6 +1028,64 @@ static void check_tree_watch_save(TurnManager &tm, const char *path) {
 	else if (failures == before) std::printf("tree watch: a walk saved mid-watch resumes identically (300 ticks): ok\n");
 }
 
+// C1 felled trees (review of round 9): a tree a gatherer fells leaves tree_sub at once, also in the felling that reopens a
+// wood and rebuilds the nav grid. Where the masks are not stale they must equal a fresh build of the live trees, after every
+// tick. Palm groves are felled until a felling reopens a wood (update_forest_cells changes forest_cells_): the case that
+// rebuilt the nav grid without marking the masks.
+static void check_felled_tree_masks() {
+	const double M = 0.25; // metres -> world units, as check_tree_watch_save places them
+	uint64_t lcg = 0x5DEECE66Dull;
+	auto urand = [&]() { lcg = lcg * 6364136223846793005ull + 1442695040888963407ull; return (double)(lcg >> 11) / 9007199254740992.0; };
+	int reopened = 0, felled = 0;
+	const int before = failures;
+	for (int t = 0; t < 40 && reopened < 3 && failures == before; ++t) {
+		const double sp = 3.0 + 3.0 * urand(), side = 24.0 + 24.0 * urand();
+		const int half = (int)std::lround(side / sp / 2.0);
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(4243);
+		s->reset();
+		uint32_t centre_id = 0;
+		double best = 1e18;
+		for (int i = -half; i <= half; ++i)
+			for (int k = -half; k <= half; ++k) {
+				const double px = i * sp + (urand() * 2 - 1) * 0.4, pz = k * sp + (urand() * 2 - 1) * 0.4;
+				const uint32_t id = s->spawn_resource_world((float)(px * M), (float)(pz * M), RES_WOOD, 10, RES_SUB_NONE, 0,
+				                                            FLORA_TREE_CRETAN_DATE_PALM_PATCH);
+				if (std::hypot(px, pz) < best) { best = std::hypot(px, pz); centre_id = id; }
+			}
+		s->rebuild_nav_grid();
+		// A gatherer at the grove's edge, sent to the palm nearest the grove's centre.
+		const uint32_t vill = s->spawn_unit((float)(-(half * sp + 6.0) * M), 0.0f, 0, UNIT_VILLAGER, 100.0f);
+		s->order_gather(&vill, 1, centre_id);
+		for (int tk = 0; tk < 900 && failures == before; ++tk) {
+			const size_t count_before = s->resources_.count;
+			const std::vector<uint8_t> forest_before = s->forest_cells_;
+			s->tick(Simulation::FIXED_STEP);
+			if (s->resources_.count < count_before) {
+				++felled;
+				if (s->forest_cells_ != forest_before) ++reopened;
+			}
+			if (!s->tree_masks_dirty_ && s->nav_grid_.tree_sub_built) {
+				std::vector<uint64_t> fresh[2];
+				s->build_tree_masks(fresh);
+				if (s->nav_grid_.tree_sub[0] != fresh[0] || s->nav_grid_.tree_sub[1] != fresh[1]) {
+					std::printf("FAIL felled tree: trial %d, tick %d: the tree masks keep a felled tree's squares (%d felled, %d reopened a wood)\n",
+					            t, tk, felled, reopened);
+					++failures;
+					break;
+				}
+			}
+			if (s->resources_.count < count_before && tk > 0) break; // this grove's felling is checked; the next grove starts
+		}
+	}
+	if (failures == before && reopened == 0) {
+		std::printf("FAIL felled tree: no felling reopened a wood (the check has nothing to test)\n");
+		++failures;
+	} else if (failures == before) {
+		std::printf("felled tree: %d felled, %d reopened a wood; the masks match a fresh build after every tick: ok\n", felled, reopened);
+	}
+}
+
 int main() {
 	static Simulation live, loaded;
 	TurnManager tm;
@@ -1043,6 +1101,7 @@ int main() {
 	check_field_links(tm, "/tmp/rts0_test_save_hash.sav");
 	check_tick_caches(tm, "/tmp/rts0_test_save_hash.sav");
 	check_tree_watch_save(tm, "/tmp/rts0_test_save_hash.sav");
+	check_felled_tree_masks();
 	build(live);
 	const char *path = "/tmp/rts0_test_save_hash.sav";
 	// Save points: early game, mid game (armies, fields, traders), later.
