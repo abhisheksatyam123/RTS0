@@ -15059,6 +15059,7 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 		float body = 0.0f; // set below: the furthest on an axis a body could overlap this one's
 		// `walker` (see the queries below): pass over the pairs with a unit that stands further than
 		// `body` on either axis.
+		const int32_t qxi = sqx[i], qzi = sqz[i]; // i's pushing square, for the square gate in push
 		auto push = [&](const UnitGrid::Packed &e, auto walker) SEP_INLINE {
 			float lim = skip;
 			if constexpr (decltype(walker)::value) {
@@ -15106,7 +15107,7 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 			// It runs after the bodies' overlap above, so a pair across a square's corner still exempts an
 			// overlapping body from MinimalForce; only its own push is skipped.
 			if (same_group || mi == mj) {
-				const int32_t dsx = sqx[i] - sqx[j], dsz = sqz[i] - sqz[j];
+				const int32_t dsx = qxi - sqx[j], dsz = qzi - sqz[j];
 				if (dsx > 1 || dsx < -1 || dsz > 1 || dsz < -1 || (dsx != 0 && dsz != 0)) return;
 			}
 			// Half the offset of the averages; no pair pushes beyond `reach`.
@@ -25748,6 +25749,7 @@ void Simulation::petra_staff_foundations() {
 	// Builders path around buildings now (VertexPathfinder steering), so this
 	// only catches foundations nobody can reach; 0 A.D. has no such timer.
 	constexpr float kStallRelease = 40.0f;
+	constexpr float kStallReleaseWalking = 150.0f; // a builder still on its path: a long walk, not a stall
 	auto is_anchor = [](uint8_t t) { return is_civic_centre(t) || t == BLD_MILITARY_COLONY; };
 	// baseManager.js:1131 update: a constructing base's anchor in a foe's territory, within
 	// 8000 m² (22.4 units) of that player's civic centre, is destroyed.
@@ -25849,6 +25851,7 @@ void Simulation::petra_staff_foundations() {
 		needs.push_back({w.id, b.x, b.z, want, &w, naval_map ? petra_building_land(b, &topo) : (uint16_t)0, constructing_anchor(b), want});
 	}
 
+	std::vector<const PetraFoundationWatch *> walked; // foundations with a builder still on its path past kStallRelease
 	const std::unordered_set<uint32_t> launched = petra_launched_units();
 	int workers = 0, building = 0;
 	// A builder dropping its load first (petra_order_build) has the build queued behind it:
@@ -25880,7 +25883,13 @@ void Simulation::petra_staff_foundations() {
 					if (a.id == n.anchor) { --a.missing; ++building; }
 				break;
 			}
-			if (n.watch->stall >= kStallRelease) {
+			// A builder still walking its path is not blocked: a long walk to a foundation takes
+			// longer than kStallRelease with no progress, so release it only once it has stopped
+			// on its path (or after a long stall, when the path itself has failed).
+			const float *pxs = nullptr, *pzs = nullptr;
+			const bool walking = unit_waypoints_left(i, &pxs, &pzs) > 0;
+			if (walking && n.watch->stall >= kStallRelease && n.watch->stall < kStallReleaseWalking) walked.push_back(n.watch);
+			if (n.watch->stall >= kStallRelease && (!walking || n.watch->stall >= kStallReleaseWalking)) {
 				// Our movement only paths MOVE orders, so a builder blocked by
 				// terrain never arrives; free it and try a different worker.
 				n.watch->banned.push_back(units_.id[i]);
@@ -25894,8 +25903,10 @@ void Simulation::petra_staff_foundations() {
 			break;
 		}
 	}
-	for (auto &n : needs)
-		if (n.watch->stall >= kStallRelease) n.watch->stall = 0.0f;
+	for (auto &n : needs) {
+		const bool still_walking = std::find(walked.begin(), walked.end(), n.watch) != walked.end();
+		if (n.watch->stall >= kStallReleaseWalking || (n.watch->stall >= kStallRelease && !still_walking)) n.watch->stall = 0.0f;
+	}
 	// assignToFoundations counts every unit whose target-foundation it is, those still crossing
 	// to it too: a builders' crossing is its land's first foundation's builders until it lands.
 	if (naval_map)

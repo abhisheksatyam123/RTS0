@@ -581,6 +581,10 @@ int main(int argc, char **argv) {
 		std::printf("trigger points:");
 		for (auto &[r, n] : refs) std::printf(" %c=%d", r, n);
 		std::printf("\n");
+		if (std::getenv("PROBE_POINTS"))
+			for (const auto &p : s.triggers_.points)
+				if (p.ref == (uint8_t)std::getenv("PROBE_POINTS")[0])
+					std::printf("  point %c at (%.1f,%.1f) owner %u\n", p.ref, p.x, p.z, p.owner);
 		for (const auto &p : s.triggers_.points) {
 			const float h = s.get_terrain_height(p.x, p.z);
 			if (std::fabs(p.x) > half || std::fabs(p.z) > half || h < s.water_height())
@@ -637,7 +641,7 @@ int main(int argc, char **argv) {
 		for (const auto &d : s.take_trigger_dialogs()) std::printf("[%7.1fs] DIALOG to %02x: %s\n", ts, d.players, d.caption.c_str());
 		for (const auto &n : s.take_session_notices()) {
 			if (n.kind == Simulation::SessionNotice::DEFEATED) std::printf("[%7.1fs] DEFEATED p%u (%s)\n", ts, n.player + 1, notice_reason(n.tech));
-			else if (n.kind == Simulation::SessionNotice::WON) std::printf("[%7.1fs] WON p%u mask %02x (%s)\n", ts, n.player + 1, n.other, notice_reason(n.tech));
+			else if (n.kind == Simulation::SessionNotice::WON) std::printf("[%7.1fs] WON mask %02x (%s)\n", ts, n.other, notice_reason(n.tech));
 			else if (n.kind == Simulation::SessionNotice::LOST) std::printf("[%7.1fs] LOST p%u mask %02x (%s)\n", ts, n.player + 1, n.other, notice_reason(n.tech));
 		}
 		// The scans below every half second (the first tick and the match's end too).
@@ -802,7 +806,9 @@ int main(int argc, char **argv) {
 	for (const Spawned &sp : spawned) {
 		if (sp.t + 60.0f > tend) continue;
 		// Turreted on a wall or garrisoned (Jebel Barkal walls, Danubius towers): never meant to move.
-		if (const int32_t k = s.lookup_unit(sp.id); k >= 0 && (s.turret_height_.count(sp.id) || s.units_.action_state[k] == ACTION_GARRISONED)) continue;
+		// Defensive village defenders (SpawnInitialCCDefenders) hold their ground by design.
+		if (const int32_t k = s.lookup_unit(sp.id); k >= 0 && (s.turret_height_.count(sp.id) || s.units_.action_state[k] == ACTION_GARRISONED ||
+				s.units_.stance[k] == STANCE_DEFENSIVE)) continue;
 		++total;
 		if (!sp.moved && !sp.checked_stuck) {
 			if (stuck < 10) {
@@ -840,6 +846,10 @@ int main(int argc, char **argv) {
 	std::printf("\nfinal:");
 	for (uint8_t p = 0; p < players; ++p) std::printf(" p%u=%d/%db", p + 1, count_units(p), count_buildings(p));
 	std::printf(" gaia=%d/%db\n", count_units(GAIA_PLAYER), count_buildings(GAIA_PLAYER));
+	for (const auto &b : s.buildings_)
+		if (b.team < players && b.hp > 0.0f && !b.wrecked)
+			std::printf("  left: p%u %s (type %u) at (%.1f,%.1f) hp %.0f h %.2f water %.2f\n", b.team + 1, building_type_info(b.type).model_id,
+					b.type, b.x, b.z, b.hp, s.get_terrain_height(b.x, b.z), s.water_height());
 	return 0;
 }
 #endif // PROBE_LOADER_ONLY
