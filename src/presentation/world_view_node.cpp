@@ -318,15 +318,6 @@ void RtsoWorldView::cleanup() {
 	outline_mesh_.unref();
 	arrow_mesh.unref();
 	arrow_mat.unref();
-	hp_bg_mesh.unref();
-	hp_fg_mesh.unref();
-	hp_bg_mat.unref();
-	hp_green_mat.unref();
-	hp_red_mat.unref();
-	hp_blue_mat.unref();
-	xp_mat.unref();
-	xp_bg_mesh.unref();
-	xp_fg_mesh.unref();
 	terrain_layer_cache().clear();
 	status_sprites_.cleanup();
 	rtso::ModelLibrary::clear();
@@ -434,45 +425,12 @@ RtsoWorldView::UnitVis &RtsoWorldView::acquire_unit_slot(uint32_t sim_id) {
 		UnitVis &v = unit_pool[slot];
 		v.root = memnew(Node3D);
 		add_child(v.root);
-
-
-
-		v.hp_bg = memnew(MeshInstance3D);
-		v.hp_bg->set_mesh(hp_bg_mesh);
-		v.hp_bg->set_material_override(hp_bg_mat);
-		add_child(v.hp_bg);
-
-		v.hp_fg = memnew(MeshInstance3D);
-		v.hp_fg->set_mesh(hp_fg_mesh);
-		v.hp_fg->set_material_override(hp_green_mat);
-		add_child(v.hp_fg);
-
-		v.xp_bg = memnew(MeshInstance3D);
-		v.xp_bg->set_mesh(xp_bg_mesh);
-		v.xp_bg->set_material_override(hp_bg_mat);
-		add_child(v.xp_bg);
-
-		v.xp_fg = memnew(MeshInstance3D);
-		v.xp_fg->set_mesh(xp_fg_mesh);
-		v.xp_fg->set_material_override(xp_mat);
-		add_child(v.xp_fg);
-
-		v.rank_icon = memnew(Sprite3D);
-		v.rank_icon->set_billboard_mode(BaseMaterial3D::BILLBOARD_ENABLED);
-		v.rank_icon->set_draw_flag(SpriteBase3D::FLAG_SHADED, false);
-		v.rank_icon->set_alpha_cut_mode(SpriteBase3D::ALPHA_CUT_DISCARD);
-		add_child(v.rank_icon);
 	}
 	UnitVis &v = unit_pool[slot];
 	v.sim_id = sim_id;
 	v.yaw = 0.0f;
 	v.anim_debt = 0.0f;
 	v.root->set_visible(true);
-	v.hp_bg->set_visible(false);
-	v.hp_fg->set_visible(false);
-	v.xp_bg->set_visible(false);
-	v.xp_fg->set_visible(false);
-	v.rank_icon->set_visible(false);
 	unit_slot[sim_id] = slot;
 	return v;
 }
@@ -487,18 +445,6 @@ RtsoWorldView::BuildingVis &RtsoWorldView::acquire_building_slot(uint32_t sim_id
 	v.sim_id = sim_id;
 	v.root = memnew(Node3D);
 	add_child(v.root);
-
-	v.hp_bg = memnew(MeshInstance3D);
-	v.hp_bg->set_mesh(hp_bg_mesh);
-	v.hp_bg->set_material_override(hp_bg_mat);
-	v.hp_bg->set_scale(Vector3(2.5f, 1.0f, 1.0f));
-	add_child(v.hp_bg);
-
-	v.hp_fg = memnew(MeshInstance3D);
-	v.hp_fg->set_mesh(hp_fg_mesh);
-	v.hp_fg->set_material_override(hp_blue_mat);
-	v.hp_fg->set_scale(Vector3(2.5f, 1.0f, 1.0f));
-	add_child(v.hp_fg);
 
 	building_slot[sim_id] = slot;
 	return v;
@@ -534,39 +480,6 @@ void RtsoWorldView::init_animation_controllers() {
 }
 
 void RtsoWorldView::_ready() {
-	// Floating Health Bar Meshes and Materials
-	hp_bg_mesh.instantiate();
-	hp_bg_mesh->set_size(Vector3(0.9f, 0.08f, 0.04f));
-
-	hp_fg_mesh.instantiate();
-	hp_fg_mesh->set_size(Vector3(0.88f, 0.07f, 0.05f));
-
-	hp_bg_mat.instantiate();
-	hp_bg_mat->set_albedo(Color(0.15f, 0.15f, 0.18f, 0.85f));
-	hp_bg_mat->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
-	hp_bg_mat->set_flag(BaseMaterial3D::FLAG_BILLBOARD_KEEP_SCALE, true);
-
-	hp_green_mat.instantiate();
-	hp_green_mat->set_albedo(Color(0.2f, 0.95f, 0.3f, 0.95f));
-	hp_green_mat->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
-
-	hp_red_mat.instantiate();
-	hp_red_mat->set_albedo(Color(0.95f, 0.25f, 0.2f, 0.95f));
-	hp_red_mat->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
-
-	hp_blue_mat.instantiate();
-	hp_blue_mat->set_albedo(Color(0.25f, 0.65f, 1.0f, 0.95f));
-	hp_blue_mat->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
-
-	// The experience bar: 2/3 of a health bar's height (StatusBars AddExperienceBar).
-	xp_bg_mesh.instantiate();
-	xp_bg_mesh->set_size(Vector3(0.9f, 0.055f, 0.04f));
-	xp_fg_mesh.instantiate();
-	xp_fg_mesh->set_size(Vector3(0.88f, 0.045f, 0.05f));
-	xp_mat.instantiate();
-	xp_mat->set_albedo(Color(0.95f, 0.75f, 0.2f, 0.95f));
-	xp_mat->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
-
 	// Terrain Plane
 	plane_mesh.instantiate();
 	plane_mesh->set_size(Vector2(rtso::Simulation::MAP_HALF * 2.0f, rtso::Simulation::MAP_HALF * 2.0f));
@@ -3034,11 +2947,6 @@ void RtsoWorldView::update_ambient_fx(BuildingVis &v, const String &glb_id, floa
 
 void RtsoWorldView::hide_unit_vis(UnitVis &v) {
 	if (v.root) v.root->set_visible(false);
-	if (v.hp_bg) v.hp_bg->set_visible(false);
-	if (v.hp_fg) v.hp_fg->set_visible(false);
-	if (v.xp_bg) v.xp_bg->set_visible(false);
-	if (v.xp_fg) v.xp_fg->set_visible(false);
-	if (v.rank_icon) v.rank_icon->set_visible(false);
 	if (v.anim && UtilityFunctions::is_instance_valid(v.anim))
 		v.anim->set_active(false);
 }
@@ -5457,11 +5365,6 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		v.ring_on = ringed;
 
 		// The status bars are StatusBars.js sprites (draw_status_stack).
-		v.hp_bg->set_visible(false);
-		v.hp_fg->set_visible(false);
-		v.xp_bg->set_visible(false);
-		v.xp_fg->set_visible(false);
-		v.rank_icon->set_visible(false);
 	}
 
 	// Stream bulk MultiMesh buffers to GPU (Tier 0: Near full-detail, Tier 1: Mid decimated LOD, Tier 2: Far ultra-low proxy)
@@ -5750,8 +5653,6 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		// StatusBars.js on a selected, highlighted or (Tab) any structure: upgrade
 		// progress, a field's resource supply, the capture bar, health, and the
 		// icons of the shown auras that reach structures.
-		v.hp_bg->set_visible(false);
-		v.hp_fg->set_visible(false);
 		if (!destroyed) {
 			const int32_t sid = (int32_t)b.id;
 			const bool bars = !cinema_playing_ && (show_all_status_bars_ || sel_buildings_.count(sid) || highlight_set_.count(sid));

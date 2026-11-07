@@ -71,11 +71,6 @@ private:
 		Node3D *root = nullptr;
 		Node *model = nullptr;
 		AnimationPlayer *anim = nullptr;
-		MeshInstance3D *hp_bg = nullptr;
-		MeshInstance3D *hp_fg = nullptr;
-		MeshInstance3D *xp_bg = nullptr; // StatusBars AddExperienceBar
-		MeshInstance3D *xp_fg = nullptr;
-		Sprite3D *rank_icon = nullptr;   // StatusBars AddRankIcon
 		uint8_t rank_shown = 0;
 		float anim_debt = 0.0f; // seconds of clip skipped while out of view
 		uint32_t sim_id = 0;
@@ -119,8 +114,6 @@ private:
 		Node *model = nullptr;
 		Node *foundation = nullptr;
 		Node *scaffold = nullptr;
-		MeshInstance3D *hp_bg = nullptr;
-		MeshInstance3D *hp_fg = nullptr;
 		uint32_t sim_id = 0;
 		uint8_t type = 0;
 		int overlay_type = -1;
@@ -411,16 +404,6 @@ private:
 	// per texture, the modulate in its vertex colours). No-op on Vulkan.
 	void sync_gl_decal(const rtso::Simulation *sim, Decal *d);
 	std::unordered_map<const Texture2D *, Ref<StandardMaterial3D>> gl_decal_mats_;
-
-	Ref<BoxMesh> hp_bg_mesh;
-	Ref<BoxMesh> hp_fg_mesh;
-	Ref<StandardMaterial3D> hp_bg_mat;
-	Ref<StandardMaterial3D> hp_green_mat;
-	Ref<StandardMaterial3D> hp_red_mat;
-	Ref<StandardMaterial3D> hp_blue_mat;
-	Ref<StandardMaterial3D> xp_mat;
-	Ref<BoxMesh> xp_bg_mesh;
-	Ref<BoxMesh> xp_fg_mesh;
 
 	// Crowd units: one MultiMesh per (civ, UnitType, crowd clip), made the first
 	// time a unit of that civ and type shows, so every civ in the match renders
