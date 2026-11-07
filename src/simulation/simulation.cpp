@@ -1644,6 +1644,40 @@ void Simulation::generate_random_map(MapType type, uint32_t seed, int num_player
 	register_map_triggers(type);
 	rebuild_nav_grid();
 	rebuild_territory();
+	if (type == MAP_DANUBIUS) settle_danubius_fauna();
+}
+
+// Danubius: an animal the map put on a navcell no land unit can cross (a steep edge, or a navcell a
+// tree or a wall closes) walks off it at load to the nearest walkable navcell within 6 m, so none
+// stands on impassable ground for good. The map's own placement (rms_generator.cpp,
+// place_danubius_entities and top_up_resources) keeps nearly all of them off such ground already;
+// this is the nav grid's answer for the few its approximate checks let through. Animals on the
+// water's edge stay where they are if no walkable navcell is within reach.
+void Simulation::settle_danubius_fauna() {
+	if (nav_grid_.res <= 0) return;
+	const auto fv = fauna();
+	for (size_t f = 0; f < fv.count; ++f) {
+		if (!fv.alive[f] || fv.owner[f] != GAIA_PLAYER || fauna_type_info(fv.fauna_type[f]).is_naval()) continue;
+		auto walkable = [&](float x, float z) {
+			if (x < -map_half_ + 2.0f || x > map_half_ - 2.0f || z < -map_half_ + 2.0f || z > map_half_ - 2.0f) return false;
+			const auto [cx, cy] = nav_grid_.world_to_cell(x, z);
+			return nav_grid_.is_passable_for(cx, cy, PASS_INFANTRY);
+		};
+		const float x0 = fv.pos_x[f], z0 = fv.pos_z[f];
+		if (walkable(x0, z0)) continue;
+		bool found = false;
+		float bx = x0, bz = z0;
+		for (int rad = 1; rad <= 6 && !found; ++rad)
+			for (int k = 0; k < 12 * rad && !found; ++k) {
+				const float a = 6.2831853f * (float)k / (float)(12 * rad);
+				const float x = x0 + det::cos(a) * (float)rad, z = z0 + det::sin(a) * (float)rad;
+				if (!walkable(x, z)) continue;
+				bx = x;
+				bz = z;
+				found = true;
+			}
+		if (found) set_fauna_position(fv.id[f], bx, bz);
+	}
 }
 
 void Simulation::remove_player_structures() {
@@ -32649,11 +32683,17 @@ void Simulation::petra_assign_bombers() {
 // none, where one of our units stands.
 void Simulation::petra_attack_home(float &x, float &z) const {
 	x = z = 36.0f;
-	if (const auto *base = get_primary_petra_base()) {
-		x = base->x; z = base->z;
-		auto it = building_id_to_idx_.find(base->anchor_building_id);
-		if (it != building_id_to_idx_.end() && buildings_[it->second].hp > 0.0f && !buildings_[it->second].wrecked) return;
-	}
+	// attackPlan.js rallyPoint (40-75): the first base whose anchor stands, then any own entity
+	// with a position, buildings included, before units.
+	auto anchor_stands = [&](const PetraBase &base) {
+		auto it = building_id_to_idx_.find(base.anchor_building_id);
+		return it != building_id_to_idx_.end() && buildings_[it->second].hp > 0.0f && !buildings_[it->second].wrecked;
+	};
+	if (const PetraBase *primary = get_primary_petra_base(); primary && anchor_stands(*primary)) { x = primary->x; z = primary->z; return; }
+	for (const PetraBase &base : petra_bases_)
+		if (anchor_stands(base)) { x = base.x; z = base.z; return; }
+	for (const auto &b : buildings_)
+		if (b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked) { x = b.x; z = b.z; return; }
 	for (size_t i = 0; i < units_.count; ++i)
 		if (units_.alive[i] && units_.team[i] == petra_pid_ && !unit_is_ship(units_.unit_type[i])) {
 			x = units_.pos_x[i]; z = units_.pos_z[i]; return;
@@ -42902,12 +42942,14 @@ void Simulation::tick_fauna(float dt) {
 			// and in CHASING (entered from ATTACKING) 1.5 when walking or 2.0 when running.
 			const bool holds_ground = info.stance == FAUNA_STANCE_DEFENSIVE || info.stance == FAUNA_STANCE_PASSIVE_DEFENSIVE;
 			if (len > info.attack_range + 0.6f && holds_ground && fauna_.flee_distance[i] > 0.0f) {
-				// ATTACKING OutOfRange: the swing's range check fails, and with respondChase false
-				// (ShouldChaseTargetedEntity) it goes to FINDINGNEWTARGET instead of CHASING, so
-				// it stands until that swing and then finishes the order. A defensive animal picks
-				// a new target within min(range + vision / 2, vision) on its next idle scan.
+				// ATTACKING OutOfRange: Attack.js RepeatRangeCheck runs about once a second on its own
+				// timer (Attack.js:515-527), not only at the swing, and StopAttacking("OutOfRange")
+				// then goes to FINDINGNEWTARGET, since with respondChase false
+				// (ShouldChaseTargetedEntity, UnitAI.js:5182) it does not chase. So the animal gives up
+				// within about a second of stepping out, here at once (the check's timing is not
+				// modelled). A defensive animal picks a new target within min(range + vision / 2,
+				// vision) on its next idle scan.
 				fauna_.vel_x[i] = fauna_.vel_z[i] = 0.0f;
-				if (fauna_.attack_timer[i] > 0.0f) continue;
 				if (resume_queued(i)) continue;
 				fauna_.behavior[i] = FAUNA_IDLE_GRAZE;
 				fauna_.target_unit_id[i] = 0;
