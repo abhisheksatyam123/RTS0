@@ -17250,8 +17250,11 @@ void Simulation::tick_gather(float dt) {
 	}
 	// A worked-out mine no longer blocks paths, nor a wood thinned enough to cross, nor a felled tree its square (C1).
 	forest_removals_only_ = forest_current;
+	// A felled tree's square leaves tree_sub. Mark it before the rebuild: rebuild_nav_grid rebuilds the masks only when
+	// they are stale, and without this mark a rebuild that runs here (a wood reopened, or a mine gone) kept the felled
+	// tree's squares in the 1 m re-plan until some later tree edit, and a save made meanwhile reloaded without them.
+	if (tree_gone) note_tree_edit();
 	if (update_forest_cells() || mine_gone) rebuild_nav_grid();
-	else if (tree_gone) note_tree_edit(); // a felled tree's square leaves tree_sub (refreshed before the next path query)
 }
 
 // Repairable.js GetRepairRate: MaxHitpoints / (RepairTimeRatio x BuildTime), RepairTimeRatio 2.0,
