@@ -178,11 +178,13 @@ def scenario_unit_motion():
 
 
 def scenario_death_canyon():
-    print("death_canyon_invasion_force: conquest ends the match, a winning side is named")
-    code, out = run_map("death_canyon_invasion_force", ["--minutes", "6", "--quiet"])
+    print("death_canyon_invasion_force: conquest ends the match, a winner is named")
+    # The AI's fights decide the winner and how long they take, so this runs 40 game minutes and
+    # checks that conquest ends the match with some side named, not which side it is.
+    code, out = run_map("death_canyon_invasion_force", ["--minutes", "40", "--quiet"])
     common(out, code)
     end = end_line(out)
-    check(end is not None and end["game_over"] == 1 and end["victory"] == 1, "the match ends with the local side winning")
+    check(end is not None and end["game_over"] == 1 and end["winners"] != 0, "conquest ends the match with a winner named")
     check("DEFEATED p4" in out or "DEFEATED p3" in out, "a defeat is reported")
 
 
