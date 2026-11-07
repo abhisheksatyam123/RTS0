@@ -34,6 +34,15 @@
 
 namespace rtso {
 
+// A tree or fruit (ensure_gaia_obstacles' list): wood or food with no subtype. Its square is the one the long path's
+// legs keep off (NavGrid::tree_sub, C1), unless it is a bush (flora_is_bush).
+static inline bool tree_supply(uint8_t type, uint8_t sub) { return sub == RES_SUB_NONE && (type == RES_WOOD || type == RES_FOOD); }
+// 0 A.D.'s bush templates (parent "bush|template_gaia_tree", mixins/bush.xml) do not block movement or pathfinding,
+// so a bush's square is not in tree_sub. Tested by kind: the saplings (39, 52, 68) are in family 8 and do block.
+static inline bool flora_is_bush(uint8_t k) {
+	return k == FLORA_BUSH || k == FLORA_TROPIC_BUSH || (k >= FLORA_TREE_BUSH_BADLANDS && k <= FLORA_TREE_BUSH_TEMPERATE_WINTER);
+}
+
 // Unit promotion data (promotion_data.h); see the Promotion.js section above tick_promotion.
 namespace {
 
@@ -648,6 +657,7 @@ void Simulation::set_map_half(float h) {
 	// The nav grid caches map_half for world<->cell conversion, so it must be
 	// re-initialised whenever the extent changes.
 	nav_grid_.init(map_half_, grid_res_);
+	note_tree_edit(); // C5 step 2: init cleared tree_sub; trees alive on this call are masked at the next read
 	++nav_terrain_stamp_;
 	territory_grid_.clear();
 	influence_grid_.clear();
@@ -736,6 +746,7 @@ void Simulation::reset() {
 	terrain_res_ = 64;
 	terrain_tiles_ = TerrainTiles();
 	terrain_water_height_ = -1.0f;
+	water_masks_dirty_ = true; // C1: the water mask follows the ground (refresh_water_masks)
 	triggers_.clear();
 	cinema_.clear();
 	units_.free_all(); units_.init(UNIT_CAP);
@@ -1360,6 +1371,7 @@ uint32_t Simulation::spawn_resource_world(float wx, float wz, uint8_t type, int3
 	res_id_to_idx_[rid] = idx;
 	nav::Footprint m;
 	if (!bulk_spawn_ && amount > 0 && mine_footprint(idx, m)) rebuild_nav_grid(); // a mine blocks paths
+	if (tree_supply(type, subtype)) note_tree_edit(); // C1: a tree's square joins tree_sub
 	return rid;
 }
 
@@ -1369,6 +1381,7 @@ void Simulation::set_resource_flora(uint32_t res_id, uint8_t flora) {
 	resources_.flora[it->second] = flora < FLORA_COUNT ? flora : FLORA_DEFAULT;
 	gaia_obstacles_sig_ = 0; // its obstruction size (resource_block_half)
 	note_gaia_edit();
+	if (tree_supply(resources_.type[it->second], resources_.subtype[it->second])) note_tree_edit(); // C1: its flora
 }
 
 void Simulation::set_resource_position(uint32_t res_id, float x, float z) {
@@ -1378,6 +1391,7 @@ void Simulation::set_resource_position(uint32_t res_id, float x, float z) {
 	resources_.z[it->second] = z;
 	gaia_obstacles_sig_ = 0; // where it blocks (CCmpObstructionManager.cpp:381-396 MoveShape)
 	note_gaia_edit();
+	if (tree_supply(resources_.type[it->second], resources_.subtype[it->second])) note_tree_edit(); // C1: its square moves
 }
 
 size_t Simulation::snap_trees_to_tiles() {
@@ -1415,12 +1429,14 @@ size_t Simulation::snap_trees_to_tiles() {
 		if (best < 0) {
 			resources_.alive[r] = 0;
 			resources_.amount[r] = 0;
+			note_tree_edit();
 			++removed;
 			continue;
 		}
 		taken[(size_t)best] = 1;
 		resources_.x[r] = bx;
 		resources_.z[r] = bz;
+		note_tree_edit();
 	}
 	gaia_obstacles_sig_ = 0;
 	note_gaia_edit();
@@ -1448,6 +1464,9 @@ void Simulation::set_resource_amount(uint32_t res_id, int32_t amount) {
 		resource_block_tick_ = UINT64_MAX; // the foundation cells it blocks
 		if (!bulk_spawn_ && resources_.alive[r]) rebuild_nav_grid();
 	}
+	// A tree's square leaves or joins tree_sub (C1). Not an else: a tree with a footprint takes the branch above, and
+	// during a bulk spawn that branch rebuilds nothing, so its mask change would go unmarked.
+	if (had != (amount > 0) && tree_supply(resources_.type[r], resources_.subtype[r]) && resources_.alive[r]) note_tree_edit();
 }
 
 void Simulation::set_resource_max_gatherers(uint32_t res_id, int max_gatherers) {
@@ -1692,6 +1711,182 @@ void Simulation::end_bulk_spawn() {
 	rebuild_territory();
 }
 
+// C1 tree masks (NavGrid::tree_sub) from the live trees, the whole set: the one builder that rebuild_nav_grid and
+// refresh_tree_masks share. A pure function of the resources and the map, so a lazily refreshed mask equals a full
+// rebuild's at every read.
+void Simulation::build_tree_masks(std::vector<uint64_t> (&out)[2]) const {
+	const float nav_cell = 2.0f * nav_grid_.map_half / static_cast<float>(nav_grid_.res);
+	out[0].clear();
+	out[1].clear();
+	const float tsub = nav_cell / 8.0f, ext = 0.25f; // ext: 1 m in world units (a world unit is 4 m)
+	const int S = nav_grid_.res * 8;
+	// A tree's footprint depends on its square and on the map only, so it is worked out once and kept (TreeFootprint);
+	// a build then ORs each live tree's words into the masks. The footprint of a tree's square is the subcells whose four
+	// corners all lie within the class clearance plus 1 m of it: the corners' squared distances are separable, so the
+	// x part and the z part are computed once per column and row, and a corner is within iff their float sum is <= r2.
+	if (tree_fp_map_half_ != nav_grid_.map_half || tree_fp_res_ != nav_grid_.res) {
+		tree_footprints_.clear();
+		tree_fp_map_half_ = nav_grid_.map_half;
+		tree_fp_res_ = nav_grid_.res;
+	}
+	if (tree_footprints_.size() < resources_.count) tree_footprints_.resize(resources_.count);
+	auto sq = [](float v, float c, float half) {
+		float d = v - c;
+		if (d < 0.0f) d = -d;
+		d = d > half ? d - half : 0.0f;
+		return d * d;
+	};
+	for (size_t r = 0; r < resources_.count; ++r) {
+		if (!resources_.alive[r] || resources_.amount[r] <= 0 || !tree_supply(resources_.type[r], resources_.subtype[r]) || flora_is_bush(resources_.flora[r])) continue;
+		const float h = resource_block_half(r), x = resources_.x[r], z = resources_.z[r];
+		TreeFootprint &fp = tree_footprints_[r];
+		if (!fp.valid || fp.x != x || fp.z != z || fp.h != h) {
+			fp.valid = true;
+			fp.x = x;
+			fp.z = z;
+			fp.h = h;
+			for (int cls = 0; cls < 2; ++cls) {
+				auto &words = fp.words[cls];
+				words.clear();
+				const float rr = (cls ? CLEARANCE_LARGE : CLEARANCE_DEFAULT) + ext, r2 = rr * rr, reach = h + rr;
+				// The subcells a blocked subcell's corners can lie in: every corner of one is within reach of the centre.
+				auto span = [&](float v) { return std::clamp(static_cast<int>(v / tsub), 0, S - 1); };
+				const int i0 = span(x - reach + nav_grid_.map_half), i1 = span(x + reach + nav_grid_.map_half);
+				const int j0 = span(z - reach + nav_grid_.map_half), j1 = span(z + reach + nav_grid_.map_half);
+				const int nx = std::max(0, i1 - i0 + 1), nz = std::max(0, j1 - j0 + 1);
+				std::vector<float> ax0(static_cast<size_t>(nx)), ax1(static_cast<size_t>(nx));
+				std::vector<float> bz0(static_cast<size_t>(nz)), bz1(static_cast<size_t>(nz));
+				for (int i = i0; i <= i1; ++i) {
+					const float px = -nav_grid_.map_half + (float)i * tsub;
+					ax0[static_cast<size_t>(i - i0)] = sq(px, x, h);
+					ax1[static_cast<size_t>(i - i0)] = sq(px + tsub, x, h);
+				}
+				for (int j = j0; j <= j1; ++j) {
+					const float pz = -nav_grid_.map_half + (float)j * tsub;
+					bz0[static_cast<size_t>(j - j0)] = sq(pz, z, h);
+					bz1[static_cast<size_t>(j - j0)] = sq(pz + tsub, z, h);
+				}
+				for (int j = j0; j <= j1; ++j) {
+					const float b0 = bz0[static_cast<size_t>(j - j0)], b1 = bz1[static_cast<size_t>(j - j0)];
+					for (int i = i0; i <= i1; ++i) {
+						const float a0 = ax0[static_cast<size_t>(i - i0)], a1 = ax1[static_cast<size_t>(i - i0)];
+						if (!(a0 + b0 <= r2 && a1 + b0 <= r2 && a0 + b1 <= r2 && a1 + b1 <= r2)) continue;
+						const size_t word = static_cast<size_t>(j / 8) * nav_grid_.cells.w + i / 8;
+						const uint64_t bit = uint64_t(1) << ((j % 8) * 8 + i % 8);
+						if (!words.empty() && words.back().first == word) words.back().second |= bit;
+						else words.emplace_back(static_cast<uint32_t>(word), bit);
+					}
+				}
+			}
+		}
+		for (int cls = 0; cls < 2; ++cls) {
+			const auto &words = fp.words[cls];
+			if (words.empty()) continue;
+			auto &mask = out[cls];
+			if (mask.empty()) mask.assign(nav_grid_.cells.data.size(), 0);
+			for (const auto &wb : words) mask[wb.first] |= wb.second;
+		}
+	}
+}
+
+// C5 step 2: the tree masks are refreshed lazily. A tree-set change only marks them stale (note_tree_edit); the refresh
+// rebuilds them from the live trees when a path query next reads them. Path queries read them through
+// Simulation::find_path, and in two parallel regions (move_units' walks, the steering job), whose callers refresh in
+// serial code first, so no worker thread ever writes tree_sub. Every place that changes a tree's square marks it:
+// tick_gather (felled), set_resource_amount, clear_resources_near, place_map_wall_piece, spawn_resource_world,
+// set_resource_flora, set_resource_position, snap_trees_to_tiles, the field's grain. A full rebuild (rebuild_nav_grid)
+// clears the mark.
+#ifdef TREE_MASK_CHECK
+// Debug counts (TREE_MASK_CHECK builds only), printed to stderr at exit: the refresh points checked, and those that
+// rebuilt a stale mask. Refreshes can run in a parallel job (the steering job's find_path), hence atomics.
+static std::atomic<uint64_t> g_tree_mask_checks{0}, g_tree_mask_rebuilds{0};
+static struct TreeMaskCheckSummary {
+	~TreeMaskCheckSummary() {
+		std::fprintf(stderr, "TREE_MASK_CHECK summary: %llu refresh points checked, %llu rebuilt a stale mask\n",
+		             static_cast<unsigned long long>(g_tree_mask_checks.load()),
+		             static_cast<unsigned long long>(g_tree_mask_rebuilds.load()));
+	}
+} g_tree_mask_summary;
+#endif
+
+void Simulation::refresh_tree_masks() const {
+	if (tree_masks_dirty_ || !nav_grid_.tree_sub_built) {
+		build_tree_masks(nav_grid_.tree_sub);
+		tree_masks_dirty_ = false;
+		nav_grid_.tree_sub_built = true;
+#ifdef TREE_MASK_CHECK
+		g_tree_mask_rebuilds.fetch_add(1);
+#endif
+	}
+#ifdef TREE_MASK_CHECK
+	// -DTREE_MASK_CHECK (debug build only): at every refresh point the cached masks must equal a from-scratch build of
+	// the live trees. A tree-set change that did not mark them stale (note_tree_edit) shows here as a difference, and the
+	// process aborts with the tick and the first differing word. Refresh points are the same as in a normal build.
+	g_tree_mask_checks.fetch_add(1);
+	std::vector<uint64_t> fresh[2];
+	build_tree_masks(fresh);
+	for (int cls = 0; cls < 2; ++cls) {
+		const std::vector<uint64_t> &cached = nav_grid_.tree_sub[cls];
+		if (cached == fresh[cls]) continue;
+		size_t first = 0;
+		while (first < cached.size() && first < fresh[cls].size() && cached[first] == fresh[cls][first]) ++first;
+		const uint64_t c_word = first < cached.size() ? cached[first] : 0u;
+		const uint64_t f_word = first < fresh[cls].size() ? fresh[cls][first] : 0u;
+		std::fprintf(stderr,
+		             "TREE_MASK_CHECK FAILED: class %d tree_sub differs from a full rebuild at tick %llu: cached %zu words, "
+		             "fresh %zu words, first differing word %zu (cached %016llx, fresh %016llx)\n",
+		             cls, static_cast<unsigned long long>(ticks_), cached.size(), fresh[cls].size(), first,
+		             static_cast<unsigned long long>(c_word), static_cast<unsigned long long>(f_word));
+		std::fflush(stderr);
+		std::abort();
+	}
+#endif
+}
+
+// C1 water (NavGrid::water_sub): 0 A.D.'s passability reads the depth of the water under each 1 m navcell. RTS0's
+// NAV_WATER navcells are those whose centre lies deeper than LAND_MAX_WATER_DEPTH below the sea surface
+// (set_water_from_heights, the same line); a long path may cross the 1 m subcells of such a navcell that stand within
+// that depth, as 0 A.D.'s does, so the subcells close by the same test (ground below the line, get_terrain_height at
+// each subcell's centre). The mask is a pure function of the heights and the water level, so a lazily refreshed mask
+// equals a full build's. It is read only by the long path's re-plan (avoid_tree_subcells).
+void Simulation::build_water_masks(std::vector<uint64_t> &out) const {
+	out.clear();
+	if (terrain_water_height_ < -0.5f) return; // no water: no navcell is NAV_WATER (rebuild_nav_grid leaves the grid)
+	const int res = nav_grid_.res;
+	const float k = static_cast<float>(res) * 8.0f / (nav_grid_.map_half * 2.0f); // subcells per world unit: 1 m each
+	const float deep = terrain_water_height_ + NAV_WATER_MARGIN - LAND_MAX_WATER_DEPTH;
+	for (int cy = 0; cy < res; ++cy)
+		for (int cx = 0; cx < res; ++cx) {
+			// The terrain's water navcells, and any NAV_WATER now (a structure's closure does not change the ground's depth).
+			if (!nav_grid_.terrain_water_navcell(cx, cy) && nav_grid_.cells.at(cx, cy) != NAV_WATER) continue;
+			if (out.empty()) out.assign(nav_grid_.cells.data.size(), 0);
+			uint64_t m = 0;
+			for (int b = 0; b < 64; ++b) {
+				const int sx = cx * 8 + b % 8, sy = cy * 8 + b / 8;
+				const float x = (static_cast<float>(sx) + 0.5f) / k - nav_grid_.map_half;
+				const float z = (static_cast<float>(sy) + 0.5f) / k - nav_grid_.map_half;
+				if (get_terrain_height(x, z) < deep) m |= uint64_t(1) << b; // closed: deeper than the passable line
+			}
+			out[static_cast<size_t>(cy) * static_cast<size_t>(res) + static_cast<size_t>(cx)] = m;
+		}
+}
+
+// C1 water: the masks are refreshed lazily, as the tree masks (refresh_tree_masks). rebuild_nav_grid sets the mark,
+// since it is the only writer of the navcells' water classes; the path queries refresh it in serial code first. Only
+// the re-plan reads them (avoid_tree_subcells), which needs a tree, so a map without trees builds none: the mark
+// stays set until one is there (refresh_tree_masks runs first at every refresh point).
+void Simulation::refresh_water_masks() const {
+	if (!water_masks_dirty_ || !nav_grid_.tree_any()) return;
+	water_masks_dirty_ = false;
+	// The mask is a function of the terrain water classes and the heights, and both are recomputed together (water_class_gen
+	// counts that): a rebuild that only moved structures, the common case, keeps it. Keyed on the recomputation itself, a
+	// refresh that runs before the nav rebuild still caches only what the classes then were.
+	if (nav_grid_.water_built && nav_grid_.water_built_gen == nav_grid_.water_class_gen) return;
+	build_water_masks(nav_grid_.water_sub);
+	nav_grid_.water_built = true;
+	nav_grid_.water_built_gen = nav_grid_.water_class_gen;
+}
+
 void Simulation::rebuild_nav_grid() {
 	// Snapshot pre-rebuild cells so only navcells whose passability actually
 	// changed are flagged dirty (HierarchicalPathfinder dirtinessGrid,
@@ -1925,11 +2120,18 @@ void Simulation::rebuild_nav_grid() {
 	// Woods too thick to cross (forest_cell_closed).
 	update_forest_cells();
 	nav_grid_.large_closed.clear();
+	nav_grid_.wood_closed_from.clear();
 	if (forest_cells_.size() == nav_grid_.cells.data.size()) {
 		nav_grid_.large_closed.assign(forest_cells_.size(), 0);
+		nav_grid_.wood_closed_from.assign(forest_cells_.size(), 0);
 		for (size_t i = 0; i < forest_cells_.size(); ++i) {
 			if (nav_grid_.cells.data[i] == NAV_WATER) continue;
-			if (forest_cells_[i] == FOREST_CLOSED) nav_grid_.cells.data[i] = NAV_OBSTRUCTED;
+			if (forest_cells_[i] == FOREST_CLOSED) {
+				// C1: the navcell's value before the wood closed it (structural_open reads through it)
+				const uint8_t before = nav_grid_.cells.data[i];
+				if (before == NAV_PASSABLE || before == NAV_SHALLOW) nav_grid_.wood_closed_from[i] = before;
+				nav_grid_.cells.data[i] = NAV_OBSTRUCTED;
+			}
 			else if (forest_cells_[i] == FOREST_CLOSED_LARGE) nav_grid_.large_closed[i] = 1;
 		}
 	}
@@ -1954,7 +2156,7 @@ void Simulation::rebuild_nav_grid() {
 			for (int x = x0; x <= x1; ++x) {
 				const float wx = nav_origin.x + (float)x * nav_cell, wz = nav_origin.y + (float)y * nav_cell;
 				if (in(wx, wz) && in(wx + nav_cell, wz) && in(wx, wz + nav_cell) && in(wx + nav_cell, wz + nav_cell))
-					nav_grid_.cells.at(x, y) = NAV_OBSTRUCTED;
+					nav_grid_.obstruct(x, y);
 			}
 		// 1 m subcells (0 A.D. obstruction navcells, Rasterize.cpp): four corners inside, per class.
 		if (!nav_grid_.cells.inside(x0, y0) && !nav_grid_.cells.inside(x1, y1)) continue;
@@ -1981,6 +2183,19 @@ void Simulation::rebuild_nav_grid() {
 				}
 		}
 	}
+	// Trees and fruit (C1; bushes do not block, flora_is_bush): the 1 m subcells each live tree's square blocks, per passability class (NavGrid::tree_sub),
+	// on the mines' lattice (eight subcells a navcell, anchored at -map_half). A subcell is blocked iff its four corners
+	// all lie within the class clearance plus CLEARANCE_EXTENSION_RADIUS (1 m, rounded corners) of the square: 0 A.D.'s
+	// static square grown by the clearance (Rasterize.cpp:48, Pathfinding.h:160), with the tree's block half
+	// (resource_block_half) for its half size. The masks are OR-ed per navcell; the 8 m navcells stay as they are.
+	// The masks are current unless a tree edit marked them stale since they were built (or init cleared them): then the
+	// build is skipped, as it would give the same masks (the same trees, the same map).
+	if (tree_masks_dirty_ || !nav_grid_.tree_sub_built) {
+		build_tree_masks(nav_grid_.tree_sub);
+		tree_masks_dirty_ = false;
+		nav_grid_.tree_sub_built = true;
+	}
+	water_masks_dirty_ = true; // C1: the navcells' water classes are final here (refresh_water_masks)
 	// Off-world passability (CCmpPathfinder::UpdateGrid, source/simulation2/components/CCmpPathfinder.cpp:711):
 	// on a circular map every navcell whose centre lies past its edge (MAP_EDGE_TILES inside
 	// the circle) is impassable to every class, ships included; on a square map the 12-cell
@@ -1993,7 +2208,7 @@ void Simulation::rebuild_nav_grid() {
 			const float wz = nav_origin.y + ((float)y + 0.5f) * nav_cell;
 			for (int x = 0; x < nav_grid_.res; ++x) {
 				const float wx = nav_origin.x + ((float)x + 0.5f) * nav_cell;
-				if (std::fabs(wx) >= e || std::fabs(wz) >= e) nav_grid_.cells.at(x, y) = NAV_OBSTRUCTED;
+				if (std::fabs(wx) >= e || std::fabs(wz) >= e) nav_grid_.obstruct(x, y);
 			}
 		}
 	}
@@ -2004,7 +2219,7 @@ void Simulation::rebuild_nav_grid() {
 			const float wz = nav_origin.y + ((float)y + 0.5f) * nav_cell;
 			for (int x = 0; x < nav_grid_.res; ++x) {
 				const float wx = nav_origin.x + ((float)x + 0.5f) * nav_cell;
-				if (wx * wx + wz * wz >= r2) nav_grid_.cells.at(x, y) = NAV_OBSTRUCTED;
+				if (wx * wx + wz * wz >= r2) nav_grid_.obstruct(x, y);
 			}
 		}
 	}
@@ -2083,11 +2298,14 @@ void Simulation::rebuild_nav_grid() {
 			for (int k = 0; k < gp.nline; ++k) {
 				const int c = gp.line[k];
 				if (in(gd.door, gd.doors, c) || shared_way(c)) continue;
+				// A line cell the wood closed (wood_closed_from) stays closed for good: obstruct() clears its closure record.
 				if (nav_grid_.is_passable(c % res, c / res)) gp.part[gp.nparts++] = c;
-				else nav_grid_.cells.data[(size_t)c] = NAV_OBSTRUCTED;
+				else nav_grid_.obstruct(c % res, c / res);
 			}
-			for (int k = 0; k < gd.ncovered; ++k)
+			for (int k = 0; k < gd.ncovered; ++k) {
 				if (nav_grid_.is_passable(gd.covered[k] % res, gd.covered[k] / res)) gp.part[gp.nparts++] = gd.covered[k];
+				else nav_grid_.clear_wood_closure(gd.covered[k] % res, gd.covered[k] / res);
+			}
 		}
 		for (GateParts &gp : gate_parts)
 			for (int k = 0; k < gp.nparts; ++k) gp.orig[k] = nav_grid_.cells.data[(size_t)gp.part[k]];
@@ -2650,7 +2868,7 @@ void Simulation::sync_tile_obstructions(bool structures) {
 	if (!nav_grid_.tile_nodes_on()) return;
 	auto flora_live = [&](size_t r) {
 		const uint8_t t = resources_.type[r];
-		return resources_.subtype[r] == RES_SUB_NONE && (t == RES_WOOD || t == RES_FOOD) && resources_.alive[r] &&
+		return resources_.subtype[r] == RES_SUB_NONE && (t == RES_WOOD || t == RES_FOOD) && !flora_is_bush(resources_.flora[r]) && resources_.alive[r] &&
 				resources_.amount[r] > 0;
 	};
 	// Treasures keep their place and size, so their ids and places name them. A supply's size is its
@@ -3065,9 +3283,11 @@ bool Simulation::land_step_barred(float x0, float z0, float x1, float z1, float 
 	return nav_grid_.near_steep_tile(x1, z1, c) && !on_impassable();
 }
 
-bool Simulation::find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass) const {
+bool Simulation::find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass, bool navcells_only) const {
+	refresh_tree_masks();
+	refresh_water_masks();
 	ScopedUs prof(map_scale_stats_.path_us, map_scale_stats_.path_calls);
-	return nav_grid_.find_path(sx, sz, tx, tz, out, pass);
+	return nav_grid_.find_path(sx, sz, tx, tz, out, pass, navcells_only);
 }
 
 void Simulation::ensure_territory_regions() const {
@@ -3436,7 +3656,7 @@ void Simulation::ensure_gaia_obstacles() {
 		const uint8_t t = resources_.type[r], sub = resources_.subtype[r];
 		if ((t == RES_GOLD || t == RES_STONE) && (sub == RES_SUB_NONE || sub == RES_SUB_RUINS)) {
 			mine_candidates_.push_back((uint32_t)r);
-		} else if (sub == RES_SUB_NONE && (t == RES_WOOD || t == RES_FOOD)) {
+		} else if (sub == RES_SUB_NONE && (t == RES_WOOD || t == RES_FOOD) && !flora_is_bush(resources_.flora[r])) { // bushes do not block (0.28 BlockMovement false)
 			const float half = resource_block_half(r);
 			gaia_obstacles_.push_back(
 					steer_obstacle(resources_.id[r], resources_.x[r], resources_.z[r], 1.0f, 0.0f, half, half, GAIA_OBSTACLE));
@@ -7219,6 +7439,8 @@ void Simulation::cmd_move_individual(const uint32_t *unit_ids, size_t count, flo
 			w.pass = unit_land_pass((size_t)idx);
 		walks.push_back(w);
 	}
+	refresh_tree_masks(); // the walks below read tree_sub in parallel: refreshed here, in serial code
+	refresh_water_masks();
 	{
 		ScopedUs prof(map_scale_stats_.path_us, map_scale_stats_.path_calls);
 		JobSystem::instance().for_each_index(walks.size(), [&](size_t k) {
@@ -10154,16 +10376,18 @@ uint32_t Simulation::spawn_map_wall_piece(uint8_t player, uint8_t kind, uint8_t 
 }
 
 void Simulation::clear_resources_near(float x, float z, float r) {
-	bool mine = false;
+	bool mine = false, tree = false;
 	for (size_t i = 0; i < resources_.count; ++i) {
 		if (!resources_.alive[i] || resources_.subtype[i] == RES_SUB_FISH) continue;
 		if (det::hypot(resources_.x[i] - x, resources_.z[i] - z) > r) continue;
 		nav::Footprint m;
 		mine = mine_footprint(i, m) || mine;
+		tree = tree || tree_supply(resources_.type[i], resources_.subtype[i]); // C1: its square (tree_sub)
 		resources_.alive[i] = 0;
 		resources_.amount[i] = 0;
 		note_gaia_edit();
 	}
+	if (tree) note_tree_edit(); // C1: its squares leave tree_sub
 	if (mine) {
 		resource_block_tick_ = UINT64_MAX;
 		if (!bulk_spawn_) rebuild_nav_grid();
@@ -10229,6 +10453,7 @@ bool Simulation::place_map_wall_piece(const WallPiece &p, uint8_t player) {
 			resources_.alive[i] = 0;
 			resources_.amount[i] = 0;
 			note_gaia_edit();
+			note_tree_edit(); // a tree under the piece leaves tree_sub
 		}
 	spawn_wall_piece(p, player, 1.0f);
 	return true;
@@ -12912,6 +13137,8 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		if (gs > 0.0f) guard_cap[i] = std::min(unit_walk_speed(i), gs);
 	}
 
+	refresh_tree_masks(); // the steering job's find_path calls read tree_sub in parallel: refreshed here, in serial code
+	refresh_water_masks();
 	JobSystem::instance().for_each_index(n, [&](size_t i) {
 		if (!alive[i]) {
 			vx[i] = vz[i] = 0;
@@ -14536,6 +14763,7 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 	// and Push adds to it.
 	const uint64_t per_turn = (uint64_t)std::max(1L, std::lround(PUSH_TURN / dt));
 	const bool turn_ends = (ticks_ + 1) % per_turn == 0;
+	const bool turn_begins = ticks_ % per_turn == 0; // G119: standing units' rest positions are taken on a turn's first tick
 	// The standing buildings and the mines that block movement now, for the building pass below and
 	// for tick_fauna's steps (fauna_can_step), so it is built every tick, with or without units.
 	sep_obstacles_.clear();
@@ -14707,6 +14935,7 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 		if (i < n) {
 			frx[i] = have_steps ? steps.from_x[i] : px[i];
 			frz[i] = have_steps ? steps.from_z[i] : pz[i];
+			if (turn_begins) units_.motion[i].rest_x = px[i], units_.motion[i].rest_z = pz[i]; // G119
 			if (tie) {
 				tie[i] = pushes[i] && units_.action_state[i] == ACTION_ATTACK ? units_.target_unit_id[i] : 0;
 				swing[i] = 0;
@@ -14718,8 +14947,8 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 			u.sx = px[i] + frx[i];
 			u.sz = pz[i] + frz[i];
 			const MotionTurn &m = units_.motion[i];
-			u.ix = m.stepped ? m.from_x : frx[i];
-			u.iz = m.stepped ? m.from_z : frz[i];
+			u.ix = m.stepped ? m.from_x : m.rest_x; // G119: a standing unit bins by its turn-start position
+			u.iz = m.stepped ? m.from_z : m.rest_z;
 			u.r = unit_collision_radius(type);
 			u.w = unit_push_weight(units_.tmpl[i], type);
 			u.id = units_.id[i];
@@ -14832,6 +15061,7 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 		float body = 0.0f; // set below: the furthest on an axis a body could overlap this one's
 		// `walker` (see the queries below): pass over the pairs with a unit that stands further than
 		// `body` on either axis.
+		const int32_t qxi = sqx[i], qzi = sqz[i]; // i's pushing square, for the square gate in push
 		auto push = [&](const UnitGrid::Packed &e, auto walker) SEP_INLINE {
 			float lim = skip;
 			if constexpr (decltype(walker)::value) {
@@ -14879,7 +15109,7 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 			// It runs after the bodies' overlap above, so a pair across a square's corner still exempts an
 			// overlapping body from MinimalForce; only its own push is skipped.
 			if (same_group || mi == mj) {
-				const int32_t dsx = sqx[i] - sqx[j], dsz = sqz[i] - sqz[j];
+				const int32_t dsx = qxi - sqx[j], dsz = qzi - sqz[j];
 				if (dsx > 1 || dsx < -1 || dsz > 1 || dsz < -1 || (dsx != 0 && dsz != 0)) return;
 			}
 			// Half the offset of the averages; no pair pushes beyond `reach`.
@@ -15529,11 +15759,11 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 		JobSystem::instance().for_each_index(n, [&](size_t i) {
 			MotionTurn &m = units_.motion[i];
 			if (!units_.alive[i] || !units_.has_order[i]) {
-				m = MotionTurn{.pressure = m.pressure};
+				m = MotionTurn{.pressure = m.pressure, .rest_x = m.rest_x, .rest_z = m.rest_z};
 				return;
 			}
 			if (!flight_.empty() && unit_flies(i)) {
-				m = MotionTurn{.pressure = m.pressure};
+				m = MotionTurn{.pressure = m.pressure, .rest_x = m.rest_x, .rest_z = m.rest_z};
 				return;
 			}
 			if (steps.want_x[i] != 0.0f || steps.want_z[i] != 0.0f) {
@@ -15555,7 +15785,7 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 	for (size_t i = 0; i < n; ++i) {
 		MotionTurn &m = units_.motion[i];
 		if (!units_.alive[i] || !units_.has_order[i]) {
-			m = MotionTurn{.pressure = m.pressure};
+			m = MotionTurn{.pressure = m.pressure, .rest_x = m.rest_x, .rest_z = m.rest_z};
 			continue;
 		}
 		// COMBAT.APPROACHING / CHASING Timer, every second: ShouldAbandonChase drops a unit target
@@ -15564,19 +15794,19 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 				units_.target_unit_id[i] != 0 && (formations_.empty() || formation_group_[i] == 0)) {
 			const int32_t t = lookup_unit(units_.target_unit_id[i]);
 			if (t >= 0 && attack_target_hidden(i, (size_t)t)) {
-				m = MotionTurn{.pressure = m.pressure};
+				m = MotionTurn{.pressure = m.pressure, .rest_x = m.rest_x, .rest_z = m.rest_z};
 				abandon_chase(i);
 				continue;
 			}
 		}
 		// UnitMotionFlying never reports a failed move: a plane flies on (tick_flight).
 		if (!flight_.empty() && unit_flies(i)) {
-			m = MotionTurn{.pressure = m.pressure};
+			m = MotionTurn{.pressure = m.pressure, .rest_x = m.rest_x, .rest_z = m.rest_z};
 			continue;
 		}
 		// A hunter whose path ends short of the animal (on the shore of its island) gets no closer.
 		if (turn_ends && units_.action_state[i] == ACTION_ATTACK && units_.target_unit_id[i] != 0 && hunt_falls_short(i)) {
-			m = MotionTurn{.pressure = m.pressure};
+			m = MotionTurn{.pressure = m.pressure, .rest_x = m.rest_x, .rest_z = m.rest_z};
 			give_up_hunt(i);
 			continue;
 		}
@@ -15591,6 +15821,7 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 			m.blocked |= steps.blocked[i];
 		}
 		if (!turn_ends || !m.stepped) continue;
+		watch_tree_leg(i);
 		const float wx = m.want_x, wz = m.want_z;
 		const float ax = units_.pos_x[i] - m.from_x, az = units_.pos_z[i] - m.from_z;
 		// A step a closed gate stopped failed CheckMovement: 0 A.D. doesn't move the unit at all
@@ -15903,6 +16134,49 @@ void Simulation::give_up_hunt(size_t i) {
 	units_.vel_x[i] = units_.vel_z[i] = 0.0f;
 }
 
+// C1 tree watch (candidate iii). A leg the tree subcells re-planned (tree_replanned) on which the unit gets no 1 m nearer
+// its waypoint for 12 turns (2.4 s) is planned again on the navcells alone, and the walk keeps that choice for its later
+// obstructed re-plans (tree_off). The fuzz walker's seed 2 trial 23 oscillates between a corner and a replanned waypoint
+// with every forward or back step a free turn, so motion_feedback's failed count never reaches FAILED_AT. A unit off its
+// long path clears tree_off, and a formation member is not watched. The watch restarts with each new path (clear()).
+void Simulation::watch_tree_leg(size_t i) {
+	if (i >= unit_paths_.size()) return;
+	WaypointPath &wp = unit_paths_[i];
+	if (!follows_long_path(i)) {
+		wp.tree_off = false;
+		wp.watch_cur = -1;
+		return;
+	}
+	if (!wp.tree_replanned || wp.tree_off || (!formations_.empty() && formation_group_[i] != 0)) return;
+	constexpr int TREE_WATCH_TURNS = 12;
+	constexpr float TREE_WATCH_GAIN = 0.25f; // 1 m: a world unit is 4 m
+	const int cur = units_.waypoint_cur[i];
+	const float wx = wp.xs[cur] - units_.pos_x[i], wz = wp.zs[cur] - units_.pos_z[i];
+	const float d = std::sqrt(wx * wx + wz * wz);
+	if (wp.watch_cur != cur) {
+		wp.watch_cur = cur;
+		wp.watch_best = d;
+		wp.watch_turns = 0;
+		return;
+	}
+	if (d < wp.watch_best - TREE_WATCH_GAIN) {
+		wp.watch_best = d;
+		wp.watch_turns = 0;
+		return;
+	}
+	if (++wp.watch_turns < TREE_WATCH_TURNS) return;
+	const float x = units_.pos_x[i], z = units_.pos_z[i];
+	const uint8_t ut = units_.unit_type[i];
+	const bool has_goal = wp.has_goal;
+	const float goal_x = wp.has_goal ? wp.goal_x : units_.target_x[i], goal_z = wp.has_goal ? wp.goal_z : units_.target_z[i];
+	find_path(x, z, goal_x, goal_z, wp, unit_is_ship(ut) ? unit_ship_pass(ut) : unit_land_pass(i), true);
+	wp.has_goal = has_goal;
+	wp.goal_x = goal_x;
+	wp.goal_z = goal_z;
+	units_.waypoint_cur[i] = static_cast<int16_t>(wp.cur);
+	units_.waypoint_count[i] = static_cast<int16_t>(wp.count);
+}
+
 // Whether unit i walks a long path obstructed_long_path can work on: the one move_units or
 // cmd_move gave it, with waypoints left, more than LONG_PATH_MIN_DIST from where it is going.
 bool Simulation::follows_long_path(size_t i) const {
@@ -15946,7 +16220,7 @@ void Simulation::obstructed_long_path(size_t i, uint8_t failed) {
 	}
 	if (failed != ALTERNATE_PATH_TYPE_DELAY) return;
 	const bool has_goal = wp.has_goal;
-	find_path(x, z, goal_x, goal_z, wp, unit_is_ship(ut) ? unit_ship_pass(ut) : unit_land_pass(i));
+	find_path(x, z, goal_x, goal_z, wp, unit_is_ship(ut) ? unit_ship_pass(ut) : unit_land_pass(i), wp.tree_off);
 	wp.has_goal = has_goal;
 	wp.goal_x = goal_x;
 	wp.goal_z = goal_z;
@@ -16362,6 +16636,7 @@ uint32_t Simulation::ensure_field_resource(const Building &b) {
 			rid = resources_.id[r];
 			resources_.subtype[r] = RES_SUB_GRAIN;
 			note_gaia_edit(); // no longer a bush (sync_tile_obstructions)
+			note_tree_edit();
 			break;
 		}
 	}
@@ -16887,7 +17162,11 @@ void Simulation::tick_gather(float dt) {
 					face_supply();
 					const int32_t space = carry_cap(i, rt) - units_.carry[i];
 					const int32_t take = std::min(1, std::min(resources_.amount[ridx], space));
-					if (field_efficiency <= 0.0f) resources_.amount[ridx] -= take; // fields are infinite
+					if (field_efficiency <= 0.0f) {
+						resources_.amount[ridx] -= take; // fields are infinite
+						// C1: a tree worked out here leaves tree_sub (its removal below comes at a later point in the tick)
+						if (resources_.amount[ridx] <= 0 && tree_supply(resources_.type[ridx], resources_.subtype[ridx])) note_tree_edit();
+					}
 					units_.carry[i] += take;
 					units_.res_type_carried[i] = rt;
 					// ResourceGatherer PerformGather: StatisticsTracker counts each load as it is gathered,
@@ -16952,7 +17231,7 @@ void Simulation::tick_gather(float dt) {
 		}
 	}
 
-	bool mine_gone = false;
+	bool mine_gone = false, tree_gone = false; // tree_gone: a felled tree's square leaves tree_sub (C1)
 	// Felling only opens woods: when the closed navcells were up to date, only they need testing again.
 	bool forest_current = false, removed = false;
 	for (size_t r = 0; r < resources_.count; ) {
@@ -16965,6 +17244,7 @@ void Simulation::tick_gather(float dt) {
 			}
 			nav::Footprint m;
 			mine_gone = mine_footprint(r, m) || mine_gone;
+			tree_gone = tree_gone || tree_supply(resources_.type[r], resources_.subtype[r]);
 			res_id_to_idx_.erase(resources_.id[r]);
 			resources_.remove_at(r);
 			++supply_list_edits_; // a supply removed, the last one moved into its place (ensure_gaia_obstacles, sync_tile_obstructions)
@@ -16974,9 +17254,10 @@ void Simulation::tick_gather(float dt) {
 			++r;
 		}
 	}
-	// A worked-out mine no longer blocks paths, nor a wood thinned enough to cross.
+	// A worked-out mine no longer blocks paths, nor a wood thinned enough to cross, nor a felled tree its square (C1).
 	forest_removals_only_ = forest_current;
 	if (update_forest_cells() || mine_gone) rebuild_nav_grid();
+	else if (tree_gone) note_tree_edit(); // a felled tree's square leaves tree_sub (refreshed before the next path query)
 }
 
 // Repairable.js GetRepairRate: MaxHitpoints / (RepairTimeRatio x BuildTime), RepairTimeRatio 2.0,
@@ -21444,7 +21725,7 @@ void Simulation::order_guard(const uint32_t *unit_ids_in, size_t count_in, uint3
 // ---------------------------------------------------------------------------
 
 void Simulation::set_order(size_t i, uint8_t kind, uint8_t flags, uint32_t target, float x, float z) {
-	units_.motion[i] = MotionTurn{.pressure = units_.motion[i].pressure}; // UnitMotion MoveTo: a new move starts unobstructed
+	units_.motion[i] = MotionTurn{.pressure = units_.motion[i].pressure, .rest_x = units_.motion[i].rest_x, .rest_z = units_.motion[i].rest_z}; // UnitMotion MoveTo: a new move starts unobstructed
 	if (kind != ORDER_WALK_AND_FIGHT && !attack_move_structures_.empty()) {
 		auto &v = attack_move_structures_;
 		if (const auto at = std::lower_bound(v.begin(), v.end(), units_.id[i]); at != v.end() && *at == units_.id[i]) v.erase(at);
@@ -25470,6 +25751,7 @@ void Simulation::petra_staff_foundations() {
 	// Builders path around buildings now (VertexPathfinder steering), so this
 	// only catches foundations nobody can reach; 0 A.D. has no such timer.
 	constexpr float kStallRelease = 40.0f;
+	constexpr float kStallReleaseWalking = 150.0f; // a builder still on its path: a long walk, not a stall
 	auto is_anchor = [](uint8_t t) { return is_civic_centre(t) || t == BLD_MILITARY_COLONY; };
 	// baseManager.js:1131 update: a constructing base's anchor in a foe's territory, within
 	// 8000 m² (22.4 units) of that player's civic centre, is destroyed.
@@ -25571,6 +25853,7 @@ void Simulation::petra_staff_foundations() {
 		needs.push_back({w.id, b.x, b.z, want, &w, naval_map ? petra_building_land(b, &topo) : (uint16_t)0, constructing_anchor(b), want});
 	}
 
+	std::vector<const PetraFoundationWatch *> walked; // foundations with a builder still on its path past kStallRelease
 	const std::unordered_set<uint32_t> launched = petra_launched_units();
 	int workers = 0, building = 0;
 	// A builder dropping its load first (petra_order_build) has the build queued behind it:
@@ -25602,7 +25885,13 @@ void Simulation::petra_staff_foundations() {
 					if (a.id == n.anchor) { --a.missing; ++building; }
 				break;
 			}
-			if (n.watch->stall >= kStallRelease) {
+			// A builder still walking its path is not blocked: a long walk to a foundation takes
+			// longer than kStallRelease with no progress, so release it only once it has stopped
+			// on its path (or after a long stall, when the path itself has failed).
+			const float *pxs = nullptr, *pzs = nullptr;
+			const bool walking = unit_waypoints_left(i, &pxs, &pzs) > 0;
+			if (walking && n.watch->stall >= kStallRelease && n.watch->stall < kStallReleaseWalking) walked.push_back(n.watch);
+			if (n.watch->stall >= kStallRelease && (!walking || n.watch->stall >= kStallReleaseWalking)) {
 				// Our movement only paths MOVE orders, so a builder blocked by
 				// terrain never arrives; free it and try a different worker.
 				n.watch->banned.push_back(units_.id[i]);
@@ -25616,8 +25905,10 @@ void Simulation::petra_staff_foundations() {
 			break;
 		}
 	}
-	for (auto &n : needs)
-		if (n.watch->stall >= kStallRelease) n.watch->stall = 0.0f;
+	for (auto &n : needs) {
+		const bool still_walking = std::find(walked.begin(), walked.end(), n.watch) != walked.end();
+		if (n.watch->stall >= kStallReleaseWalking || (n.watch->stall >= kStallRelease && !still_walking)) n.watch->stall = 0.0f;
+	}
 	// assignToFoundations counts every unit whose target-foundation it is, those still crossing
 	// to it too: a builders' crossing is its land's first foundation's builders until it lands.
 	if (naval_map)
@@ -31650,7 +31941,9 @@ uint32_t Simulation::petra_target_obstruction(uint32_t id, float px, float pz, f
 	// (terrain-analysis.js accessibility: structures don't split land, so a walled-in target counts).
 	if (petra_access_at(target.x, target.z) != petra_access_at(px, pz)) return id;
 	WaypointPath path;
-	find_path(px, pz, target.x, target.z, path, PASS_INFANTRY);
+	// attackPlan.js checkTargetObstruction reads the long path's end: the 8 m navcell path, tree-blind. The 1 m tree
+	// re-plan would end it nearer the target and skip the wall check, so this path is navcells-only.
+	find_path(px, pz, target.x, target.z, path, PASS_INFANTRY, true);
 	if (path.count == 0) return id;
 	// Where the path ends: the reachable spot nearest the target (MakeGoalReachable).
 	const float ex = path.xs[path.count - 1], ez = path.zs[path.count - 1];
@@ -39660,6 +39953,14 @@ struct TickSaveAr {
 		copy_fields(*z, v);
 		out.write((const char *)buf, sizeof(T));
 	}
+	// The first n bytes of T (a record whose tail is not saved): copy_fields as padded, n bytes written.
+	template <class T, class F> void padded_bytes(T &v, size_t n, F &&copy_fields) {
+		static_assert(std::is_trivially_copyable_v<T> && std::is_trivially_destructible_v<T>);
+		alignas(T) unsigned char buf[sizeof(T)] = {};
+		T *z = new (buf) T;
+		copy_fields(*z, v);
+		out.write((const char *)buf, (std::streamsize)n);
+	}
 };
 struct TickLoadAr {
 	std::ifstream &in;
@@ -39672,6 +39973,11 @@ struct TickLoadAr {
 		ok = ok && in.good();
 	}
 	template <class T, class F> void padded(T &v, F &&) { pod(v); }
+	// The first n bytes of T; the rest of v keeps what it holds (a fresh record: default members).
+	template <class T, class F> void padded_bytes(T &v, size_t n, F &&) {
+		in.read((char *)&v, (std::streamsize)n);
+		ok = ok && in.good();
+	}
 };
 template <class Ar, class T, class F> static void io_vec(Ar &ar, std::vector<T> &v, uint32_t max_n, F &&each) {
 	uint32_t n = (uint32_t)v.size();
@@ -39692,12 +39998,28 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 	auto arr = [](auto &d, const auto &src) { std::memcpy(&d, &src, sizeof(d)); };
 
 	// Padded structs, field by field.
-	static_assert(sizeof(WaypointPath) == 532, "list the new WaypointPath field below");
+	// The record's first 532 bytes keep their format. The C1 tree watch's fields (tree_replanned, tree_off, watch_cur,
+	// watch_best, watch_turns) follow them from SAVE_VERSION_TREE_WATCH on, so a walk loaded mid-watch re-plans and
+	// counts exactly as the run that saved it. Older saves load them at their defaults (unwatched, tree-aware).
+	static_assert(offsetof(WaypointPath, tree_replanned) == 532, "the saved WaypointPath record is 532 bytes");
+	static_assert(sizeof(WaypointPath) == 548, "list the new WaypointPath field after tree_replanned");
+	constexpr size_t kPathSavedBytes = offsetof(WaypointPath, tree_replanned);
+	auto tree_watch = [&](WaypointPath &p) {
+		ar.pod(p.tree_replanned); ar.pod(p.tree_off); ar.pod(p.watch_cur); ar.pod(p.watch_best); ar.pod(p.watch_turns);
+	};
 	auto path = [&](WaypointPath &p) {
-		ar.padded(p, [&](WaypointPath &d, const WaypointPath &v) {
+		ar.padded_bytes(p, kPathSavedBytes, [&](WaypointPath &d, const WaypointPath &v) {
 			arr(d.xs, v.xs); arr(d.zs, v.zs); d.count = v.count; d.cur = v.cur;
 			d.has_goal = v.has_goal; d.goal_x = v.goal_x; d.goal_z = v.goal_z;
 		});
+		// Saving only writes; loading reads the tail from SAVE_VERSION_TREE_WATCH on and leaves older records at defaults.
+		if constexpr (!Ar::loading) {
+			tree_watch(p);
+		} else if (ar.version >= S::SAVE_VERSION_TREE_WATCH) {
+			tree_watch(p);
+		} else {
+			p.tree_replanned = false; p.tree_off = false; p.watch_cur = -1; p.watch_best = 0.0f; p.watch_turns = 0;
+		}
 	};
 	static_assert(sizeof(Projectile) == 92, "list the new Projectile field below");
 	auto projectile = [&](Projectile &p) {
@@ -39862,7 +40184,15 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		if (ar.version >= SAVE_VERSION_MOTION) {
 			ar.pod(U.short_path[i]);
 			if (ar.version >= S::SAVE_VERSION_MOTION_SPAN) {
-				ar.pod(U.motion[i]);
+				// The 48-byte record first; the rest position follows it from SAVE_VERSION_PUSH_REST on (G119).
+				constexpr size_t kMotionSavedBytes = offsetof(MotionTurn, rest_x);
+				ar.padded_bytes(U.motion[i], kMotionSavedBytes, [](MotionTurn &d, const MotionTurn &v) {
+					std::memcpy(&d, &v, kMotionSavedBytes);
+				});
+				if (ar.version >= S::SAVE_VERSION_PUSH_REST) {
+					ar.pod(U.motion[i].rest_x);
+					ar.pod(U.motion[i].rest_z);
+				}
 			} else if constexpr (Ar::loading) {
 				// Saves before the span: the 20-byte MotionTurn, with no span to count over yet.
 				struct MotionTurnBefore {
@@ -39876,6 +40206,10 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		} else {
 			U.short_path[i] = ShortPathMemo{};
 			U.motion[i] = MotionTurn{};
+		}
+		// A save before the rest position: a standing unit bins where it stands (G119).
+		if constexpr (Ar::loading) {
+			if (ar.version < S::SAVE_VERSION_PUSH_REST) U.motion[i].rest_x = U.pos_x[i], U.motion[i].rest_z = U.pos_z[i];
 		}
 		if (legacy_status && ar.version >= SAVE_VERSION_STATUS_SOURCE) {
 			ar.pod(legacy[i].poison_src); ar.pod(legacy[i].poison_owner);
@@ -46623,6 +46957,7 @@ void Simulation::set_water_level(float h, float drown_depth) {
 	// WaterManager.SetWaterLevel plus the rising-water scripts' drowning pass
 	// (flood_triggers.js riseWaterLevel, extinct_volcano_triggers.js RaiseWaterLevelStep).
 	terrain_water_height_ = h;
+	water_masks_dirty_ = true; // C1: the water mask follows the sea level (refresh_water_masks)
 	// Depth is measured from the nav water line, where the land turns to water (grid_nav.h).
 	auto submerged = [&](float x, float z) { return get_terrain_height(x, z) + drown_depth < h + NAV_WATER_MARGIN; };
 	// Organic units and animals drown (cmpHealth.Kill()); ships float (Position/Floating) with
@@ -46676,6 +47011,7 @@ void Simulation::set_water_level(float h, float drown_depth) {
 		if (!submerged(resources_.x[r], resources_.z[r])) continue;
 		resources_.alive[r] = 0;
 		resources_.amount[r] = 0;
+		if (tree_supply(resources_.type[r], resources_.subtype[r])) note_tree_edit(); // C1: a submerged tree leaves tree_sub
 		note_gaia_edit();
 	}
 	// So do land treasures (shipwrecks and the Argo float): they can't be collected any more.

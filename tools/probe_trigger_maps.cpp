@@ -14,7 +14,9 @@
 // Options: --json NAME | --random MAPID, --minutes M, --seed S, --players N, --size TILES*4,
 //   --humans MASK (bit p: player p+1 is an idle human; default 1 = player 1), --no-ai,
 //   --victory MASK (override), --water MODE (0 shallow, 1 rising, 2 deep), --rise MIN,
-//   --difficulty D (trigger difficulty 1-5), --nomad, --summary SECONDS, --quiet.
+//   --difficulty D (trigger difficulty 1-5), --nomad, --summary SECONDS, --quiet,
+//   --expect-end (exit 1 when the match has no end by --minutes),
+//   --attack-move (at 2 min, team 0 units attack team 1 units: for maps Petra cannot play).
 #include <map>
 #include <set>
 #define private public
@@ -467,7 +469,7 @@ int main(int argc, char **argv) {
 	int victory = -1, water = Simulation::WATER_LEVEL_RISING, rise = -1, difficulty = 3;
 	double summary_every = 60.0;
 	std::vector<uint32_t> trace;
-	bool owner_log = false, death_log = false;
+	bool owner_log = false, death_log = false, attack_move = false, expect_end = false;
 	for (int i = 1; i < argc; ++i) {
 		auto next = [&]() { return i + 1 < argc ? argv[++i] : (char *)"0"; };
 		if (!std::strcmp(argv[i], "--json")) json_map = next();
@@ -488,6 +490,8 @@ int main(int argc, char **argv) {
 		else if (!std::strcmp(argv[i], "--trace")) trace.push_back((uint32_t)std::strtoul(next(), nullptr, 10));
 		else if (!std::strcmp(argv[i], "--owners")) owner_log = true;
 		else if (!std::strcmp(argv[i], "--deaths")) death_log = true;
+		else if (!std::strcmp(argv[i], "--attack-move")) attack_move = true;
+		else if (!std::strcmp(argv[i], "--expect-end")) expect_end = true;
 	}
 	std::setvbuf(stdout, nullptr, _IOLBF, 0);
 	static Simulation s;
@@ -581,6 +585,10 @@ int main(int argc, char **argv) {
 		std::printf("trigger points:");
 		for (auto &[r, n] : refs) std::printf(" %c=%d", r, n);
 		std::printf("\n");
+		if (std::getenv("PROBE_POINTS"))
+			for (const auto &p : s.triggers_.points)
+				if (p.ref == (uint8_t)std::getenv("PROBE_POINTS")[0])
+					std::printf("  point %c at (%.1f,%.1f) owner %u\n", p.ref, p.x, p.z, p.owner);
 		for (const auto &p : s.triggers_.points) {
 			const float h = s.get_terrain_height(p.x, p.z);
 			if (std::fabs(p.x) > half || std::fabs(p.z) > half || h < s.water_height())
@@ -605,6 +613,33 @@ int main(int argc, char **argv) {
 	float water0 = s.water_height();
 	int ticks = 0;
 	uint64_t clock_ms = 0; // the match clock (the trigger clock stands still on maps without triggers)
+	uint64_t last_drive_ms = 0;
+	// Scripted orders where Petra does not play (ship_combat_demo: no Civic Centre, its ships
+	// idle all game): from two game minutes on, every idle team-0 unit attack-moves to the
+	// nearest team-1 unit, re-issued each minute (a one-shot attack leaves the ships idle once
+	// their first target dies). Gorge's first units come in over the first minute or two.
+	auto drive_attack = [&]() {
+		std::vector<uint32_t> idle;
+		std::vector<size_t> theirs;
+		for (size_t i = 0; i < s.units_.count; ++i) {
+			if (!s.units_.alive[i]) continue;
+			if (s.units_.team[i] == 0 && !s.units_.has_order[i]) idle.push_back(s.units_.id[i]);
+			else if (s.units_.team[i] == 1) theirs.push_back(i);
+		}
+		if (theirs.empty()) return;
+		for (uint32_t id : idle) {
+			const int32_t u = s.lookup_unit(id);
+			if (u < 0) continue;
+			size_t best = theirs[0];
+			float bd = 1e30f;
+			for (size_t t : theirs) {
+				const float dx = s.units_.pos_x[t] - s.units_.pos_x[u], dz = s.units_.pos_z[t] - s.units_.pos_z[u];
+				if (dx * dx + dz * dz < bd) { bd = dx * dx + dz * dz; best = t; }
+			}
+			s.order_attack_move(&id, 1, s.units_.pos_x[best], s.units_.pos_z[best]);
+		}
+		if (!idle.empty()) std::printf("attack-move: %zu idle team-0 units, %zu team-1 units left\n", idle.size(), theirs.size());
+	};
 	while (clock_ms < end_ms && !s.game_over_) {
 		// Timers due this step.
 		const uint32_t now = s.triggers_.time_ms;
@@ -621,6 +656,10 @@ int main(int argc, char **argv) {
 		++ticks;
 		clock_ms += (uint64_t)std::lround(Simulation::FIXED_STEP * 1000.0f);
 		const double ts = clock_ms / 1000.0;
+		if (attack_move && clock_ms >= 120000 && clock_ms - last_drive_ms >= 60000) {
+			last_drive_ms = clock_ms;
+			drive_attack();
+		}
 		if (first) {
 			std::printf("[%7.1fs] after OnInitGame: triggers %zu, timers %zu, watched %zu, invulnerable %zu, range queries %zu\n", ts,
 					s.triggers_.triggers.size(), s.triggers_.timers.size(), s.triggers_.watched.size(), s.triggers_.invulnerable.size(),
@@ -637,7 +676,7 @@ int main(int argc, char **argv) {
 		for (const auto &d : s.take_trigger_dialogs()) std::printf("[%7.1fs] DIALOG to %02x: %s\n", ts, d.players, d.caption.c_str());
 		for (const auto &n : s.take_session_notices()) {
 			if (n.kind == Simulation::SessionNotice::DEFEATED) std::printf("[%7.1fs] DEFEATED p%u (%s)\n", ts, n.player + 1, notice_reason(n.tech));
-			else if (n.kind == Simulation::SessionNotice::WON) std::printf("[%7.1fs] WON p%u mask %02x (%s)\n", ts, n.player + 1, n.other, notice_reason(n.tech));
+			else if (n.kind == Simulation::SessionNotice::WON) std::printf("[%7.1fs] WON winners mask %02x (%s)\n", ts, n.other, notice_reason(n.tech));
 			else if (n.kind == Simulation::SessionNotice::LOST) std::printf("[%7.1fs] LOST p%u mask %02x (%s)\n", ts, n.player + 1, n.other, notice_reason(n.tech));
 		}
 		// The scans below every half second (the first tick and the match's end too).
@@ -802,7 +841,9 @@ int main(int argc, char **argv) {
 	for (const Spawned &sp : spawned) {
 		if (sp.t + 60.0f > tend) continue;
 		// Turreted on a wall or garrisoned (Jebel Barkal walls, Danubius towers): never meant to move.
-		if (const int32_t k = s.lookup_unit(sp.id); k >= 0 && (s.turret_height_.count(sp.id) || s.units_.action_state[k] == ACTION_GARRISONED)) continue;
+		// Defensive village defenders (SpawnInitialCCDefenders) hold their ground by design.
+		if (const int32_t k = s.lookup_unit(sp.id); k >= 0 && (s.turret_height_.count(sp.id) || s.units_.action_state[k] == ACTION_GARRISONED ||
+				s.units_.stance[k] == STANCE_DEFENSIVE)) continue;
 		++total;
 		if (!sp.moved && !sp.checked_stuck) {
 			if (stuck < 10) {
@@ -840,6 +881,28 @@ int main(int argc, char **argv) {
 	std::printf("\nfinal:");
 	for (uint8_t p = 0; p < players; ++p) std::printf(" p%u=%d/%db", p + 1, count_units(p), count_buildings(p));
 	std::printf(" gaia=%d/%db\n", count_units(GAIA_PLAYER), count_buildings(GAIA_PLAYER));
+	if (attack_move) {
+		// Where the survivors are and what they are doing (the first 12 of each team).
+		for (uint8_t t = 0; t < 2; ++t) {
+			int shown = 0;
+			for (size_t u = 0; u < s.units_.count && shown < 12; ++u) {
+				if (!s.units_.alive[u] || s.units_.team[u] != t) continue;
+				++shown;
+				std::printf("survivor team %u unit %u at (%.1f,%.1f) state %d order %d has_order %d hp %.0f\n", t, s.units_.id[u],
+						s.units_.pos_x[u], s.units_.pos_z[u], (int)s.units_.action_state[u], (int)s.units_.order_kind[u],
+						(int)s.units_.has_order[u], s.units_.hp[u]);
+			}
+		}
+	}
+	// --expect-end: exit 1 unless the match reached its end (a victory or defeat) within --minutes.
+	if (expect_end && !s.game_over_) {
+		std::printf("FAIL: no end within %.0f minutes\n", minutes);
+		return 1;
+	}
+	for (const auto &b : s.buildings_)
+		if (b.team < players && b.hp > 0.0f && !b.wrecked)
+			std::printf("  left: p%u %s (type %u) at (%.1f,%.1f) hp %.0f h %.2f water %.2f\n", b.team + 1, building_type_info(b.type).model_id,
+					b.type, b.x, b.z, b.hp, s.get_terrain_height(b.x, b.z), s.water_height());
 	return 0;
 }
 #endif // PROBE_LOADER_ONLY

@@ -175,6 +175,15 @@ struct PlayerState {
 	}
 };
 
+// C1 tree masks: one tree's footprint in the NavGrid::tree_sub masks, per class, as (word, bits) pairs. Cached per
+// resource while its square (x, z, block half) and the map stay the same (Simulation::build_tree_masks); a derived
+// cache, so it is not part of tick_state_io.
+struct TreeFootprint {
+	float x = 0.0f, z = 0.0f, h = 0.0f;
+	bool valid = false;
+	std::vector<std::pair<uint32_t, uint64_t>> words[2];
+};
+
 class Simulation {
 public:
 	// Player Petra drives. Area C ("Fix and scale the AI") makes Petra per-player.
@@ -191,7 +200,9 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 144; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 146; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_PUSH_REST = 146; // each unit's MotionTurn rest position (G119), after its 48-byte record
+	static constexpr uint32_t SAVE_VERSION_TREE_WATCH = 145; // each unit's path tree watch (tree_replanned, tree_off, watch_cur/best/turns) after its saved record
 	static constexpr uint32_t SAVE_VERSION_AIM_VELOCITY = 143; // each unit's and animal's last-turn velocity (aim_vx/aim_vz; fauna beside fauna_)
 	static constexpr uint32_t SAVE_VERSION_PETRA_ROUTE_CACHE = 139; // Petra's last checkRoutes result (tradeRoute kept between trade events)
 	static constexpr uint32_t SAVE_VERSION_FAUNA_QUEUED_TARGET = 137; // each animal's set-aside attack target (fauna_queued_target_)
@@ -902,6 +913,7 @@ public:
 		terrain_res_ = res;
 		terrain_water_height_ = water_h;
 		terrain_lowest_known_ = false;
+		water_masks_dirty_ = true; // C1: the water mask follows the ground (refresh_water_masks)
 	}
 	void set_map_info(const std::string &id, const std::string &name, const std::string &biome) {
 		current_map_id_ = id;
@@ -2914,6 +2926,9 @@ private:
 	// gave it, with waypoints left, more than LONG_PATH_MIN_DIST from where it is going.
 	bool follows_long_path(size_t i) const;
 	void obstructed_long_path(size_t i, uint8_t failed);
+	// C1 tree watch: a tree-re-planned leg on which the unit gets no 1 m nearer its waypoint for 12 turns is re-planned on
+	// the navcells alone (WaypointPath::tree_off). Called on each turn end the unit steps (motion_feedback).
+	void watch_tree_leg(size_t i);
 	// HandleObstructedMove's short path (ComputePathToGoal) for a land unit's walk whose way trees or
 	// structures block: kept as the unit's path to its goal (unit_paths_). With `beyond_queue`, a far or
 	// sub-goal search the unit is due (its goal's centre beyond 56 m) is queued there, not run
@@ -3269,6 +3284,14 @@ private:
 	// The fog a player sees (FOW_* per cell) from its line of sight, los_shared_mask included.
 	void fill_fow_from_los(std::vector<uint8_t> &grid, uint8_t player) const;
 	void rebuild_nav_grid(); // Phase1: rebuild NavGrid from buildings+water (mirrors CCmpObstructionManager rasterize)
+	// C5 (step 2): the tree masks from the live trees (the one builder), and their lazy refresh (see simulation.cpp).
+	void build_tree_masks(std::vector<uint64_t> (&out)[2]) const;
+	void refresh_tree_masks() const;
+	// A tree's square may have joined or left the masks: the next refresh rebuilds them.
+	void note_tree_edit() { tree_masks_dirty_ = true; }
+	// C1 water: NavGrid::water_sub, the 1 m depth rule over the NAV_WATER navcells (see simulation.cpp).
+	void build_water_masks(std::vector<uint64_t> &out) const;
+	void refresh_water_masks() const;
 	// The static obstructions of the long paths on the terrain tiles (NavGrid::set_tile_obstructions):
 	// with `structures` the structures, scenery and mines; the trees, bushes and treasures when they
 	// changed.
@@ -3290,7 +3313,8 @@ private:
 		if (circular_map()) return x1 * x1 + z1 * z1 > x0 * x0 + z0 * z0;
 		return std::max(std::fabs(x1), std::fabs(z1)) > std::max(std::fabs(x0), std::fabs(z0));
 	}
-	bool find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass = PASS_INFANTRY) const;
+	bool find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass = PASS_INFANTRY,
+		bool navcells_only = false) const;
 	int territory_owner_at(float x, float z) const; // G2: query territory_grid_
 	void rebuild_territory(); // G2: rebuild territory/influence grids from TC/Fortress/Tower
 	void rebuild_auras(); // G4: rebuild AuraManager from temples/heroes/carnyx/female citizens
@@ -3632,6 +3656,15 @@ private:
 	mutable uint64_t resource_block_tick_ = UINT64_MAX;
 	mutable size_t resource_block_count_ = SIZE_MAX;
 	mutable int resource_block_w_ = 0;
+	// C5 (step 2): NavGrid::tree_sub is stale (a tree's square joined or left). refresh_tree_masks rebuilds it before
+	// any path query reads it; rebuild_nav_grid rebuilds it in full and clears this.
+	mutable bool tree_masks_dirty_ = false;
+	mutable std::vector<TreeFootprint> tree_footprints_; // by resource index (build_tree_masks)
+	mutable float tree_fp_map_half_ = -1.0f;            // the map the cached footprints were made for
+	mutable int tree_fp_res_ = -1;
+	// C1 water: NavGrid::water_sub is stale (the navcells' classes changed). rebuild_nav_grid sets it, and
+	// refresh_water_masks clears it before a path query reads it.
+	mutable bool water_masks_dirty_ = true;
 	void ensure_resource_block_cells() const;
 	// check_placement over the cells `cells` of a footprint whose bounds are [x0, x1] x [z0, z1]
 	// and centre (cx, cz); `rect` is a turned footprint (a WallSet piece) or null for a square, and
