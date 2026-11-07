@@ -11901,6 +11901,12 @@ void Simulation::collect_loot(uint32_t looter_id, uint8_t looter_player, LootInf
 	res[RES_WOOD] = std::floor(loot.wood * mult);
 	res[RES_STONE] = std::floor(loot.stone * mult);
 	res[RES_GOLD] = std::floor(loot.metal * mult);
+	// Player-wide Looter/Resource modifiers come first: the Britons' woad bonus (+1 of each,
+	// infantry) and the owner's technologies. 0 A.D. ModifiersManager.ApplyModifiers applies the
+	// player's modifiers before the entity's own, so a range aura's multiply then scales them too.
+	if (infantry && civ_of(looter_player) == CIV_BRITONS)
+		for (float &r : res) r += 1.0f;
+	for (int r = 0; r < RES_COUNT; ++r) res[r] += tech_mods(looter_player).loot_add[r]; // Looter/Resource modifiers
 	// Looter/Resource range auras on the looting unit: x multiply + add (Looter.js Collect).
 	if (const int32_t u = looter_id ? lookup_unit(looter_id) : -1;
 			u >= 0 && aura_mgr_.has(AURA_LOOTER) && units_.action_state[u] != ACTION_GARRISONED) {
@@ -11913,9 +11919,6 @@ void Simulation::collect_loot(uint32_t looter_id, uint8_t looter_player, LootInf
 			}, units_.id[u]);
 		for (int r = 0; r < 4; ++r) res[kRes[r]] = res[kRes[r]] * mul[r] + add[r];
 	}
-	if (infantry && civ_of(looter_player) == CIV_BRITONS)
-		for (float &r : res) r += 1.0f;
-	for (int r = 0; r < RES_COUNT; ++r) res[r] += tech_mods(looter_player).loot_add[r]; // Looter/Resource modifiers
 	if (carried > 0 && carried_type < RES_COUNT) res[carried_type] += (float)carried;
 	players_[looter_player].add(res[RES_FOOD], res[RES_WOOD], res[RES_GOLD], res[RES_STONE]);
 	stats_[looter_player].loot_collected += (uint32_t)std::lround(res[RES_FOOD] + res[RES_WOOD] + res[RES_GOLD] + res[RES_STONE]);
