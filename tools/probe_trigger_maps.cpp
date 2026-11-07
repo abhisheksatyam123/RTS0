@@ -14,7 +14,9 @@
 // Options: --json NAME | --random MAPID, --minutes M, --seed S, --players N, --size TILES*4,
 //   --humans MASK (bit p: player p+1 is an idle human; default 1 = player 1), --no-ai,
 //   --victory MASK (override), --water MODE (0 shallow, 1 rising, 2 deep), --rise MIN,
-//   --difficulty D (trigger difficulty 1-5), --nomad, --summary SECONDS, --quiet.
+//   --difficulty D (trigger difficulty 1-5), --nomad, --summary SECONDS, --quiet,
+//   --expect-end (exit 1 when the match has no end by --minutes),
+//   --attack-move (at 2 min, team 0 units attack team 1 units: for maps Petra cannot play).
 #include <map>
 #include <set>
 #define private public
@@ -467,7 +469,7 @@ int main(int argc, char **argv) {
 	int victory = -1, water = Simulation::WATER_LEVEL_RISING, rise = -1, difficulty = 3;
 	double summary_every = 60.0;
 	std::vector<uint32_t> trace;
-	bool owner_log = false, death_log = false;
+	bool owner_log = false, death_log = false, attack_move = false, expect_end = false;
 	for (int i = 1; i < argc; ++i) {
 		auto next = [&]() { return i + 1 < argc ? argv[++i] : (char *)"0"; };
 		if (!std::strcmp(argv[i], "--json")) json_map = next();
@@ -488,6 +490,8 @@ int main(int argc, char **argv) {
 		else if (!std::strcmp(argv[i], "--trace")) trace.push_back((uint32_t)std::strtoul(next(), nullptr, 10));
 		else if (!std::strcmp(argv[i], "--owners")) owner_log = true;
 		else if (!std::strcmp(argv[i], "--deaths")) death_log = true;
+		else if (!std::strcmp(argv[i], "--attack-move")) attack_move = true;
+		else if (!std::strcmp(argv[i], "--expect-end")) expect_end = true;
 	}
 	std::setvbuf(stdout, nullptr, _IOLBF, 0);
 	static Simulation s;
@@ -605,6 +609,28 @@ int main(int argc, char **argv) {
 	float water0 = s.water_height();
 	int ticks = 0;
 	uint64_t clock_ms = 0; // the match clock (the trigger clock stands still on maps without triggers)
+	if (attack_move) {
+		// Scripted orders where Petra does not play (ship_combat_demo: no Civic Centre, its ships
+		// idle all game): every team-0 unit attacks a team-1 unit, dealt round-robin, after two
+		// game minutes (gorge's first units come in over the first minute or two).
+		const uint64_t step_ms = (uint64_t)std::lround(Simulation::FIXED_STEP * 1000.0f);
+		while (clock_ms < 120000) {
+			s.tick(Simulation::FIXED_STEP);
+			++ticks;
+			clock_ms += step_ms;
+		}
+		std::vector<uint32_t> mine, theirs;
+		for (size_t i = 0; i < s.units_.count; ++i) {
+			if (!s.units_.alive[i]) continue;
+			if (s.units_.team[i] == 0) mine.push_back(s.units_.id[i]);
+			else if (s.units_.team[i] == 1) theirs.push_back(s.units_.id[i]);
+		}
+		for (size_t k = 0; k < mine.size() && !theirs.empty(); ++k) {
+			const uint32_t target = theirs[k % theirs.size()];
+			s.order_attack(&mine[k], 1, target);
+		}
+		std::printf("scripted attack: %zu team-0 units attack %zu team-1 units\n", mine.size(), theirs.size());
+	}
 	while (clock_ms < end_ms && !s.game_over_) {
 		// Timers due this step.
 		const uint32_t now = s.triggers_.time_ms;
@@ -840,6 +866,24 @@ int main(int argc, char **argv) {
 	std::printf("\nfinal:");
 	for (uint8_t p = 0; p < players; ++p) std::printf(" p%u=%d/%db", p + 1, count_units(p), count_buildings(p));
 	std::printf(" gaia=%d/%db\n", count_units(GAIA_PLAYER), count_buildings(GAIA_PLAYER));
+	if (attack_move) {
+		// Where the survivors are and what they are doing (the first 12 of each team).
+		for (uint8_t t = 0; t < 2; ++t) {
+			int shown = 0;
+			for (size_t u = 0; u < s.units_.count && shown < 12; ++u) {
+				if (!s.units_.alive[u] || s.units_.team[u] != t) continue;
+				++shown;
+				std::printf("survivor team %u unit %u at (%.1f,%.1f) state %d order %d has_order %d hp %.0f\n", t, s.units_.id[u],
+						s.units_.pos_x[u], s.units_.pos_z[u], (int)s.units_.action_state[u], (int)s.units_.order_kind[u],
+						(int)s.units_.has_order[u], s.units_.hp[u]);
+			}
+		}
+	}
+	// --expect-end: exit 1 unless the match reached its end (a victory or defeat) within --minutes.
+	if (expect_end && !s.game_over_) {
+		std::printf("FAIL: no end within %.0f minutes\n", minutes);
+		return 1;
+	}
 	return 0;
 }
 #endif // PROBE_LOADER_ONLY
