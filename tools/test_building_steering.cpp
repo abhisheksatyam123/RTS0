@@ -211,6 +211,9 @@
 // 48. The G30 gap sweep: a ram's large-class long path across a barrier of houses with one gap of 6.5 to
 //     9 m, over 32 phases of the gap's centre. Houses less than 8 m from another are crowded and grow 1 m for
 //     the large class, so the gaps of 6.5, 7 and 7.5 m close at every phase; the 9 m gap stays open.
+// 49. The search memo and the nav grid (G84): a far search's answer is reused, budget and all, while its
+//     inputs stand; a nav grid rebuild changes `nav_terrain_stamp_` even when the steering obstacles'
+//     key does not (a gate opening, scenery falling, a terrain edit), and must miss the memo.
 //  For every scenario the unit bodies must never overlap a footprint that blocks movement by more
 //  than MAX_PENETRATION (separation() alone allows deep overlap when a unit walks head-on into a wall).
 //  Exit: 0 = PASS, 1 = FAIL. Prints the measurements either way.
@@ -3153,6 +3156,42 @@ static void large_path_round_crowded_gaps() {
 	}
 }
 
+// 49. The search memo and the nav grid: the last answer is reused while its inputs stand; a nav grid
+// rebuild changes `nav_terrain_stamp_` even when the steering obstacles' key does not (a gate opening,
+// scenery falling, a terrain edit), and must miss the memo.
+static void search_memo_nav_stamp() {
+	Simulation s;
+	setup(s);
+	const uint32_t uid = s.spawn_unit(-20.0f, 0.0f, 0, UNIT_VILLAGER);
+	const int idx = index_of(s, uid);
+	check(idx >= 0, "scenario 49's unit");
+	if (idx < 0) return;
+	nav::ShortPathGoal goal;
+	goal.type = nav::ShortPathGoal::POINT;
+	goal.center = nav::Vec2(20.0f, 0.0f);
+	std::vector<nav::Vec2> first, second, third;
+	size_t first_cost = 0, second_cost = 0, third_cost = 0;
+	const bool first_reached = s.obstructed_search((size_t)idx, goal, 56.0f, 0, first, &first_cost);
+	const uint32_t stamp = s.search_memo_[(size_t)idx].nav;
+	// A sentinel answer proves the second call is answered from the memo.
+	s.search_memo_[(size_t)idx].cost = 4321;
+	s.search_memo_[(size_t)idx].path.assign(1, nav::Vec2(999.0f, 999.0f));
+	const bool second_reached = s.obstructed_search((size_t)idx, goal, 56.0f, 0, second, &second_cost);
+	check(second_reached == first_reached && second.size() == 1 && second[0].x == 999.0f &&
+			second_cost == 4321, "an unchanged search is answered from the memo, budget and all");
+	// A nav grid rebuild bumps the stamp alone, as a gate opening, scenery falling or a terrain edit
+	// does: the next search must run afresh rather than take the sentinel back.
+	++s.nav_terrain_stamp_;
+	const bool third_reached = s.obstructed_search((size_t)idx, goal, 56.0f, 0, third, &third_cost);
+	check(s.search_memo_[(size_t)idx].nav == s.nav_terrain_stamp_, "a nav rebuild misses the memo");
+	check(third.size() != 1 || third[0].x != 999.0f, "the search after a nav rebuild is fresh");
+	check(third_reached == first_reached && third_cost == first_cost && third.size() == first.size(),
+			"the fresh search keeps the answer and charges its own tree budget");
+	// Reset drops the memo with the game.
+	s.reset();
+	check(s.search_memo_.empty(), "reset clears the search memo");
+}
+
 int main() {
 	std::printf("RTS0 building steering test (src/simulation/nav/building_steering.h)\n");
 	guard_behind_wall();
@@ -3202,6 +3241,7 @@ int main() {
 	field_and_felled_tree_then_load();
 	find_path_after_failed_narrow_gap_replan();
 	large_path_round_crowded_gaps();
+	search_memo_nav_stamp();
 	if (g_failures) {
 		std::printf("FAIL (%d)\n", g_failures);
 		return 1;

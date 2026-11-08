@@ -2960,8 +2960,9 @@ private:
 	bool obstructed_search(size_t i, const nav::ShortPathGoal &goal, float range, uint32_t ignore,
 			std::vector<nav::Vec2> &path, size_t *searched = nullptr) const;
 	// The last search each unit ran (obstructed_search). A search reads the statics (the steering
-	// obstacles keyed by short_path_key_, the woods and supplies keyed by forest_sig_of_gaia) and its own
-	// unit alone, so the same unit asking the same question of the same statics gets the same answer:
+	// obstacles keyed by short_path_key_, the woods and supplies keyed by forest_sig_of_gaia, the nav
+	// grid keyed by nav_terrain_stamp_) and its own unit alone, so the same unit asking the same
+	// question of the same statics gets the same answer:
 	// a unit whose order outlives MoveFailed, or that searches again on its next turn, takes the answer
 	// back without the search. The trees it would have culled are charged to the budget as they were, so
 	// the turn's queue runs as it did.
@@ -2970,7 +2971,7 @@ private:
 		uint8_t goal_type = 0;
 		nav::Vec2 pos, center, u, v;
 		float clr = 0.0f, range = 0.0f, hw = 0.0f, hh = 0.0f;
-		uint32_t ignore = 0;
+		uint32_t ignore = 0, nav = 0;
 		uint64_t sps = 0, gsig = 0;
 		size_t cost = 0;
 		std::vector<nav::Vec2> path;

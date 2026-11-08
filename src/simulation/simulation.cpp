@@ -868,6 +868,7 @@ void Simulation::reset() {
 	petra_fleets_.clear_sea_fleets();
 	apply_petra_config();
 	unit_paths_.assign(UNIT_CAP, WaypointPath{});
+	search_memo_.clear(); // the last game's searches (reset() also re-inits the nav grid)
 	nav_grid_.init(map_half_, grid_res_);
 	++nav_terrain_stamp_;
 	territory_grid_.clear();
@@ -16584,9 +16585,10 @@ bool Simulation::obstructed_search(size_t i, const nav::ShortPathGoal &goal, flo
 	const float x = units_.pos_x[i], z = units_.pos_z[i];
 	const float clr = unit_clearance_at(i);
 	const uint64_t sps = short_path_key_, gsig = forest_sig_of_gaia();
+	const uint32_t nav = nav_terrain_stamp_; // every nav grid rebuild bumps it (buildings, gates, scenery, water, woods)
 	if (i < search_memo_.size()) {
 		const SearchMemo &m = search_memo_[i];
-		if (m.valid && m.sps == sps && m.gsig == gsig && m.clr == clr && m.range == range && m.ignore == ignore &&
+		if (m.valid && m.sps == sps && m.gsig == gsig && m.nav == nav && m.clr == clr && m.range == range && m.ignore == ignore &&
 				m.goal_type == (uint8_t)goal.type && m.pos.x == x && m.pos.y == z &&
 				m.center.x == goal.center.x && m.center.y == goal.center.y && m.hw == goal.hw && m.hh == goal.hh &&
 				m.u.x == goal.u.x && m.u.y == goal.u.y && m.v.x == goal.v.x && m.v.y == goal.v.y) {
@@ -16617,6 +16619,7 @@ bool Simulation::obstructed_search(size_t i, const nav::ShortPathGoal &goal, flo
 	m.ignore = ignore;
 	m.sps = sps;
 	m.gsig = gsig;
+	m.nav = nav;
 	m.cost = near.size();
 	m.path = path;
 	return reached;
@@ -41747,6 +41750,7 @@ bool Simulation::load_tick_state(std::ifstream &in, uint32_t version) {
 	TickLoadAr ar{in, version};
 	tick_state_io(ar, *this);
 	gaia_obstacles_sig_ = 0; // ensure_gaia_obstacles lists the loaded supplies afresh
+	search_memo_.clear(); // the loaded tick's searches are worked out afresh
 	return ar.ok && in.good();
 }
 
