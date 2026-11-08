@@ -4400,14 +4400,25 @@ Simulation::PlacementResult Simulation::check_placement(uint8_t player, int cell
 	float ux, uz;
 	nav::footprint_axis(rot, ux, uz);
 	if (uz == 0.0f) { // unturned, or a quarter turn of a square: its square of cells
-		if (!can_place(cell_x, cell_y, foot)) return PLACE_OBSTRUCTED;
-		// CheckBuildingPlacement: no class may stand past a circular map's edge.
-		if (footprint_past_map_edge(nav::Footprint{cxw, czw, 1.0f, 0.0f, 0.5f * (x1 - x0), 0.5f * (z1 - z0)})) return PLACE_OBSTRUCTED;
+		// CheckBuildingPlacement tests shapes first (TestStaticShape -> FAIL_OBSTRUCTS_FOUNDATION)
+		// and only then terrain, where a span outside the grid or on the impassable edge band is
+		// FAIL_TERRAIN_CLASS (CCmpPathfinder.cpp:1047, :1071). can_place conflates the two, so
+		// occupancy is tested here and the edge is deferred past the other obstruction tests in
+		// check_placement_cells (resources, scenery, treasures) before it reports TERRAIN.
+		ensure_occupied_cells();
+		for (int dz = 0; dz < foot; ++dz)
+			for (int dx = 0; dx < foot; ++dx)
+				if (occupied_cells_.contains(cell_x + dx, cell_y + dz)) return PLACE_OBSTRUCTED;
+		const bool past_edge = !can_place(cell_x, cell_y, foot) ||
+				footprint_past_map_edge(nav::Footprint{cxw, czw, 1.0f, 0.0f, 0.5f * (x1 - x0), 0.5f * (z1 - z0)});
 		std::vector<std::pair<int, int>> cells;
 		cells.reserve((size_t)(foot * foot));
 		for (int dz = 0; dz < foot; ++dz)
 			for (int dx = 0; dx < foot; ++dx) cells.emplace_back(cell_x + dx, cell_y + dz);
 		const PlacementResult r = check_placement_cells(player, b_type, cells, x0, z0, x1, z1, cxw, czw, nullptr, nullptr);
+		// past_edge is terrain (CheckBuildingPlacement), so it precedes territory, shore and distance.
+		if (past_edge && (r == PLACE_OK || r == PLACE_TERRITORY || r == PLACE_SHORE || r == PLACE_DISTANCE))
+			return PLACE_TERRAIN;
 		return r == PLACE_OK && !dock_faces_water(b_type, cxw, czw, rot) ? PLACE_SHORE : r;
 	}
 	// Turned (CheckFoundation tests the turned square): every cell it reaches into, kept as far
@@ -4423,11 +4434,18 @@ Simulation::PlacementResult Simulation::check_placement(uint8_t player, int cell
 	turned.set_extents(foot * GRID * 0.5f, building_half_depth(b_type, foot * GRID * 0.5f));
 	const std::vector<std::pair<int, int>> cells = building_cells(turned);
 	const int limit = (int)(map_half_ / GRID) - foot;
+	bool past_edge = footprint_past_map_edge(turned);
 	for (const auto &[cx, cy] : cells)
-		if (std::abs(cx) > limit || std::abs(cy) > limit) return PLACE_OBSTRUCTED;
-	if (footprint_past_map_edge(turned)) return PLACE_OBSTRUCTED;
+		if (std::abs(cx) > limit || std::abs(cy) > limit) {
+			past_edge = true;
+			break;
+		}
 	const float e = nav::footprint_extent(turned);
 	const PlacementResult r = check_placement_cells(player, b_type, cells, cxw - e, czw - e, cxw + e, czw + e, cxw, czw, &turned, nullptr);
+	// As above: the edge is terrain (CheckBuildingPlacement), after TestStaticShape and the
+	// resource/scenery obstruction tests, and before territory, shore and distance.
+	if (past_edge && (r == PLACE_OK || r == PLACE_TERRITORY || r == PLACE_SHORE || r == PLACE_DISTANCE))
+		return PLACE_TERRAIN;
 	return r == PLACE_OK && !dock_faces_water(b_type, cxw, czw, rot) ? PLACE_SHORE : r;
 }
 
@@ -4454,22 +4472,27 @@ Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, ui
 	// Athenian Long Walls: Wall BuildRestrictions/Territory "own neutral" (stone walls, their
 	// gates and towers; palisades are own neutral already).
 	if (players_[player].has_tech(TECH_LONG_WALLS) && rule.placement == PLACE_LAND_SHORE) rule.territory |= TERR_NEUTRAL;
-	// 1. Obstruction (CheckFoundation): the map edge, other buildings, and resources
-	// (trees, mines, bushes; a field's grain and carcasses don't block). check_placement has
-	// tested a square's map edge and buildings with can_place. A turned footprint obstructs where
-	// it overlaps a building's (TestStaticShape). A WallSet piece is long and thin, and often
-	// turned, so it tests its rectangle against each obstruction's own shape as 0 A.D. does: a
-	// structure, tree or scenery beside it in the same 8 m cell, or inside the bounds of a diagonal
-	// segment, doesn't block it. Only the pieces of its own control group (`ignore_cells`, and
-	// `ignore_ids` when given) may overlap it.
+	// 1. Obstruction (CheckFoundation): other buildings, and resources
+	// (trees, mines, bushes; a field's grain and carcasses don't block). A turned footprint
+	// obstructs where it overlaps a building's (TestStaticShape). A WallSet piece is long and
+	// thin, and often turned, so it tests its rectangle against each obstruction's own shape as
+	// 0 A.D. does: a structure, tree or scenery beside it in the same 8 m cell, or inside the
+	// bounds of a diagonal segment, doesn't block it. Only the pieces of its own control group
+	// (`ignore_cells`, and `ignore_ids` when given) may overlap it. The map's edge band is
+	// terrain, not obstruction (CheckBuildingPlacement's spans outside the grid), and is tested
+	// at step 2 below, after every obstruction here.
 	const bool exact = rect && (is_wallset_piece(rect->type, rect->half_size) || rect->type == BLD_WALL_TOWER ||
 			is_wallset_tower_piece(rect->type, rect->half_size));
+	bool past_edge = false;
 	if (rect) {
 		ensure_occupied_cells();
 		const int limit = (int)(map_half_ / GRID) - 1;
 		bool part = false;
 		for (const auto &[cx, cy] : cells) {
-			if (std::abs(cx) > limit || std::abs(cy) > limit) return PLACE_OBSTRUCTED;
+			if (std::abs(cx) > limit || std::abs(cy) > limit) {
+				past_edge = true;
+				continue;
+			}
 			const uint8_t m = occupied_cells_.mark(cx, cy);
 			if (!m) continue;
 			if (ignore_cells) {
@@ -4569,7 +4592,9 @@ Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, ui
 	// 2. Terrain passability class: building-land has no water under the
 	// footprint, a wall (default-terrain-only, centre point only) stands where
 	// land units can wade (NAV_SHALLOW, 2 m), and a dock needs land under it and
-	// a sea beside it.
+	// a sea beside it. A span outside the grid, or on the impassable edge band, is
+	// the same terrain failure (CheckBuildingPlacement, CCmpPathfinder.cpp:1071).
+	if (past_edge) return PLACE_TERRAIN;
 	const bool have_nav = !nav_grid_.cells.blank();
 	const float nav_cell = have_nav ? 2.0f * nav_grid_.map_half / (float)nav_grid_.res : GRID;
 	auto is_water = [&](int nx, int ny) { // any water, shallow included (building-land MaxWaterDepth 0)
@@ -4867,8 +4892,9 @@ Simulation::Building wall_piece_footprint(const Simulation::WallPiece &p) {
 Simulation::PlacementResult Simulation::check_wall_piece(uint8_t player, const WallPiece &p, const uint32_t *ignore,
 		size_t ignore_n) const {
 	const Building b = wall_piece_footprint(p);
-	// CheckFoundation: a circular map's off-world edge blocks every class, wall pieces included.
-	if (footprint_past_map_edge(b)) return PLACE_OBSTRUCTED;
+	// A footprint past the map's passable edge is terrain, not obstruction
+	// (CheckBuildingPlacement's spans outside the grid), deferred past the shape tests below.
+	const bool past_edge = footprint_past_map_edge(b);
 	const std::vector<std::pair<int, int>> cells = building_cells(b);
 	std::vector<std::pair<int, int>> ignored;
 	for (size_t k = 0; k < ignore_n; ++k) {
@@ -4892,8 +4918,11 @@ Simulation::PlacementResult Simulation::check_wall_piece(uint8_t player, const W
 	}
 	std::vector<uint32_t> ids(ignore, ignore + ignore_n);
 	const float e = nav::footprint_extent(b);
-	return check_placement_cells(player, p.type, cells, b.x - e, b.z - e, b.x + e, b.z + e, b.x, b.z, &b,
+	const PlacementResult r = check_placement_cells(player, p.type, cells, b.x - e, b.z - e, b.x + e, b.z + e, b.x, b.z, &b,
 			ignored.empty() ? nullptr : &ignored, ignored.empty() ? nullptr : &ids);
+	if (past_edge && (r == PLACE_OK || r == PLACE_TERRITORY || r == PLACE_SHORE || r == PLACE_DISTANCE))
+		return PLACE_TERRAIN;
+	return r;
 }
 
 uint32_t Simulation::spawn_wall_piece(const WallPiece &p, uint8_t team, float progress) {
@@ -24803,9 +24832,11 @@ std::vector<Simulation::PetraUnitStat> Simulation::petra_plan_unit_stats(uint8_t
 // attackPlan.js trainMoreUnits: the queue an order trains in, by the order and not the template
 // picked: the "Siege" order (siegeStrength; its war elephants too) and a Hero order in the
 // plan's siege queue, a Champion order in its champion queue, the rest in its own.
-uint8_t Simulation::petra_plan_order_queue(const PetraUnitStat &st) {
-	if (st.siege_strength > 0.0f || (st.classes & TC_HERO).any()) return PETRA_Q_PLAN_SIEGE;
-	return (st.classes & TC_CHAMPION).any() ? PETRA_Q_PLAN_CHAMP : PETRA_Q_PLAN;
+// attackPlan.js:221-223 keeps one set per plan (base is PETRA_Q_PLAN, RAID_PLAN or NEXT_PLAN).
+uint8_t Simulation::petra_plan_order_queue(const PetraUnitStat &st) { return petra_plan_queue_for(PETRA_Q_PLAN, st); }
+uint8_t Simulation::petra_plan_queue_for(uint8_t base, const PetraUnitStat &st) {
+	if (st.siege_strength > 0.0f || (st.classes & TC_HERO).any()) return (uint8_t)(base + 2);
+	return (uint8_t)((st.classes & TC_CHAMPION).any() ? base + 1 : base);
 }
 
 bool Simulation::petra_unit_stat_trainable(const PetraUnitStat &st) const {
@@ -24961,10 +24992,13 @@ void Simulation::petra_manage_military_production(float dt) {
 	const uint8_t d = petra_config_.difficulty;
 	const float pop_scaling = petra_plan_pop_scaling();
 	bool asked[PETRA_Q_COUNT] = {};
-	auto train_for = [&](const AttackPlan &plan, uint8_t kind) {
+	// qbase is the plan's own queue set (attackPlan.js:221-223): the slot's, the raid's or
+	// the beside plan's, at the plan kind's priority (PETRA_Q_PLAN / RAID_PLAN / NEXT_PLAN).
+	auto train_for = [&](const AttackPlan &plan, uint8_t kind, uint8_t qbase) {
 		const uint8_t order_plan = &plan == &petra_raid_plan_ ? PETRA_ORDER_RAID : PETRA_ORDER_ATTACK;
 		const uint8_t plan_name = order_plan == PETRA_ORDER_RAID ? petra_attack_mgr_.raid_name : petra_attack_mgr_.attack_name;
 		const bool main_plan = &plan == &petra_attack_plan_;
+		const uint8_t champ_q = (uint8_t)(qbase + 1); // checkPausedQueues: one at a time while short of workers
 		std::vector<UnitStat> stats = petra_plan_unit_stats(kind, main_plan ? petra_attack_mgr_.dropped_classes : 0);
 
 		// What the plan has, each unit counted in every class it matches (this.unit[cat] is a
@@ -25002,13 +25036,13 @@ void Simulation::petra_manage_military_production(float dt) {
 		// class first (attackPlan.js counts the queued batch with its class).
 		for (const UnitStat &st : stats) {
 			if (st.count >= st.target) continue;
-			const uint8_t queue = petra_plan_order_queue(st);
+			const uint8_t queue = petra_plan_queue_for(qbase, st);
 			const PetraQueueAccount &w = petra_queues_.wants[queue], &a = petra_queues_.accounts[queue];
 			if (w.food + w.wood + w.gold + w.stone <= 0.0f || petra_queues_.paused[queue]) continue;
 			const uint16_t tmpl = best_trainable(st);
 			if (tmpl == CIV_UNIT_TEMPLATE_NONE) continue;
 			const CivUnitTemplate &t = civ_unit_template(tmpl);
-			const int batch = petra_queues_.paused[PETRA_Q_PLAN_CHAMP] ? 1 : std::min(st.batch, std::max(1, petra_pop_room()));
+			const int batch = petra_queues_.paused[champ_q] ? 1 : std::min(st.batch, std::max(1, petra_pop_room()));
 			float cost[RES_COUNT];
 			unit_train_cost(petra_pid_, tmpl, civ_template_unit_info(tmpl, t.unit_type), cost);
 			if (a.food < std::floor(cost[RES_FOOD] * (float)batch) || a.wood < std::floor(cost[RES_WOOD] * (float)batch) ||
@@ -25033,11 +25067,11 @@ void Simulation::petra_manage_military_production(float dt) {
 			}
 			const CivUnitTemplate &t = civ_unit_template(tmpl);
 			// checkPausedQueues: short of workers, the plan trains one at a time.
-			const int batch = petra_queues_.paused[PETRA_Q_PLAN_CHAMP] ? 1 : std::min(st.batch, std::max(1, petra_pop_room()));
+			const int batch = petra_queues_.paused[champ_q] ? 1 : std::min(st.batch, std::max(1, petra_pop_room()));
 			const UnitTypeInfo &ui = civ_template_unit_info(tmpl, t.unit_type);
 			float cost[RES_COUNT];
 			unit_train_cost(petra_pid_, tmpl, ui, cost);
-			const uint8_t queue = petra_plan_order_queue(st);
+			const uint8_t queue = petra_plan_queue_for(qbase, st);
 			// attackPlan.js:688 TrainingPlan(template, max, max): the whole batch trains at once.
 			bool leaves = true;
 			for (int r = 0; r < RES_COUNT; ++r)
@@ -25049,7 +25083,7 @@ void Simulation::petra_manage_military_production(float dt) {
 			const float ask = (float)batch * (st.count + batch < st.target ? 1.6f : 1.0f);
 			PetraQueueAccount &w = petra_queues_.wants[queue];
 			for (int r = 0; r < RES_COUNT; ++r) reserve[r] += cost[r] * (float)batch;
-			// The raid and the attack share the plan queues: this turn's larger ask stands.
+			// One plan per queue set: this turn's larger ask stands.
 			if (!asked[queue]) w = PetraQueueAccount{};
 			asked[queue] = true;
 			w.food = std::max(w.food, cost[RES_FOOD] * ask); w.wood = std::max(w.wood, cost[RES_WOOD] * ask);
@@ -25058,18 +25092,19 @@ void Simulation::petra_manage_military_production(float dt) {
 			return;
 		}
 	};
-	// The plan preparing beside the slot's trains with its own fields swapped in.
+	// The plan preparing beside the slot's trains with its own fields swapped in, and its
+	// own queue set (its priority is its kind's, not the slot plan's).
 	auto train_next = [&] {
 		petra_swap_next_plan();
-		train_for(petra_attack_plan_, petra_attack_mgr_.kind);
+		train_for(petra_attack_plan_, petra_attack_mgr_.kind, PETRA_Q_NEXT_PLAN);
 		petra_swap_next_plan();
 	};
 	const bool next_rush = next_musters && next.kind == PETRA_ATTACK_RUSH;
-	if (rush_wants) train_for(petra_attack_plan_, PETRA_ATTACK_RUSH);
+	if (rush_wants) train_for(petra_attack_plan_, PETRA_ATTACK_RUSH, PETRA_Q_PLAN);
 	if (next_rush) train_next();
-	if (raid_musters) train_for(petra_raid_plan_, PETRA_ATTACK_RAID);
+	if (raid_musters) train_for(petra_raid_plan_, PETRA_ATTACK_RAID, PETRA_Q_RAID_PLAN);
 	if (attack_musters && !rush_wants && pop_current(petra_pid_) < pop_max(petra_pid_))
-		train_for(petra_attack_plan_, petra_attack_mgr_.kind);
+		train_for(petra_attack_plan_, petra_attack_mgr_.kind, PETRA_Q_PLAN);
 	if (next_musters && !next_rush && pop_current(petra_pid_) < pop_max(petra_pid_)) train_next();
 }
 
@@ -34395,19 +34430,24 @@ int Simulation::petra_queue_base_priority(uint8_t q) const {
 		case PETRA_Q_MINOR_TECH: return 250;
 		case PETRA_Q_WONDER: return 1;
 		case PETRA_Q_EMERGENCY: return 1000;
-		case PETRA_Q_PLAN: case PETRA_Q_PLAN_CHAMP: case PETRA_Q_PLAN_SIEGE: {
-			// attackPlan.js:221: each mustering plan has its own queues at its kind's priority;
-			// RTS0's raid and attack share these, at the higher of the two.
+		case PETRA_Q_PLAN: case PETRA_Q_PLAN_CHAMP: case PETRA_Q_PLAN_SIEGE:
+		case PETRA_Q_RAID_PLAN: case PETRA_Q_RAID_PLAN_CHAMP: case PETRA_Q_RAID_PLAN_SIEGE:
+		case PETRA_Q_NEXT_PLAN: case PETRA_Q_NEXT_PLAN_CHAMP: case PETRA_Q_NEXT_PLAN_SIEGE: {
+			// attackPlan.js:221-223: each mustering plan has its own queues at its kind's
+			// priority (Rush 250, Raid 150, HugeAttack 90, Attack 70), the champion one more.
 			auto kind_priority = [](uint8_t kind) {
 				return kind == PETRA_ATTACK_RUSH ? 250.0f : kind == PETRA_ATTACK_RAID ? 150.0f : kind == PETRA_ATTACK_HUGE ? 90.0f : 70.0f;
 			};
-			const bool raid = petra_raid_plan_.state == AttackPlan::MUSTER;
-			const bool attack = petra_attack_plan_.state == AttackPlan::MUSTER || !raid;
-			float p = std::max(attack ? kind_priority(petra_attack_mgr_.kind) : 0.0f, raid ? kind_priority(PETRA_ATTACK_RAID) : 0.0f);
-			if (petra_next_plan_.plan.state == AttackPlan::MUSTER) p = std::max(p, kind_priority(petra_next_plan_.plan.kind));
-			if (c.difficulty < PETRA_EASY) p *= 0.4f;
-			else if (c.difficulty < PETRA_MEDIUM) p *= 0.8f;
-			return std::max(1, (int)p) + (q == PETRA_Q_PLAN_CHAMP ? 1 : 0);
+			auto scaled = [&](float p) {
+				if (c.difficulty < PETRA_EASY) p *= 0.4f;
+				else if (c.difficulty < PETRA_MEDIUM) p *= 0.8f;
+				return std::max(1, (int)p) + (petra_is_plan_champ_queue(q) ? 1 : 0);
+			};
+			if (q >= PETRA_Q_RAID_PLAN && q <= PETRA_Q_RAID_PLAN_SIEGE)
+				return petra_raid_plan_.state == AttackPlan::MUSTER ? scaled(kind_priority(PETRA_ATTACK_RAID)) : 1;
+			if (q >= PETRA_Q_NEXT_PLAN && q <= PETRA_Q_NEXT_PLAN_SIEGE)
+				return petra_next_plan_.plan.state == AttackPlan::MUSTER ? scaled(kind_priority(petra_next_plan_.plan.kind)) : 1;
+			return petra_attack_plan_.state == AttackPlan::MUSTER ? scaled(kind_priority(petra_attack_mgr_.kind)) : 1;
 		}
 		default: return 1;
 	}
@@ -34453,11 +34493,11 @@ void Simulation::petra_check_paused_queues() {
 		else if ((float)(workers * 3) < workers_min * 2.0f)
 			pause = q == PETRA_Q_CIVIL_CENTRE || q == PETRA_Q_ECONOMIC_BUILDING || q == PETRA_Q_MILITARY_BUILDING ||
 			        q == PETRA_Q_DEFENSE_BUILDING || q == PETRA_Q_HEALER || q == PETRA_Q_MAJOR_TECH ||
-			        q == PETRA_Q_MINOR_TECH || q == PETRA_Q_PLAN || q == PETRA_Q_PLAN_CHAMP || q == PETRA_Q_PLAN_SIEGE;
+			        q == PETRA_Q_MINOR_TECH || petra_is_plan_queue(q);
 		else if ((float)workers < workers_min)
 			// RTS0 (petra_wood_starved): the town phase the houses wait for goes on.
 			pause = q == PETRA_Q_CIVIL_CENTRE || q == PETRA_Q_DEFENSE_BUILDING ||
-			        (q == PETRA_Q_MAJOR_TECH && !wood_starved) || q == PETRA_Q_PLAN_SIEGE || q == PETRA_Q_PLAN_CHAMP;
+			        (q == PETRA_Q_MAJOR_TECH && !wood_starved) || petra_is_plan_champ_queue(q) || petra_is_plan_siege_queue(q);
 		// needFarm, needCorral, needFish (configFirstBase): the first field, corral, dock or
 		// fishing boat goes on.
 		const PetraKept &k = petra_kept_;
@@ -34474,14 +34514,20 @@ void Simulation::petra_refresh_queue_accounts(float dt) {
 	// A queue that stopped asking is empty: its account and switch count reset (startNextItems).
 	// A mustering plan's TrainingPlan stays in its queue until it starts (attackPlan.js
 	// trainMoreUnits), though the plan skips asking while its trainers are busy or the
-	// population is full; it goes with the plan (removeQueues).
-	const bool mustering = petra_attack_plan_.state == AttackPlan::MUSTER || petra_next_plan_.plan.state == AttackPlan::MUSTER ||
-		petra_raid_plan_.state == AttackPlan::MUSTER;
+	// population is full; it goes with the plan (removeQueues). Each plan's own queues
+	// are kept only while it musters (attackPlan.js:221-223).
+	const bool atk_mustering = petra_attack_plan_.state == AttackPlan::MUSTER;
+	const bool raid_mustering = petra_raid_plan_.state == AttackPlan::MUSTER;
+	const bool next_mustering = petra_next_plan_.plan.state == AttackPlan::MUSTER;
+	auto plan_mustering = [&](int i) {
+		if (i >= PETRA_Q_RAID_PLAN && i <= PETRA_Q_RAID_PLAN_SIEGE) return raid_mustering;
+		if (i >= PETRA_Q_NEXT_PLAN && i <= PETRA_Q_NEXT_PLAN_SIEGE) return next_mustering;
+		return atk_mustering;
+	};
 	for (int i = 0; i < PETRA_Q_COUNT; ++i) {
 		petra_queue_heads_.age[i] += dt;
 		qm.want_age[i] += dt;
-		const bool plan_queue = i == PETRA_Q_PLAN || i == PETRA_Q_PLAN_CHAMP || i == PETRA_Q_PLAN_SIEGE;
-		if (plan_queue && mustering) qm.want_age[i] = std::min(qm.want_age[i], PetraQueueManager::want_ttl(i));
+		if (petra_is_plan_queue(i) && plan_mustering(i)) qm.want_age[i] = std::min(qm.want_age[i], PetraQueueManager::want_ttl(i));
 		if (qm.want_age[i] > PetraQueueManager::want_ttl(i)) {
 			qm.wants[i] = PetraQueueAccount{};
 			qm.accounts[i] = PetraQueueAccount{};
@@ -40742,7 +40788,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 					if (v.pending > BLD_TYPE_COUNT) ar.ok = false;
 			} else v = PetraDefenseBuild{};
 		} else if constexpr (std::is_same_v<T, PetraQueueManager>) {
-			if (ar.version >= SAVE_VERSION_PETRA_QUEUE_PLANS) {
+			if (ar.version >= S::SAVE_VERSION_PETRA_PLAN_QUEUES) {
 				ar.pod(v);
 				if constexpr (Ar::loading) {
 					for (int q = 0; q < PETRA_Q_COUNT; ++q)
@@ -40750,17 +40796,33 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 					if (v.special_tech >= TECH_COUNT) ar.ok = false; // a former pad byte: 0 in older saves
 				}
 			} else if constexpr (Ar::loading) {
-				if (ar.version >= SAVE_VERSION_PETRA_QUEUES) {
+				if (ar.version >= SAVE_VERSION_PETRA_QUEUE_PLANS) {
+					// v144-v147: 21 queues with plans, the raid and the attack sharing
+					// the three plan queues; the raid and beside queues start empty.
+					PetraQueueManagerV147 old;
+					ar.pod(old);
+					v.reset();
+					for (int q = 0; q < PETRA_QUEUE_COUNT_V147; ++q) {
+						v.accounts[q] = old.accounts[q]; v.wants[q] = old.wants[q]; v.want_age[q] = old.want_age[q];
+						v.priority[q] = old.priority[q]; v.paused[q] = old.paused[q]; v.switched[q] = old.switched[q];
+						v.reset_on_start[q] = old.reset_on_start[q];
+						for (int d = 0; d < PETRA_QUEUE_PLAN_DEPTH; ++d) v.plans[q][d] = old.plans[q][d];
+					}
+					v.special_tech = old.special_tech;
+					for (int q = 0; q < PETRA_Q_COUNT; ++q)
+						if (v.reset_on_start[q] > PETRA_Q_COUNT) ar.ok = false;
+					if (v.special_tech >= TECH_COUNT) ar.ok = false;
+				} else if (ar.version >= SAVE_VERSION_PETRA_QUEUES) {
 					// v67 to v143: the same queues without their plan lists (which start empty).
 					PetraQueueManagerV143 old;
 					ar.pod(old);
-					for (int q = 0; q < PETRA_Q_COUNT; ++q) {
+					v.reset();
+					for (int q = 0; q < PETRA_QUEUE_COUNT_V147; ++q) {
 						v.accounts[q] = old.accounts[q]; v.wants[q] = old.wants[q]; v.want_age[q] = old.want_age[q];
 						v.priority[q] = old.priority[q]; v.paused[q] = old.paused[q]; v.switched[q] = old.switched[q];
 						v.reset_on_start[q] = old.reset_on_start[q];
 					}
 					v.special_tech = old.special_tech;
-					for (auto &pq : v.plans) for (auto &pl : pq) pl = PetraQueuePlan{};
 					for (int q = 0; q < PETRA_Q_COUNT; ++q)
 						if (v.reset_on_start[q] > PETRA_Q_COUNT) ar.ok = false;
 					if (v.special_tech >= TECH_COUNT) ar.ok = false;
@@ -40872,11 +40934,19 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 				} else v.idle_checks.clear(); // older saves: every base checks at its next turn
 			} else v = PetraKept{}; // decided again at the next AI turn, from the game as loaded
 		} else if constexpr (std::is_same_v<T, S::PetraQueueHeads>) {
-			if (ar.version >= Simulation::SAVE_VERSION_PETRA_QUEUE_HEADS) {
+			if (ar.version >= S::SAVE_VERSION_PETRA_PLAN_QUEUES) {
 				for (int q = 0; q < PETRA_Q_COUNT; ++q) { ar.pod(v.item[q]); ar.pod(v.age[q]); }
 				if constexpr (Ar::loading)
 					for (int q = 0; q < PETRA_Q_COUNT; ++q)
 						if (v.item[q] > BLD_TYPE_COUNT) ar.ok = false;
+			} else if (ar.version >= Simulation::SAVE_VERSION_PETRA_QUEUE_HEADS) {
+				// Before v148 the queues were 21 (the shared three plan queues).
+				for (int q = 0; q < PETRA_QUEUE_COUNT_V147; ++q) { ar.pod(v.item[q]); ar.pod(v.age[q]); }
+				if constexpr (Ar::loading) {
+					for (int q = PETRA_QUEUE_COUNT_V147; q < PETRA_Q_COUNT; ++q) { v.item[q] = 0; v.age[q] = 0.0f; }
+					for (int q = 0; q < PETRA_Q_COUNT; ++q)
+						if (v.item[q] > BLD_TYPE_COUNT) ar.ok = false;
+				}
 			} else v = S::PetraQueueHeads{}; // the first structure to ask heads each queue again
 		} else if constexpr (std::is_same_v<T, S::PetraFerriedGuards>) {
 			if (ar.version >= Simulation::SAVE_VERSION_PETRA_FERRIED_GUARDS) {

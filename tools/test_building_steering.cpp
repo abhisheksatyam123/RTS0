@@ -1455,9 +1455,11 @@ static void circular_map_edge() {
 	}
 	std::printf("  map edge: a house reaching %.1f out placed %d on a square map, %d on a circular one; reaching %.1f, %d on the square (0 = ok)\n",
 			(float)(cell_x + foot) * Simulation::GRID, (int)res[0], (int)res[1], (float)(in_x + foot) * Simulation::GRID, (int)in_square);
-	check(res[0] == Simulation::PLACE_OBSTRUCTED, "a house reaching past a square map's edge frame was placed");
+	// CheckBuildingPlacement: a span outside the grid or on the edge band is FAIL_TERRAIN_CLASS,
+	// so BuildRestrictions reports "invalid terrain", not "on another building or resource".
+	check(res[0] == Simulation::PLACE_TERRAIN, "a house reaching past a square map's edge frame wasn't invalid terrain");
 	check(in_square == Simulation::PLACE_OK, "a house inside a square map's edge frame couldn't be placed");
-	check(res[1] == Simulation::PLACE_OBSTRUCTED, "a house reaching past a circular map's edge was placed");
+	check(res[1] == Simulation::PLACE_TERRAIN, "a house reaching past a circular map's edge wasn't invalid terrain");
 }
 
 // 23. A wood too thick to walk through closes its navcells to long paths (0 A.D. rasterizes each

@@ -200,7 +200,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 147; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 148; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_PETRA_PLAN_QUEUES = 148; // per-plan train queues (attackPlan.js:221-223): 27 queues, one plan set per mustering plan
 	static constexpr uint32_t SAVE_VERSION_LINGERING_CORPSE = 147; // each lingering corpse (x, z, timer, template) after the fauna records
 	static constexpr uint32_t SAVE_VERSION_PUSH_REST = 146; // each unit's MotionTurn rest position (G119), after its 48-byte record
 	static constexpr uint32_t SAVE_VERSION_TREE_WATCH = 145; // each unit's path tree watch (tree_replanned, tree_off, watch_cur/best/turns) after its saved record
@@ -1939,8 +1940,10 @@ public:
 	// shoreline and distance rules.
 	enum PlacementResult : uint8_t {
 		PLACE_OK = 0,
-		PLACE_OBSTRUCTED, // off the map, on another building or on a resource
-		PLACE_TERRAIN,    // water under a land building, deep water under a wall, a slope too steep
+		PLACE_OBSTRUCTED, // on another building or on a resource (CheckFoundation's TestStaticShape)
+		PLACE_TERRAIN,    // water under a land building, deep water under a wall, a slope too steep,
+		                  // or past the map's passable edge (CheckBuildingPlacement's spans outside the
+		                  // grid or on the MAP_EDGE_TILES band, impassable to every class)
 		PLACE_TERRITORY,  // territory the template does not allow
 		PLACE_SHORE,      // a dock not on a shoreline facing a sea
 		PLACE_DISTANCE,   // too close to the player's own building of the same class
@@ -4118,8 +4121,10 @@ private:
 	// Whether a finished building of ours trains some roster template of the class, busy or
 	// not (findTrainableUnits; trainMoreUnits drops a class without one from the plan).
 	bool petra_unit_stat_trainable(const PetraUnitStat &st) const;
-	// The plan queue an attack plan's order trains in (trainMoreUnits: by the order's classes).
-	static uint8_t petra_plan_order_queue(const PetraUnitStat &st);
+	// The plan queue an attack plan's order trains in (trainMoreUnits: by the order's classes),
+	// in the queue set of base (PETRA_Q_PLAN / RAID_PLAN / NEXT_PLAN; attackPlan.js:221-223).
+	static uint8_t petra_plan_order_queue(const PetraUnitStat &st); // the slot's plan's queue
+	static uint8_t petra_plan_queue_for(uint8_t base, const PetraUnitStat &st);
 	// Whether a finished building of ours lists roster template `tmpl`, busy or not.
 	bool petra_has_trainer(uint16_t tmpl) const;
 	bool petra_raid_target_ok(uint32_t bld_id) const;
