@@ -4044,6 +4044,26 @@ bool Simulation::direct_walk_clear(size_t i, float x0, float z0, float x1, float
 	return !nav::detail::segment_near_deep_water(nav_grid_, a, b, c);
 }
 
+bool Simulation::line_blocked_by_gaia(size_t i, float x0, float z0, float x1, float z1) const {
+	// direct_walk_clear's gaia part alone: a live tree, bush or treasure (not the unit's own target)
+	// whose square grown by the unit's clearance the line enters or starts inside. Structures and
+	// terrain do not count, so a gate or crowd stall reads as gaia-clear.
+	const float c = unit_clearance_at(i);
+	if (gaia_grid_.empty()) return false;
+	const nav::Vec2 a(x0, z0), b(x1, z1);
+	const uint32_t own_res = units_.target_resource_id[i], own_unit = units_.target_unit_id[i];
+	auto enters = [&](const SteerObstacle &o) {
+		const nav::Vec2 ctr(o.x, o.z), u = nav::footprint_u(o), v = nav::footprint_v(o), half(o.hu + c, o.hv + c);
+		return nav::PointIsInSquare(a - ctr, u, v, half) || nav::TestRaySquare(a - ctr, b - ctr, u, v, half);
+	};
+	const float pad = 1.4143f * c;
+	return gaia_grid_.any_in_box(std::min(x0, x1) - pad, std::min(z0, z1) - pad, std::max(x0, x1) + pad, std::max(z0, z1) + pad,
+			[&](uint32_t k) {
+				const SteerObstacle &o = gaia_obstacles_[k];
+				return o.id != own_res && o.id != own_unit && gaia_obstacle_live(k) && enters(o);
+			});
+}
+
 // 0.28 moves a unit only where CheckMovement lets it (PerformMove, CCmpUnitMotion.h:1302 and :1343),
 // and pushes it only so too (CCmpUnitMotion_System.cpp:628-641): TestLine grows each static square
 // by the clearance (CCmpObstructionManager.cpp:918-932), and a move from outside a grown square into
@@ -16210,6 +16230,12 @@ void Simulation::give_up_hunt(size_t i) {
 // obstructed re-plans (tree_off). The fuzz walker's seed 2 trial 23 oscillates between a corner and a replanned waypoint
 // with every forward or back step a free turn, so motion_feedback's failed count never reaches FAILED_AT. A unit off its
 // long path clears tree_off, and a formation member is not watched. The watch restarts with each new path (clear()).
+// G170: a crowd or gate stall that holds the unit 12 turns must not arm it (the watch would then re-plan navcells-only
+// and keep that tree-blind route into a wood). A blocked turn (MOTION_BLOCKED: a gate slide or an idle-unit refusal)
+// whose straight line to the waypoint is clear of trees (line_blocked_by_gaia) is not a tree refusal, so it resets the
+// count instead of arming. A blocked turn whose line is gaia-blocked still counts: the short path's refusal sets the
+// blocked bit too, and excluding every blocked turn would also stop the watch on tree stalls. Free turns (the
+// oscillation above) count as before.
 void Simulation::watch_tree_leg(size_t i) {
 	if (i >= unit_paths_.size()) return;
 	WaypointPath &wp = unit_paths_[i];
@@ -16232,6 +16258,13 @@ void Simulation::watch_tree_leg(size_t i) {
 	}
 	if (d < wp.watch_best - TREE_WATCH_GAIN) {
 		wp.watch_best = d;
+		wp.watch_turns = 0;
+		return;
+	}
+	// G170: a gate/idle-blocked (or slid off a standing body) turn with no tree on the line is a crowd
+	// or gate stall, not a tree refusal.
+	if ((units_.motion[i].blocked & (MOTION_BLOCKED | MOTION_SLID)) != 0 &&
+			!line_blocked_by_gaia(i, units_.pos_x[i], units_.pos_z[i], wp.xs[cur], wp.zs[cur])) {
 		wp.watch_turns = 0;
 		return;
 	}

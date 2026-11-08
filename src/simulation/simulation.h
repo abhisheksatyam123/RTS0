@@ -4967,6 +4967,11 @@ private:
 	// (CCmpObstructionManager::TestLine, Geometry::TestRaySquare), its target excepted, and the line
 	// keeps the clearance off deep water and steep ground (CheckLineMovement on the terrain grid).
 	bool direct_walk_clear(size_t i, float x0, float z0, float x1, float z1) const;
+	// Whether that line is blocked by a tree or other gaia obstruction alone (no structures, no
+	// terrain), as direct_walk_clear's gaia part. G170: separates a crowd/gate stall (gaia-clear)
+	// from a tree stall (gaia-blocked) without relying on motion's blocked bit, which the short path's
+	// refusal also sets.
+	bool line_blocked_by_gaia(size_t i, float x0, float z0, float x1, float z1) const;
 	// Whether land unit i, of the "large" passability class, steps or is pushed from (x, z) to (nx, nz)
 	// into a standing structure's or mine's square grown by its 3 m clearance that it did not start in:
 	// CheckMovement refuses that (TestRaySquare), so no gap of 6 m or less lets it through. On its own
