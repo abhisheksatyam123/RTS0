@@ -257,6 +257,7 @@ bool line_blocked_by_buildings(Vec2 pos, Vec2 aim, float max_len, float radius,
 		if (hit == detail::LINE_CROSSES) blocked = true;
 	}
 	return blocked;
+
 }
 
 // True when the segment from `pos` to `end` crosses a building expanded by `radius`. As in
@@ -277,7 +278,7 @@ bool segment_blocked_by_buildings(Vec2 pos, Vec2 end, Vec2 aim, float radius,
 		    !detail::is_steering_obstacle(b, pos, aim, radius, ignore_building_id, reach)) continue;
 		const Vec2 c(b.x, b.z), u = footprint_u(b), v = footprint_v(b);
 		const Vec2 half(b.hu + radius, b.hv + radius);
-		if (PointIsInSquare(pos - c, u, v, half)) return false;
+		if (PointIsInSquare(pos - c, u, v, half)) continue; // G84: leave the square the unit stands in, but still test other (possibly overlapping) squares
 		if (TestRaySquare(pos - c, end - c, u, v, half)) blocked = true;
 	}
 	return blocked;
