@@ -323,6 +323,8 @@ constexpr uint8_t NDR_SERVER_LOADING = 4; // a join while the host's game loads
 constexpr uint8_t NDR_SERVER_ALREADY_IN_GAME = 5; // a late observer the host does not take
 constexpr uint8_t NDR_PLAYERNAME_IN_USE = 8;
 constexpr uint8_t NDR_SERVER_FULL = 9;
+// 0 A.D. NDR_BANNED: an address the host banned is refused before the handshake.
+constexpr uint8_t NDR_BANNED = 7;
 constexpr uint8_t NDR_LOBBY_AUTH_FAILED = 10;
 constexpr uint8_t NDR_INCORRECT_SOFTWARE_VERSION = 17;
 // What this build sends in its handshake (0 A.D. CNetServerWorker::CheckHandshake
