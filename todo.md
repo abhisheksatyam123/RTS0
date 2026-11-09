@@ -18,6 +18,10 @@
 - [x] T51 [lead] Applied gemini-code-1793464096752.txt: lock-free work-stealing queue architecture in JobSystem (per-worker WorkerQueue with alignas(64) cache-line separation, 64-bit epoch tag in head, Chase-Lev range pop + round-robin steal; TODO-JOB-01), parallel split_flagged in Simulation::separation via parallel_invoke, parallel building grid candidate prep in tick_combat, parallel status effects clear/apply in tick_status_effects, parallel cell visibility mapping in FogMirages::los_view_grid.
 - [x] T52 [lead] In-engine realistic scenario benchmark and issue audit: authored tools/bench_realistic_game.gd and tools/run_realistic_perf_test.py; fixed fog_mirage.cpp worker thread-local memory access segfault; measured 400-unit skirmish (60.0 fps, 0.35ms sim) and 2,000-unit frontline clash (14.2 fps, 0.088ms sim, 9.23M primitives, 1,198 draws); catalogued all performance bottlenecks, shader hitches, and RID leaks in docs/REALISTIC_PERF_ANALYSIS.md.
 
+- [x] T101 [lead] Settle spawn overlaps at load to avoid t=0 traffic: added `Simulation::settle_spawn_overlaps()` (separation pass plus anchor/target sync for unordered units) and called it from `load_map_seeded()` and after initial spawns (`3f7965951`).
+- [x] T125 [lead] Second startup audit: verified session_setup spawn/settle paths, sim tick order, Petra/fauna gates, session GDScript lifecycle and JSON-only map data; no user-order traffic before input found.
+- [x] F8 [lead] Defer ambient autoplay until after the first frame/loading completes in `src/presentation/session_lifecycle.cpp` (`fefb2fdeb`); scons template_debug build PASS, e2e_combat_audio 6/6 PASS.
+
 ## Systems
 - **Hardware Profile:**
   - CPU: 11th Gen Intel(R) Core(TM) i5-1155G7 @ 2.50GHz (4 physical cores, 8 logical threads, 1 socket, NUMA node0: CPUs 0–7).
@@ -50,6 +54,8 @@
   - Run test suite / parity: `python3 tools/check_parity.py --unit netcode` (17/17 PASS), `python3 tools/check_parity.py --unit petra` (34/37 PASS).
 - **Constraints & Rules:**
   - Lockstep multiplayer requires bit-identical `sim_hash` and `state_fnv64` hashes across all thread configurations. Parallel worker passes must use deterministic reductions.
+
+- **RTS0 branch:** `fix/startup-traffic-t101` (T101 spawn settle, T125 startup audit, F8 ambient autoplay defer), tracking `origin/fix/startup-traffic-t101`.
 
 ## Log
 - 2026-11-01 14:15 [lead] Completed T63: Reconciled 0 A.D. canonical touch input controller and touch controls across scenes/common/touch_input.gd, scenes/session/touch_controls.gd, and scenes/session/touch_controls.tscn. Added TouchActionBar Auto chip (OFF->WORK->TOWN->WAR). 100% PASS on tools/e2e_touch_input.gd and tools/e2e_touch_match.gd. Re-exported signed build/android/RTS0.apk.
@@ -105,3 +111,7 @@
 - 2026-11-08 [lead] Integrated G84's far/sub-goal search memo (`origin/claude/g84-search-memo`, beac832b0 cherry-picked onto ec2094c89): `Simulation::obstructed_search` keeps a search's answer, found or not, while its inputs stand. Review added the missing nav grid key (`nav_terrain_stamp_`: gate completion, scenery, terrain and woods rebuild it without changing `short_path_key_`/`forest_sig_of_gaia`), cleared the memo on reset/load, and added `test_building_steering` 49 for memo hit and nav invalidation. A hit charges the saved near-path length and breaks `run_beyond_searches` as a fresh search does; the memo is not saved or hashed. Gate: scons template_debug PASS; test_building_steering / test_unit_pushing / test_petra / test_long_pathfinder PASS; check_parity nav-live 12/12, petra 37/37, netcode 17/17 PASS; bench_match seed 42 map 5 128 m, 3 reps: 5 min tick mean 0.2337 -> 0.2193 ms, p95 0.5406 -> 0.4929, p99 0.7600 -> 0.6942; 20 min mean 1.1257 -> 1.1157 ms, p95 2.9671 -> 2.9434, p99 4.0947 -> 4.0857, identical end state; soak --twin 15 min golden_island and map 69 0 desyncs both sides, map 45 0. G84 row updated, pathing residue stays open.
 
 - 2026-11-09 [lead] Fixed the G84 `segment_blocked_by_buildings` per-square rule (mig/g84b): a segment that starts inside one building square and crosses another is now blocked, matching 0.28 TestRaySquare; `line_blocked_by_buildings` left untouched (broke scenario 40). test_unit_pushing, test_building_steering, test_long_pathfinder PASS; bench_match seed 42 map 5 5 min 0.214 ms (baseline 0.265 ms), one extra AI building at 5 min (timing effect).
+- 2026-11-09 12:00 [lead] T101: Settle spawn overlaps at load to avoid t=0 traffic (`3f7965951`); `Simulation::settle_spawn_overlaps()` resolves separation overlaps and syncs anchors/targets for unordered units, called from `load_map_seeded()` and after initial spawns.
+- 2026-11-09 11:44 [sub ses_17942047491022tulk9] T125 second startup audit: verified session_setup spawn/settle paths, sim tick order/Petra/fauna gates, session GDScript lifecycle, map data (JSON-only); no user-order traffic before input found, reported evidence file:line.
+- 2026-11-09 19:00 [lead] F8 verified: `scons platform=linux target=template_debug` EXIT 0; `net_loading_hold` declared/bound; `e2e_combat_audio` PASS 6/6.
+- 2026-11-09 19:30 [lead] Moved non-RTS0 task entries to their own project's task file; this file is now RTS0-only.
