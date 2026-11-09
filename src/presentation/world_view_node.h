@@ -501,6 +501,7 @@ private:
 	void crowd_job_bake_poses();
 	void crowd_job_release();
 	std::vector<uint8_t> crowd_slot_scratch_; // crowd clip slot per unit index this frame
+	std::vector<uint8_t> unit_vis_scratch_;   // entity_visible per unit index this frame (computed once)
 	// Formation.js GetFormationAnimationVariant per formation member this frame, and which
 	// variants each crowd key's 0 A.D. actor lists (bit 31: looked up).
 	std::unordered_map<uint32_t, uint8_t> form_variant_;

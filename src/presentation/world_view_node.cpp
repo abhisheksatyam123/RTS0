@@ -4923,9 +4923,14 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	for (int s = 0; s < selected_ids.size() && (int)detailed.size() < MAX_DETAILED_UNITS; ++s) {
 		detailed.insert((uint32_t)selected_ids[s]);
 	}
+	// Visibility is a pure function of this frame's LOS and camera: evaluate it once per unit
+	// and reuse it in the three passes below (was up to three calls per unit).
+	unit_vis_scratch_.resize(uview.count);
+	for (size_t i = 0; i < uview.count; ++i)
+		unit_vis_scratch_[i] = entity_visible(uview.pos_x[i], uview.pos_z[i], uview.team[i], uview.unit_type[i]) ? 1 : 0;
 	// Give full skeletal animation to heroes and near (< 20m 3D camera distance) units in view
 	for (size_t i = 0; i < uview.count && (int)detailed.size() < MAX_DETAILED_UNITS; ++i) {
-		if (entity_visible(uview.pos_x[i], uview.pos_z[i], uview.team[i], uview.unit_type[i])) {
+		if (unit_vis_scratch_[i]) {
 			uint8_t ut = uview.unit_type[i];
 			float th = sim->get_terrain_height(uview.pos_x[i], uview.pos_z[i]);
 			const Vector3 upos(uview.pos_x[i], th + 1.0f, uview.pos_z[i]);
@@ -4993,7 +4998,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	for (const uint32_t ck : crowd_seen_list_) crowd_seen_[ck >> 16][ck & 0xFFFF] = 0;
 	crowd_seen_list_.clear();
 	for (size_t i = 0; i < uview.count; ++i) {
-		if (!entity_visible(uview.pos_x[i], uview.pos_z[i], uview.team[i], uview.unit_type[i])) continue;
+		if (!unit_vis_scratch_[i]) continue;
 		uint8_t t = uview.unit_type[i];
 		if (t >= rtso::UNIT_TYPE_COUNT) t = rtso::UNIT_VILLAGER;
 		t = drawn_unit_type(t, uview.tmpl[i], uview.id[i]);
@@ -5150,7 +5155,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	const bool status_rank_icon = rtso::user_config::get_bool("gui.session.rankabovestatusbar");
 	const bool status_xp_bar = rtso::user_config::get_bool("gui.session.experiencestatusbar");
 	for (size_t i = 0; i < uview.count; ++i) {
-		if (!entity_visible(uview.pos_x[i], uview.pos_z[i], uview.team[i], uview.unit_type[i])) continue;
+		if (!unit_vis_scratch_[i]) continue;
 		uint32_t id = uview.id[i];
 		active_unit_ids_.push_back(id);
 
