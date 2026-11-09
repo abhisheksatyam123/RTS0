@@ -200,7 +200,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 147; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 148; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_PETRA_PLAN_QUEUES = 148; // per-plan train queues (attackPlan.js:221-223): 27 queues, one plan set per mustering plan
 	static constexpr uint32_t SAVE_VERSION_LINGERING_CORPSE = 147; // each lingering corpse (x, z, timer, template) after the fauna records
 	static constexpr uint32_t SAVE_VERSION_PUSH_REST = 146; // each unit's MotionTurn rest position (G119), after its 48-byte record
 	static constexpr uint32_t SAVE_VERSION_TREE_WATCH = 145; // each unit's path tree watch (tree_replanned, tree_off, watch_cur/best/turns) after its saved record
@@ -909,6 +910,8 @@ public:
 	// marks water on the nav grid, so call it even for maps with no buildings.
 	void begin_bulk_spawn() { bulk_spawn_ = true; }
 	void end_bulk_spawn();
+	// Resolve spawn overlaps without issuing orders (avoids t=0 movement/jitter).
+	void settle_spawn_overlaps(int iterations = 4);
 	void set_terrain_data(const std::vector<float> &heights, int res, float water_h) {
 		terrain_heights_ = heights;
 		terrain_res_ = res;
@@ -1939,8 +1942,10 @@ public:
 	// shoreline and distance rules.
 	enum PlacementResult : uint8_t {
 		PLACE_OK = 0,
-		PLACE_OBSTRUCTED, // off the map, on another building or on a resource
-		PLACE_TERRAIN,    // water under a land building, deep water under a wall, a slope too steep
+		PLACE_OBSTRUCTED, // on another building or on a resource (CheckFoundation's TestStaticShape)
+		PLACE_TERRAIN,    // water under a land building, deep water under a wall, a slope too steep,
+		                  // or past the map's passable edge (CheckBuildingPlacement's spans outside the
+		                  // grid or on the MAP_EDGE_TILES band, impassable to every class)
 		PLACE_TERRITORY,  // territory the template does not allow
 		PLACE_SHORE,      // a dock not on a shoreline facing a sea
 		PLACE_DISTANCE,   // too close to the player's own building of the same class
@@ -2956,6 +2961,24 @@ private:
 	// the path ends on the goal test `goal.distance(path.back())`.
 	bool obstructed_search(size_t i, const nav::ShortPathGoal &goal, float range, uint32_t ignore,
 			std::vector<nav::Vec2> &path, size_t *searched = nullptr) const;
+	// The last search each unit ran (obstructed_search). A search reads the statics (the steering
+	// obstacles keyed by short_path_key_, the woods and supplies keyed by forest_sig_of_gaia, the nav
+	// grid keyed by nav_terrain_stamp_) and its own unit alone, so the same unit asking the same
+	// question of the same statics gets the same answer:
+	// a unit whose order outlives MoveFailed, or that searches again on its next turn, takes the answer
+	// back without the search. The trees it would have culled are charged to the budget as they were, so
+	// the turn's queue runs as it did.
+	struct SearchMemo {
+		bool valid = false, reached = false;
+		uint8_t goal_type = 0;
+		nav::Vec2 pos, center, u, v;
+		float clr = 0.0f, range = 0.0f, hw = 0.0f, hh = 0.0f;
+		uint32_t ignore = 0, nav = 0;
+		uint64_t sps = 0, gsig = 0;
+		size_t cost = 0;
+		std::vector<nav::Vec2> path;
+	};
+	mutable std::vector<SearchMemo> search_memo_;
 	enum : int { kTailNone, kTailHeld, kTailTarget };
 	// Unit i's path to its target becomes `path` followed by `tail`:
 	//   kTailNone   nothing;
@@ -4118,8 +4141,10 @@ private:
 	// Whether a finished building of ours trains some roster template of the class, busy or
 	// not (findTrainableUnits; trainMoreUnits drops a class without one from the plan).
 	bool petra_unit_stat_trainable(const PetraUnitStat &st) const;
-	// The plan queue an attack plan's order trains in (trainMoreUnits: by the order's classes).
-	static uint8_t petra_plan_order_queue(const PetraUnitStat &st);
+	// The plan queue an attack plan's order trains in (trainMoreUnits: by the order's classes),
+	// in the queue set of base (PETRA_Q_PLAN / RAID_PLAN / NEXT_PLAN; attackPlan.js:221-223).
+	static uint8_t petra_plan_order_queue(const PetraUnitStat &st); // the slot's plan's queue
+	static uint8_t petra_plan_queue_for(uint8_t base, const PetraUnitStat &st);
 	// Whether a finished building of ours lists roster template `tmpl`, busy or not.
 	bool petra_has_trainer(uint16_t tmpl) const;
 	bool petra_raid_target_ok(uint32_t bld_id) const;
@@ -4962,6 +4987,11 @@ private:
 	// (CCmpObstructionManager::TestLine, Geometry::TestRaySquare), its target excepted, and the line
 	// keeps the clearance off deep water and steep ground (CheckLineMovement on the terrain grid).
 	bool direct_walk_clear(size_t i, float x0, float z0, float x1, float z1) const;
+	// Whether that line is blocked by a tree or other gaia obstruction alone (no structures, no
+	// terrain), as direct_walk_clear's gaia part. G170: separates a crowd/gate stall (gaia-clear)
+	// from a tree stall (gaia-blocked) without relying on motion's blocked bit, which the short path's
+	// refusal also sets.
+	bool line_blocked_by_gaia(size_t i, float x0, float z0, float x1, float z1) const;
 	// Whether land unit i, of the "large" passability class, steps or is pushed from (x, z) to (nx, nz)
 	// into a standing structure's or mine's square grown by its 3 m clearance that it did not start in:
 	// CheckMovement refuses that (TestRaySquare), so no gap of 6 m or less lets it through. On its own
