@@ -910,6 +910,8 @@ public:
 	// marks water on the nav grid, so call it even for maps with no buildings.
 	void begin_bulk_spawn() { bulk_spawn_ = true; }
 	void end_bulk_spawn();
+	// Resolve spawn overlaps without issuing orders (avoids t=0 movement/jitter).
+	void settle_spawn_overlaps(int iterations = 4);
 	void set_terrain_data(const std::vector<float> &heights, int res, float water_h) {
 		terrain_heights_ = heights;
 		terrain_res_ = res;

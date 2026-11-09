@@ -1137,6 +1137,7 @@ void Simulation::spawn_initial() {
 	// Wolves are aggressive (0 A.D. fauna_wolf), so their pack sits away from both bases.
 	spawn_fauna(38.0f, -36.0f, FAUNA_WOLF);
 	spawn_fauna(40.0f, -33.0f, FAUNA_WOLF);
+	settle_spawn_overlaps();
 
 	// 7. Enemy Base (Team 1) — Spartan Base for Petra Autonomous AI.
 	// Sits ~68 m from the player's Town Center so neither side's starting units are inside
@@ -1745,6 +1746,44 @@ void Simulation::end_bulk_spawn() {
 	bulk_spawn_ = false;
 	rebuild_nav_grid();
 	rebuild_territory();
+}
+
+void Simulation::settle_spawn_overlaps(int iterations) {
+	// Resolve unit overlaps from map/spawn placement without player orders or AI
+	// movement, to avoid unnecessary traffic/jitter at game start (T101).
+	if (iterations <= 0 || units_.count < 2) return;
+	const size_t n = units_.count;
+	std::vector<float> pos(n * 2, 0.0f);
+	std::vector<uint8_t> zero(n, 0);
+	MoveSteps steps;
+	steps.from_x = pos.data();
+	steps.from_z = pos.data() + n;
+	steps.want_x = pos.data();
+	steps.want_z = pos.data() + n;
+	steps.blocked = zero.data();
+	steps.moving = zero.data();
+	steps.count = n;
+	for (int it = 0; it < iterations; ++it) {
+		Arena &arena = frame_arena_.current();
+		arena.reset();
+		for (size_t i = 0; i < n; ++i) { pos[i] = units_.pos_x[i]; pos[n + i] = units_.pos_z[i]; }
+		separation(FIXED_STEP, arena, steps);
+	}
+	// Keep anchors/targets in sync with settled positions so defensive drift-back
+	// (walk_back_if_drifted) does not treat separation as user-irrelevant travel.
+	for (size_t i = 0; i < n; ++i) {
+		if (!units_.alive[i] || units_.action_state[i] == ACTION_GARRISONED) continue;
+		if (units_.has_order[i] || units_.order_kind[i] != 0) continue;
+		units_.anchor_x[i] = units_.pos_x[i];
+		units_.anchor_z[i] = units_.pos_z[i];
+		if (units_.action_state[i] == ACTION_IDLE) {
+			units_.target_x[i] = units_.pos_x[i];
+			units_.target_z[i] = units_.pos_z[i];
+			units_.vel_x[i] = units_.vel_z[i] = 0.0f;
+			units_.prev_x[i] = units_.pos_x[i];
+			units_.prev_z[i] = units_.pos_z[i];
+		}
+	}
 }
 
 // C1 tree masks (NavGrid::tree_sub) from the live trees, the whole set: the one builder that rebuild_nav_grid and
