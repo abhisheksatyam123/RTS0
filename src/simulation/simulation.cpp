@@ -42626,6 +42626,24 @@ void Simulation::tick_fauna(float dt) {
 	};
 	bool any_prey = false;
 	for (size_t f = 0; f < fauna_.count && !any_prey; ++f) any_prey = prey(f);
+	// 0 A.D. AttackEntitiesByPreference's attackfilter: a dangerous Gaia animal (UnitAI
+	// IsDangerousAnimal) is a target for another animal too, as a player's livestock is.
+	auto wild_hunt_target = [&](size_t f) {
+		return fauna_.alive[f] && fauna_.hp[f] > 0.0f && fauna_owner_[f] >= MAX_PLAYERS &&
+		       fauna_.behavior[f] != FAUNA_CORRALLED && fauna_.behavior[f] != FAUNA_CARCASS &&
+		       fauna_type_info(fauna_.fauna_type[f]).is_dangerous();
+	};
+	auto nearest_wild_hunt = [&](size_t self, float x, float z, float range) -> int32_t {
+		int32_t best = -1;
+		float best_d2 = range * range;
+		if (range <= 0.0f) return -1;
+		for (size_t f = 0; f < fauna_.count; ++f) {
+			if (f == self || !wild_hunt_target(f)) continue;
+			const float dx = fauna_.pos_x[f] - x, dz = fauna_.pos_z[f] - z, d2 = dx * dx + dz * dz;
+			if (d2 < best_d2) { best_d2 = d2; best = (int32_t)f; }
+		}
+		return best;
+	};
 	auto nearest_prey = [&](size_t self, float x, float z, float range) -> int32_t {
 		int32_t best = -1;
 		float best_d2 = range * range;
@@ -42946,7 +42964,7 @@ void Simulation::tick_fauna(float dt) {
 			int32_t tf = -1; // a player's livestock
 			if (t < 0) {
 				auto it = fauna_id_to_idx_.find(fauna_.target_unit_id[i]);
-				if (it != fauna_id_to_idx_.end() && prey(it->second)) tf = (int32_t)it->second;
+				if (it != fauna_id_to_idx_.end() && (prey(it->second) || wild_hunt_target(it->second))) tf = (int32_t)it->second;
 			}
 			bool keep = t >= 0 ? can_bite(t) : tf >= 0;
 			const float tx = t >= 0 ? units_.pos_x[t] : tf >= 0 ? fauna_.pos_x[tf] : fx;
@@ -43089,6 +43107,13 @@ void Simulation::tick_fauna(float dt) {
 				float ud2 = q * q;
 				if (u >= 0) ud2 = (units_.pos_x[u] - fx) * (units_.pos_x[u] - fx) + (units_.pos_z[u] - fz) * (units_.pos_z[u] - fz);
 				const int32_t p = nearest_prey(i, fx, fz, std::sqrt(ud2));
+				if (p >= 0) ud2 = (fauna_.pos_x[p] - fx) * (fauna_.pos_x[p] - fx) + (fauna_.pos_z[p] - fz) * (fauna_.pos_z[p] - fz);
+				// Nearest first among the rest: a dangerous animal nearer than the chosen target.
+				const int32_t w = nearest_wild_hunt(i, fx, fz, std::sqrt(ud2));
+				if (w >= 0) {
+					fauna_start_attack(i, fauna_.id[w]);
+					continue;
+				}
 				if (p >= 0) {
 					fauna_start_attack(i, fauna_.id[p]);
 					continue;
