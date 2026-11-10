@@ -66,6 +66,9 @@ def main():
     k = 0
     players = 8 if a.large else 4
     for n, m in enumerate(random_maps()):
+        # Map 0 (aegean_archipelago) has no generator; soak_match plays it only from its scenario JSON.
+        if m == 0 and not os.path.exists("data/maps/aegean_archipelago.json"):
+            continue
         civs = [CIVS[(k + i) % len(CIVS)] for i in range(players)]
         k += players
         size = ("384" if n % 2 else "512") if a.large else "256"
