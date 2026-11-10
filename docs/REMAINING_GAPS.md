@@ -162,6 +162,10 @@ Re-checked the modification (effect) rows in src/simulation/tech_data.h against 
 
 PC33 stays Deliberate. Re-read navalManager.js moveApart (lines 568-660) against RTS0's port at simulation.cpp (step 4 of the Petra naval turn). The idle half is ported: an idle ship that stands still for one check goes for a treasure on its sea, else moves out to 70-75 m of an allied dock on its sea. The blocked half is not: a ferrying or approaching ship that stands still for two AI turns is moved 30-35 m off, and the idle or working ships within 40 m of it are moved aside. Porting it needs per-ship stationary timers in save (a save version bump) and a random draw in lockstep, for a path that fired in 2 of 8 thirty-minute Petra matches, for 4 and 6.6 s. The row's evidence still holds, so the port stays closed.
 
+### TE13, the missing civ-only technology, re-checked (2026-11-10)
+
+TE13 said pheidian_workshop was the one real missing technology. It is 0.28 data with no researcher: no template in the mounted 0.28 simulation names it (grep of templates/, including structures/athen), so no building can research it. tools/extract_0ad_techs.py refuses it with "not researchable or nothing RTS0 applies", which is correct, so no row is added. TE13 is closed as 0 A.D. 0.28-correct: the tech exists in data/technologies but cannot be reached in 0.28 either.
+
 ### Naval and trade: re-check of the 2026-10-14 audit (2026-11-10)
 
 Re-checked the 2026-10-14 read-only audit of tradeManager.js, navalManager.js and transportPlan.js against main f7db137, with the code as it stands (`src/simulation/simulation.cpp`). Every row is already fixed on main, so no new code change came out of it:
