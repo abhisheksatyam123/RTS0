@@ -79,6 +79,8 @@ inline bool segment_near_steep(const NavGrid& nav, Vec2 a, Vec2 b, float radius)
 
 // Whether the segment from `a` to `b` comes within `radius` of a deep-water navcell, where
 // Simulation::land_step_barred refuses a land unit's steps, tested every tenth of a unit along it.
+// Each sample's square reaches half a step past `radius`, so water within `radius` of the segment
+// between two samples is found too (a square of `radius` alone misses up to 0.05 unit of it).
 // A start that close already doesn't count: the unit may walk on from there.
 inline bool segment_near_deep_water(const NavGrid& nav, Vec2 a, Vec2 b, float radius)
 {
@@ -89,9 +91,10 @@ inline bool segment_near_deep_water(const NavGrid& nav, Vec2 a, Vec2 b, float ra
 		return false;
 	const Vec2 d = b - a;
 	const int n = std::max(1, static_cast<int>(std::ceil(d.length() / 0.1f)));
+	const float reach = radius + 0.5f * d.length() / static_cast<float>(n);
 	for (int k = 1; k <= n; ++k) {
 		const Vec2 p = a + d * (static_cast<float>(k) / static_cast<float>(n));
-		if (water(p.x - radius, p.y - radius, p.x + radius, p.y + radius)) return true;
+		if (water(p.x - reach, p.y - reach, p.x + reach, p.y + reach)) return true;
 	}
 	return false;
 }
