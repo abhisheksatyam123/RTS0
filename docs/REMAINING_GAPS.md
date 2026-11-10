@@ -157,6 +157,19 @@ Re-checked the modification (effect) rows in src/simulation/tech_data.h against 
 - Deliberate differences: warship_health applies its +20% health to the Arrow Ship and Ram classes as two rows (0.28 lists both classes on one row); agoge and celtic_auxiliaries are civ-only additions; ship_vision carries its Scout Ship +25% vision row, which the generator drops.
 - Inert rows: one retired row (id 114, no tech reads it) and a duplicate ship_vision +10% vision row that no range reads. Neither changes the match. Removing them would shift every later effect index, so they stay until the table is regenerated.
 
+### Petra transport boarding and templates: re-check against 0.28 (2026-11-10)
+
+- Petra transport landing points: petra_boarding_pos follows transportPlan.js getBoardingPos term by term (passage distance from ship to shore to destination, the +1e8 enemy-territory term, the 900/4900 m² allied-dock terms, the landing cell's access land). The one term not ported is the spacing term (+1e6 for a landing point within boardingRange of another ship's boarding point in the same plan). It is deliberate: RTS0 gives each transport plan one ship (petra_transport_ships_on / PetraTransportPlan.ship_id), so the term would only ever see the plan's own ship, and 0.28's single-ship plans never hit it.
+- Unit and building templates: tools/extract_0ad_rosters.py --check cannot run on the mounted 0.28 tree, because the mount holds only part of 0 A.D.'s simulation templates (it reports rows gone, e.g. rome/cavalry_auxiliary_b). So the template values (costs, health, attack, armour) were not re-checked in this pass. The earlier Area D passes against 0.28 templates still stand.
+
+### Naval moveApart, re-checked against the 0.28 navalManager.js (2026-11-10)
+
+PC33 stays Deliberate. Re-read navalManager.js moveApart (lines 568-660) against RTS0's port at simulation.cpp (step 4 of the Petra naval turn). The idle half is ported: an idle ship that stands still for one check goes for a treasure on its sea, else moves out to 70-75 m of an allied dock on its sea. The blocked half is not: a ferrying or approaching ship that stands still for two AI turns is moved 30-35 m off, and the idle or working ships within 40 m of it are moved aside. Porting it needs per-ship stationary timers in save (a save version bump) and a random draw in lockstep, for a path that fired in 2 of 8 thirty-minute Petra matches, for 4 and 6.6 s. The row's evidence still holds, so the port stays closed.
+
+### TE13, the missing civ-only technology, re-checked (2026-11-10)
+
+TE13 said pheidian_workshop was the one real missing technology. It is 0.28 data with no researcher: no template in the mounted 0.28 simulation names it (grep of templates/, including structures/athen), so no building can research it. tools/extract_0ad_techs.py refuses it with "not researchable or nothing RTS0 applies", which is correct, so no row is added. TE13 is closed as 0 A.D. 0.28-correct: the tech exists in data/technologies but cannot be reached in 0.28 either.
+
 ### Naval and trade: re-check of the 2026-10-14 audit (2026-11-10)
 
 Re-checked the 2026-10-14 read-only audit of tradeManager.js, navalManager.js and transportPlan.js against main f7db137, with the code as it stands (`src/simulation/simulation.cpp`). Every row is already fixed on main, so no new code change came out of it:
