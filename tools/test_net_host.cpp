@@ -274,6 +274,39 @@ int main() {
 		again[0]->stop();
 		ban_host.stop();
 	}
+	// 4c. Each reliable packet to a peer keeps its sequence number until the peer acks
+	// it (NetHost::reliableStillPending). The rejoin outbox counts its chunks in flight
+	// with these, so a window of 32 holds back only chunks (0 A.D. NetFileTransfer).
+	{
+		NetHost win_host;
+		win_host.setLocalPlayerName("alice");
+		win_host.startHost(c);
+		const uint16_t win_port = win_host.localPort();
+		std::vector<std::unique_ptr<NetHost>> one;
+		one.push_back(std::make_unique<NetHost>());
+		one[0]->setLocalPlayerName("wren");
+		one[0]->startClient("127.0.0.1", win_port);
+		pump(win_host, one, 5000, [&] { return one[0]->authResult() >= 0 || one[0]->connectionLost(); });
+		CHECK(one[0]->authResult() == ARC_OK, "wren joins for the window test");
+		const uint32_t wren = 1;
+		// The join's own packets are acked first, so the sends below start from a settled link.
+		pump(win_host, one, 3000, [&] { return !win_host.reliableStillPending(wren, win_host.lastSentSeq(wren)); });
+		const uint32_t first = win_host.lastSentSeq(wren);
+		const std::vector<uint8_t> blob(64, 7);
+		for (int i = 0; i < 40; ++i) win_host.sendCommand(wren, blob.data(), blob.size());
+		const uint32_t last = win_host.lastSentSeq(wren);
+		CHECK(last == first + 40, "each send takes the next sequence number to wren");
+		bool all_pending = true;
+		for (uint32_t q = first + 1; q <= last; ++q) all_pending = all_pending && win_host.reliableStillPending(wren, q);
+		CHECK(all_pending, "all 40 are still waiting for their acks before wren polls");
+		pump(win_host, one, 3000, [&] { return !win_host.reliableStillPending(wren, last); });
+		bool any_pending = false;
+		for (uint32_t q = first + 1; q <= last; ++q) any_pending = any_pending || win_host.reliableStillPending(wren, q);
+		CHECK(!any_pending, "once wren acks them, none is pending");
+		CHECK(NetHost::RELIABLE_WINDOW == 32, "the window is 0 A.D.'s 32 packets");
+		one[0]->stop();
+		win_host.stop();
+	}
 	// 5. Chat routing. Seats: host 0 and client A 1 are allies, client B 2 is
 	// their enemy, client O watches (255).
 	NetHost room;

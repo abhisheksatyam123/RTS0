@@ -444,6 +444,16 @@ void NetHost::send_ack(const std::string &ip, uint16_t port, uint32_t peer_id, u
 	send_raw_packet(ip, port, reinterpret_cast<const uint8_t*>(&hdr), sizeof(hdr));
 }
 
+uint32_t NetHost::lastSentSeq(uint32_t peer_id) const {
+	const NetPeer *p = getPeer(peer_id);
+	return p ? p->last_sent_seq : 0;
+}
+
+bool NetHost::reliableStillPending(uint32_t peer_id, uint32_t seq) const {
+	return std::any_of(pending_acks_.begin(), pending_acks_.end(),
+			[=](const PendingReliablePacket &p) { return p.peer_id == peer_id && p.seq == seq; });
+}
+
 void NetHost::sendCommand(uint32_t peer_id, const uint8_t *data, size_t size) {
 	if (socket_fd_ < 0) return;
 	const NetPeer *peer = getPeer(peer_id);

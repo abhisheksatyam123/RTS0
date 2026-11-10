@@ -936,6 +936,7 @@ void TurnManager::reset() {
 	client_names_.clear();
 	rejoin_outbox_.clear();
 	rejoin_outbox_next_ = 0;
+	rejoin_inflight_.clear();
 	rejoin_header_ = RejoinMsg();
 	rejoin_early_.clear();
 	oos_expected_hash_ = 0;
@@ -1526,10 +1527,19 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 	}
 	if (net_host_ && net_host_->isHost() && net_game_started()) send_player_assignment();
 	if (rejoin_outbox_next_ < rejoin_outbox_.size() && net_host_) {
-		const size_t end = std::min(rejoin_outbox_.size(), rejoin_outbox_next_ + REJOIN_CHUNKS_PER_TICK);
-		for (; rejoin_outbox_next_ < end; ++rejoin_outbox_next_) {
+		// 0 A.D. NetFileTransfer: a window of chunks in flight, and more only as their
+		// acks come back. Only chunks count, so live turn batches are never held back.
+		rejoin_inflight_.erase(std::remove_if(rejoin_inflight_.begin(), rejoin_inflight_.end(),
+				[&](const auto &f) { return !net_host_->reliableStillPending(f.first, f.second); }),
+				rejoin_inflight_.end());
+		size_t sent = 0;
+		while (rejoin_outbox_next_ < rejoin_outbox_.size() && sent < REJOIN_CHUNKS_PER_TICK &&
+				rejoin_inflight_.size() < NetHost::RELIABLE_WINDOW) {
 			const auto &e = rejoin_outbox_[rejoin_outbox_next_];
 			net_host_->sendCommand(e.first, e.second);
+			rejoin_inflight_.emplace_back(e.first, net_host_->lastSentSeq(e.first));
+			++rejoin_outbox_next_;
+			++sent;
 		}
 		if (rejoin_outbox_next_ == rejoin_outbox_.size()) { rejoin_outbox_.clear(); rejoin_outbox_next_ = 0; }
 	}
