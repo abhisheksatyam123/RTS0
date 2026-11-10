@@ -597,6 +597,9 @@ struct PeerOpts {
     bool rejoin = false;        // this joiner takes over a dropped seat mid-match
     bool saved_game = false;    // the host continues a saved game: its world has run on alone
     bool observe = false;       // this joiner watches a running match without a seat
+    // 0 A.D. has no budget here; a joiner's world download (rejoin) must finish within
+    // this many seconds, or it gives up (30 s; the 45% loss case allows 90 s, see the PR).
+    int rejoin_budget_s = 30;
     std::string name = "peer";  // the name this peer authenticates with
     std::string password;       // host: required from joiners; client: what it sends
     uint32_t kick_turn = 0;     // host: kicks the client named kick_name after this turn
@@ -832,7 +835,7 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
         while (!tm.apply_pending_rejoin(sim)) {
             net.poll(arena);
             arena.reset();
-            if (tm.rejoin_reject_reason() || now_us() - t_start > 30'000'000ull) {
+            if (tm.rejoin_reject_reason() || now_us() - t_start > (uint64_t)opt.rejoin_budget_s * 1'000'000ull) {
                 std::fprintf(stderr, "[net-peer] join: could not rejoin (reason %u)\n", (unsigned)tm.rejoin_reject_reason());
                 return 3;
             }
@@ -870,7 +873,7 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
             while (!tm.apply_pending_rejoin(sim)) {
                 net.poll(arena);
                 arena.reset();
-                if (tm.rejoin_reject_reason() || now_us() - t_start > 30'000'000ull) {
+                if (tm.rejoin_reject_reason() || now_us() - t_start > (uint64_t)opt.rejoin_budget_s * 1'000'000ull) {
                     std::fprintf(stderr, "[net-peer] join: no saved game (reason %u)\n", (unsigned)tm.rejoin_reject_reason());
                     return 3;
                 }
@@ -1419,6 +1422,7 @@ int main(int argc, char **argv) {
             else if (std::strcmp(k, "--host-vanish-turn") == 0) opt.host_vanish_turn = (uint32_t)std::atoi(v);
             else if (std::strcmp(k, "--stale-rejoin-turn") == 0) opt.stale_rejoin_turn = (uint32_t)std::atoi(v);
             else if (std::strcmp(k, "--rejoin") == 0) opt.rejoin = std::atoi(v) != 0;
+            else if (std::strcmp(k, "--rejoin-budget") == 0) opt.rejoin_budget_s = std::atoi(v);
             else if (std::strcmp(k, "--saved-game") == 0) opt.saved_game = std::atoi(v) != 0;
             else if (std::strcmp(k, "--observe") == 0) opt.observe = opt.rejoin = std::atoi(v) != 0;
             else if (std::strcmp(k, "--name") == 0) opt.name = v;

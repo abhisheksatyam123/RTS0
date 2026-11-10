@@ -7504,9 +7504,15 @@ std::vector<std::pair<float, float>> Simulation::distribute_around(const uint32_
 	}
 	// Squared travel in whole crowd metres, each axis's difference rounded up (fixed
 	// ToInt_RoundToInfinity); each unit's own term is kept between swaps.
-	auto dist2 = [](const std::pair<float, float> &a, const std::pair<float, float> &b) {
-		const int64_t dx = (int64_t)std::ceil((a.first - b.first) / PUSH_SCALE);
-		const int64_t dz = (int64_t)std::ceil((a.second - b.second) / PUSH_SCALE);
+	// (int64_t)std::ceil(v) without the libm call (std::ceil is one under the SSE2 baseline): the truncation
+	// is the ceiling, one more when v lies above it. Exact for every float in int64 range.
+	auto ceil_i64 = [](float v) -> int64_t {
+		const int64_t t = (int64_t)v;
+		return static_cast<double>(t) < static_cast<double>(v) ? t + 1 : t;
+	};
+	auto dist2 = [&ceil_i64](const std::pair<float, float> &a, const std::pair<float, float> &b) {
+		const int64_t dx = ceil_i64((a.first - b.first) / PUSH_SCALE);
+		const int64_t dz = ceil_i64((a.second - b.second) / PUSH_SCALE);
 		return dx * dx + dz * dz;
 	};
 	std::vector<int64_t> d(count);
