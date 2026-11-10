@@ -1011,7 +1011,10 @@ int main() {
 			s.tick(Simulation::FIXED_STEP);
 			const int32_t w = fidx(s, wolf), ui = uidx(s, u);
 			if (w < 0 || ui < 0) break;
-			closest = std::min(closest, std::hypot(s.fauna_.pos_x[w] - s.units_.pos_x[ui], s.fauna_.pos_z[w] - s.units_.pos_z[ui]));
+			// Edge to edge: the wolf's and the spearman's collision radii come off the centre distance.
+			const float gap = std::max(0.0f, std::hypot(s.fauna_.pos_x[w] - s.units_.pos_x[ui], s.fauna_.pos_z[w] - s.units_.pos_z[ui]) -
+					fauna_type_info(FAUNA_WOLF).footprint - unit_collision_radius(s.units_.unit_type[ui]));
+			closest = std::min(closest, gap);
 		}
 		std::printf("pathing: wolf got within %.1f of the spearman\n", closest);
 		CHECK(closest < fauna_type_info(FAUNA_WOLF).attack_range + 1.0f);
@@ -1256,6 +1259,24 @@ int main() {
 		CHECK(s.units_.target_unit_id[uidx(s, cav)] == 0);
 		CHECK(s.units_.target_resource_id[uidx(s, cav)] != 0); // ordered on to the carcass
 		std::printf("tower kill: the hunter's order goes on to the carcass\n");
+	}
+
+	// 21. An animal with no meat (the flaming pig: no ResourceSupply) leaves a corpse that lies for
+	//     LINGERING_CORPSE_TIME (fauna_pig_flaming.xml Decay), then goes. A deer leaves a carcass
+	//     resource and no lingering corpse.
+	{
+		fresh(s);
+		const uint32_t pig = s.spawn_fauna(6.0f, 0.0f, FAUNA_PIG_FLAMING);
+		const uint32_t deer = s.spawn_fauna(10.0f, 0.0f, FAUNA_DEER);
+		const size_t pi = (size_t)fidx(s, pig), di = (size_t)fidx(s, deer);
+		s.fauna_killed(pi, 0);
+		s.fauna_killed(di, 0);
+		CHECK(s.lingering_corpses().size() == 1);
+		CHECK(s.lingering_corpses()[0].fauna_type == FAUNA_PIG_FLAMING);
+		run(s, 9.5f);
+		CHECK(s.lingering_corpses().size() == 1);
+		run(s, 1.0f);
+		CHECK(s.lingering_corpses().empty());
 	}
 
 	if (failures) {

@@ -742,6 +742,9 @@ func _apply_node(n) -> void:
 		if not n.has_meta("rtso_shadow"):
 			n.set_meta("rtso_shadow", n.shadow_enabled)
 		n.shadow_enabled = n.get_meta("rtso_shadow") and cfg.get_bool("shadows")
+		# Pixel-art look: shadows lift a little (opacity 0.8) so building shadows keep their
+		# detail; the 0 A.D. look keeps full-strength shadows.
+		n.shadow_opacity = 0.8 if cfg.get_bool("pixelart") else 1.0
 		# CShadowMap: shadowscutoffdistance metres from the camera (4 m a world unit),
 		# over shadowscascadecount cascades (0.28 default: one map, 300 m).
 		n.directional_shadow_max_distance = clampf(cfg.get_number("shadowscutoffdistance"), 100.0, 1500.0) / METRES_PER_UNIT
