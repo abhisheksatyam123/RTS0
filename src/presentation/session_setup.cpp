@@ -677,6 +677,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 	}
 
 	apply_map_player_overrides();
+	sim->settle_spawn_overlaps(); // T101: resolve spawn overlaps before first frame
 	UtilityFunctions::print("[RtsoMain] Loaded 0 A.D. map '", name, "' (", world_size, "m, ", (int64_t)sim->resource_count(), " resources, ", (int64_t)sim->building_count(), " structures, ", (int64_t)sim->unit_count(), " units)");
 	return true;
 }
