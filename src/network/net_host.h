@@ -61,6 +61,9 @@ public:
 	// Test hook: drop this fraction of outgoing datagrams (0 = off). Used by
 	// tools/test_netcode.cpp --net-peer to prove reliable delivery survives loss.
 	void set_simulated_loss(float fraction, uint32_t seed = 1) { sim_loss_ = fraction; sim_loss_rng_ = seed ? seed : 1; }
+	// Test hook: hold each datagram this host sends back by a random 0..max_ms, so datagrams
+	// arrive late and out of order (a jittery link). Held datagrams go out from poll().
+	void set_simulated_delay(uint32_t max_ms, uint32_t seed = 1) { sim_delay_ms_ = max_ms; sim_delay_rng_ = seed ? seed : 1; }
 	// Test hook: lose every connect ACK this host sends, as a lossy link can.
 	void set_drop_connect_acks(bool on) { sim_drop_connect_acks_ = on; }
 
@@ -305,6 +308,7 @@ public:
 
 private:
 	void send_raw_packet(const std::string &ip, uint16_t port, const uint8_t *data, size_t size);
+	void sendto_now(const std::string &ip, uint16_t port, const uint8_t *data, size_t size);
 	void send_wire_packet(const std::string &ip, uint16_t port, uint32_t peer_id, uint8_t flags, uint8_t channel, const uint8_t *payload, size_t payload_len, bool reliable);
 	void handle_incoming_packet(const uint8_t *data, size_t size, const std::string &from_ip, uint16_t from_port);
 	// The part of a packet that follows the reliable-order check: disconnect,
@@ -384,6 +388,10 @@ private:
 	float sim_loss_ = 0.0f;
 	bool sim_drop_connect_acks_ = false;
 	uint32_t sim_loss_rng_ = 1;
+	uint32_t sim_delay_ms_ = 0;
+	uint32_t sim_delay_rng_ = 1;
+	struct HeldDatagram { uint64_t due_ms; std::string ip; uint16_t port; std::vector<uint8_t> data; };
+	std::vector<HeldDatagram> sim_held_;
 	uint32_t next_peer_id_ = 1;
 	uint32_t next_seq_ = 1;
 	uint64_t last_heartbeat_ms_ = 0;
