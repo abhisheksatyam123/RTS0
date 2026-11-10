@@ -18,6 +18,12 @@ import subprocess
 import sys
 import time
 
+# Exit code of a join refused by a loading host (test_netcode.cpp --net-peer join).
+LOADING_EXIT = 5
+JOIN_ATTEMPTS = 60      # retries per joiner while the host still runs
+JOIN_SETTLE_S = 1.0    # a refused join exits well within this
+JOIN_RETRY_S = 0.5
+
 # (humans, seats, observers, loss, leave_and_rejoin, pause, saveload)
 MATCHES = [
     (2, 3, 1, 0.05, False, True, True),
@@ -71,6 +77,20 @@ def run_match(binary, out, idx, seed, port, turns, speed, m):
         procs[key] = (subprocess.Popen([binary, "--net-peer", role, str(port), str(seed), str(turns), log, *common, *more],
                                        stdout=f, stderr=subprocess.STDOUT, text=True), log, f)
 
+    def start_join(key, *more):
+        # 0 A.D. clients retry a join the host refuses while it is loading (NDR_SERVER_LOADING,
+        # test_netcode exit 5): the refusal is quick, so a joiner still running after the
+        # settle time is in the session. Give up after JOIN_ATTEMPTS while the host runs.
+        for attempt in range(1, JOIN_ATTEMPTS + 1):
+            start(key, "join", *more)
+            time.sleep(JOIN_SETTLE_S)
+            rc = procs[key][0].poll()
+            if rc != LOADING_EXIT or procs["host"][0].poll() is not None:
+                return
+            procs[key][2].close()
+            print(f"  {key}: host still loading, retry {attempt}/{JOIN_ATTEMPTS}", file=sys.stderr)
+            time.sleep(JOIN_RETRY_S)
+
     host_more = ["--name", NAMES[0], "--replay-out", os.path.join(d, "replay.bin")]
     if pause:
         host_more += ["--pause-turn", str(turns // 3), "--pause-ms", "2000"]
@@ -82,7 +102,7 @@ def run_match(binary, out, idx, seed, port, turns, speed, m):
         more = ["--name", NAMES[c]]
         if c == leaver:
             more += ["--quit-turn", str(leave_turn)]
-        start(NAMES[c], "join", *more)
+        start_join(NAMES[c], *more)
         time.sleep(0.1)
     t_end = time.time() + 900
 
@@ -92,7 +112,7 @@ def run_match(binary, out, idx, seed, port, turns, speed, m):
     for k in range(observers):
         while time.time() < t_end and host_turns() < turns // 6 + 40 * k and procs["host"][0].poll() is None:
             time.sleep(0.1)
-        start(f"watcher{k}", "join", "--name", f"watcher{k}", "--observe", "1")
+        start_join(f"watcher{k}", "--name", f"watcher{k}", "--observe", "1")
     if leaver is not None:
         p = procs[NAMES[leaver]][0]
         try:
@@ -101,7 +121,7 @@ def run_match(binary, out, idx, seed, port, turns, speed, m):
             pass
         while time.time() < t_end and host_turns() < leave_turn + 60 and procs["host"][0].poll() is None:
             time.sleep(0.1)
-        start(NAMES[leaver] + "_back", "join", "--name", NAMES[leaver], "--rejoin", "1")
+        start_join(NAMES[leaver] + "_back", "--name", NAMES[leaver], "--rejoin", "1")
     rcs, outs = {}, {}
     for key, (p, log, f) in procs.items():
         try:
