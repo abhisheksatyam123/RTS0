@@ -6962,6 +6962,52 @@ static void test_petra_wood_poor_corral() {
 	CHECK(!s->petra_kept_.need_farm && s->petra_kept_.need_corral, "without wood it wants a corral instead");
 }
 
+// startingStrategy.js startingSize: each region holding one of our base anchors counts once, so a
+// start with a second civic centre on another land is measured by the sum of both lands.
+static void test_petra_starting_size_sums_anchor_lands() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 128.0f);
+	for (uint8_t p = 0; p < 2; ++p) s->set_player_active(p, true, true);
+	s->petra_swap_slot(0);
+	s->petra_pid_ = 0;
+	size_t cc_i = s->buildings_.size();
+	for (size_t i = 0; i < s->buildings_.size(); ++i) {
+		const auto &b = s->buildings_[i];
+		if (b.team == 0 && is_civic_centre(b.type) && b.build_progress >= 1.0f) { cc_i = i; break; }
+	}
+	CHECK(cc_i < s->buildings_.size(), "player 0 starts with a civic centre");
+	if (cc_i >= s->buildings_.size()) return;
+	const auto &cc = s->buildings_[cc_i];
+	uint16_t home = 0;
+	const Simulation::PetraNavalTopo &topo = s->petra_classified_topo(home);
+	const uint16_t home_land = s->petra_building_land(cc, &topo);
+	const float home_m2 = topo.cell_m2 * (float)topo.land_size[home_land];
+	// A second civic centre on another land, as a colony or a captured centre would be.
+	uint16_t other_land = 0;
+	float ox = 0.0f, oz = 0.0f;
+	for (float z = -s->map_half_; z <= s->map_half_ && !other_land; z += 4.0f)
+		for (float x = -s->map_half_; x <= s->map_half_ && !other_land; x += 4.0f) {
+			const uint16_t l = s->petra_access_at(x, z);
+			if (l && l != home_land && l < topo.land_size.size() && topo.land_size[l] > 0) { other_land = l; ox = x; oz = z; }
+		}
+	if (!other_land) {
+		std::printf("  starting size: no second land on this map, skipped\n");
+		return;
+	}
+	const float other_m2 = topo.cell_m2 * (float)topo.land_size[other_land];
+	const uint32_t colony = s->spawn_building((int)(ox / Simulation::GRID), (int)(oz / Simulation::GRID), BLD_TOWN_CENTER, 0, 1.0f);
+	CHECK(colony != 0, "a second civic centre on the other land");
+	s->petra_kept_ = PetraKept{};
+	s->petra_config_first_base();
+	const float total_m2 = home_m2 + other_m2;
+	const bool expect_small = total_m2 < 25000.0f;
+	std::printf("  starting size: home %.0f m2, other land %.0f m2, sum %.0f m2, needCorral %d\n", home_m2, other_m2, total_m2,
+	            (int)s->petra_kept_.need_corral);
+	CHECK(s->petra_kept_.need_corral == expect_small, "the small-land rules measure every anchored land's sum");
+}
+
 // startingStrategy.js configFirstBase runs at every difficulty: Sandbox lays its first
 // storehouse at once too.
 static void test_petra_sandbox_first_storehouse() {
@@ -10958,6 +11004,7 @@ int main(int argc, char **argv) {
 	RUN(test_new_base_builders);
 	RUN(test_petra_constructing_base);
 	RUN(test_petra_wood_poor_corral);
+	RUN(test_petra_starting_size_sums_anchor_lands);
 	RUN(test_petra_sandbox_first_storehouse);
 	RUN(test_wonder_guards);
 	RUN(test_guards_from_another_land);
