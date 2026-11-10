@@ -190,6 +190,46 @@ bool soak_one(const Options &o, int map, uint32_t seed, Result &r) {
 			if (hs != ref_hash[t]) { report(r, "saved copy diverged from the uninterrupted run", map, seed, t + 1); break; }
 		}
 	}
+	// 4. Replay that starts from the mid-match save, as the game's replay does: the save is the
+	// replay's start.rts0sav, and the commands recorded after it (turn 1 onward) play on from it.
+	if (r.failures == failures_before) {
+		const std::string from_save_path = o.dir + "/match_from_save.rts0rec";
+		std::string err;
+		if (!tm_loaded.save_replay(from_save_path)) {
+			report(r, "save_replay (from save) failed", map, seed, k);
+		} else if (!tm_loaded.validate_replay(from_save_path, err)) {
+			report(r, ("replay from save does not validate: " + err).c_str(), map, seed, k);
+		} else {
+			Simulation fsim;
+			build_match(fsim, o, map, seed);
+			if (!fsim.load_state(save_path.c_str())) {
+				report(r, "load_state for the from-save replay failed", map, seed, k);
+			} else {
+				TurnManager fp;
+				if (!fp.load_replay(from_save_path)) {
+					report(r, ("load_replay (from save) failed: " + fp.last_replay_error()).c_str(), map, seed, k);
+				} else {
+					for (uint32_t t = k; t < n; ++t) {
+						if (!fp.tick(TurnManager::TURN_DURATION, fsim)) {
+							report(r, "from-save replay tick did not advance", map, seed, t + 1);
+							break;
+						}
+						if (fp.replay_out_of_sync()) {
+							report(r, "from-save replay out of sync", map, seed, t + 1);
+							break;
+						}
+						if (fp.compute_sim_hash(fsim) != ref_hash[t]) {
+							report(r, "from-save replayed hash differs from the uninterrupted run", map, seed, t + 1);
+							break;
+						}
+					}
+					if (!fp.replay_complete() && r.failures == failures_before)
+						report(r, "from-save replay did not complete", map, seed, n);
+				}
+			}
+		}
+		std::remove(from_save_path.c_str());
+	}
 	std::remove(save_path.c_str());
 
 	// 3. Replay the reference match into a fresh TurnManager + Simulation.
