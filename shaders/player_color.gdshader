@@ -36,7 +36,8 @@ uniform float parallax_scale = 0.0075;
 // shader is unchanged.
 global uniform bool rtso_pixel_art;
 const float PIXEL_ART_LEVELS = 12.0;
-const float PIXEL_ART_TEAM_SAT = 1.3;
+// Pixel mode saturation of the owner tint. Crowd unit batches set a stronger value per node.
+instance uniform float pixel_team_sat = 1.3;
 // Close-up units and buildings set this per node; crowd MultiMeshes pass the
 // owner's colour in INSTANCE_CUSTOM (alpha 1 + variant_u).
 instance uniform vec4 player_color : source_color = vec4(1.0);
@@ -156,7 +157,7 @@ void fragment() {
 	}
 	if (rtso_pixel_art) {
 		float lum = dot(tint, vec3(0.299, 0.587, 0.114));
-		tint = clamp(mix(vec3(lum), tint, PIXEL_ART_TEAM_SAT), 0.0, 1.0);
+		tint = clamp(mix(vec3(lum), tint, pixel_team_sat), 0.0, 1.0);
 	}
 	vec3 owner = mix(vec3(1.0), tint, m);
 	vec3 albedo_col = tex.rgb * owner / max(baked, vec3(0.05)) * (use_vertex_color ? COLOR.rgb : vec3(1.0));
