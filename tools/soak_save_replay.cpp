@@ -176,7 +176,11 @@ bool soak_one(const Options &o, int map, const std::string &json, uint32_t seed,
 
 	// 1. Uninterrupted reference run; it also decides the order stream.
 	Simulation ref;
-	build_match(ref, o, map, json, seed);
+	if (build_match(ref, o, map, json, seed) == 0) {
+		// A JSON map that does not load (missing file, or run outside the repo) seats nobody: a failure, not a pass.
+		report(r, ("map did not load: " + json).c_str(), map, seed, 0);
+		return false;
+	}
 	TurnManager tm_ref;
 	Rng rng(seed * 7919u + 17u);
 	for (uint32_t t = 0; t < n; ++t) {
