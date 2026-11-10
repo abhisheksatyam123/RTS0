@@ -144,6 +144,15 @@ Compared src/simulation/tech_data.h with a fresh run of tools/extract_0ad_techs.
 
 Not re-checked here: the modification (effect) rows, which the generator filters to what RTS0 can apply.
 
+### Technology effects: re-check against 0.28 JSON (2026-11-10)
+
+Re-checked the modification (effect) rows in src/simulation/tech_data.h against a fresh run of tools/extract_0ad_techs.py on the mounted 0.28 tree. The simulation reads a technology's rows through `effect_begin` and `effect_count` after skipping row 0 (`kEffects + 1`), so the check reads the same rows as the simulation:
+
+- Every technology's range points at rows tagged with its own name (198 rows checked, none off).
+- For each technology both sides have, the stat, operation and value of every row match 0.28's modifications. The target ids are renumbered between the two trees, so they were not compared.
+- Deliberate differences: warship_health applies its +20% health to the Arrow Ship and Ram classes as two rows (0.28 lists both classes on one row); agoge and celtic_auxiliaries are civ-only additions; ship_vision carries its Scout Ship +25% vision row, which the generator drops.
+- Inert rows: one retired row (id 114, no tech reads it) and a duplicate ship_vision +10% vision row that no range reads. Neither changes the match. Removing them would shift every later effect index, so they stay until the table is regenerated.
+
 ### Naval and trade: re-check of the 2026-10-14 audit (2026-11-10)
 
 Re-checked the 2026-10-14 read-only audit of tradeManager.js, navalManager.js and transportPlan.js against main f7db137, with the code as it stands (`src/simulation/simulation.cpp`). Every row is already fixed on main, so no new code change came out of it:
