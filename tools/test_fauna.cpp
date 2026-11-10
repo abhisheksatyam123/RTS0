@@ -1261,6 +1261,24 @@ int main() {
 		std::printf("tower kill: the hunter's order goes on to the carcass\n");
 	}
 
+	// 21. An animal with no meat (the flaming pig: no ResourceSupply) leaves a corpse that lies for
+	//     LINGERING_CORPSE_TIME (fauna_pig_flaming.xml Decay), then goes. A deer leaves a carcass
+	//     resource and no lingering corpse.
+	{
+		fresh(s);
+		const uint32_t pig = s.spawn_fauna(6.0f, 0.0f, FAUNA_PIG_FLAMING);
+		const uint32_t deer = s.spawn_fauna(10.0f, 0.0f, FAUNA_DEER);
+		const size_t pi = (size_t)fidx(s, pig), di = (size_t)fidx(s, deer);
+		s.fauna_killed(pi, 0);
+		s.fauna_killed(di, 0);
+		CHECK(s.lingering_corpses().size() == 1);
+		CHECK(s.lingering_corpses()[0].fauna_type == FAUNA_PIG_FLAMING);
+		run(s, 9.5f);
+		CHECK(s.lingering_corpses().size() == 1);
+		run(s, 1.0f);
+		CHECK(s.lingering_corpses().empty());
+	}
+
 	if (failures) {
 		std::printf("test_fauna: %d failure(s)\n", failures);
 		return 1;

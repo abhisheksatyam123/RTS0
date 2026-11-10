@@ -181,7 +181,9 @@ def main():
     sim_root = os.path.join(a.zeroad, "binaries", "data", "mods", "public", "simulation")
     loader = TemplateLoader(sim_root)
     check_turretable(loader)
-    table = {(civ, stem): points(loader, civ, stem) for civ in CIVS for _, stem in KINDS}
+    # A holder fills its points in the template's order (TurretHolder.OccupyTurretPoint takes the
+    # first free one), so the one-cell holders keep it, as the tower does.
+    table = {(civ, stem): points(loader, civ, stem, keep_order=True) for civ in CIVS for _, stem in KINDS}
     wallset = {(civ, stem): points(loader, civ, stem, WALLSET_SCALE, fit=False)
                for civ in CIVS for _, stem in WALLSET_KINDS}
     siege = {stem: points(loader, "rome", stem, WALLSET_SCALE, fit=False) for _, stem in SIEGE_KINDS}

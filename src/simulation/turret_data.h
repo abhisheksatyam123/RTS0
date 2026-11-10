@@ -25,79 +25,79 @@ struct TurretPointSet {
 // [civ][0 wall segment, 1 gate, 2 outpost]
 inline constexpr TurretPointSet TURRET_POINTS[16][3] = {
 	{ // CIV_ATHENIANS
-		{4, {{-0.42f, 3.22f, -0.28f}, {0.42f, 3.22f, -0.28f}, {-0.42f, 3.22f, 0.28f}, {0.42f, 3.22f, 0.28f}}}, // BLD_WALL_SEGMENT: athen/wall_long
-		{2, {{-0.42f, 4.06f, 0.0f}, {0.42f, 4.06f, 0.0f}}}, // BLD_GATE: athen/wall_gate
+		{4, {{0.42f, 3.22f, 0.28f}, {-0.42f, 3.22f, 0.28f}, {0.42f, 3.22f, -0.28f}, {-0.42f, 3.22f, -0.28f}}}, // BLD_WALL_SEGMENT: athen/wall_long
+		{2, {{0.42f, 4.06f, 0.0f}, {-0.42f, 4.06f, 0.0f}}}, // BLD_GATE: athen/wall_gate
 		{1, {{0.0f, 2.24f, 0.0f}}}, // BLD_OUTPOST: athen/outpost
 	},
 	{ // CIV_SPARTANS
-		{4, {{-0.42f, 3.22f, -0.28f}, {0.42f, 3.22f, -0.28f}, {-0.42f, 3.22f, 0.28f}, {0.42f, 3.22f, 0.28f}}}, // BLD_WALL_SEGMENT: spart/wall_long
-		{2, {{-0.42f, 4.06f, 0.0f}, {0.42f, 4.06f, 0.0f}}}, // BLD_GATE: spart/wall_gate
+		{4, {{0.42f, 3.22f, 0.28f}, {-0.42f, 3.22f, 0.28f}, {0.42f, 3.22f, -0.28f}, {-0.42f, 3.22f, -0.28f}}}, // BLD_WALL_SEGMENT: spart/wall_long
+		{2, {{0.42f, 4.06f, 0.0f}, {-0.42f, 4.06f, 0.0f}}}, // BLD_GATE: spart/wall_gate
 		{1, {{0.0f, 2.24f, 0.0f}}}, // BLD_OUTPOST: spart/outpost
 	},
 	{ // CIV_PERSIANS
-		{4, {{-0.42f, 2.968f, -0.28f}, {0.42f, 2.968f, -0.28f}, {-0.42f, 2.968f, 0.28f}, {0.42f, 2.968f, 0.28f}}}, // BLD_WALL_SEGMENT: pers/wall_long
-		{2, {{-0.42f, 3.584f, 0.0f}, {0.42f, 3.584f, 0.0f}}}, // BLD_GATE: pers/wall_gate
+		{4, {{0.42f, 2.968f, 0.28f}, {-0.42f, 2.968f, 0.28f}, {0.42f, 2.968f, -0.28f}, {-0.42f, 2.968f, -0.28f}}}, // BLD_WALL_SEGMENT: pers/wall_long
+		{2, {{0.42f, 3.584f, 0.0f}, {-0.42f, 3.584f, 0.0f}}}, // BLD_GATE: pers/wall_gate
 		{1, {{0.0f, 2.24f, 0.0f}}}, // BLD_OUTPOST: pers/outpost
 	},
 	{ // CIV_ROMANS
-		{4, {{-0.42f, 2.492f, -0.28f}, {0.42f, 2.492f, -0.28f}, {-0.42f, 2.492f, 0.28f}, {0.42f, 2.492f, 0.28f}}}, // BLD_WALL_SEGMENT: rome/wall_long
-		{6, {{-0.84f, 3.052f, -0.42f}, {0.0f, 3.052f, -0.42f}, {0.84f, 3.052f, -0.42f}, {-0.84f, 3.052f, 0.42f}, {0.0f, 3.052f, 0.42f}, {0.84f, 3.052f, 0.42f}}}, // BLD_GATE: rome/wall_gate
+		{4, {{0.42f, 2.492f, 0.28f}, {-0.42f, 2.492f, 0.28f}, {0.42f, 2.492f, -0.28f}, {-0.42f, 2.492f, -0.28f}}}, // BLD_WALL_SEGMENT: rome/wall_long
+		{6, {{0.0f, 3.052f, 0.42f}, {0.84f, 3.052f, 0.42f}, {-0.84f, 3.052f, 0.42f}, {0.0f, 3.052f, -0.42f}, {0.84f, 3.052f, -0.42f}, {-0.84f, 3.052f, -0.42f}}}, // BLD_GATE: rome/wall_gate
 		{1, {{0.0f, 2.24f, 0.0f}}}, // BLD_OUTPOST: rome/outpost
 	},
 	{ // CIV_CARTHAGINIANS
-		{4, {{-0.42f, 3.36f, -0.28f}, {0.42f, 3.36f, -0.28f}, {-0.42f, 3.36f, 0.28f}, {0.42f, 3.36f, 0.28f}}}, // BLD_WALL_SEGMENT: cart/wall_long
-		{2, {{-0.42f, 4.34f, 0.0f}, {0.42f, 4.34f, 0.0f}}}, // BLD_GATE: cart/wall_gate
+		{4, {{0.42f, 3.36f, 0.28f}, {-0.42f, 3.36f, 0.28f}, {0.42f, 3.36f, -0.28f}, {-0.42f, 3.36f, -0.28f}}}, // BLD_WALL_SEGMENT: cart/wall_long
+		{2, {{0.42f, 4.34f, 0.0f}, {-0.42f, 4.34f, 0.0f}}}, // BLD_GATE: cart/wall_gate
 		{1, {{0.0f, 2.24f, 0.0f}}}, // BLD_OUTPOST: cart/outpost
 	},
 	{ // CIV_MACEDONIANS
-		{4, {{-0.42f, 3.22f, -0.28f}, {0.42f, 3.22f, -0.28f}, {-0.42f, 3.22f, 0.28f}, {0.42f, 3.22f, 0.28f}}}, // BLD_WALL_SEGMENT: mace/wall_long
-		{2, {{-0.42f, 4.06f, 0.0f}, {0.42f, 4.06f, 0.0f}}}, // BLD_GATE: mace/wall_gate
+		{4, {{0.42f, 3.22f, 0.28f}, {-0.42f, 3.22f, 0.28f}, {0.42f, 3.22f, -0.28f}, {-0.42f, 3.22f, -0.28f}}}, // BLD_WALL_SEGMENT: mace/wall_long
+		{2, {{0.42f, 4.06f, 0.0f}, {-0.42f, 4.06f, 0.0f}}}, // BLD_GATE: mace/wall_gate
 		{1, {{0.0f, 2.24f, 0.0f}}}, // BLD_OUTPOST: mace/outpost
 	},
 	{ // CIV_BRITONS
-		{4, {{-0.42f, 2.604f, -0.21f}, {0.42f, 2.604f, -0.21f}, {-0.42f, 2.604f, 0.21f}, {0.42f, 2.604f, 0.21f}}}, // BLD_WALL_SEGMENT: brit/wall_long
-		{2, {{-0.42f, 3.164f, 0.0f}, {0.42f, 3.164f, 0.0f}}}, // BLD_GATE: brit/wall_gate
+		{4, {{0.42f, 2.604f, 0.21f}, {-0.42f, 2.604f, 0.21f}, {0.42f, 2.604f, -0.21f}, {-0.42f, 2.604f, -0.21f}}}, // BLD_WALL_SEGMENT: brit/wall_long
+		{2, {{0.42f, 3.164f, 0.0f}, {-0.42f, 3.164f, 0.0f}}}, // BLD_GATE: brit/wall_gate
 		{1, {{0.0f, 2.24f, 0.0f}}}, // BLD_OUTPOST: brit/outpost
 	},
 	{ // CIV_GAULS
-		{4, {{-0.42f, 2.604f, -0.28f}, {0.42f, 2.604f, -0.28f}, {-0.42f, 2.604f, 0.28f}, {0.42f, 2.604f, 0.28f}}}, // BLD_WALL_SEGMENT: gaul/wall_long
-		{2, {{-0.42f, 3.22f, 0.0f}, {0.42f, 3.22f, 0.0f}}}, // BLD_GATE: gaul/wall_gate
+		{4, {{0.42f, 2.604f, 0.28f}, {-0.42f, 2.604f, 0.28f}, {0.42f, 2.604f, -0.28f}, {-0.42f, 2.604f, -0.28f}}}, // BLD_WALL_SEGMENT: gaul/wall_long
+		{2, {{0.42f, 3.22f, 0.0f}, {-0.42f, 3.22f, 0.0f}}}, // BLD_GATE: gaul/wall_gate
 		{1, {{0.0f, 2.24f, 0.0f}}}, // BLD_OUTPOST: gaul/outpost
 	},
 	{ // CIV_IBERIANS
-		{4, {{-0.42f, 2.52f, -0.28f}, {0.42f, 2.52f, -0.28f}, {-0.42f, 2.52f, 0.28f}, {0.42f, 2.52f, 0.28f}}}, // BLD_WALL_SEGMENT: iber/wall_long
-		{2, {{-0.42f, 3.276f, 0.0f}, {0.42f, 3.276f, 0.0f}}}, // BLD_GATE: iber/wall_gate
+		{4, {{0.42f, 2.52f, 0.28f}, {-0.42f, 2.52f, 0.28f}, {0.42f, 2.52f, -0.28f}, {-0.42f, 2.52f, -0.28f}}}, // BLD_WALL_SEGMENT: iber/wall_long
+		{2, {{0.42f, 3.276f, 0.0f}, {-0.42f, 3.276f, 0.0f}}}, // BLD_GATE: iber/wall_gate
 		{1, {{0.0f, 2.24f, 0.0f}}}, // BLD_OUTPOST: iber/outpost
 	},
 	{ // CIV_MAURYANS
-		{4, {{-0.42f, 2.66f, -0.28f}, {0.42f, 2.66f, -0.28f}, {-0.42f, 2.66f, 0.28f}, {0.42f, 2.66f, 0.28f}}}, // BLD_WALL_SEGMENT: maur/wall_long
-		{2, {{-0.42f, 3.92f, 0.0f}, {0.42f, 3.92f, 0.0f}}}, // BLD_GATE: maur/wall_gate
+		{4, {{0.42f, 2.66f, 0.28f}, {-0.42f, 2.66f, 0.28f}, {0.42f, 2.66f, -0.28f}, {-0.42f, 2.66f, -0.28f}}}, // BLD_WALL_SEGMENT: maur/wall_long
+		{2, {{0.42f, 3.92f, 0.0f}, {-0.42f, 3.92f, 0.0f}}}, // BLD_GATE: maur/wall_gate
 		{1, {{0.0f, 2.24f, 0.0f}}}, // BLD_OUTPOST: maur/outpost
 	},
 	{ // CIV_KUSHITES
-		{4, {{-0.42f, 3.248f, -0.28f}, {0.42f, 3.248f, -0.28f}, {-0.42f, 3.248f, 0.28f}, {0.42f, 3.248f, 0.28f}}}, // BLD_WALL_SEGMENT: kush/wall_long
-		{6, {{-1.0f, 3.248f, -0.84f}, {1.0f, 3.248f, -0.84f}, {-1.0f, 3.248f, 0.0f}, {1.0f, 3.248f, 0.0f}, {-1.0f, 3.248f, 0.84f}, {1.0f, 3.248f, 0.84f}}}, // BLD_GATE: kush/wall_gate
+		{4, {{0.42f, 3.248f, 0.28f}, {-0.42f, 3.248f, 0.28f}, {0.42f, 3.248f, -0.28f}, {-0.42f, 3.248f, -0.28f}}}, // BLD_WALL_SEGMENT: kush/wall_long
+		{6, {{1.0f, 3.248f, 0.84f}, {-1.0f, 3.248f, 0.84f}, {1.0f, 3.248f, -0.84f}, {-1.0f, 3.248f, -0.84f}, {1.0f, 3.248f, 0.0f}, {-1.0f, 3.248f, 0.0f}}}, // BLD_GATE: kush/wall_gate
 		{1, {{0.0f, 2.24f, 0.0f}}}, // BLD_OUTPOST: kush/outpost
 	},
 	{ // CIV_PTOLEMIES
-		{4, {{-0.42f, 2.744f, -0.21f}, {0.42f, 2.744f, -0.21f}, {-0.42f, 2.744f, 0.21f}, {0.42f, 2.744f, 0.21f}}}, // BLD_WALL_SEGMENT: ptol/wall_long
-		{2, {{-0.42f, 4.704f, 0.0f}, {0.42f, 4.704f, 0.0f}}}, // BLD_GATE: ptol/wall_gate
+		{4, {{0.42f, 2.744f, 0.21f}, {-0.42f, 2.744f, 0.21f}, {0.42f, 2.744f, -0.21f}, {-0.42f, 2.744f, -0.21f}}}, // BLD_WALL_SEGMENT: ptol/wall_long
+		{2, {{0.42f, 4.704f, 0.0f}, {-0.42f, 4.704f, 0.0f}}}, // BLD_GATE: ptol/wall_gate
 		{1, {{0.0f, 2.24f, 0.0f}}}, // BLD_OUTPOST: ptol/outpost
 	},
 	{ // CIV_SELEUCIDS
-		{4, {{-0.42f, 2.912f, -0.28f}, {0.42f, 2.912f, -0.28f}, {-0.42f, 2.912f, 0.28f}, {0.42f, 2.912f, 0.28f}}}, // BLD_WALL_SEGMENT: sele/wall_long
-		{3, {{-0.84f, 2.968f, 0.0f}, {0.0f, 2.968f, 0.0f}, {0.84f, 2.968f, 0.0f}}}, // BLD_GATE: sele/wall_gate
+		{4, {{0.42f, 2.912f, 0.28f}, {-0.42f, 2.912f, 0.28f}, {0.42f, 2.912f, -0.28f}, {-0.42f, 2.912f, -0.28f}}}, // BLD_WALL_SEGMENT: sele/wall_long
+		{3, {{0.0f, 2.968f, 0.0f}, {0.84f, 2.968f, 0.0f}, {-0.84f, 2.968f, 0.0f}}}, // BLD_GATE: sele/wall_gate
 		{1, {{0.0f, 2.24f, 0.0f}}}, // BLD_OUTPOST: sele/outpost
 	},
 	{ // CIV_HAN
-		{4, {{-0.42f, 2.8f, -0.28f}, {0.42f, 2.8f, -0.28f}, {-0.42f, 2.8f, 0.28f}, {0.42f, 2.8f, 0.28f}}}, // BLD_WALL_SEGMENT: han/wall_long
-		{2, {{-0.42f, 3.36f, 0.0f}, {0.42f, 3.36f, 0.0f}}}, // BLD_GATE: han/wall_gate
+		{4, {{0.42f, 2.8f, 0.28f}, {-0.42f, 2.8f, 0.28f}, {0.42f, 2.8f, -0.28f}, {-0.42f, 2.8f, -0.28f}}}, // BLD_WALL_SEGMENT: han/wall_long
+		{2, {{0.42f, 3.36f, 0.0f}, {-0.42f, 3.36f, 0.0f}}}, // BLD_GATE: han/wall_gate
 		{1, {{0.0f, 2.24f, 0.0f}}}, // BLD_OUTPOST: han/outpost
 	},
 	{}, // CIV_GAIA
 	{ // CIV_GERMANS
-		{4, {{-0.42f, 2.66f, -0.28f}, {0.42f, 2.66f, -0.28f}, {-0.42f, 2.66f, 0.28f}, {0.42f, 2.66f, 0.28f}}}, // BLD_WALL_SEGMENT: germ/wall_long
-		{2, {{-0.84f, 2.66f, 0.56f}, {0.84f, 2.66f, 0.56f}}}, // BLD_GATE: germ/wall_gate
+		{4, {{0.42f, 2.66f, 0.28f}, {-0.42f, 2.66f, 0.28f}, {0.42f, 2.66f, -0.28f}, {-0.42f, 2.66f, -0.28f}}}, // BLD_WALL_SEGMENT: germ/wall_long
+		{2, {{0.84f, 2.66f, 0.56f}, {-0.84f, 2.66f, 0.56f}}}, // BLD_GATE: germ/wall_gate
 		{1, {{0.0f, 2.24f, 0.0f}}}, // BLD_OUTPOST: germ/outpost
 	},
 };

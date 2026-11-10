@@ -306,6 +306,14 @@ struct NavGrid {
     bool sub_blocked(int cls, int sx, int sy) const { return tree_subcell_blocked(cls, sx, sy) || mine_subcell_blocked(cls, sx, sy); }
     // Whether a long path leg of out (from (sx, sz)) crosses a blocked tree subcell of this class, walked as crosses_mine_sub.
     bool crosses_tree_sub(int cls, float sx, float sz, const struct WaypointPath &out) const;
+    // G171: whether one leg crosses a tree (TILE_OBS_GAIA flora/treasure) grown by the class clearance,
+    // with a unit starting inside it allowed to walk out (crosses_tree_sub's left rule, at the clearance
+    // instead of the subcells' clearance plus 1 m). One leg only, so find_path_on can gate the tile
+    // path on the legs ImprovePathWaypoints never tested (first, goal, small, collinear) without
+    // reverting a whole path that merely passes within that metre of a tree.
+    bool leg_crosses_gaia_clearance(float ax, float az, float bx, float bz, int cls) const;
+    // Whether any leg of a fresh tile path (from (sx, sz) through its waypoints) crosses as above.
+    bool tile_path_crosses_tree_clearance(float sx, float sz, const struct WaypointPath &path, int cls) const;
     // Re-plans a path whose legs cross a tree subcell on the 1 m grid (avoid_tree_subcells). On success out and the goal
     // are replaced; otherwise they are left as the navcells gave them.
     void avoid_tree_subcells(float sx, float sz, float &gx, float &gz, struct WaypointPath &out, uint8_t pass, float rx, float rz) const;
@@ -2450,6 +2458,71 @@ inline bool NavGrid::crosses_tree_sub(int cls, float sx, float sz, const Waypoin
     return false;
 }
 
+// G171: one leg against the trees' squares grown by the class clearance (tile_path_clearance, as
+// tile_line_clear tests them), not the subcells' clearance plus 1 m. The leg's blocked intervals
+// (one per tree square it enters) are merged: a leg that starts open and enters one crosses; one
+// that starts inside one and leaves it (a unit standing within about a metre of a palm) crosses only
+// if it re-enters blocked ground after it has stood on open ground, as crosses_tree_sub allows.
+// Only the GAIA set is tested (TileObsKind K_FLORA/K_TREASURE, simulation.cpp: key bits 56+), so a
+// leg past a house or along a shore is not this row's case.
+inline bool NavGrid::leg_crosses_gaia_clearance(float ax, float az, float bx, float bz, int cls) const {
+    const float g = tile_clearance(cls) + TILE_HAIR;
+    thread_local std::vector<std::pair<float, float>> iv, merged;
+    iv.clear();
+    merged.clear();
+    any_tile_obs_near_segment(ax, az, bx, bz, g, [&](const TileObstruction &o_in) {
+        const uint64_t kind = o_in.key >> 56;
+        if (kind != 5 && kind != 6) return false; // K_FLORA, K_TREASURE only
+        const TileObstruction o = cls == 1 ? tile_obs_crowd_grown(o_in) : o_in;
+        const float hu = o.hu + g, hv = o.hv + g;
+        const float pax = ax - o.x, paz = az - o.z, pbx = bx - o.x, pbz = bz - o.z;
+        const float ua = o.uz == 0.0f ? pax : pax * o.ux + paz * o.uz, va = o.uz == 0.0f ? paz : paz * o.ux - pax * o.uz;
+        const float ub = o.uz == 0.0f ? pbx : pbx * o.ux + pbz * o.uz, vb = o.uz == 0.0f ? pbz : pbz * o.ux - pbx * o.uz;
+        float t0 = 0.0f, t1 = 1.0f;
+        auto slab = [&](float p, float q, float h) {
+            const float d = q - p;
+            if (std::fabs(d) < 1e-9f) return std::fabs(p) < h;
+            float s0 = (-h - p) / d, s1 = (h - p) / d;
+            if (s0 > s1) std::swap(s0, s1);
+            t0 = std::max(t0, s0);
+            t1 = std::min(t1, s1);
+            return t0 < t1;
+        };
+        if (!slab(ua, ub, hu) || !slab(va, vb, hv)) return false;
+        iv.emplace_back(t0, t1);
+        return false;
+    });
+    if (iv.empty()) return false;
+    std::sort(iv.begin(), iv.end());
+    merged.push_back(iv[0]);
+    for (size_t k = 1; k < iv.size(); ++k) {
+        if (iv[k].first > merged.back().second + 1e-6f) merged.push_back(iv[k]);
+        else merged.back().second = std::max(merged.back().second, iv[k].second);
+    }
+    if (merged[0].first > 1e-6f) return true; // starts on open ground, enters a tree's clearance
+    return merged.size() > 1; // starts inside one, leaves it, then enters blocked ground again
+}
+
+inline bool NavGrid::tile_path_crosses_tree_clearance(float sx, float sz, const WaypointPath &path, int cls) const {
+    if (path.count == 0) return false;
+    const int cur = std::max(path.cur, 0);
+    // Only the legs the thinning never tested: the first from the unit to its first node, the last
+    // into the goal, and every leg of a small path (at most two jump points, kept count <= 2 plus
+    // the start leg). A middle leg of a longer path is either a shortcut the thinning tested with
+    // tile_line_clear at the same clearance, or a jump segment between open nodes, and re-testing
+    // them all would revert whole paths that merely pass a tree at the clearance, as crosses_tree_sub
+    // on the whole tile path did (G171's held candidate). A collinear shortcut in the middle is the
+    // same line as its jump segments, so it does not enter a clearance they clear.
+    auto leg = [&](int k) {
+        const float px = k == cur ? sx : path.xs[k - 1];
+        const float pz = k == cur ? sz : path.zs[k - 1];
+        return leg_crosses_gaia_clearance(px, pz, path.xs[k], path.zs[k], cls);
+    };
+    if (leg(cur)) return true;
+    if (path.count - cur <= 2) return leg(path.count - 1) || (path.count - cur == 2 && leg(cur + 1));
+    return leg(path.count - 1);
+}
+
 // C1 (0 A.D. paths its units on 1 m obstruction navcells; RTS0 on 8 m ones, with the trees' squares on the 1 m ones
 // only here). A path whose legs cross a tree's subcell is planned again on the 1 m grid, and the navcell path is kept
 // when it crosses none (so routes that clear the trees keep their exact path):
@@ -2840,9 +2913,25 @@ inline bool NavGrid::find_path_on(float sx, float sz, float tx, float tz, Waypoi
     if (!fine && cls == 1) fine = gap = path_through_narrow_gap(sx, sz, out);
     if (!fine) return reached;
     // The tiles take the goal as given: their own MakeGoalReachable moves it, not the navcells'.
+    const WaypointPath navcell = out;
+    const bool navcell_reached = reached;
     WaypointPath tiles;
     bool tiles_reached = false;
     if (!find_path_tiles(sx, sz, tx, tz, tiles, tiles_reached, cls)) return reached;
+    // G171: ImprovePathWaypoints (find_path_tiles) tests each shortcut it takes with tile_line_clear,
+    // but not the first leg from the unit to its first node, the leg into the goal, or any leg of a
+    // path with at most two jump points (a collinear shortcut in the middle is the same line as its
+    // jump segments). A leg of those that enters a tree's clearance (GAIA grown by the class
+    // clearance, not the subcells' clearance plus 1 m) would be walked into a tree the steering
+    // must go round, and the navcell path was just re-planned round the trees. Keep the navcell
+    // path when the first or last such leg crosses (tile_path_crosses_tree_clearance); middle legs
+    // the thinning did test already passed tile_line_clear at the same clearance. Skipped for the
+    // narrow-gap case, where the navcell path takes the gap the tile path was planned round, and
+    // with navcells_only, where the walk asked for the tree-blind navcell path.
+    if (!navcells_only && !gap && tile_path_crosses_tree_clearance(sx, sz, tiles, cls)) {
+        out = navcell;
+        return navcell_reached;
+    }
     out = tiles;
     if (narrow_gap) *narrow_gap = gap;
     return tiles_reached;
