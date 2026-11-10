@@ -551,6 +551,8 @@ private:
 	// ask again when a transfer stalls.
 	std::vector<std::pair<uint32_t, std::vector<uint8_t>>> rejoin_outbox_;
 	size_t rejoin_outbox_next_ = 0;
+	// (client, seq) of each chunk sent and not yet acked: its window (NetHost::RELIABLE_WINDOW).
+	std::vector<std::pair<uint32_t, uint32_t>> rejoin_inflight_;
 	uint64_t rejoin_progress_ms_ = 0;
 	static constexpr size_t REJOIN_CHUNKS_PER_TICK = 16;
 	static constexpr uint64_t REJOIN_RETRY_MS = 5000;
