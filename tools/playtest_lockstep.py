@@ -661,7 +661,7 @@ def run_three_human_case(binary: str, seed: int, speed: float, loss: float, port
 
 
 def run_observer_case(binary: str, seed: int, speed: float, loss: float, port: int, out_dir: str,
-                      timeout: int) -> bool:
+                      timeout: int, rejoin_budget: int = 30) -> bool:
     """0 A.D. observer late join: two humans play, and a third client joins the
     running match as an observer. It loads the host's world, then must hash the
     same as the host on every later turn; it takes no seat, nobody waits on it,
@@ -691,7 +691,7 @@ def run_observer_case(binary: str, seed: int, speed: float, loss: float, port: i
     deadline = time.time() + min(timeout, Peer.step_timeout)
     while time.time() < deadline and len(read_hashes(logs["host"])) < 120 and host.poll() is None:
         time.sleep(0.1)
-    obs = peer("join", logs["obs"], "--name", "watcher", "--observe", "1")
+    obs = peer("join", logs["obs"], "--name", "watcher", "--observe", "1", "--rejoin-budget", str(rejoin_budget))
     while time.time() < deadline and obs.poll() is None and not read_hashes(logs["obs"]):
         time.sleep(0.1)
     extra_log = os.path.join(out_dir, "observer_extra.log")
@@ -1290,8 +1290,10 @@ def main() -> int:
         # reliable packet (turn batches, the rejoin world's chunks) must still
         # arrive, as ENet's do, or the late observer stalls or never gets in.
         print("\n---- heavy loss: the observer case with 45% of datagrams lost ----")
+        # 45% loss: the world (about 600 KB in 1 KB chunks) moves at most 32 chunks per
+        # retransmit cycle (0 A.D.'s window), so the join gets a 90 s budget, not 30 s.
         net_ok = run_observer_case(binary_path, args.seeds[0], args.net_speed, 0.45,
-                                   args.net_port + 7, out_dir, args.timeout) and net_ok
+                                   args.net_port + 7, out_dir, args.timeout, rejoin_budget=90) and net_ok
 
     oos = [r for r in results if r["divergent_turn"] is not None]
     if not net_ok and not oos:
