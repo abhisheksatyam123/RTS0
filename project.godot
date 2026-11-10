@@ -73,6 +73,10 @@ window/stretch/aspect="expand"
 
 [shader_globals]
 
+rtso_pixel_art={
+"type": "bool",
+"value": false
+}
 rtso_pp_hdr={
 "type": "float",
 "value": 0.0

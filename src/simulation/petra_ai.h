@@ -145,8 +145,9 @@ struct PetraQueueAccount {
 	float stone = 0.0f;
 };
 
-// queueManager.js queues, Config.priorities order. RTS0 keeps one upcoming attack plan,
-// so the "plan_<name>" queues an attackPlan.js adds are three fixed ones here.
+// queueManager.js queues, Config.priorities order. RTS0 keeps three upcoming attack plans
+// (the slot's, a raid's and one preparing beside it), so the "plan_<name>" queues an
+// attackPlan.js adds (attackPlan.js:221-223) are three fixed sets here, one per plan.
 enum PetraQueue : uint8_t {
 	PETRA_Q_VILLAGER = 0,
 	PETRA_Q_CITIZEN_SOLDIER,
@@ -166,12 +167,36 @@ enum PetraQueue : uint8_t {
 	PETRA_Q_MINOR_TECH,
 	PETRA_Q_WONDER,
 	PETRA_Q_EMERGENCY,
-	PETRA_Q_PLAN,        // plan_<name>
+	PETRA_Q_PLAN,        // plan_<name> (the slot's plan)
 	PETRA_Q_PLAN_CHAMP,  // plan_<name>_champ
 	PETRA_Q_PLAN_SIEGE,  // plan_<name>_siege
+	PETRA_Q_RAID_PLAN,        // the raid's plan_<name>
+	PETRA_Q_RAID_PLAN_CHAMP,  // the raid's plan_<name>_champ
+	PETRA_Q_RAID_PLAN_SIEGE,  // the raid's plan_<name>_siege
+	PETRA_Q_NEXT_PLAN,        // the beside plan's plan_<name>
+	PETRA_Q_NEXT_PLAN_CHAMP,  // the beside plan's plan_<name>_champ
+	PETRA_Q_NEXT_PLAN_SIEGE,  // the beside plan's plan_<name>_siege
 	PETRA_Q_COUNT,
 	PETRA_Q_SHIPYARD = PETRA_Q_MILITARY_BUILDING
 };
+
+// How many queues the saves written before v148 held (the shared three plan queues).
+inline constexpr int PETRA_QUEUE_COUNT_V147 = 21;
+
+// queueManager.js checkPausedQueues's plan tests (q.indexOf("plan_") != -1, and
+// q.indexOf("_champ") / q.indexOf("_siege") != -1): the nine plan queues, and their
+// champion and siege variants.
+inline bool petra_is_plan_queue(int q) {
+	return q == PETRA_Q_PLAN || q == PETRA_Q_PLAN_CHAMP || q == PETRA_Q_PLAN_SIEGE ||
+	       q == PETRA_Q_RAID_PLAN || q == PETRA_Q_RAID_PLAN_CHAMP || q == PETRA_Q_RAID_PLAN_SIEGE ||
+	       q == PETRA_Q_NEXT_PLAN || q == PETRA_Q_NEXT_PLAN_CHAMP || q == PETRA_Q_NEXT_PLAN_SIEGE;
+}
+inline bool petra_is_plan_champ_queue(int q) {
+	return q == PETRA_Q_PLAN_CHAMP || q == PETRA_Q_RAID_PLAN_CHAMP || q == PETRA_Q_NEXT_PLAN_CHAMP;
+}
+inline bool petra_is_plan_siege_queue(int q) {
+	return q == PETRA_Q_PLAN_SIEGE || q == PETRA_Q_RAID_PLAN_SIEGE || q == PETRA_Q_NEXT_PLAN_SIEGE;
+}
 
 // queueManager.js funds the queues that hold a plan, by priority, up to that plan's cost.
 // RTS0's Petra pays where it decides rather than queueing plans: a queue "wants" the cost
@@ -225,10 +250,11 @@ struct PetraQueueManager {
 		for (auto &q : plans) for (auto &pl : q) pl = PetraQueuePlan{};
 	}
 };
-static_assert(sizeof(PetraQueueManager) == 864 + sizeof(PetraQueuePlan) * PETRA_QUEUE_PLAN_DEPTH * PetraQueueManager::QUEUE_COUNT, "no hidden padding: saved raw");
+static_assert(sizeof(PetraQueueAccount) == 16, "no hidden padding: saved raw");
 
 struct PetraQueueManagerV143 {
-	static constexpr int QUEUE_COUNT = PETRA_Q_COUNT;
+	// The saved layout before v144 (and before v148's per-plan queues): 21 queues.
+	static constexpr int QUEUE_COUNT = PETRA_QUEUE_COUNT_V147;
 	static constexpr float WANT_TTL = 10.0f;
 	// Queues retried less often keep their want across one cadence: a new base every 10th
 	// turn (checkBaseExpansion), a wonder every 30th (headquarters.js:2314).
@@ -258,6 +284,35 @@ struct PetraQueueManagerV143 {
 	}
 };
 static_assert(sizeof(PetraQueueManagerV143) == 864, "the saved layout before v144");
+
+// The layout of saves v144-v147: 21 queues with plans, the raid and the attack sharing
+// the three plan queues. 27 from v148 (one set per mustering plan).
+struct PetraQueueManagerV147 {
+	static constexpr int QUEUE_COUNT = PETRA_QUEUE_COUNT_V147;
+	PetraQueueAccount accounts[QUEUE_COUNT] = {};
+	PetraQueueAccount wants[QUEUE_COUNT] = {};
+	float want_age[QUEUE_COUNT] = {};
+	int16_t priority[QUEUE_COUNT] = {};
+	uint8_t paused[QUEUE_COUNT] = {};
+	uint8_t switched[QUEUE_COUNT] = {};
+	uint8_t reset_on_start[QUEUE_COUNT] = {};
+	uint8_t special_tech = 0;
+	uint8_t pad[2] = {};
+	PetraQueuePlan plans[QUEUE_COUNT][PETRA_QUEUE_PLAN_DEPTH] = {};
+	void reset() {
+		for (int i = 0; i < QUEUE_COUNT; ++i) {
+			accounts[i] = PetraQueueAccount{};
+			wants[i] = PetraQueueAccount{};
+			want_age[i] = 11.0f;
+			priority[i] = 0;
+			paused[i] = switched[i] = reset_on_start[i] = 0;
+		}
+		special_tech = 0;
+		for (auto &q : plans) for (auto &pl : q) pl = PetraQueuePlan{};
+	}
+};
+static_assert(sizeof(PetraQueueManagerV147) == 1704, "the saved layout before v148");
+static_assert(sizeof(PetraQueueManager) == 2192, "no hidden padding: saved raw");
 // The six-queue layout of saves before v60 (emergency, villager, military, tech, trade, naval).
 struct PetraQueueManagerV59 {
 	PetraQueueAccount accounts[6];

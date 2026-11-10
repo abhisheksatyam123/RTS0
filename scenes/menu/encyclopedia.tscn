@@ -61,7 +61,7 @@ text = "Civilization Overview and Structure Tree"
 [node name="BtnBack" type="Button" parent="Center/Panel/VBox/Header"]
 custom_minimum_size = Vector2(90, 34)
 layout_mode = 2
-text = "Back"
+text = "Close"
 
 [node name="TabContainer" type="TabContainer" parent="Center/Panel/VBox"]
 layout_mode = 2

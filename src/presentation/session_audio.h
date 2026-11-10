@@ -648,6 +648,12 @@ public:
 			case BLD_FORGE: n = "forge"; break;
 			case BLD_ELEPHANT_STABLE: n = "elephant_stable"; break;
 			case BLD_THEATER: n = "theater"; break;
+				// 0.28 structure templates: ptol/military_colony selects with gymnasium; germ/encampment
+				// uses civ_center; gaul/tavern uses broch; han/laozigate uses iber_monument.
+				case BLD_MILITARY_COLONY: n = "gymnasium"; break;
+				case BLD_WAGON_ENCAMPMENT: n = "civ_center"; break;
+				case BLD_TAVERN: n = "broch"; break;
+				case BLD_LAOZI_GATE: n = "iber_monument"; break;
 			default: break;
 		}
 		static thread_local std::string s;
