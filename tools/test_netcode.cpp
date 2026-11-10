@@ -820,6 +820,12 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
             std::printf("[net-peer] join: refused code=%d\n", ARC_BANNED);
             return 4;
         }
+        // A host still loading (game start, or a saved game waiting for joiners)
+        // refuses joins with NDR_SERVER_LOADING. Exit 5 so the soak harness retries.
+        if (!host && net.connectionLost() && net.disconnectReason() == NDR_SERVER_LOADING) {
+            std::printf("[net-peer] join: refused by a loading host (reason %d)\n", NDR_SERVER_LOADING);
+            return 5;
+        }
         if (now_us() - t_start > 10'000'000ull) {
             std::fprintf(stderr, "[net-peer] %s: no connection after 10s (%u of %u)\n", host ? "host" : "join",
                          joined, need);
