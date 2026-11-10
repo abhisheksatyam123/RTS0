@@ -97,6 +97,14 @@ public:
 	static constexpr int HOLE_PUNCH_SENDS = 3;
 	static constexpr uint64_t HOLE_PUNCH_DELAY_MS = 200;
 
+	// 0 A.D. NetFileTransfer: a sender keeps at most this many reliable packets in
+	// flight per transfer (window 32) and sends more only as acks come back.
+	static constexpr size_t RELIABLE_WINDOW = 32;
+	// The sequence number of the last reliable packet sent to peer_id (0 if none).
+	uint32_t lastSentSeq(uint32_t peer_id) const;
+	// Whether that reliable packet is still waiting for its ack (not yet acked or given up).
+	bool reliableStillPending(uint32_t peer_id, uint32_t seq) const;
+
 	// Packet transmission
 	void sendCommand(uint32_t peer_id, const uint8_t *data, size_t size);
 	void sendCommand(uint32_t peer_id, const std::vector<uint8_t> &data);
