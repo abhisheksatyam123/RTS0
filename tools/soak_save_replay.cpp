@@ -22,6 +22,10 @@
 #undef private
 #include "network/turn_manager.h"
 #include "network/net_types.h"
+// data/maps/NAME.json loader shared with the other probes (as soak_match.cpp includes it).
+#define PROBE_LOADER_ONLY
+#include "probe_trigger_maps.cpp"
+#undef PROBE_LOADER_ONLY
 
 #include <cstdint>
 #include <cstdio>
@@ -42,6 +46,7 @@ struct Options {
 	int players = 4;
 	float size = 256.0f;
 	std::vector<int> civs = {0, 1, 2, 3};
+	std::vector<std::string> jsons; // data/maps/NAME.json skirmish maps, played instead of --maps
 	std::string dir = "/tmp/soak_save_replay";
 };
 
@@ -55,9 +60,31 @@ std::vector<int> parse_list(const char *s) {
 	return out;
 }
 
-// Same map, Petra and team setup the game gives a skirmish (soak_match.cpp's setup, minus the
-// JSON maps). Every copy of a match is built through this, so the comparisons are fair.
-void build_match(Simulation &s, const Options &o, int map, uint32_t seed) {
+// Same map, Petra and team setup the game gives a skirmish (soak_match.cpp's setup). Every copy of a
+// match is built through this, so the comparisons are fair. A JSON map (json non-empty) brings its own
+// players, teams and resources, as soak_match's setup_json does; returns the players seated.
+int build_match(Simulation &s, const Options &o, int map, const std::string &json, uint32_t seed) {
+	if (!json.empty()) {
+		MapPlayerOverrides ov;
+		g_civ_override = o.civs;
+		if (!load_json_map(s, json, seed, ov)) return 0;
+		const int players = std::max(1, ov.players);
+		s.set_victory_condition(VICTORY_CONQUEST);
+		s.set_waves_enabled(false);
+		for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
+			if (ov.civ[p] >= 0) s.set_team_civ(p, (uint8_t)ov.civ[p]);
+			if (ov.has_res[p]) s.set_player_resources(p, ov.res[p][0], ov.res[p][1], ov.res[p][3], ov.res[p][2]);
+			s.set_player_pop_cap(p, ov.pop[p]);
+		}
+		if (ov.pop_limit > 0) s.set_pop_cap(ov.pop_limit);
+		if (ov.has_teams) { s.set_setup_teams(ov.team); s.apply_team_diplomacy(); }
+		for (uint8_t p = 0; p < MAX_PLAYERS; ++p) s.set_player_active(p, p < players, p < players);
+		for (int p = 0; p < players; ++p) {
+			s.set_petra_difficulty((uint8_t)p, 3);
+			s.set_petra_behavior((uint8_t)p, 2);
+		}
+		return players;
+	}
 	s.reset();
 	s.set_sim_seed(seed);
 	s.set_waves_enabled(false);
@@ -69,6 +96,7 @@ void build_match(Simulation &s, const Options &o, int map, uint32_t seed) {
 		s.set_petra_difficulty((uint8_t)p, 3);
 		s.set_petra_behavior((uint8_t)p, 2);
 	}
+	return o.players;
 }
 
 // Orders for one turn. Client 0 moves its own units, client 1 attack-moves its own; the
@@ -137,7 +165,7 @@ void report(Result &r, const char *what, int map, uint32_t seed, uint32_t turn) 
 	++r.failures;
 }
 
-bool soak_one(const Options &o, int map, uint32_t seed, Result &r) {
+bool soak_one(const Options &o, int map, const std::string &json, uint32_t seed, Result &r) {
 	const uint32_t n = o.turns;
 	const uint32_t k = o.save_turn ? o.save_turn : n / 3;
 	const std::string save_path = o.dir + "/match.rts0sav";
@@ -148,7 +176,7 @@ bool soak_one(const Options &o, int map, uint32_t seed, Result &r) {
 
 	// 1. Uninterrupted reference run; it also decides the order stream.
 	Simulation ref;
-	build_match(ref, o, map, seed);
+	build_match(ref, o, map, json, seed);
 	TurnManager tm_ref;
 	Rng rng(seed * 7919u + 17u);
 	for (uint32_t t = 0; t < n; ++t) {
@@ -163,7 +191,7 @@ bool soak_one(const Options &o, int map, uint32_t seed, Result &r) {
 
 	// 2. Save at turn k, load into a fresh copy, then play both on from the same orders.
 	Simulation live;
-	build_match(live, o, map, seed);
+	build_match(live, o, map, json, seed);
 	TurnManager tm_live;
 	for (uint32_t t = 0; t < k; ++t) {
 		const uint32_t h = run_turn(tm_live, live, script[t]);
@@ -174,7 +202,7 @@ bool soak_one(const Options &o, int map, uint32_t seed, Result &r) {
 		return false;
 	}
 	Simulation loaded;
-	build_match(loaded, o, map, seed);
+	build_match(loaded, o, map, json, seed);
 	if (!loaded.load_state(save_path.c_str())) {
 		report(r, "load_state failed", map, seed, k);
 		return false;
@@ -201,7 +229,7 @@ bool soak_one(const Options &o, int map, uint32_t seed, Result &r) {
 			report(r, ("replay from save does not validate: " + err).c_str(), map, seed, k);
 		} else {
 			Simulation fsim;
-			build_match(fsim, o, map, seed);
+			build_match(fsim, o, map, json, seed);
 			if (!fsim.load_state(save_path.c_str())) {
 				report(r, "load_state for the from-save replay failed", map, seed, k);
 			} else {
@@ -239,7 +267,7 @@ bool soak_one(const Options &o, int map, uint32_t seed, Result &r) {
 			report(r, ("replay does not validate: " + err).c_str(), map, seed, n);
 		} else {
 			Simulation rsim;
-			build_match(rsim, o, map, seed);
+			build_match(rsim, o, map, json, seed);
 			TurnManager rp;
 			if (!rp.load_replay(replay_path)) {
 				report(r, ("load_replay failed: " + rp.last_replay_error()).c_str(), map, seed, 0);
@@ -265,8 +293,8 @@ bool soak_one(const Options &o, int map, uint32_t seed, Result &r) {
 	}
 	std::remove(replay_path.c_str());
 	const bool ok = r.failures == failures_before;
-	std::printf("%s map=%d seed=%u turns=%u save_turn=%u final_hash=%u\n", ok ? "[ok]" : "[fail]", map, seed, n, k,
-			final_ref_hash);
+	std::printf("%s map=%s seed=%u turns=%u save_turn=%u final_hash=%u\n", ok ? "[ok]" : "[fail]",
+			json.empty() ? std::to_string(map).c_str() : json.c_str(), seed, n, k, final_ref_hash);
 	std::fflush(stdout);
 	return ok;
 }
@@ -286,14 +314,17 @@ int main(int argc, char **argv) {
 		else if (!std::strcmp(argv[i], "--players")) o.players = std::atoi(next());
 		else if (!std::strcmp(argv[i], "--size")) o.size = (float)std::atof(next());
 		else if (!std::strcmp(argv[i], "--civs")) o.civs = parse_list(next());
-		else if (!std::strcmp(argv[i], "--dir")) o.dir = next();
+		else if (!std::strcmp(argv[i], "--json")) {
+			o.jsons.clear();
+			for (char *t = std::strtok(next(), ","); t; t = std::strtok(nullptr, ",")) o.jsons.push_back(t);
+		} else if (!std::strcmp(argv[i], "--dir")) o.dir = next();
 		else {
 			std::fprintf(stderr, "unknown argument %s\n", argv[i]);
 			return 2;
 		}
 	}
-	if (o.turns < 4 || o.players < 2 || o.players > MAX_PLAYERS || o.maps.empty() || o.seeds.empty() || o.civs.empty()) {
-		std::fprintf(stderr, "usage: soak_save_replay [--maps a,b] [--seeds a,b] [--turns N] [--save-turn K] [--players P] [--size S] [--civs a,b] [--dir D]\n");
+	if (o.turns < 4 || o.players < 2 || o.players > MAX_PLAYERS || (o.maps.empty() && o.jsons.empty()) || o.seeds.empty() || o.civs.empty()) {
+		std::fprintf(stderr, "usage: soak_save_replay [--maps a,b] [--seeds a,b] [--turns N] [--save-turn K] [--players P] [--size S] [--civs a,b] [--json NAME,NAME] [--dir D]\n");
 		return 2;
 	}
 	if (o.save_turn >= o.turns) {
@@ -302,11 +333,19 @@ int main(int argc, char **argv) {
 	}
 	Result r;
 	int matches = 0, passed = 0;
-	for (int map : o.maps)
-		for (uint32_t seed : o.seeds) {
-			++matches;
-			passed += soak_one(o, map, seed, r) ? 1 : 0;
-		}
+	if (o.jsons.empty()) {
+		for (int map : o.maps)
+			for (uint32_t seed : o.seeds) {
+				++matches;
+				passed += soak_one(o, map, "", seed, r) ? 1 : 0;
+			}
+	} else {
+		for (const std::string &j : o.jsons)
+			for (uint32_t seed : o.seeds) {
+				++matches;
+				passed += soak_one(o, 0, j, seed, r) ? 1 : 0;
+			}
+	}
 	std::printf("RESULT: %d/%d matches passed, %d desync(s)\n", passed, matches, r.failures);
 	return r.failures ? 1 : 0;
 }
