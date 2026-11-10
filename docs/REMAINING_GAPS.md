@@ -133,6 +133,17 @@ Closed since re-check 3 (2026-10-15): G1 (large units' long paths keep out of wo
 | G104 | ~~A defeated player's structures turned Gaia's with the owner's civ bonuses and technologies still in their health (a Celtic farmstead 720 instead of 900, a Macedonian storehouse 704 instead of 640), and kept them after a capture; 0.28's Health.OnValueModification on the ownership change drops them (E sweep, soak_match [stat-drift])~~ Fixed: the defeat hand-over rescales each structure's health to Gaia's (`tools/test_resign.cpp`) | low | E |
 | G175 | ~~Gorge (`data/maps/gorge.json`) has no resources, fauna or treasures, so both Petras stall at 7-8 units with food 0-35~~ Closed 2026-11-07 as 0.28-correct: 0 A.D.'s `scenarios/gorge.xml` has two entities, the civic centres of players 1 and 2 (uids 11 and 12), and nothing else: no resource supplies, no `gaia/` entities, no treasures, no trigger script, and no PlayerData resources. RTS0's gorge.json has the same empty lists (resources, fauna, treasures, ruins, gaia_structures, gaia_units, scenery), so nothing was dropped. The stall and the idle civic centres are the map's, not a port gap | low | F |
 
+### Technology tree: re-check against 0.28 data (2026-11-10)
+
+Compared src/simulation/tech_data.h with a fresh run of tools/extract_0ad_techs.py on the mounted 0.28 simulation tree, row by row (keyed by 0.28 technology name). For the 133 technologies both sides have, cost (food, wood, gold, stone), research time, required phase, researcher building and civ mask all match. The only other differences are deliberate:
+
+- Prerequisites: RTS0 keeps the 0.28 requirement in tech_supersedes() instead of the prerequisite field (every 0.28 edge is there, checked).
+- Researchers: pharaonic_cult and serapis_cult research at BLD_TEMPLE_ISIS, and wagon_trains at BLD_WAGON_ENCAMPMENT (RTS0's civ-specific and wagon structures).
+- Retired id 114 (an empty row) stays, as the table notes.
+- Only in RTS0: agoge, celtic_auxiliaries, long_walls (civ-only, appended by the generator), unlock_females_house and unlock_shared_dropsites (RTS0's own).
+
+Not re-checked here: the modification (effect) rows, which the generator filters to what RTS0 can apply.
+
 ### Naval and trade: re-check of the 2026-10-14 audit (2026-11-10)
 
 Re-checked the 2026-10-14 read-only audit of tradeManager.js, navalManager.js and transportPlan.js against main f7db137, with the code as it stands (`src/simulation/simulation.cpp`). Every row is already fixed on main, so no new code change came out of it:
