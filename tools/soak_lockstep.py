@@ -59,7 +59,8 @@ def lines(text, tag):
     return out
 
 
-def run_match(binary, out, idx, seed, port, turns, speed, m, delay=0, loss_override=None, rejoin_budget=30):
+def run_match(binary, out, idx, seed, port, turns, speed, m, delay=0, loss_override=None, rejoin_budget=30,
+              deadline_s=900):
     humans, seats, observers, loss, rejoin, pause, saveload = m
     if loss_override is not None:
         loss = loss_override
@@ -110,7 +111,7 @@ def run_match(binary, out, idx, seed, port, turns, speed, m, delay=0, loss_overr
             more += ["--quit-turn", str(leave_turn)]
         start_join(NAMES[c], *more)
         time.sleep(0.1)
-    t_end = time.time() + 900
+    t_end = time.time() + deadline_s
 
     def host_turns():
         return len(read_hashes(procs["host"][1]))
@@ -223,6 +224,7 @@ def main():
     ap.add_argument("--delay", type=int, default=0, help="hold each datagram back 0..N ms (reordering)")
     ap.add_argument("--loss", type=float, default=None, help="override every match's loss fraction")
     ap.add_argument("--rejoin-budget", type=int, default=30, help="seconds a rejoining peer waits for its world")
+    ap.add_argument("--deadline", type=int, default=900, help="wall-clock seconds a match may run")
     a = ap.parse_args()
     only = {int(x) for x in a.only.split(",") if x}
     ok, n, port = 0, 0, a.port
@@ -231,7 +233,7 @@ def main():
             if only and i not in only:
                 continue
             n += 1
-            ok += run_match(a.binary, a.out, i, seed, port, a.turns, a.speed, m, a.delay, a.loss, a.rejoin_budget)
+            ok += run_match(a.binary, a.out, i, seed, port, a.turns, a.speed, m, a.delay, a.loss, a.rejoin_budget, a.deadline)
             port += 3
     print(f"\n{ok}/{n} matches passed")
     return 0 if ok == n else 1
