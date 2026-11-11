@@ -59,12 +59,19 @@ def lines(text, tag):
     return out
 
 
-def run_match(binary, out, idx, seed, port, turns, speed, m):
+def run_match(binary, out, idx, seed, port, turns, speed, m, delay=0, loss_override=None, rejoin_budget=30,
+              deadline_s=900):
     humans, seats, observers, loss, rejoin, pause, saveload = m
+    if loss_override is not None:
+        loss = loss_override
     tag = f"m{idx}_s{seed}"
     d = os.path.join(out, tag)
     os.makedirs(d, exist_ok=True)
     common = ["--speed", str(speed), "--loss", str(loss), "--humans", str(humans), "--seats", str(seats)]
+    if delay > 0:
+        common += ["--delay", str(delay)]
+    # A world download through lossy links can outlast the default 30 s budget (see playtest_lockstep).
+    budget = ["--rejoin-budget", str(rejoin_budget)]
     if saveload:
         common += ["--saveload-turn", str(turns // 2)]
     procs = {}
@@ -104,7 +111,7 @@ def run_match(binary, out, idx, seed, port, turns, speed, m):
             more += ["--quit-turn", str(leave_turn)]
         start_join(NAMES[c], *more)
         time.sleep(0.1)
-    t_end = time.time() + 900
+    t_end = time.time() + deadline_s
 
     def host_turns():
         return len(read_hashes(procs["host"][1]))
@@ -112,7 +119,7 @@ def run_match(binary, out, idx, seed, port, turns, speed, m):
     for k in range(observers):
         while time.time() < t_end and host_turns() < turns // 6 + 40 * k and procs["host"][0].poll() is None:
             time.sleep(0.1)
-        start_join(f"watcher{k}", "--name", f"watcher{k}", "--observe", "1")
+        start_join(f"watcher{k}", "--name", f"watcher{k}", "--observe", "1", *budget)
     if leaver is not None:
         p = procs[NAMES[leaver]][0]
         try:
@@ -121,7 +128,7 @@ def run_match(binary, out, idx, seed, port, turns, speed, m):
             pass
         while time.time() < t_end and host_turns() < leave_turn + 60 and procs["host"][0].poll() is None:
             time.sleep(0.1)
-        start_join(NAMES[leaver] + "_back", "--name", NAMES[leaver], "--rejoin", "1")
+        start_join(NAMES[leaver] + "_back", "--name", NAMES[leaver], "--rejoin", "1", *budget)
     rcs, outs = {}, {}
     for key, (p, log, f) in procs.items():
         try:
@@ -214,6 +221,10 @@ def main():
     ap.add_argument("--speed", type=float, default=8.0)
     ap.add_argument("--port", type=int, default=22000)
     ap.add_argument("--only", default="")
+    ap.add_argument("--delay", type=int, default=0, help="hold each datagram back 0..N ms (reordering)")
+    ap.add_argument("--loss", type=float, default=None, help="override every match's loss fraction")
+    ap.add_argument("--rejoin-budget", type=int, default=30, help="seconds a rejoining peer waits for its world")
+    ap.add_argument("--deadline", type=int, default=900, help="wall-clock seconds a match may run")
     a = ap.parse_args()
     only = {int(x) for x in a.only.split(",") if x}
     ok, n, port = 0, 0, a.port
@@ -222,7 +233,7 @@ def main():
             if only and i not in only:
                 continue
             n += 1
-            ok += run_match(a.binary, a.out, i, seed, port, a.turns, a.speed, m)
+            ok += run_match(a.binary, a.out, i, seed, port, a.turns, a.speed, m, a.delay, a.loss, a.rejoin_budget, a.deadline)
             port += 3
     print(f"\n{ok}/{n} matches passed")
     return 0 if ok == n else 1

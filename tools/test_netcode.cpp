@@ -585,6 +585,7 @@ int gate_locked_of(const Simulation &sim, uint32_t id) {
 struct PeerOpts {
     float speed = 1.0f;
     float loss = 0.0f;
+    uint32_t delay_ms = 0;  // --delay: datagrams held back 0..N ms (reordering)
     uint32_t defeat_turn = 0;   // wipe out the joiner's player at this turn
     uint32_t pause_turn = 0;    // host pauses here for pause_ms of wall clock
     uint32_t pause_ms = 1500;
@@ -768,6 +769,7 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
 
     NetHost net;
     if (loss > 0.0f) net.set_simulated_loss(loss, seed ^ (host ? 0x1111u : 0x2222u));
+    if (opt.delay_ms > 0) net.set_simulated_delay(opt.delay_ms, seed ^ (host ? 0x3333u : 0x4444u));
     net.setLocalPlayerName(opt.name);
     net.setPassword(opt.password);
     // Peers not given a --name are all "peer"; 0.28's network.duplicateplayernames
@@ -1418,6 +1420,7 @@ int main(int argc, char **argv) {
             if (std::strcmp(k, "--defeat-turn") == 0) opt.defeat_turn = (uint32_t)std::atoi(v);
             else if (std::strcmp(k, "--speed") == 0) opt.speed = (float)std::atof(v);
             else if (std::strcmp(k, "--loss") == 0) opt.loss = (float)std::atof(v);
+            else if (std::strcmp(k, "--delay") == 0) opt.delay_ms = (uint32_t)std::atoi(v);
             else if (std::strcmp(k, "--pause-turn") == 0) opt.pause_turn = (uint32_t)std::atoi(v);
             else if (std::strcmp(k, "--pause-ms") == 0) opt.pause_ms = (uint32_t)std::atoi(v);
             else if (std::strcmp(k, "--saveload-turn") == 0) opt.saveload_turn = (uint32_t)std::atoi(v);
