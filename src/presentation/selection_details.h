@@ -574,9 +574,8 @@ inline String unit_auras_tooltip(uint16_t tmpl) {
 		out = aura_line(tr0("Inspired Defense"), "When garrisoned, the Structure has +1 capture points garrison regeneration rate.", 0.0f);
 	if (u.tech_classes & TC_INFANTRY)
 		out = join_lines({out, aura_line(tr0("Battering Team"), "Battering Rams +0.15 speed for each garrisoned soldier.", 0.0f)});
-	for (size_t k = 0; k < CIV_UNIT_AURA_SLOTS; ++k) {
-		const int16_t a = u.auras[k];
-		if (a < 0 || civ_unit_aura_repeats(u, k)) continue;
+	for (int16_t a : u.auras) {
+		if (a < 0) continue;
 		const auto &aura = civ_hero_aura(a);
 		out = join_lines({out, aura_line(tr0(String::utf8(aura.name)), String::utf8(aura.description ? aura.description : ""), aura.radius)});
 	}

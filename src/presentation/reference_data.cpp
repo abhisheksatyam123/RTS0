@@ -213,9 +213,8 @@ Dictionary RtsoReference::get_civ_info(int civ) const {
 		if (!(u.flags & rtso::ROSTER_HERO)) continue;
 		Dictionary h = unit_entry(t);
 		Array auras;
-		for (size_t k = 0; k < rtso::CIV_UNIT_AURA_SLOTS; ++k) {
-			const int16_t a = u.auras[k];
-			if (a < 0 || rtso::civ_unit_aura_repeats(u, k)) continue;
+		for (int16_t a : u.auras) {
+			if (a < 0) continue;
 			const auto &aura = rtso::civ_hero_aura(a);
 			Dictionary ad;
 			ad["name"] = String::utf8(aura.name);
@@ -467,9 +466,8 @@ Dictionary RtsoReference::get_unit(int tmpl) const {
 		add_aura("Inspired Defense", "When garrisoned, the Structure has +1 capture points garrison regeneration rate.", 0.0f);
 	if (u.tech_classes & rtso::TC_INFANTRY)
 		add_aura("Battering Team", "Battering Rams +0.15 speed for each garrisoned soldier.", 0.0f);
-	for (size_t k = 0; k < rtso::CIV_UNIT_AURA_SLOTS; ++k) {
-		const int16_t a = u.auras[k];
-		if (a < 0 || rtso::civ_unit_aura_repeats(u, k)) continue;
+	for (int16_t a : u.auras) {
+		if (a < 0) continue;
 		const auto &aura = rtso::civ_hero_aura(a);
 		add_aura(aura.name, aura.description, aura.radius);
 	}

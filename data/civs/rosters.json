@@ -2694,8 +2694,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    15,
-    123
+    15
    ],
    "civ_bonuses": [],
    "classes": [
@@ -8535,7 +8534,6 @@
    "unlock_tech": "TECH_NONE",
    "auras": [
     36,
-    125,
     37,
     38
    ],
@@ -8592,9 +8590,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    39,
-    126,
-    127
+    39
    ],
    "civ_bonuses": [],
    "classes": [
@@ -9859,8 +9855,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    43,
-    129
+    43
    ],
    "civ_bonuses": [],
    "classes": [
@@ -9916,8 +9911,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    44,
-    130
+    44
    ],
    "civ_bonuses": [
     "brit_woad_warriors"
@@ -13741,8 +13735,7 @@
    "unlock_tech": "TECH_NONE",
    "auras": [
     65,
-    66,
-    131
+    66
    ],
    "civ_bonuses": [],
    "classes": [
@@ -18218,8 +18211,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    87,
-    132
+    87
    ],
    "civ_bonuses": [],
    "classes": [
@@ -21117,8 +21109,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    29,
-    124
+    29
    ],
    "civ_bonuses": [],
    "classes": [
@@ -21206,7 +21197,6 @@
    "unlock_tech": "TECH_NONE",
    "auras": [
     41,
-    128,
     42
    ],
    "civ_bonuses": [],
@@ -26080,8 +26070,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    43,
-    129
+    43
    ],
    "civ_bonuses": [],
    "classes": [
@@ -26133,8 +26122,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    43,
-    129
+    43
    ],
    "civ_bonuses": [
     "brit_woad_warriors"
@@ -33578,439 +33566,6 @@
     "AURA_ATTACK",
     1.2,
     1000.0
-   ]
-  },
-  {
-   "id": "spart_hero_brasidas",
-   "name": "Helot Reforms",
-   "description": "Citizen Infantry Javelineers +1 crush, hack, pierce resistance, +25% ranged attack pierce damage.",
-   "type": "range",
-   "radius": 60.0,
-   "affects": [
-    "Citizen Infantry Javelineer"
-   ],
-   "players": [
-    "Player"
-   ],
-   "modifications": [
-    {
-     "value": "Attack/Ranged/Damage/Pierce",
-     "multiply": 1.25
-    },
-    {
-     "value": "Resistance/Entity/Damage/Hack",
-     "add": 1
-    },
-    {
-     "value": "Resistance/Entity/Damage/Pierce",
-     "add": 1
-    },
-    {
-     "value": "Resistance/Entity/Damage/Crush",
-     "add": 1
-    }
-   ],
-   "rts0": [
-    "AURA_ATTACK",
-    1.25,
-    16.8
-   ]
-  },
-  {
-   "id": "cart_catafalque",
-   "name": "Commander of Heavy Cavalry",
-   "description": "Leader of the Carthaginian heavy cavalry at Trebia and Cannae, where his triple charge had devastating effects on the enemy.\nMelee Cavalry +1 crush, hack, pierce resistance and +10% health.",
-   "type": "global",
-   "radius": 0.0,
-   "affects": [
-    "Melee Cavalry"
-   ],
-   "players": [
-    "Player"
-   ],
-   "modifications": [
-    {
-     "value": "Health/Max",
-     "multiply": 1.1
-    },
-    {
-     "value": "Resistance/Entity/Damage/Hack",
-     "add": 1
-    },
-    {
-     "value": "Resistance/Entity/Damage/Pierce",
-     "add": 1
-    },
-    {
-     "value": "Resistance/Entity/Damage/Crush",
-     "add": 1
-    }
-   ],
-   "rts0": [
-    "AURA_HEALTH",
-    1.1,
-    1000.0
-   ]
-  },
-  {
-   "id": "mace_hero_alexander_iii_1",
-   "name": "Rapid Conquest",
-   "description": "Soldiers +10% attack damage, +15% movement speed.",
-   "type": "range",
-   "radius": 60.0,
-   "affects": [
-    "Soldier"
-   ],
-   "players": [
-    "Player"
-   ],
-   "modifications": [
-    {
-     "value": "Attack/Melee/Damage/Hack",
-     "multiply": 1.1
-    },
-    {
-     "value": "Attack/Melee/Damage/Pierce",
-     "multiply": 1.1
-    },
-    {
-     "value": "Attack/Melee/Damage/Crush",
-     "multiply": 1.1
-    },
-    {
-     "value": "Attack/Ranged/Damage/Hack",
-     "multiply": 1.1
-    },
-    {
-     "value": "Attack/Ranged/Damage/Pierce",
-     "multiply": 1.1
-    },
-    {
-     "value": "Attack/Ranged/Damage/Crush",
-     "multiply": 1.1
-    },
-    {
-     "value": "UnitMotion/WalkSpeed",
-     "multiply": 1.15
-    }
-   ],
-   "rts0": [
-    "AURA_ATTACK",
-    1.1,
-    16.8
-   ]
-  },
-  {
-   "id": "mace_hero_demetrius_i",
-   "name": "Besieger",
-   "description": "Siege Engines +1 crush, hack, pierce resistance, +20% melee and ranged attack damage, +10% ranged attack range, +10% vision range.",
-   "type": "range",
-   "radius": 60.0,
-   "affects": [
-    "Siege"
-   ],
-   "players": [
-    "Player"
-   ],
-   "modifications": [
-    {
-     "value": "Attack/Melee/Damage/Hack",
-     "multiply": 1.2
-    },
-    {
-     "value": "Attack/Melee/Damage/Pierce",
-     "multiply": 1.2
-    },
-    {
-     "value": "Attack/Melee/Damage/Crush",
-     "multiply": 1.2
-    },
-    {
-     "value": "Attack/Ranged/Damage/Hack",
-     "multiply": 1.2
-    },
-    {
-     "value": "Attack/Ranged/Damage/Pierce",
-     "multiply": 1.2
-    },
-    {
-     "value": "Attack/Ranged/Damage/Crush",
-     "multiply": 1.2
-    },
-    {
-     "value": "Attack/Ranged/MaxRange",
-     "multiply": 1.1
-    },
-    {
-     "value": "Resistance/Entity/Damage/Hack",
-     "add": 1
-    },
-    {
-     "value": "Resistance/Entity/Damage/Pierce",
-     "add": 1
-    },
-    {
-     "value": "Resistance/Entity/Damage/Crush",
-     "add": 1
-    },
-    {
-     "value": "Vision/Range",
-     "multiply": 1.1
-    }
-   ],
-   "rts0": [
-    "AURA_ATTACK",
-    1.2,
-    16.8
-   ]
-  },
-  {
-   "id": "mace_hero_demetrius_i",
-   "name": "Besieger",
-   "description": "Siege Engines +1 crush, hack, pierce resistance, +20% melee and ranged attack damage, +10% ranged attack range, +10% vision range.",
-   "type": "range",
-   "radius": 60.0,
-   "affects": [
-    "Siege"
-   ],
-   "players": [
-    "Player"
-   ],
-   "modifications": [
-    {
-     "value": "Attack/Melee/Damage/Hack",
-     "multiply": 1.2
-    },
-    {
-     "value": "Attack/Melee/Damage/Pierce",
-     "multiply": 1.2
-    },
-    {
-     "value": "Attack/Melee/Damage/Crush",
-     "multiply": 1.2
-    },
-    {
-     "value": "Attack/Ranged/Damage/Hack",
-     "multiply": 1.2
-    },
-    {
-     "value": "Attack/Ranged/Damage/Pierce",
-     "multiply": 1.2
-    },
-    {
-     "value": "Attack/Ranged/Damage/Crush",
-     "multiply": 1.2
-    },
-    {
-     "value": "Attack/Ranged/MaxRange",
-     "multiply": 1.1
-    },
-    {
-     "value": "Resistance/Entity/Damage/Hack",
-     "add": 1
-    },
-    {
-     "value": "Resistance/Entity/Damage/Pierce",
-     "add": 1
-    },
-    {
-     "value": "Resistance/Entity/Damage/Crush",
-     "add": 1
-    },
-    {
-     "value": "Vision/Range",
-     "multiply": 1.1
-    }
-   ],
-   "rts0": [
-    "AURA_VISION",
-    1.1,
-    16.8
-   ]
-  },
-  {
-   "id": "brit_catafalque_1",
-   "name": "Guerrilla Tactics",
-   "description": "Seeing entrenched defense to be useless against the Roman army, Cassivellaunus resorted to guerrilla tactics. This was later employed by other chieftains too.\nSoldiers +15% movement speed and +15% vision range.",
-   "type": "global",
-   "radius": 0.0,
-   "affects": [
-    "Soldier"
-   ],
-   "players": [
-    "Player"
-   ],
-   "modifications": [
-    {
-     "value": "UnitMotion/WalkSpeed",
-     "multiply": 1.15
-    },
-    {
-     "value": "Vision/Range",
-     "multiply": 1.15
-    }
-   ],
-   "rts0": [
-    "AURA_VISION",
-    1.15,
-    1000.0
-   ]
-  },
-  {
-   "id": "brit_hero_boudicca",
-   "name": "Champion Army",
-   "description": "Champions +2 capture attack strength, +20% melee and ranged attack damage, +10% movement speed.",
-   "type": "range",
-   "radius": 40.0,
-   "affects": [
-    "Champion"
-   ],
-   "players": [
-    "Player"
-   ],
-   "modifications": [
-    {
-     "value": "Attack/Capture/Capture",
-     "add": 2
-    },
-    {
-     "value": "Attack/Melee/Damage/Hack",
-     "multiply": 1.2
-    },
-    {
-     "value": "Attack/Melee/Damage/Pierce",
-     "multiply": 1.2
-    },
-    {
-     "value": "Attack/Melee/Damage/Crush",
-     "multiply": 1.2
-    },
-    {
-     "value": "Attack/Ranged/Damage/Hack",
-     "multiply": 1.2
-    },
-    {
-     "value": "Attack/Ranged/Damage/Pierce",
-     "multiply": 1.2
-    },
-    {
-     "value": "Attack/Ranged/Damage/Crush",
-     "multiply": 1.2
-    },
-    {
-     "value": "UnitMotion/WalkSpeed",
-     "multiply": 1.1
-    }
-   ],
-   "rts0": [
-    "AURA_SPEED",
-    1.1,
-    11.200000000000001
-   ]
-  },
-  {
-   "id": "brit_hero_caratacos",
-   "name": "Guerrilla Chief",
-   "description": "Soldiers and Siege Engines +1 crush, hack, pierce resistance, +15% movement speed.",
-   "type": "global",
-   "radius": 0.0,
-   "affects": [
-    "Soldier",
-    "Siege"
-   ],
-   "players": [
-    "Player"
-   ],
-   "modifications": [
-    {
-     "value": "Resistance/Entity/Damage/Hack",
-     "add": 1
-    },
-    {
-     "value": "Resistance/Entity/Damage/Pierce",
-     "add": 1
-    },
-    {
-     "value": "Resistance/Entity/Damage/Crush",
-     "add": 1
-    },
-    {
-     "value": "UnitMotion/WalkSpeed",
-     "multiply": 1.15
-    }
-   ],
-   "rts0": [
-    "AURA_SPEED",
-    1.15,
-    1000.0
-   ]
-  },
-  {
-   "id": "maur_hero_chandragupta_2",
-   "name": "Elephant Corps",
-   "description": "Elephants +15% attack rate, +10% movement speed.",
-   "type": "global",
-   "radius": 0.0,
-   "affects": [
-    "Elephant"
-   ],
-   "players": [
-    "Player"
-   ],
-   "modifications": [
-    {
-     "value": "Attack/Melee/RepeatTime",
-     "multiply": 0.85
-    },
-    {
-     "value": "Attack/Ranged/RepeatTime",
-     "multiply": 0.85
-    },
-    {
-     "value": "UnitMotion/WalkSpeed",
-     "multiply": 1.1
-    }
-   ],
-   "rts0": [
-    "AURA_SPEED",
-    1.1,
-    1000.0
-   ]
-  },
-  {
-   "id": "sele_hero_seleucus_i",
-   "name": "Zooiarchos",
-   "description": "Champion Elephants +20% melee attack damage, +20% movement speed.",
-   "type": "range",
-   "radius": 60.0,
-   "affects": [
-    "Elephant Champion"
-   ],
-   "players": [
-    "Player"
-   ],
-   "modifications": [
-    {
-     "value": "Attack/Melee/Damage/Hack",
-     "multiply": 1.2
-    },
-    {
-     "value": "Attack/Melee/Damage/Pierce",
-     "multiply": 1.2
-    },
-    {
-     "value": "Attack/Melee/Damage/Crush",
-     "multiply": 1.2
-    },
-    {
-     "value": "UnitMotion/WalkSpeed",
-     "multiply": 1.2
-    }
-   ],
-   "rts0": [
-    "AURA_SPEED",
-    1.2,
-    16.8
    ]
   }
  ]
