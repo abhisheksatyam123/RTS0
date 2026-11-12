@@ -2435,6 +2435,10 @@ public:
 		bool blocked = false;
 	};
 	const AttackPlan &petra_attack_plan() const { return petra_attack_plan_; }
+	// The main attack plan of any Petra player (the active one lives in the members above, the rest in its slot).
+	const AttackPlan &petra_attack_plan_of(uint8_t pid) const {
+		return (pid == petra_pid_ || pid >= petra_slots_.size()) ? petra_attack_plan_ : petra_slots_[pid].petra_attack_plan_;
+	}
 	const std::vector<AttackPlan> &petra_started_attacks() const { return petra_started_attacks_; }
 	const AttackPlan &petra_raid_plan() const { return petra_raid_plan_; }
 	const PetraAttackManager &petra_attack_manager() const { return petra_attack_mgr_; }
