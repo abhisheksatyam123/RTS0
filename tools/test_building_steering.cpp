@@ -553,7 +553,9 @@ static void walk_past_turned_building() {
 	check(nav::footprint_extent(turned) > turned.half_size * 1.41f, "the turned barracks' bounds are too small");
 	// For placement: the turned barracks reaches a box past its unturned side, not one in its unturned corner.
 	check(nav::footprint_overlaps_box(turned, 2.2f, -0.2f, 2.6f, 0.2f), "the turned barracks misses a box under its corner");
-	check(!nav::footprint_overlaps_box(turned, 1.6f, 1.6f, 1.9f, 1.9f), "the turned barracks covers its unturned corner");
+	// The barracks is 3 cells (its 0.28 obstruction is 20 m, 2.5 cells, rounded up), so its unturned corner is at
+	// (3, 3) and the turned square's diagonal reach is 3: the box sits just inside the unturned corner, beyond it.
+	check(!nav::footprint_overlaps_box(turned, 2.7f, 2.7f, 2.95f, 2.95f), "the turned barracks covers its unturned corner");
 
 	const uint32_t walker = s.spawn_unit(-12.0f, 0.0f, 0, UNIT_SWORDSMAN, 160.0f);
 	s.cmd_move(&walker, 1, 12.0f, 0.0f);
