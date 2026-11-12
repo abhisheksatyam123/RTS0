@@ -2599,10 +2599,12 @@ inline void NavGrid::avoid_tree_subcells(float sx, float sz, float &gx, float &g
     // of it), kSub (a tree's or mine's subcell, the string pull's own rule). Filled once per box, a navcell at a time.
     constexpr uint8_t kClosed = 1, kBlocked = 2, kSub = 4;
     thread_local std::vector<uint8_t> st;
-    // from[c]: the padded cell the search reached c from (-1 for the start). seen[c] == gen: the current flood reached c.
+    // visit[c].from: the padded cell the search reached c from (-1 for the start). visit[c].seen == gen: the current flood reached c.
     // The stamps let a flood start without a fill (from is read only at cells seen by the current flood).
-    thread_local std::vector<int32_t> from, queue;
-    thread_local std::vector<uint32_t> seen;
+    // seen and from share one record: a flood visits a cell through one cache line, not two.
+    struct Visit { uint32_t seen; int32_t from; };
+    thread_local std::vector<int32_t> queue;
+    thread_local std::vector<Visit> visit;
     thread_local uint32_t gen = 0;
     int lo_i = 0, hi_i = 0, lo_j = 0, hi_j = 0, W = 0, H = 0, PW = 0;
     size_t np = 0;     // padded cells
@@ -2643,21 +2645,19 @@ inline void NavGrid::avoid_tree_subcells(float sx, float sz, float &gx, float &g
     };
     // Floods the box from src (a step c -> nb is allowed iff c is blocked or nb is open). Stops at the goal's subcell.
     auto flood = [&](int src) {
-        if (from.size() < np) from.resize(np);
-        if (seen.size() < np) seen.resize(np, 0u);
+        if (visit.size() < np) visit.resize(np, Visit{0u, 0});
         if (++gen == 0) { // the stamps wrapped: clear them
-            std::fill(seen.begin(), seen.end(), 0u);
+            for (Visit &v : visit) v.seen = 0u;
             gen = 1;
         }
         // A cell is queued once per flood, so the queue holds at most np cells: a flat buffer with a head and a tail.
         if (queue.size() < np) queue.resize(np);
         int32_t *q = queue.data();
         const uint8_t *sp = st.data();
-        uint32_t *se = seen.data();
-        int32_t *fr = from.data();
+        Visit *vs = visit.data();
         size_t head = 0, tail = 0;
-        se[src] = gen;
-        fr[src] = -1;
+        vs[src].seen = gen;
+        vs[src].from = -1;
         q[tail++] = src;
         if (src == goal_p) return;
         // The flood ends where it discovers the goal's subcell: each cell's from is set before the cell is pushed, so the
@@ -2669,10 +2669,10 @@ inline void NavGrid::avoid_tree_subcells(float sx, float sz, float &gx, float &g
             for (int d = 0; d < 4; ++d) {
                 const int nc = nb[d];
                 if (sp[nc] & kClosed) continue; // a structure's navcell is never entered
-                if (se[nc] == gen) continue;
+                if (vs[nc].seen == gen) continue;
                 if (!cb && (sp[nc] & kBlocked)) continue; // a step leaves open ground only into open ground
-                se[nc] = gen;
-                fr[nc] = c;
+                vs[nc].seen = gen;
+                vs[nc].from = c;
                 q[tail++] = nc;
                 if (nc == goal_p) return;
             }
@@ -2683,16 +2683,16 @@ inline void NavGrid::avoid_tree_subcells(float sx, float sz, float &gx, float &g
     auto clipped_edge = [&]() {
         if (lo_i > 0)
             for (int j = lo_j; j <= hi_j; ++j)
-                if (seen[static_cast<size_t>(pidx(lo_i, j))] == gen) return true;
+                if (visit[static_cast<size_t>(pidx(lo_i, j))].seen == gen) return true;
         if (hi_i < S - 1)
             for (int j = lo_j; j <= hi_j; ++j)
-                if (seen[static_cast<size_t>(pidx(hi_i, j))] == gen) return true;
+                if (visit[static_cast<size_t>(pidx(hi_i, j))].seen == gen) return true;
         if (lo_j > 0)
             for (int i = lo_i; i <= hi_i; ++i)
-                if (seen[static_cast<size_t>(pidx(i, lo_j))] == gen) return true;
+                if (visit[static_cast<size_t>(pidx(i, lo_j))].seen == gen) return true;
         if (hi_j < S - 1)
             for (int i = lo_i; i <= hi_i; ++i)
-                if (seen[static_cast<size_t>(pidx(i, hi_j))] == gen) return true;
+                if (visit[static_cast<size_t>(pidx(i, hi_j))].seen == gen) return true;
         return false;
     };
     // The nearest open subcell the last flood reached to the goal: the least squared distance, ties by box index (the
@@ -2704,7 +2704,7 @@ inline void NavGrid::avoid_tree_subcells(float sx, float sz, float &gx, float &g
             const long long dz = j - gj;
             for (int i = lo_i; i <= hi_i; ++i) {
                 const int p = pidx(i, j);
-                if (seen[static_cast<size_t>(p)] != gen || (st[static_cast<size_t>(p)] & kBlocked)) continue;
+                if (visit[static_cast<size_t>(p)].seen != gen || (st[static_cast<size_t>(p)] & kBlocked)) continue;
                 const long long dx = i - gi, d = dx * dx + dz * dz;
                 if (near_c < 0 || d < near_d) {
                     near_d = d;
@@ -2735,8 +2735,8 @@ inline void NavGrid::avoid_tree_subcells(float sx, float sz, float &gx, float &g
         mend_p = pidx(mi, mj);
         fill();
         flood(pidx(si, sj));
-        reached_goal = seen[static_cast<size_t>(goal_p)] == gen;
-        reached_end = seen[static_cast<size_t>(mend_p)] == gen;
+        reached_goal = visit[static_cast<size_t>(goal_p)].seen == gen;
+        reached_end = visit[static_cast<size_t>(mend_p)].seen == gen;
         if (reached_goal || reached_end || !clipped_edge()) break;
         nearest();
         long long dl = LLONG_MAX; // the distance from the goal to the nearest box edge that is not the map's
@@ -2762,7 +2762,7 @@ inline void NavGrid::avoid_tree_subcells(float sx, float sz, float &gx, float &g
     // The box cells from the start to the target.
     thread_local std::vector<int> chain;
     chain.clear();
-    for (int c = target; c != -1; c = from[static_cast<size_t>(c)]) chain.push_back(c);
+    for (int c = target; c != -1; c = visit[static_cast<size_t>(c)].from) chain.push_back(c);
     std::reverse(chain.begin(), chain.end());
     const int m = static_cast<int>(chain.size()) - 1;
     auto cell_centre = [&](int c, float &x, float &z) {
