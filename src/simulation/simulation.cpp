@@ -41868,11 +41868,19 @@ void Simulation::fill_fow_from_los(std::vector<uint8_t> &grid, uint8_t player) c
 	const uint8_t mask = los_shared_mask(player);
 	const uint8_t floor = explore_map_ ? FOW_EXPLORED : FOW_UNEXPLORED;
 	const size_t n = std::min(grid.size(), los_.cells());
-	for (size_t c = 0; c < n; ++c) {
-		if (los_.off_world((int)c)) { grid[c] = FOW_UNEXPLORED; continue; } // outside a circular map
-		const uint8_t vis = los_.visible_bits((int)c) & mask, exp = los_.explored_bits((int)c) & mask;
-		grid[c] = vis ? (uint8_t)FOW_VISIBLE : (exp || grid[c] != FOW_UNEXPLORED) ? (uint8_t)FOW_EXPLORED : floor;
-	}
+	// Each cell reads only its own LOS bits and its own previous value, so cell ranges are
+	// independent: the result is the same whatever the thread count.
+	auto fill = [&](size_t a, size_t b) {
+		for (size_t c = a; c < b; ++c) {
+			if (los_.off_world((int)c)) { grid[c] = FOW_UNEXPLORED; continue; } // outside a circular map
+			const uint8_t vis = los_.visible_bits((int)c) & mask, exp = los_.explored_bits((int)c) & mask;
+			grid[c] = vis ? (uint8_t)FOW_VISIBLE : (exp || grid[c] != FOW_UNEXPLORED) ? (uint8_t)FOW_EXPLORED : floor;
+		}
+	};
+	if (n >= 16384 && JobSystem::instance().running())
+		JobSystem::instance().parallel_for(n, fill, 4096);
+	else
+		fill(0, n);
 }
 
 float Simulation::owned_fauna_vision(size_t f) const {
