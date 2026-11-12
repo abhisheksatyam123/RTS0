@@ -3616,6 +3616,11 @@ private:
 	// Every add or remove must bump supply_list_edits_, every in-place edit gaia_edits_ (sync_tile_obstructions).
 	ResourceSoA resources_;
 	std::vector<Building> buildings_;
+	// builder_stand_point's candidate structures, packed once per tick in serial code before the
+	// parallel unit pass (buildings_ is read-only there): a builder's scan reads these few bytes
+	// per structure instead of every Building (its D1 misses were 8% of the late-game run).
+	struct BlockBound { float x, z, r; uint32_t idx; };
+	std::vector<BlockBound> block_bounds_;
 	std::vector<Projectile> projectiles_;
 	// 0 A.D. StatusEffectsReceiver (Stackability Stack): every Poisoned or Burning hit is its own
 	// status with its own timer, credited to whoever applied it. It deals its Damage on the next
