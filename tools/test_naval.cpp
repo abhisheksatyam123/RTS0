@@ -3597,6 +3597,26 @@ static void test_petra_retake_same_land_only() {
 		CHECK(std::find(squad.begin(), squad.end(), across) == squad.end());
 	}
 }
+// attackPlan.js chooseTarget/updatePreparation: with a base of ours on the target's land the
+// plan rallies there and needs no ship for the attack itself; its army on the home land is
+// ferried to the rally point, and marches from there.
+// attackManager.js cancelAttacksAgainstPlayer: every upcoming plan, a raid preparing too, forgets
+// a player who is no longer the target.
+static void test_petra_cancel_clears_raid_target() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.set_player_active(2, true, true);
+	run(s, 1.0f);
+	s.petra_pid_ = 1;
+	s.petra_raid_plan_.state = Simulation::AttackPlan::MUSTER;
+	s.petra_raid_plan_.target_player = 2;
+	s.petra_cancel_attacks_against(2);
+	std::printf("Petra cancel: raid target player now %u (0xFF is none)\n", (unsigned)s.petra_raid_plan_.target_player);
+	CHECK(s.petra_raid_plan_.target_player == 0xFF);
+}
+
 
 
 int main() {
@@ -3624,6 +3644,7 @@ int main() {
 	test_petra_attack_from_far_base();
 	test_petra_landing_spot();
 	test_petra_overseas_cleared_sticky();
+	test_petra_cancel_clears_raid_target();
 	test_petra_retake_same_land_only();
 	test_petra_unreachable_target();
 	test_petra_overseas_base();

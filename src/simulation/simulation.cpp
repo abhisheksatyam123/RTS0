@@ -38653,7 +38653,8 @@ void Simulation::petra_change_diplomacy(uint8_t player, uint8_t stance) {
 // the player as their target, and every started attack on that player is aborted (its army
 // walks home).
 void Simulation::petra_cancel_attacks_against(uint8_t player) {
-	for (AttackPlan *p : {&petra_attack_plan_, &petra_next_plan_.plan}) {
+	// cancelAttacksAgainstPlayer clears targetPlayer on every upcoming plan, a raid preparing too.
+	for (AttackPlan *p : {&petra_attack_plan_, &petra_next_plan_.plan, &petra_raid_plan_}) {
 		if (p->target_player != player) continue;
 		p->target_player = 0xFF;
 		if (auto it = building_id_to_idx_.find(p->target_building_id);
