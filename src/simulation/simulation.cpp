@@ -32065,10 +32065,12 @@ uint32_t Simulation::petra_nearest_target(uint8_t kind, bool forced, uint8_t ene
 				consider(rel.id, units_.pos_x[r], units_.pos_z[r], 0.0f);
 		}
 	if (best) return best;
+	// defaultTargetFinder (attackPlan.js:1012-1034): after the civic centres and the conquest-critical
+	// structures, its last tier is enemy units, never walls, gates or towers.
 	auto conquest = [](uint8_t t) {
 		return t != BLD_WALL_SEGMENT && t != BLD_WALL_TOWER && t != BLD_PALISADE && t != BLD_SIEGE_WALL && !is_gate_type(t) && t != BLD_FIELD;
 	};
-	for (int tier = 0; tier < 3 && !best; ++tier)
+	for (int tier = 0; tier < 2 && !best; ++tier)
 		for (const auto &b : buildings_) {
 			if (!valid(b)) continue;
 			if (tier == 0 && !is_civic_centre(b.type) && b.type != BLD_MILITARY_COLONY) continue;
