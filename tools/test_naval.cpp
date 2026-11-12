@@ -953,6 +953,45 @@ static void test_petra_landing_spot() {
 // attackPlan.js chooseTarget/updatePreparation: with a base of ours on the target's land the
 // plan rallies there and needs no ship for the attack itself; its army on the home land is
 // ferried to the rally point, and marches from there.
+// attackManager.js switchDefenseToAttack (from defenseManager's civic-centre retake): a defender
+// joins the new attack only if it stands on the target's land; one across the water is left out.
+static void test_petra_retake_same_land_only() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.set_player_active(2, true, true);
+	s.set_player_resources(1, 5000, 5000, 5000, 5000);
+	s.players_[1].phase = 2;
+	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	const uint32_t cc = s.spawn_building_world(-30.0f, 44.0f, BLD_TOWN_CENTER, 0);
+	run(s, 1.0f);
+	s.petra_pid_ = 1;
+	// Spawned after the run: the enemy civic centre would shoot them otherwise.
+	const uint32_t foe = s.spawn_unit(-30.0f, 46.0f, 0, UNIT_SPEARMAN);
+	const uint32_t home = s.spawn_unit(-26.0f, 40.0f, 1, UNIT_SPEARMAN);
+	const uint32_t across = s.spawn_unit(30.0f, -36.0f, 1, UNIT_SPEARMAN);
+	run(s, 0.1f);
+	CHECK(s.petra_access_at(-26.0f, 40.0f) != s.petra_access_at(30.0f, -36.0f));
+	CHECK(s.petra_access_at(-26.0f, 40.0f) == s.petra_access_at(-30.0f, 44.0f));
+	PetraDefenseArmy army;
+	army.foe_ids = {foe};
+	army.defender_ids = {home, across};
+	s.petra_defense_armies_.push_back(army);
+	s.petra_turn_captures_.push_back(Simulation::CivicCentreCapture{cc, 1, 0});
+	const size_t before = s.petra_started_attacks_.size();
+	s.petra_retake_civic_centres();
+	CHECK(s.petra_started_attacks_.size() == before + 1);
+	if (s.petra_started_attacks_.size() == before + 1) {
+		const auto &squad = s.petra_started_attacks_.back().squad;
+		std::printf("Petra retake: %zu in the squad, home %d, across %d\n", squad.size(),
+		            (int)(std::find(squad.begin(), squad.end(), home) != squad.end()),
+		            (int)(std::find(squad.begin(), squad.end(), across) != squad.end()));
+		CHECK(std::find(squad.begin(), squad.end(), home) != squad.end());
+		CHECK(std::find(squad.begin(), squad.end(), across) == squad.end());
+	}
+}
+
 static void test_petra_attack_from_far_base() {
 	static Simulation s;
 	fresh(s);
@@ -3538,6 +3577,7 @@ int main() {
 	test_petra_overseas_attack();
 	test_petra_attack_from_far_base();
 	test_petra_landing_spot();
+	test_petra_retake_same_land_only();
 	test_petra_unreachable_target();
 	test_petra_overseas_base();
 	test_petra_builders_cross_without_ship();
