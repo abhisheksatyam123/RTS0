@@ -3285,6 +3285,24 @@ MultiMesh *RtsoWorldView::crowd_mm(CrowdBatch &b, int clip, int phase) {
 		if (silhouettes_ && silhouette_mat_.is_valid()) b.mmi[clip][phase]->set_material_overlay(silhouette_mat_);
 		rtso::set_instance_param(b.mmi[clip][phase], "silhouette_radius", b.sil_radius);
 		add_child(b.mmi[clip][phase]);
+		// Pixel mode: units get a stronger owner tint (player_color.gdshader pixel_team_sat).
+		rtso::set_instance_param(b.mmi[clip][phase], "pixel_team_sat", 1.7f);
+		if (!unit_outline_mat_.is_valid()) {
+			Ref<Shader> osh = ResourceLoader::get_singleton()->load("res://shaders/unit_outline_pixel.gdshader");
+			if (osh.is_valid()) {
+				unit_outline_mat_.instantiate();
+				unit_outline_mat_->set_shader(osh);
+			}
+		}
+		if (unit_outline_mat_.is_valid()) {
+			MultiMeshInstance3D *ol = memnew(MultiMeshInstance3D);
+			ol->set_multimesh(b.mm[clip][phase]);
+			ol->set_material_override(unit_outline_mat_);
+			ol->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_OFF);
+			ol->set_visible(unit_outlines_on_);
+			b.outline_mmi[clip][phase] = ol;
+			add_child(ol);
+		}
 	}
 	return b.mm[clip][phase].ptr();
 }
@@ -4719,6 +4737,7 @@ void RtsoWorldView::refresh_silhouettes() {
 	}
 	const bool on = rtso::user_config::get_bool("silhouettes") && silhouette_mat_.is_valid() && !cinema_playing_;
 	silhouettes_ = on;
+	unit_outlines_on_ = rtso::user_config::get_bool("pixelart");
 	const Ref<Material> overlay = on ? Ref<Material>(silhouette_mat_) : Ref<Material>();
 	for (auto &per_civ : crowd_)
 		for (auto &b : per_civ)
@@ -4727,6 +4746,7 @@ void RtsoWorldView::refresh_silhouettes() {
 					for (int p = 0; p < CROWD_PHASES; ++p)
 						if (b->mmi[c][p]) {
 							b->mmi[c][p]->set_material_overlay(overlay);
+							if (b->outline_mmi[c][p]) b->outline_mmi[c][p]->set_visible(unit_outlines_on_);
 							// Under Compatibility the value rides on the node's own copy of the overlay.
 							if (on) rtso::set_instance_param(b->mmi[c][p], "silhouette_radius", b->sil_radius);
 						}
@@ -6190,6 +6210,27 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		int clip = fauna_clip_of(fview.behavior[f], vx * vx + vz * vz, fview.alive[f] != 0);
 		f_counts[ft][with_fauna_variant(clip, ft, fview.id[f])]++;
 	}
+	// Flaming-pig corpses (Simulation::lingering_corpses): dead animals with no meat that
+	// lie in their death pose for the decay time, then vanish. Each is one more instance of
+	// its animal's carcass clip, so it shares that MultiMesh and its death frame.
+	struct CorpseDraw {
+		int row, clip;
+		float x, y, z;
+	};
+	std::vector<CorpseDraw> corpse_draws;
+	const auto &corpses = sim->lingering_corpses();
+	corpse_draws.reserve(corpses.size());
+	for (size_t i = 0; i < corpses.size(); ++i) {
+		const rtso::Simulation::LingeringCorpse &lc = corpses[i];
+		if (lc.fauna_type >= rtso::FAUNA_COUNT) continue;
+		// Corpses have no owner: visible where the player sees the ground, not by ownership.
+		if (!fauna_visible(lc.x, lc.z, lc.fauna_type, rtso::MAX_PLAYERS)) continue;
+		const int row = fauna_row(lc.fauna_type, (uint32_t)i);
+		ensure_fauna_frames(row);
+		const int clip = with_fauna_variant(3, row, (uint32_t)i);
+		corpse_draws.push_back({row, clip, lc.x, sim->get_terrain_height(lc.x, lc.z), lc.z});
+		f_counts[row][clip]++;
+	}
 	float *fauna_ptr[FAUNA_ROWS][FAUNA_CLIP_COUNT] = {};
 	for (int ft = 0; ft < fauna_rows_; ++ft) {
 		cycle_fauna_meshes(fauna_puppet[ft], fauna_mm[ft], f_counts[ft], FAUNA_CLIP_COUNT, FAUNA_DEATH_SLOTS);
@@ -6268,6 +6309,22 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			const rtso::StatusBarsSize sb = rtso::fauna_status_bars(rtso::fauna_type_info(ft).template_name);
 			const float fm = fent.metre;
 			draw_status_stack(sim, Vector3(fx, fy + sb.height_offset * fm, fz), sb.bar_width * fm, sb.bar_height * fm, fm, st);
+		}
+	}
+	// Corpses lie in the death pose: the death frame is the carcass clip's last frame.
+	for (const CorpseDraw &cd : corpse_draws) {
+		const auto &cent = rtso::ModelLibrary::get("units", fauna_row_model_[cd.row]);
+		const float csc = cent.scale > 0.05f ? cent.scale : 1.0f;
+		Transform3D cxf(Basis(Vector3(0, 1, 0), (float)Math_PI).scaled(Vector3(csc, csc, csc)),
+				Vector3(cd.x, cd.y + cent.y_offset, cd.z));
+		const int cslot = f_written[cd.row][cd.clip]++;
+		if (float *cp = fauna_ptr[cd.row][cd.clip]) {
+			cp += cslot * 16;
+			write_xf12(cp, cxf);
+			cp[12] = 1.0f;
+			cp[13] = 1.0f;
+			cp[14] = 1.0f;
+			cp[15] = 1.0f;
 		}
 	}
 	for (int ft = 0; ft < fauna_rows_; ++ft) {

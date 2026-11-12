@@ -4789,13 +4789,25 @@ float Simulation::dock_angle(float x, float z, float half_size) const {
 	constexpr int NUM_POINTS = 16;
 	constexpr float TWO_PI = 6.28318530718f;
 	if (terrain_heights_.empty()) return NAN;
+	// The sample directions depend only on the point's index, so their sines and cosines (det:: is a
+	// software series, the dominant cost of a call: 64 evaluations) are worked out once, with the same
+	// arguments as before, so every sample point is bit-identical.
+	struct Dir { float s[NUM_POINTS], c[NUM_POINTS]; };
+	static const Dir dirs = [] {
+		Dir t{};
+		for (int i = 0; i < NUM_POINTS; ++i) {
+			const float a = (float)i / NUM_POINTS * TWO_PI;
+			t.s[i] = det::sin(a);
+			t.c[i] = det::cos(a);
+		}
+		return t;
+	}();
 	for (int dist = 0; dist < 4; ++dist) {
 		int water[NUM_POINTS];
 		int n = 0;
 		const float d = half_size * (float)(dist + 1);
 		for (int i = 0; i < NUM_POINTS; ++i) {
-			const float a = (float)i / NUM_POINTS * TWO_PI;
-			if (get_terrain_height(x - d * det::sin(a), z + d * det::cos(a)) < terrain_water_height_) water[n++] = i;
+			if (get_terrain_height(x - d * dirs.s[i], z + d * dirs.c[i]) < terrain_water_height_) water[n++] = i;
 		}
 		if (!n) continue;
 		int start = 0, count = 0;
@@ -7504,9 +7516,15 @@ std::vector<std::pair<float, float>> Simulation::distribute_around(const uint32_
 	}
 	// Squared travel in whole crowd metres, each axis's difference rounded up (fixed
 	// ToInt_RoundToInfinity); each unit's own term is kept between swaps.
-	auto dist2 = [](const std::pair<float, float> &a, const std::pair<float, float> &b) {
-		const int64_t dx = (int64_t)std::ceil((a.first - b.first) / PUSH_SCALE);
-		const int64_t dz = (int64_t)std::ceil((a.second - b.second) / PUSH_SCALE);
+	// (int64_t)std::ceil(v) without the libm call (std::ceil is one under the SSE2 baseline): the truncation
+	// is the ceiling, one more when v lies above it. Exact for every float in int64 range.
+	auto ceil_i64 = [](float v) -> int64_t {
+		const int64_t t = (int64_t)v;
+		return static_cast<double>(t) < static_cast<double>(v) ? t + 1 : t;
+	};
+	auto dist2 = [&ceil_i64](const std::pair<float, float> &a, const std::pair<float, float> &b) {
+		const int64_t dx = ceil_i64((a.first - b.first) / PUSH_SCALE);
+		const int64_t dz = ceil_i64((a.second - b.second) / PUSH_SCALE);
 		return dx * dx + dz * dz;
 	};
 	std::vector<int64_t> d(count);
@@ -13266,6 +13284,12 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 
 	refresh_tree_masks(); // the steering job's find_path calls read tree_sub in parallel: refreshed here, in serial code
 	refresh_water_masks();
+	block_bounds_.clear();
+	for (size_t k = 0; k < buildings_.size(); ++k) {
+		const Building &o = buildings_[k];
+		if (o.committed && !o.wrecked && structure_blocks(o))
+			block_bounds_.push_back({o.x, o.z, std::max(o.hu, o.hv), (uint32_t)k});
+	}
 	JobSystem::instance().for_each_index(n, [&](size_t i) {
 		if (!alive[i]) {
 			vx[i] = vz[i] = 0;
@@ -17862,10 +17886,10 @@ void Simulation::builder_stand_point(size_t i, const Building &b, float x, float
 	const float clear = unit_clearance_at(i);
 	const float reach = std::max(b.hu, b.hv) + off + clear;
 	std::vector<const Building *> near;
-	for (const Building &o : buildings_)
-		if (&o != &b && o.committed && !o.wrecked && structure_blocks(o) &&
-				std::fabs(o.x - b.x) < reach + std::max(o.hu, o.hv) + 1.0f && std::fabs(o.z - b.z) < reach + std::max(o.hu, o.hv) + 1.0f)
-			near.push_back(&o);
+	const uint32_t self = (uint32_t)(&b - buildings_.data());
+	for (const BlockBound &q : block_bounds_)
+		if (q.idx != self && std::fabs(q.x - b.x) < reach + q.r + 1.0f && std::fabs(q.z - b.z) < reach + q.r + 1.0f)
+			near.push_back(&buildings_[q.idx]);
 	auto open = [&](float wx, float wz) {
 		auto [cx, cy] = nav_grid_.world_to_cell(wx, wz);
 		if (!nav_grid_.is_passable_for(cx, cy, pass) || !nav_grid_.reachable(ux, uy, cx, cy, pass)) return false;
@@ -30364,7 +30388,15 @@ void Simulation::petra_check_resource_levels(int32_t turn) {
 		if (petra_start_queued_dropsite((uint8_t)(dc.pending - 1), at, &bmap, (int)a + 1)) dc.pending = 0;
 		return;
 	}
-	bool foundation = false;
+	// worker-side gate in baseManager.js: "queues.dropsites.hasQueuedUnits() || a storehouse
+	// foundation" resets every base's counts and next check. A dropsite plan is queued while its
+	// want is still asking (the queue head, PETRA_Q_DROPSITES) or while a base holds a site it has
+	// not paid for yet (dc.pending, the queued ConstructionPlan of 0.28).
+	const PetraQueueHeads &qh = petra_queue_heads_;
+	bool foundation = qh.item[PETRA_Q_DROPSITES] != 0 &&
+	                  qh.age[PETRA_Q_DROPSITES] <= PetraQueueManager::want_ttl(PETRA_Q_DROPSITES);
+	for (const auto &c : checks)
+		if (c.check.pending) { foundation = true; break; }
 	for (const Building &b : buildings_)
 		if (b.team == petra_pid_ && b.type == BLD_STOREHOUSE && b.hp > 0.0f && b.build_progress < 1.0f) { foundation = true; break; }
 	// gatherersByType per base: our gatherers by the resource they carry, in the base of their supply.
@@ -33017,14 +33049,14 @@ uint16_t Simulation::petra_attack_access(const std::vector<uint32_t> &squad) con
 	return land;
 }
 
-// attackPlan.js UpdateTarget once the target is gone: the nearest on the army's land; with
-// nothing left of this enemy there, help another started attack whose target is on it
-// before turning to another enemy. 0 when there is none (the plan aborts).
+// attackPlan.js UpdateTarget once the target is gone: the nearest on the army's land (its owner
+// may be another enemy, as a blocker's is); only when there is none, help another started
+// attack whose target is on it before turning to another enemy. 0 when there is none (the
+// plan aborts).
 uint32_t Simulation::petra_attack_retarget(AttackPlan &plan, float &tx, float &tz) {
 	const uint16_t army_land = petra_attack_access(plan.squad);
-	const uint8_t was_enemy = plan.target_player;
 	uint32_t next_id = petra_plan_next_target(plan, tx, tz, army_land);
-	if (plan.kind != PETRA_ATTACK_UNIQUE && (next_id == 0 || petra_target_owner(next_id) != was_enemy))
+	if (plan.kind != PETRA_ATTACK_UNIQUE && next_id == 0)
 		if (const uint32_t help = petra_help_attack_target(plan, army_land, tx, tz)) next_id = help;
 	return next_id;
 }

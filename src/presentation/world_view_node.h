@@ -450,6 +450,8 @@ private:
 	};
 	struct CrowdBatch {
 		MultiMeshInstance3D *mmi[CROWD_CLIP_COUNT][CROWD_PHASES] = {};
+		// Pixel-art rim: the same MultiMesh drawn through unit_outline_pixel.gdshader, shown only in pixel mode.
+		MultiMeshInstance3D *outline_mmi[CROWD_CLIP_COUNT][CROWD_PHASES] = {};
 		Ref<MultiMesh> mm[CROWD_CLIP_COUNT][CROWD_PHASES];
 		PackedFloat32Array buffer[CROWD_CLIP_COUNT][CROWD_PHASES];
 		MultiMeshInstance3D *lod_mmi[CROWD_CLIP_COUNT][CROWD_PHASES] = {};
@@ -545,6 +547,9 @@ private:
 	// 0 A.D.'s "silhouettes" option (shaders/silhouette.gdshader): units hidden
 	// behind structures, trees or terrain show their outline in the owner's colour.
 	Ref<ShaderMaterial> silhouette_mat_;
+	// Pixel-art unit outline (shaders/unit_outline_pixel.gdshader); its nodes show with the pixelart option.
+	Ref<ShaderMaterial> unit_outline_mat_;
+	bool unit_outlines_on_ = false;
 	bool silhouettes_ = true;
 	uint32_t silhouette_gen_ = 0xFFFFFFFFu;
 	bool cinema_playing_ = false; // Simulation::cinema_playing() at the last sync
