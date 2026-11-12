@@ -3154,7 +3154,7 @@ static void test_civ_structures() {
 		auto s = std::make_unique<Simulation>();
 		s->set_sim_seed(42);
 		s->reset();
-		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 128.0f);
 		s->set_team_civ(1, (uint8_t)civ);
 		s->set_victory_condition(VICTORY_ENDLESS);
 		bool camp = false, temple = false, champion = false;
