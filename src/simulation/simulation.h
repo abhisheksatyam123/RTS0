@@ -3554,14 +3554,17 @@ private:
 	// An animal with no meat (no ResourceSupply) leaves a corpse that lies for a while, then goes
 	// (0 A.D. Health.js CreateCorpse with the template's Decay, e.g. the flaming pig's 10 s). Saved from
 	// SAVE_VERSION_LINGERING_CORPSE; not a resource, so nothing gathers it.
+public:
+	// Read-only view for presentation (the corpse draw pass in world_view_node.cpp).
 	struct LingeringCorpse {
 		float x, z;
 		float timer; // seconds left
 		uint8_t fauna_type;
 	};
+	const std::vector<LingeringCorpse> &lingering_corpses() const { return lingering_corpses_; }
+private:
 	std::vector<LingeringCorpse> lingering_corpses_;
 	static constexpr float LINGERING_CORPSE_TIME = 10.0f; // fauna_pig_flaming.xml Decay DelayTime
-	const std::vector<LingeringCorpse> &lingering_corpses() const { return lingering_corpses_; }
 	IdIndex fauna_id_to_idx_;
 	std::unordered_map<uint32_t, std::vector<uint32_t>> transport_passengers_;
 	// UnitMotionFlying.js state of each flying unit (units/plane), by unit id, so it saves and
@@ -3614,6 +3617,11 @@ private:
 	// Every add or remove must bump supply_list_edits_, every in-place edit gaia_edits_ (sync_tile_obstructions).
 	ResourceSoA resources_;
 	std::vector<Building> buildings_;
+	// builder_stand_point's candidate structures, packed once per tick in serial code before the
+	// parallel unit pass (buildings_ is read-only there): a builder's scan reads these few bytes
+	// per structure instead of every Building (its D1 misses were 8% of the late-game run).
+	struct BlockBound { float x, z, r; uint32_t idx; };
+	std::vector<BlockBound> block_bounds_;
 	std::vector<Projectile> projectiles_;
 	// 0 A.D. StatusEffectsReceiver (Stackability Stack): every Poisoned or Burning hit is its own
 	// status with its own timer, credited to whoever applied it. It deals its Damage on the next

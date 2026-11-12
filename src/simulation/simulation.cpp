@@ -4789,13 +4789,25 @@ float Simulation::dock_angle(float x, float z, float half_size) const {
 	constexpr int NUM_POINTS = 16;
 	constexpr float TWO_PI = 6.28318530718f;
 	if (terrain_heights_.empty()) return NAN;
+	// The sample directions depend only on the point's index, so their sines and cosines (det:: is a
+	// software series, the dominant cost of a call: 64 evaluations) are worked out once, with the same
+	// arguments as before, so every sample point is bit-identical.
+	struct Dir { float s[NUM_POINTS], c[NUM_POINTS]; };
+	static const Dir dirs = [] {
+		Dir t{};
+		for (int i = 0; i < NUM_POINTS; ++i) {
+			const float a = (float)i / NUM_POINTS * TWO_PI;
+			t.s[i] = det::sin(a);
+			t.c[i] = det::cos(a);
+		}
+		return t;
+	}();
 	for (int dist = 0; dist < 4; ++dist) {
 		int water[NUM_POINTS];
 		int n = 0;
 		const float d = half_size * (float)(dist + 1);
 		for (int i = 0; i < NUM_POINTS; ++i) {
-			const float a = (float)i / NUM_POINTS * TWO_PI;
-			if (get_terrain_height(x - d * det::sin(a), z + d * det::cos(a)) < terrain_water_height_) water[n++] = i;
+			if (get_terrain_height(x - d * dirs.s[i], z + d * dirs.c[i]) < terrain_water_height_) water[n++] = i;
 		}
 		if (!n) continue;
 		int start = 0, count = 0;
@@ -13272,6 +13284,12 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 
 	refresh_tree_masks(); // the steering job's find_path calls read tree_sub in parallel: refreshed here, in serial code
 	refresh_water_masks();
+	block_bounds_.clear();
+	for (size_t k = 0; k < buildings_.size(); ++k) {
+		const Building &o = buildings_[k];
+		if (o.committed && !o.wrecked && structure_blocks(o))
+			block_bounds_.push_back({o.x, o.z, std::max(o.hu, o.hv), (uint32_t)k});
+	}
 	JobSystem::instance().for_each_index(n, [&](size_t i) {
 		if (!alive[i]) {
 			vx[i] = vz[i] = 0;
@@ -17868,10 +17886,10 @@ void Simulation::builder_stand_point(size_t i, const Building &b, float x, float
 	const float clear = unit_clearance_at(i);
 	const float reach = std::max(b.hu, b.hv) + off + clear;
 	std::vector<const Building *> near;
-	for (const Building &o : buildings_)
-		if (&o != &b && o.committed && !o.wrecked && structure_blocks(o) &&
-				std::fabs(o.x - b.x) < reach + std::max(o.hu, o.hv) + 1.0f && std::fabs(o.z - b.z) < reach + std::max(o.hu, o.hv) + 1.0f)
-			near.push_back(&o);
+	const uint32_t self = (uint32_t)(&b - buildings_.data());
+	for (const BlockBound &q : block_bounds_)
+		if (q.idx != self && std::fabs(q.x - b.x) < reach + q.r + 1.0f && std::fabs(q.z - b.z) < reach + q.r + 1.0f)
+			near.push_back(&buildings_[q.idx]);
 	auto open = [&](float wx, float wz) {
 		auto [cx, cy] = nav_grid_.world_to_cell(wx, wz);
 		if (!nav_grid_.is_passable_for(cx, cy, pass) || !nav_grid_.reachable(ux, uy, cx, cy, pass)) return false;
