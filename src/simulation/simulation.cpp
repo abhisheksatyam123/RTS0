@@ -38500,6 +38500,12 @@ void Simulation::petra_manage_diplomacy(float dt) {
 	// checkRequestedTributes: warn once after 60 s, drop the offer 60 s later.
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
 		PetraReceivedRequest &req = dip.received[p];
+		// DiplomacyManager PlayerDefeated: a defeated player's requests are dropped unanswered.
+		if (is_defeated(p)) {
+			req = PetraReceivedRequest{};
+			petra_tribute_request_wanted_[p][me] = 0;
+			continue;
+		}
 		if (req.status != PetraReceivedRequest::WAITING_FOR_TRIBUTE || dip.elapsed < req.warn_time) continue;
 		if (req.sent_warning) {
 			const uint8_t type = req.type;
@@ -38550,6 +38556,7 @@ void Simulation::petra_manage_diplomacy(float dt) {
 				petra_send_diplomacy_request();
 		}
 		for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
+			if (is_defeated(p)) { sd.sent_type[p] = 0; continue; } // PlayerDefeated: the sent request goes too
 			if (!sd.sent_type[p] || dip.elapsed <= sd.sent_time[p] + 60.0f || pop_current(me) <= 70 ||
 			    petra_attack_mgr_.save_resources) continue;
 			petra_say(PETRA_CHAT_REQUEST_EXPIRED, p, p, sd.sent_type[p] == 1 ? 0 : 1);
