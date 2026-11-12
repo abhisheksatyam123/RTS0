@@ -28874,6 +28874,9 @@ uint16_t Simulation::petra_plan_prep_sea(const AttackPlan &plan) const {
 	uint16_t naval_home = 0;
 	const PetraNavalTopo &topo = petra_classified_topo(naval_home);
 	if (!topo.naval_map) return 0;
+	// checkEvents clears the plan's overseas flag for good; it is not set again while the plan is
+	// unexecuted.
+	if (plan.overseas_cleared) return 0;
 	const PetraBase *pb = get_primary_petra_base();
 	if (!pb) return 0;
 	std::vector<uint16_t> ours;
@@ -28893,7 +28896,10 @@ uint16_t Simulation::petra_plan_prep_sea(const AttackPlan &plan) const {
 		uint16_t lands[8];
 		petra_lands_around(b.x, b.z, b.half_size, lands);
 		for (uint16_t l : lands)
-			if (l && std::find(ours.begin(), ours.end(), l) != ours.end()) return 0;
+			if (l && std::find(ours.begin(), ours.end(), l) != ours.end()) {
+				if (plan.state == AttackPlan::UNEXECUTED || plan.state == AttackPlan::MUSTER) plan.overseas_cleared = true;
+				return 0;
+			}
 		if (!sea) sea = petra_overseas(topo, pb->x, pb->z, b.id);
 	}
 	return sea;
@@ -40758,6 +40764,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 				if (v.path_x.size() != v.path_z.size()) ar.ok = false;
 		}
 		if (ar.version >= S::SAVE_VERSION_PETRA_BLOCKED) ar.pod(v.blocked);
+		if (ar.version >= S::SAVE_VERSION_PETRA_OVERSEAS_CLEARED) ar.pod(v.overseas_cleared);
 		if constexpr (Ar::loading)
 			if (v.state > S::AttackPlan::ABORT || (v.kind > PETRA_ATTACK_RAID && v.kind != PETRA_ATTACK_UNIQUE)) ar.ok = false;
 	};
