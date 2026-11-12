@@ -4789,13 +4789,25 @@ float Simulation::dock_angle(float x, float z, float half_size) const {
 	constexpr int NUM_POINTS = 16;
 	constexpr float TWO_PI = 6.28318530718f;
 	if (terrain_heights_.empty()) return NAN;
+	// The sample directions depend only on the point's index, so their sines and cosines (det:: is a
+	// software series, the dominant cost of a call: 64 evaluations) are worked out once, with the same
+	// arguments as before, so every sample point is bit-identical.
+	struct Dir { float s[NUM_POINTS], c[NUM_POINTS]; };
+	static const Dir dirs = [] {
+		Dir t{};
+		for (int i = 0; i < NUM_POINTS; ++i) {
+			const float a = (float)i / NUM_POINTS * TWO_PI;
+			t.s[i] = det::sin(a);
+			t.c[i] = det::cos(a);
+		}
+		return t;
+	}();
 	for (int dist = 0; dist < 4; ++dist) {
 		int water[NUM_POINTS];
 		int n = 0;
 		const float d = half_size * (float)(dist + 1);
 		for (int i = 0; i < NUM_POINTS; ++i) {
-			const float a = (float)i / NUM_POINTS * TWO_PI;
-			if (get_terrain_height(x - d * det::sin(a), z + d * det::cos(a)) < terrain_water_height_) water[n++] = i;
+			if (get_terrain_height(x - d * dirs.s[i], z + d * dirs.c[i]) < terrain_water_height_) water[n++] = i;
 		}
 		if (!n) continue;
 		int start = 0, count = 0;
@@ -33035,14 +33047,14 @@ uint16_t Simulation::petra_attack_access(const std::vector<uint32_t> &squad) con
 	return land;
 }
 
-// attackPlan.js UpdateTarget once the target is gone: the nearest on the army's land; with
-// nothing left of this enemy there, help another started attack whose target is on it
-// before turning to another enemy. 0 when there is none (the plan aborts).
+// attackPlan.js UpdateTarget once the target is gone: the nearest on the army's land (its owner
+// may be another enemy, as a blocker's is); only when there is none, help another started
+// attack whose target is on it before turning to another enemy. 0 when there is none (the
+// plan aborts).
 uint32_t Simulation::petra_attack_retarget(AttackPlan &plan, float &tx, float &tz) {
 	const uint16_t army_land = petra_attack_access(plan.squad);
-	const uint8_t was_enemy = plan.target_player;
 	uint32_t next_id = petra_plan_next_target(plan, tx, tz, army_land);
-	if (plan.kind != PETRA_ATTACK_UNIQUE && (next_id == 0 || petra_target_owner(next_id) != was_enemy))
+	if (plan.kind != PETRA_ATTACK_UNIQUE && next_id == 0)
 		if (const uint32_t help = petra_help_attack_target(plan, army_land, tx, tz)) next_id = help;
 	return next_id;
 }
