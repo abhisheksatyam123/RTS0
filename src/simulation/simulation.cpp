@@ -35833,7 +35833,8 @@ void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt, std::vec
 		const bool stopped = units_.action_state[sidx] == ACTION_IDLE && tp.state_timer > 2.0f;
 		// transportPlan.js onSailing unloads every passenger once the ship is within 25 m
 		// (dist < 625 m²) of its boarding point, not only once it reaches the water beside it.
-		if (dx * dx + dz * dz <= 625.0f || stopped || tp.state_timer > 90.0f) {
+		// Units are 4 m, so 25 m is 6.25 units, 39.06 units².
+		if (dx * dx + dz * dz <= 39.0625f || stopped || tp.state_timer > 90.0f) {
 			if (unload()) return;
 			make_room();
 			tp.state = PetraTransportPlan::UNLOADING;
