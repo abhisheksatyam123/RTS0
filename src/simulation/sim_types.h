@@ -2484,6 +2484,11 @@ inline constexpr int PLANE_GARRISON = 1;
 inline constexpr float PLANE_LOADING_RANGE = 5.0f * 0.28f;
 inline constexpr float PLANE_BUFF_HEAL = 1.0f;
 
+// CivUnitTemplate::auras slots: the most aura rows one template carries (Alexander III has four:
+// Rapid Conquest and Companion Cavalry's speed/attack each have two effects). tools/extract_0ad_rosters.py
+// AURA_SLOTS must match.
+inline constexpr size_t CIV_UNIT_AURA_SLOTS = 4;
+
 struct CivUnitTemplate {
 	const char *id; // 0 A.D. template path under units/, e.g. "athen/infantry_spearman_b"
 	const char *name;
@@ -2511,7 +2516,7 @@ struct CivUnitTemplate {
 	uint8_t pop_cost;
 	float train_time;
 	int16_t carry_capacity;
-	int16_t auras[3]; // index into civ_hero_aura_table(), -1 = none
+	int16_t auras[CIV_UNIT_AURA_SLOTS]; // index into civ_hero_aura_table(), -1 = none; one row per effect kind
 	uint8_t unlock_tech; // TechnologyId from 0 A.D. Identity/Requirements (unlock_champion_*), or TECH_NONE
 	TechClasses tech_classes; // TechClass bits of 0 A.D. Identity/Classes + VisibleClasses
 	float vision; // 0 A.D. Vision/Range x0.28 (RTS0 units)
@@ -2950,6 +2955,15 @@ inline uint8_t resource_default_max_gatherers(uint8_t type, uint8_t subtype, int
 inline const CivHeroAura &civ_hero_aura(int16_t idx) {
 	const CivHeroAura *a = civ_hero_aura_table();
 	return a[(idx >= 0 && idx < CIV_HERO_AURA_COUNT) ? idx : 0];
+}
+
+// True when slot k of a template repeats an aura an earlier slot already names: a two-effect
+// aura takes two rows, but its name and tooltip show once.
+inline bool civ_unit_aura_repeats(const CivUnitTemplate &u, size_t k) {
+	if (u.auras[k] < 0) return false;
+	for (size_t j = 0; j < k; ++j)
+		if (u.auras[j] >= 0 && std::strcmp(civ_hero_aura(u.auras[j]).id, civ_hero_aura(u.auras[k]).id) == 0) return true;
+	return false;
 }
 
 // A roster aura whose 0.28 JSON is "stackable" and that AuraManager::query_modifier counts

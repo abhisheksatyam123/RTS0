@@ -1093,6 +1093,8 @@ AURA_KIND = {"AURA_GATHER": 0, "AURA_HEAL": 1, "AURA_ATTACK": 2, "AURA_SPEED": 3
              "AURA_ATTACK_RATE": 19}
 MULTIPLY_AURAS = ("AURA_ATTACK", "AURA_SPEED", "AURA_HEALTH", "AURA_VISION")
 GLOBAL_AURA_RANGE = 1000.0
+# CivUnitTemplate::auras slots (sim_types.h CIV_UNIT_AURA_SLOTS); keep the two in step.
+AURA_SLOTS = 4
 
 
 # 0 A.D. Auras.js affectedPlayers -> AuraPlayers bits in sim_types.h: 1 = the
@@ -1125,6 +1127,19 @@ def rts0_aura_effect(a):
 
 def aura_range(a):
     return a["radius"] * RANGED_RANGE_SCALE if a["type"] == "range" and a["radius"] > 0 else GLOBAL_AURA_RANGE
+
+
+def rts0_aura_effects_helpful(a):
+    """Every effect of a 0 A.D. aura RTS0 models that helps the affected units
+    (gain > 0), one per kind (the strongest of that kind), strongest first:
+    [(kind, value, range)]. The first entry is rts0_aura_effect(a). Keys on the
+    aura's own dict, like rts0_aura_effect."""
+    best = {}
+    for kind, value, gain in aura_modifications(a):
+        if gain > 0 and (kind not in best or gain > best[kind][1]):
+            best[kind] = (value, gain)
+    ordered = sorted(best.items(), key=lambda kv: -kv[1][1])  # stable: ties keep 0 A.D. order
+    return [(k, v[0], aura_range(a)) for k, v in ordered]
 
 
 def rts0_aura_effects(a):
@@ -1496,12 +1511,9 @@ def collect(sim_root):
                 if not aid.startswith(civ + "_") and not (aname.startswith("units/") and aname in own_auras):
                     continue  # generic auras (garrison, formation) apply to every unit of a kind; a
                     # unit's own (the centurion's Combat Leadership, a Celtic healer's) are its
-                known = next((i for i, x in enumerate(auras) if x["id"] == aid), None)
-                if known is not None:
-                    hero_auras.append(known)
-                    continue
-                hero_auras.append(len(auras))
-                auras.append({
+                # One aura row per effect kind (the Boudicca and Alexander auras have two): the
+                # first is the strongest, so single-effect auras keep their old row.
+                row = {
                     "id": aid,
                     "name": a.get("auraName", aname),
                     "description": a.get("auraDescription", ""),
@@ -1513,10 +1525,20 @@ def collect(sim_root):
                     # Seeress' Human Sacrifice names "healer_aura", which no technology is.
                     "modifications": [] if a.get("requiredTechnology") and not os.path.exists(os.path.join(
                         sim_root, "data", "technologies", a["requiredTechnology"] + ".json")) else a.get("modifications", []),
-                })
-                auras[-1]["rts0"] = rts0_aura_effect(auras[-1])
-            if len(hero_auras) > 3:  # three slots: range auras before garrison ones (the minister has four)
+                }
+                for eff in rts0_aura_effects_helpful(row) or [None]:
+                    kind = eff[0] if eff else None
+                    known = next((i for i, x in enumerate(auras) if x["id"] == aid and
+                                  (x["rts0"][0] if x.get("rts0") else None) == kind), None)
+                    if known is not None:
+                        hero_auras.append(known)
+                        continue
+                    hero_auras.append(len(auras))
+                    auras.append(dict(row, rts0=eff))
+            if len(hero_auras) > 3:  # range auras before garrison ones, so a full row drops garrison ones last
                 hero_auras.sort(key=lambda i: auras[i]["type"] == "garrison")
+            if len(hero_auras) > AURA_SLOTS:
+                raise SystemExit("%s: %d auras, CivUnitTemplate::auras has %d slots" % (name, len(hero_auras), AURA_SLOTS))
             rid = name.split("units/", 1)[-1]
             # A trained row's phase is its own Identity/Requirements (Trainer.js checks only the
             # unit's; the structure's phase gates building it, not training at a captured one).
@@ -1721,22 +1743,24 @@ def emit_header(rows, auras, civ_json, bonuses, team):
     w("\tstatic const CivUnitTemplate kTable[CIV_UNIT_TEMPLATE_COUNT] = {")
     w("\t\t// id, name, specific name, civ, class, phase, flags, trainers,")
     w("\t\t// hp, speed, range, damage, cooldown, hack/pierce/crush dmg, hack/pierce/crush armour,")
-    w("\t\t// food, wood, gold, stone, pop, train_time, carry, aura slots (-1 = none), unlock tech,")
+    w("\t\t// food, wood, gold, stone, pop, train_time, carry, aura slots (-1 = none, CIV_UNIT_AURA_SLOTS), unlock tech,")
     w("\t\t// TechClass mask of the template's 0 A.D. classes, Vision/Range x0.28")
     for r in rows:
         s = r["stats"]
         flags = " | ".join(r["flags"]) or "0"
         trainers = " | ".join("bld_bit(%s)" % b for b in r["trainers"]) or "BldMask{}"
-        a = r["auras"] + [-1, -1, -1]
+        if len(r["auras"]) > AURA_SLOTS:
+            raise SystemExit("%s: %d auras, %d slots" % (r["id"], len(r["auras"]), AURA_SLOTS))
+        a = r["auras"] + [-1] * (AURA_SLOTS - len(r["auras"]))
         w("\t\t{%s, %s, %s, %s, %s, %d, %s, %s," % (
             cstr(r["id"]), cstr(r["name"]), cstr(r["specific_name"]),
             CIV_ENUM_OF.get(r["civ"], "CIV_GAIA"), r["class"], r["phase"], flags, trainers))
-        w("\t\t %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %d, %d, %d, %d, %d, %s, %d, %d, %d, %d, %s, %s, %s}," % (
+        w("\t\t %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %d, %d, %d, %d, %d, %s, %d, %s, %s, %s, %s}," % (
             f(s["hp"]), f(s["speed"]), f(s["range"]), f(s["damage"]), f(s["cooldown"]),
             f(s["hack_dmg"]), f(s["pierce_dmg"]), f(s["crush_dmg"]),
             f(s["hack_armor"]), f(s["pierce_armor"]), f(s["crush_armor"]),
             s["food"], s["wood"], s["gold"], s["stone"], s["pop"], f(s["train_time"]),
-            s["carry"], a[0], a[1], a[2], r.get("unlock_tech", "TECH_NONE"), tech_classes_literal(tech_class_bits(r["classes"])),
+            s["carry"], ", ".join(str(x) for x in a), r.get("unlock_tech", "TECH_NONE"), tech_classes_literal(tech_class_bits(r["classes"])),
             f(s["vision"])))
     w("\t};")
     w("\treturn kTable;")
