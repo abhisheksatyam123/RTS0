@@ -33878,6 +33878,9 @@ void Simulation::petra_retake_civic_centres() {
 		const Building &cc = buildings_[bit->second];
 		// Every army whose foes are within range gives its defenders and is dropped.
 		constexpr float RANGE = 150.0f * 0.28f;
+		// attackManager.js switchDefenseToAttack: a defender joins only if it has a position (not
+		// garrisoned or aboard), no plan, and stands on the target's land access (getLandAccess).
+		const uint16_t target_access = petra_access_at(cc.x, cc.z);
 		AttackPlan plan;
 		for (size_t a = 0; a < petra_defense_armies_.size(); ++a) {
 			float ax, az;
@@ -33886,7 +33889,8 @@ void Simulation::petra_retake_civic_centres() {
 			if (dx * dx + dz * dz > RANGE * RANGE) continue;
 			for (uint32_t uid : petra_defense_armies_[a].defender_ids) {
 				const int32_t i = lookup_unit(uid);
-				if (i < 0 || !units_.alive[i] || units_.action_state[i] == ACTION_GARRISONED) continue;
+				if (i < 0 || !units_.alive[i] || units_.action_state[i] == ACTION_GARRISONED || petra_aboard(uid)) continue;
+				if (target_access && petra_access_at(units_.pos_x[i], units_.pos_z[i]) != target_access) continue;
 				plan.squad.push_back(uid);
 			}
 			petra_defense_armies_.erase(petra_defense_armies_.begin() + (ptrdiff_t)a--);
