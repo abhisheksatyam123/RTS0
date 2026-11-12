@@ -5656,11 +5656,12 @@ static void test_relic_gaia_target() {
 		const int32_t i = s->lookup_unit(uid);
 		capturing += i >= 0 && s->units_.order_kind[i] == ORDER_CAPTURE_RELIC && s->units_.order_target[i] == relic;
 	}
-	// 60 s: a one-tile ridge beside the relic's spot keeps one captor at its margin, and pushing
-	// edges its neighbour in and out of reach, so a pulse is now and then missed (about 52 s).
-	run_for(*s, 60.0f);
+	// 90 s: a one-tile ridge beside the relic's spot keeps the captors at its margin for about 50 s, and pushing
+	// edges one neighbour in and out of reach, so a pulse is now and then missed. The capture lands at about 55 s
+	// on origin/main and at about 65 s with the 0 A.D. 0.28 building sizes, past the 60 s this used to wait.
+	run_for(*s, 90.0f);
 	const int32_t r = s->lookup_unit(relic);
-	std::printf("  Gaia relic: %d of 4 soldiers sent to capture it, held by player %d after 60 s\n", capturing, r >= 0 ? (int)s->units_.team[r] : -1);
+	std::printf("  Gaia relic: %d of 4 soldiers sent to capture it, held by player %d after 90 s\n", capturing, r >= 0 ? (int)s->units_.team[r] : -1);
 	CHECK(capturing == 4, "the army at the relic goes to capture it");
 	CHECK(r >= 0 && s->units_.team[r] == 1, "and takes it");
 }
