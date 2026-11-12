@@ -3553,14 +3553,17 @@ private:
 	// An animal with no meat (no ResourceSupply) leaves a corpse that lies for a while, then goes
 	// (0 A.D. Health.js CreateCorpse with the template's Decay, e.g. the flaming pig's 10 s). Saved from
 	// SAVE_VERSION_LINGERING_CORPSE; not a resource, so nothing gathers it.
+public:
+	// Read-only view for presentation (the corpse draw pass in world_view_node.cpp).
 	struct LingeringCorpse {
 		float x, z;
 		float timer; // seconds left
 		uint8_t fauna_type;
 	};
+	const std::vector<LingeringCorpse> &lingering_corpses() const { return lingering_corpses_; }
+private:
 	std::vector<LingeringCorpse> lingering_corpses_;
 	static constexpr float LINGERING_CORPSE_TIME = 10.0f; // fauna_pig_flaming.xml Decay DelayTime
-	const std::vector<LingeringCorpse> &lingering_corpses() const { return lingering_corpses_; }
 	IdIndex fauna_id_to_idx_;
 	std::unordered_map<uint32_t, std::vector<uint32_t>> transport_passengers_;
 	// UnitMotionFlying.js state of each flying unit (units/plane), by unit id, so it saves and
