@@ -394,6 +394,12 @@ int main() {
 	s.spawn_resource_world(-20.0f, 30.0f, RES_FOOD, 100, RES_SUB_MEAT);
 	CHECK(at(s, 0, -20.0f, 30.0f, BLD_HOUSE) == Simulation::PLACE_OK);
 
+	// Map edge: a footprint in the edge band (MAP_EDGE_TILES, 12 m inside the map) has no
+	// obstruction there, and CheckBuildingPlacement answers with FAIL_TERRAIN_CLASS for a span
+	// outside the grid or on the impassable band (CCmpPathfinder.cpp:1071), so the message is
+	// "invalid terrain", not "on another building or resource". The edge test precedes territory.
+	CHECK(at(s, 0, 0.0f, 61.0f, BLD_HOUSE) == Simulation::PLACE_TERRAIN); // north edge, neutral land
+
 	// Mines block foundations across their Obstruction/Static: 13 m for a large one, 7 m for a small
 	// one or ruins, 22 x 14 m for the 48-gatherer temperate_large_02, turned as the world view draws
 	// them. A house whose nearest point is 1.5 units (6 m) from a mine's centre lies inside a large

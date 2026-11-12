@@ -4715,6 +4715,44 @@ static void test_plan_siege_batch_waits_funded() {
 	CHECK(qm.wants[PETRA_Q_PLAN_SIEGE].wood == 0.0f, "with no plan mustering it goes");
 }
 
+// attackPlan.js:221-223: each mustering plan has its own queues at its kind's priority
+// (Rush 250, Raid 150, HugeAttack 90, Attack 70, champion one more, difficulty-scaled).
+// Before, a raid and an attack shared one set at the higher of the two, so the attack
+// trained at raid priority while the raid mustered (G147).
+static void test_plan_queue_priorities() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->set_petra_difficulty(PETRA_MEDIUM);
+	auto &m = s->petra_attack_mgr_;
+	m.kind = PETRA_ATTACK_ATTACK;
+	s->petra_attack_plan_.state = Simulation::AttackPlan::MUSTER;
+	s->petra_raid_plan_.state = Simulation::AttackPlan::MUSTER;
+	s->petra_next_plan_.plan.state = Simulation::AttackPlan::MUSTER;
+	s->petra_next_plan_.plan.kind = PETRA_ATTACK_RUSH;
+	s->petra_next_plan_.muster.kind = PETRA_ATTACK_RUSH;
+	CHECK(s->petra_queue_base_priority(PETRA_Q_PLAN) == 70, "the attack trains at attack priority");
+	CHECK(s->petra_queue_base_priority(PETRA_Q_PLAN_CHAMP) == 71, "its champion queue one more");
+	CHECK(s->petra_queue_base_priority(PETRA_Q_PLAN_SIEGE) == 70, "its siege queue at attack priority");
+	CHECK(s->petra_queue_base_priority(PETRA_Q_RAID_PLAN) == 150, "the raid trains at raid priority");
+	CHECK(s->petra_queue_base_priority(PETRA_Q_RAID_PLAN_CHAMP) == 151, "its champion queue one more");
+	CHECK(s->petra_queue_base_priority(PETRA_Q_RAID_PLAN_SIEGE) == 150, "its siege queue at raid priority");
+	CHECK(s->petra_queue_base_priority(PETRA_Q_NEXT_PLAN) == 250, "a beside rush trains at rush priority");
+	CHECK(s->petra_queue_base_priority(PETRA_Q_NEXT_PLAN_CHAMP) == 251, "its champion queue one more");
+	CHECK(s->petra_queue_base_priority(PETRA_Q_NEXT_PLAN_SIEGE) == 250, "its siege queue at rush priority");
+	std::printf("  attack 70, raid 150, beside rush 250 (champion +1)\n");
+	m.kind = PETRA_ATTACK_HUGE;
+	CHECK(s->petra_queue_base_priority(PETRA_Q_PLAN) == 90, "a HugeAttack trains at 90");
+	s->petra_attack_plan_.state = Simulation::AttackPlan::UNEXECUTED;
+	CHECK(s->petra_queue_base_priority(PETRA_Q_PLAN) == 1, "a plan not mustering holds no priority");
+	// Each order trains in its own plan's set, by its classes.
+	using St = Simulation::PetraUnitStat;
+	const St elephants{TC_ELEPHANT | TC_MELEE, 1.0f, 0, 2, 2, 0.0f, 3.0f, 1.0f, 1.0f};
+	const St infantry{TC_INFANTRY | TC_MELEE, 1.0f, 6, 16, 3, 1.6f, 0.0f, 1.0f, 1.0f};
+	CHECK(Simulation::petra_plan_queue_for(PETRA_Q_RAID_PLAN, elephants) == PETRA_Q_RAID_PLAN_SIEGE, "the raid's siege order trains in the raid's siege queue");
+	CHECK(Simulation::petra_plan_queue_for(PETRA_Q_NEXT_PLAN, infantry) == PETRA_Q_NEXT_PLAN, "the beside plan's order trains in the beside plan's queue");
+}
+
 // attackPlan.js:689-695 trains a plan's batches with its name as "plan" metadata: the units
 // are the plan's as they spawn, so no other plan takes them (the main plan used to take the
 // raid's siege, and citizen cavalry trained for it went hunting). A batch whose plan has started or been replaced comes out of plan
@@ -10866,6 +10904,7 @@ int main(int argc, char **argv) {
 	RUN(test_huge_attack_drops_classes);
 	RUN(test_plan_counts_every_class);
 	RUN(test_plan_siege_batch_waits_funded);
+	RUN(test_plan_queue_priorities);
 	RUN(test_trained_units_join_their_plan);
 	RUN(test_plan_cost_weights_kept);
 	RUN(test_plan_class_sizes_sum);
