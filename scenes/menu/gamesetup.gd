@@ -1047,6 +1047,8 @@ func open_civ_reference(tab: int) -> void:
 	panel.offset_top = 30
 	panel.offset_right = -40
 	panel.offset_bottom = -30
+	# The 1280x720 design size; on a shorter phone viewport the panel shrinks so its Close stays on screen.
+	preload("res://scenes/common/fit_screen.gd").cap(panel, Vector2(1200, 660))
 	layer.add_child(panel)
 	var vbox := VBoxContainer.new()
 	panel.add_child(vbox)
@@ -3063,6 +3065,8 @@ func _render_loading() -> void:
 		text.text = tr("Loading map data. Please wait…")
 		text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		# Longer translations wrap inside the panel rather than running past its edges.
+		text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		text.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		_loading_page.add_child(text)
 		add_child(_loading_page)

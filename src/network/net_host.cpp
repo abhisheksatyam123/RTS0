@@ -356,6 +356,22 @@ void NetHost::send_raw_packet(const std::string &ip, uint16_t port, const uint8_
 		sim_loss_rng_ ^= sim_loss_rng_ << 5;
 		if ((float)(sim_loss_rng_ & 0xFFFFFF) / 16777216.0f < sim_loss_) return;
 	}
+	if (sim_delay_ms_ > 0) {
+		sim_delay_rng_ ^= sim_delay_rng_ << 13;
+		sim_delay_rng_ ^= sim_delay_rng_ >> 17;
+		sim_delay_rng_ ^= sim_delay_rng_ << 5;
+		uint32_t hold = sim_delay_rng_ % (sim_delay_ms_ + 1);
+		if (hold > 0) {
+			HeldDatagram h{get_now_ms() + hold, ip, port, std::vector<uint8_t>(data, data + size)};
+			sim_held_.push_back(std::move(h));
+			return;
+		}
+	}
+	sendto_now(ip, port, data, size);
+}
+
+void NetHost::sendto_now(const std::string &ip, uint16_t port, const uint8_t *data, size_t size) {
+	if (socket_fd_ < 0) return;
 	sockaddr_in dest{};
 	dest.sin_family = AF_INET;
 	dest.sin_port = htons(port);
@@ -1246,6 +1262,18 @@ void NetHost::check_peer_timeouts(uint64_t now_ms) {
 void NetHost::poll(Arena &arena) {
 	(void)arena;
 	if (socket_fd_ < 0) return;
+	if (!sim_held_.empty()) {
+		uint64_t now = get_now_ms();
+		for (size_t i = 0; i < sim_held_.size();) {
+			if (sim_held_[i].due_ms <= now) {
+				HeldDatagram h = std::move(sim_held_[i]);
+				sim_held_.erase(sim_held_.begin() + (std::ptrdiff_t)i);
+				sendto_now(h.ip, h.port, h.data.data(), h.data.size());
+			} else {
+				++i;
+			}
+		}
+	}
 
 	// A whole UDP datagram: a shorter buffer cuts a long one off unseen.
 	static thread_local std::vector<uint8_t> recv_buf(65536);
