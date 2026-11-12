@@ -4789,13 +4789,25 @@ float Simulation::dock_angle(float x, float z, float half_size) const {
 	constexpr int NUM_POINTS = 16;
 	constexpr float TWO_PI = 6.28318530718f;
 	if (terrain_heights_.empty()) return NAN;
+	// The sample directions depend only on the point's index, so their sines and cosines (det:: is a
+	// software series, the dominant cost of a call: 64 evaluations) are worked out once, with the same
+	// arguments as before, so every sample point is bit-identical.
+	struct Dir { float s[NUM_POINTS], c[NUM_POINTS]; };
+	static const Dir dirs = [] {
+		Dir t{};
+		for (int i = 0; i < NUM_POINTS; ++i) {
+			const float a = (float)i / NUM_POINTS * TWO_PI;
+			t.s[i] = det::sin(a);
+			t.c[i] = det::cos(a);
+		}
+		return t;
+	}();
 	for (int dist = 0; dist < 4; ++dist) {
 		int water[NUM_POINTS];
 		int n = 0;
 		const float d = half_size * (float)(dist + 1);
 		for (int i = 0; i < NUM_POINTS; ++i) {
-			const float a = (float)i / NUM_POINTS * TWO_PI;
-			if (get_terrain_height(x - d * det::sin(a), z + d * det::cos(a)) < terrain_water_height_) water[n++] = i;
+			if (get_terrain_height(x - d * dirs.s[i], z + d * dirs.c[i]) < terrain_water_height_) water[n++] = i;
 		}
 		if (!n) continue;
 		int start = 0, count = 0;
@@ -7504,9 +7516,15 @@ std::vector<std::pair<float, float>> Simulation::distribute_around(const uint32_
 	}
 	// Squared travel in whole crowd metres, each axis's difference rounded up (fixed
 	// ToInt_RoundToInfinity); each unit's own term is kept between swaps.
-	auto dist2 = [](const std::pair<float, float> &a, const std::pair<float, float> &b) {
-		const int64_t dx = (int64_t)std::ceil((a.first - b.first) / PUSH_SCALE);
-		const int64_t dz = (int64_t)std::ceil((a.second - b.second) / PUSH_SCALE);
+	// (int64_t)std::ceil(v) without the libm call (std::ceil is one under the SSE2 baseline): the truncation
+	// is the ceiling, one more when v lies above it. Exact for every float in int64 range.
+	auto ceil_i64 = [](float v) -> int64_t {
+		const int64_t t = (int64_t)v;
+		return static_cast<double>(t) < static_cast<double>(v) ? t + 1 : t;
+	};
+	auto dist2 = [&ceil_i64](const std::pair<float, float> &a, const std::pair<float, float> &b) {
+		const int64_t dx = ceil_i64((a.first - b.first) / PUSH_SCALE);
+		const int64_t dz = ceil_i64((a.second - b.second) / PUSH_SCALE);
 		return dx * dx + dz * dz;
 	};
 	std::vector<int64_t> d(count);
@@ -33017,14 +33035,14 @@ uint16_t Simulation::petra_attack_access(const std::vector<uint32_t> &squad) con
 	return land;
 }
 
-// attackPlan.js UpdateTarget once the target is gone: the nearest on the army's land; with
-// nothing left of this enemy there, help another started attack whose target is on it
-// before turning to another enemy. 0 when there is none (the plan aborts).
+// attackPlan.js UpdateTarget once the target is gone: the nearest on the army's land (its owner
+// may be another enemy, as a blocker's is); only when there is none, help another started
+// attack whose target is on it before turning to another enemy. 0 when there is none (the
+// plan aborts).
 uint32_t Simulation::petra_attack_retarget(AttackPlan &plan, float &tx, float &tz) {
 	const uint16_t army_land = petra_attack_access(plan.squad);
-	const uint8_t was_enemy = plan.target_player;
 	uint32_t next_id = petra_plan_next_target(plan, tx, tz, army_land);
-	if (plan.kind != PETRA_ATTACK_UNIQUE && (next_id == 0 || petra_target_owner(next_id) != was_enemy))
+	if (plan.kind != PETRA_ATTACK_UNIQUE && next_id == 0)
 		if (const uint32_t help = petra_help_attack_target(plan, army_land, tx, tz)) next_id = help;
 	return next_id;
 }
@@ -42816,6 +42834,24 @@ void Simulation::tick_fauna(float dt) {
 	};
 	bool any_prey = false;
 	for (size_t f = 0; f < fauna_.count && !any_prey; ++f) any_prey = prey(f);
+	// 0 A.D. AttackEntitiesByPreference's attackfilter: a dangerous Gaia animal (UnitAI
+	// IsDangerousAnimal) is a target for another animal too, as a player's livestock is.
+	auto wild_hunt_target = [&](size_t f) {
+		return fauna_.alive[f] && fauna_.hp[f] > 0.0f && fauna_owner_[f] >= MAX_PLAYERS &&
+		       fauna_.behavior[f] != FAUNA_CORRALLED && fauna_.behavior[f] != FAUNA_CARCASS &&
+		       fauna_type_info(fauna_.fauna_type[f]).is_dangerous();
+	};
+	auto nearest_wild_hunt = [&](size_t self, float x, float z, float range) -> int32_t {
+		int32_t best = -1;
+		float best_d2 = range * range;
+		if (range <= 0.0f) return -1;
+		for (size_t f = 0; f < fauna_.count; ++f) {
+			if (f == self || !wild_hunt_target(f)) continue;
+			const float dx = fauna_.pos_x[f] - x, dz = fauna_.pos_z[f] - z, d2 = dx * dx + dz * dz;
+			if (d2 < best_d2) { best_d2 = d2; best = (int32_t)f; }
+		}
+		return best;
+	};
 	auto nearest_prey = [&](size_t self, float x, float z, float range) -> int32_t {
 		int32_t best = -1;
 		float best_d2 = range * range;
@@ -43136,7 +43172,7 @@ void Simulation::tick_fauna(float dt) {
 			int32_t tf = -1; // a player's livestock
 			if (t < 0) {
 				auto it = fauna_id_to_idx_.find(fauna_.target_unit_id[i]);
-				if (it != fauna_id_to_idx_.end() && prey(it->second)) tf = (int32_t)it->second;
+				if (it != fauna_id_to_idx_.end() && (prey(it->second) || wild_hunt_target(it->second))) tf = (int32_t)it->second;
 			}
 			bool keep = t >= 0 ? can_bite(t) : tf >= 0;
 			const float tx = t >= 0 ? units_.pos_x[t] : tf >= 0 ? fauna_.pos_x[tf] : fx;
@@ -43279,6 +43315,13 @@ void Simulation::tick_fauna(float dt) {
 				float ud2 = q * q;
 				if (u >= 0) ud2 = (units_.pos_x[u] - fx) * (units_.pos_x[u] - fx) + (units_.pos_z[u] - fz) * (units_.pos_z[u] - fz);
 				const int32_t p = nearest_prey(i, fx, fz, std::sqrt(ud2));
+				if (p >= 0) ud2 = (fauna_.pos_x[p] - fx) * (fauna_.pos_x[p] - fx) + (fauna_.pos_z[p] - fz) * (fauna_.pos_z[p] - fz);
+				// Nearest first among the rest: a dangerous animal nearer than the chosen target.
+				const int32_t w = nearest_wild_hunt(i, fx, fz, std::sqrt(ud2));
+				if (w >= 0) {
+					fauna_start_attack(i, fauna_.id[w]);
+					continue;
+				}
 				if (p >= 0) {
 					fauna_start_attack(i, fauna_.id[p]);
 					continue;

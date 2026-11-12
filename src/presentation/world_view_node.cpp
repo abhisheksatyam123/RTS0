@@ -3285,6 +3285,24 @@ MultiMesh *RtsoWorldView::crowd_mm(CrowdBatch &b, int clip, int phase) {
 		if (silhouettes_ && silhouette_mat_.is_valid()) b.mmi[clip][phase]->set_material_overlay(silhouette_mat_);
 		rtso::set_instance_param(b.mmi[clip][phase], "silhouette_radius", b.sil_radius);
 		add_child(b.mmi[clip][phase]);
+		// Pixel mode: units get a stronger owner tint (player_color.gdshader pixel_team_sat).
+		rtso::set_instance_param(b.mmi[clip][phase], "pixel_team_sat", 1.7f);
+		if (!unit_outline_mat_.is_valid()) {
+			Ref<Shader> osh = ResourceLoader::get_singleton()->load("res://shaders/unit_outline_pixel.gdshader");
+			if (osh.is_valid()) {
+				unit_outline_mat_.instantiate();
+				unit_outline_mat_->set_shader(osh);
+			}
+		}
+		if (unit_outline_mat_.is_valid()) {
+			MultiMeshInstance3D *ol = memnew(MultiMeshInstance3D);
+			ol->set_multimesh(b.mm[clip][phase]);
+			ol->set_material_override(unit_outline_mat_);
+			ol->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_OFF);
+			ol->set_visible(unit_outlines_on_);
+			b.outline_mmi[clip][phase] = ol;
+			add_child(ol);
+		}
 	}
 	return b.mm[clip][phase].ptr();
 }
@@ -4719,6 +4737,7 @@ void RtsoWorldView::refresh_silhouettes() {
 	}
 	const bool on = rtso::user_config::get_bool("silhouettes") && silhouette_mat_.is_valid() && !cinema_playing_;
 	silhouettes_ = on;
+	unit_outlines_on_ = rtso::user_config::get_bool("pixelart");
 	const Ref<Material> overlay = on ? Ref<Material>(silhouette_mat_) : Ref<Material>();
 	for (auto &per_civ : crowd_)
 		for (auto &b : per_civ)
@@ -4727,6 +4746,7 @@ void RtsoWorldView::refresh_silhouettes() {
 					for (int p = 0; p < CROWD_PHASES; ++p)
 						if (b->mmi[c][p]) {
 							b->mmi[c][p]->set_material_overlay(overlay);
+							if (b->outline_mmi[c][p]) b->outline_mmi[c][p]->set_visible(unit_outlines_on_);
 							// Under Compatibility the value rides on the node's own copy of the overlay.
 							if (on) rtso::set_instance_param(b->mmi[c][p], "silhouette_radius", b->sil_radius);
 						}
