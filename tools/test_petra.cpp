@@ -3070,9 +3070,10 @@ static void test_market_dock_route() {
 	s->players_[1].phase = 2;
 	// The dock first, as on a naval map (population 25, village phase) before the market
 	// (town phase): the dock then has the lower id and is the route's source.
-	const uint32_t dock = s->spawn_building((int)((tx - tx / len * 45.0f) / Simulation::GRID), (int)((tz - tz / len * 45.0f + 10.0f) / Simulation::GRID),
-	                                        BLD_DOCK, 1, 1.0f);
-	const uint32_t market = s->spawn_building((int)((tx + 12.0f) / Simulation::GRID), (int)(tz / Simulation::GRID), BLD_MARKET, 1, 1.0f);
+	// Placed by centre: spawn_building() takes a cell corner and centres the building by its footprint, which
+	// the 0.28 sizes made 3 cells (dock) and 4 (market), moving both off the spots the gains were tuned for.
+	const uint32_t dock = s->spawn_building_world(tx - tx / len * 45.0f, tz - tz / len * 45.0f + 10.0f, BLD_DOCK, 1, 1.0f);
+	const uint32_t market = s->spawn_building_world(tx + 12.0f, tz, BLD_MARKET, 1, 1.0f);
 	CHECK(market && dock, "a market and a dock for AI 1");
 	Simulation::PetraTradeRoutes routes;
 	s->petra_check_routes(routes);
