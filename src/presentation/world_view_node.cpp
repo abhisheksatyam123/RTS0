@@ -4601,6 +4601,8 @@ void RtsoWorldView::rebuild_terrain(const rtso::Simulation *sim) {
 	if (heights.empty() || res <= 1) {
 		plane_mesh->set_size(Vector2(half * 2.0f, half * 2.0f));
 		terrain->set_mesh(plane_mesh);
+		terrain->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_ON);
+		if (terrain_shadow) terrain_shadow->set_visible(false);
 	} else {
 		terrain_array_mesh.instantiate();
 		PackedVector3Array vertices;
@@ -4655,6 +4657,49 @@ void RtsoWorldView::rebuild_terrain(const rtso::Simulation *sim) {
 
 		terrain_array_mesh->add_surface_from_arrays(Mesh::PRIMITIVE_TRIANGLES, arrays);
 		terrain->set_mesh(terrain_array_mesh);
+	
+		// The terrain itself only receives shadows; its casting comes from the half-resolution
+		// proxy below (SHADOWS_ONLY: drawn in the shadow passes, never in the camera pass).
+		terrain->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_OFF);
+		if (!terrain_shadow) {
+			terrain_shadow = memnew(MeshInstance3D);
+			terrain_shadow_mesh.instantiate();
+			terrain_shadow->set_mesh(terrain_shadow_mesh);
+			terrain_shadow->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_SHADOWS_ONLY);
+			add_child(terrain_shadow);
+		}
+		{
+			// Every second grid sample, plus the last row and column so the edge is kept.
+			std::vector<int> samp;
+			for (int k = 0; k < res; k += 2) samp.push_back(k);
+			if (samp.back() != res - 1) samp.push_back(res - 1);
+			const int m = (int)samp.size();
+			PackedVector3Array sv;
+			sv.resize(m * m);
+			for (int zi = 0; zi < m; ++zi) {
+				for (int xi = 0; xi < m; ++xi) {
+					const int gx = samp[xi], gz = samp[zi];
+					sv.set(zi * m + xi, Vector3(-half + gx * step, heights[gz * res + gx], -half + gz * step));
+				}
+			}
+			PackedInt32Array si;
+			si.resize((m - 1) * (m - 1) * 6);
+			int w = 0;
+			for (int zi = 0; zi < m - 1; ++zi) {
+				for (int xi = 0; xi < m - 1; ++xi) {
+					const int i00 = zi * m + xi, i10 = zi * m + xi + 1, i01 = (zi + 1) * m + xi, i11 = (zi + 1) * m + xi + 1;
+					si.set(w++, i00); si.set(w++, i01); si.set(w++, i10);
+					si.set(w++, i10); si.set(w++, i01); si.set(w++, i11);
+				}
+			}
+			Array sarr;
+			sarr.resize(Mesh::ARRAY_MAX);
+			sarr[Mesh::ARRAY_VERTEX] = sv;
+			sarr[Mesh::ARRAY_INDEX] = si;
+			terrain_shadow_mesh->clear_surfaces();
+			terrain_shadow_mesh->add_surface_from_arrays(Mesh::PRIMITIVE_TRIANGLES, sarr);
+		}
+		terrain_shadow->set_visible(true);
 	}
 
 	// Ground textures follow the map's biome.
