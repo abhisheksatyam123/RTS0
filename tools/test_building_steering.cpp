@@ -3241,6 +3241,57 @@ static void turned_corner_band() {
 	check(mismatch == 0, "a line that crosses a turned building's clearance square is blocked, corner band included");
 }
 
+// A line that starts inside one building's clearance square and enters another's is blocked, as 0 A.D.'s
+// TestLine tests each static square on its own: a square that holds the start counts for nothing (a
+// line may leave it), the others count when the line crosses them. Two overlapping squares, a grid of
+// starts and aims, and the exact per-square test as the reference.
+static void line_from_one_square_into_another() {
+	struct Bld {
+		uint32_t id;
+		float x, z, ux, uz, hu, hv;
+		uint8_t type;
+		bool wrecked;
+		float ext;
+	};
+	const float r = CLEARANCE_DEFAULT;
+	Bld a{1, 0.0f, 0.0f, 1.0f, 0.0f, 0.5f, 0.5f, BLD_HOUSE, false, 0.0f};
+	Bld b{2, 1.3f, 0.2f, std::cos(0.5236f), std::sin(0.5236f), 0.5f, 0.5f, BLD_HOUSE, false, 0.0f};
+	for (Bld *x : {&a, &b}) x->ext = nav::footprint_extent(nav::Footprint{x->x, x->z, x->ux, x->uz, x->hu, x->hv});
+	const std::vector<Bld> bs{a, b};
+	long total = 0, mismatch = 0;
+	for (float px = -1.5f; px <= 2.5001f; px += 0.05f)
+		for (float pz = -1.5f; pz <= 1.5001f; pz += 0.05f) {
+			const nav::Vec2 pos(px, pz);
+			for (int k = 0; k < 24; ++k) {
+				const float ang = 2.0f * 3.14159265f * (float)k / 24.0f;
+				for (float ring : {2.0f, 2.6f}) {
+					const nav::Vec2 aim(std::cos(ang) * ring, std::sin(ang) * ring);
+					bool aim_in = false;
+					for (const Bld &x : bs)
+						aim_in = aim_in || nav::PointIsInSquare(aim - nav::Vec2(x.x, x.z), nav::footprint_u(x), nav::footprint_v(x),
+								nav::Vec2(x.hu + r, x.hv + r));
+					if (aim_in) continue;
+					for (float max_len : {0.3f, 0.5f, 0.8f, 1.2f}) {
+						const nav::Vec2 to_aim = aim - pos;
+						const float len = to_aim.length();
+						const nav::Vec2 end = len > max_len ? pos + to_aim * (max_len / len) : aim;
+						bool exact = false;
+						for (const Bld &x : bs) {
+							const nav::Vec2 c(x.x, x.z), u = nav::footprint_u(x), v = nav::footprint_v(x);
+							const nav::Vec2 half(x.hu + r, x.hv + r);
+							if (nav::PointIsInSquare(pos - c, u, v, half)) continue;
+							exact = exact || nav::TestRaySquare(pos - c, end - c, u, v, half);
+						}
+						++total;
+						if (nav::line_blocked_by_buildings(pos, aim, max_len, r, bs, 0) != exact) ++mismatch;
+					}
+				}
+			}
+		}
+	std::printf("  start inside one square: %ld lines, %ld disagree with the per-square test\n", total, mismatch);
+	check(mismatch == 0, "a line that starts inside one clearance square and enters another is blocked");
+}
+
 int main() {
 	std::printf("RTS0 building steering test (src/simulation/nav/building_steering.h)\n");
 	guard_behind_wall();
@@ -3292,6 +3343,7 @@ int main() {
 	large_path_round_crowded_gaps();
 	search_memo_nav_stamp();
 	turned_corner_band();
+	line_from_one_square_into_another();
 	if (g_failures) {
 		std::printf("FAIL (%d)\n", g_failures);
 		return 1;

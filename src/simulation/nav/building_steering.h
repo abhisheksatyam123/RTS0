@@ -251,7 +251,10 @@ inline int line_hit(const B& b, Vec2 pos, Vec2 end, Vec2 aim, float radius, uint
 } // namespace detail
 
 // True when the straight line from `pos` towards `aim`, cut at `max_len`, crosses a building expanded
-// by `radius`. False when the unit stands inside one (separation() pushes it out first).
+// by `radius`. A building whose square holds the start does not count, as 0 A.D.'s TestLine tests each
+// static square on its own (TestRaySquare lets a line leave a square it starts in), but a line that
+// enters any other square is blocked even from inside one (separation() pushes a unit out first, and
+// fauna and memo lines can start inside a square).
 // `Buildings` is a range of Simulation::Building, or of anything with its fields id, type, wrecked, x, z,
 // ux, uz, hu and hv. No allocation.
 template <class Buildings>
@@ -267,7 +270,6 @@ bool line_blocked_by_buildings(Vec2 pos, Vec2 aim, float max_len, float radius,
 	bool blocked = false;
 	for (const auto& b : buildings) {
 		const int hit = detail::line_hit(b, pos, end, aim, radius, ignore_building_id, reach, box);
-		if (hit == detail::LINE_HOLDS_POS) return false;
 		if (hit == detail::LINE_CROSSES) blocked = true;
 	}
 	return blocked;
