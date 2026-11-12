@@ -35490,10 +35490,31 @@ void Simulation::petra_manage_transport(float dt) {
 	}
 }
 
+// Debugging only: RTS0_PETRA_DEBUG=1 prints a transport plan's state to stderr every 10 s of
+// plan time. Never saved or hashed, and it changes nothing the simulation computes.
+static bool petra_debug_transport() {
+	static const bool on = std::getenv("RTS0_PETRA_DEBUG") != nullptr;
+	return on;
+}
+
 void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt, std::vector<PetraReferry> &referry) {
+	const float prev_timer = tp.state_timer;
 	tp.state_timer += dt;
 
 	int32_t sidx = tp.ship_id ? lookup_unit(tp.ship_id) : -1;
+	if (petra_debug_transport() && sidx >= 0 && std::floor(tp.state_timer / 10.0f) != std::floor(prev_timer / 10.0f)) {
+		static const char *const names[] = {"IDLE", "BOARDING", "SAILING", "UNLOADING", "FAILED"};
+		const int st = (int)tp.state;
+		const float sx = units_.pos_x[sidx], sz = units_.pos_z[sidx];
+		std::fprintf(stderr,
+			"[petra-transport] t=%.0fs state=%s owner=%u sea=%u ship=%u at (%.1f,%.1f) action=%u aboard=%zu "
+			"drop=(%.1f,%.1f) land(ship)=%u land(drop)=%u pickup=(%.1f,%.1f) passengers=%zu\n",
+			(double)tp.state_timer, st >= 0 && st < 5 ? names[st] : "?", (unsigned)tp.owner, (unsigned)tp.sea,
+			(unsigned)tp.ship_id, (double)sx, (double)sz, (unsigned)units_.action_state[sidx],
+			get_transport_passenger_count(tp.ship_id), (double)tp.drop_x, (double)tp.drop_z,
+			(unsigned)petra_land_at(sx, sz), (unsigned)petra_land_at(tp.drop_x, tp.drop_z),
+			(double)tp.pickup_x, (double)tp.pickup_z, tp.passenger_ids.size());
+	}
 	if (sidx < 0 || !units_.alive[sidx] || (units_.unit_type[sidx] != UNIT_TRIREME && units_.unit_type[sidx] != UNIT_MERCHANT_SHIP)) {
 		// navalManager.checkEvents: a ship lost while boarding leaves the plan
 		// waiting for another (assignShipsToPlans). Lost at sea, its survivors (those it set

@@ -950,6 +950,34 @@ static void test_petra_landing_spot() {
 	CHECK(s.petra_land_at(ax, az) == land);
 }
 
+// transportPlan.js onSailing: a ship lying at its landing point that cannot unload there asks
+// getBoardingPos for another one (nTry). RTS0's unload() passes the ship's drop point as the
+// skip point; the next landing point must be a shore cell more than 8 m from that point and
+// from the ship, not the cell the ship already lies at.
+static void test_petra_boarding_skip_drop() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.spawn_building_world(20.0f, -30.0f, BLD_TOWN_CENTER, 0);
+	run(s, 2.0f);
+	s.petra_pid_ = 1;
+	const uint16_t land = s.petra_land_at(20.0f, -40.0f);
+	auto [cx, cz] = s.nav_grid_.world_to_cell(0.0f, 0.0f);
+	const uint16_t sea = s.nav_grid_.global_region_at(cx, cz, PASS_SHIP);
+	float dx = 0.0f, dz = 0.0f;
+	CHECK(s.petra_boarding_pos(land, sea, 20.0f, 0.0f, 20.0f, -40.0f, false, dx, dz));
+	// The ship lies at that landing point (a shore cell) and cannot unload there.
+	const float skip[2] = {dx, dz};
+	float px = 0.0f, pz = 0.0f;
+	const bool found = s.petra_boarding_pos(land, sea, dx, dz, dx, dz, true, px, pz, skip);
+	const float away_skip = std::hypot(px - dx, pz - dz);
+	std::printf("Petra boarding skip: drop (%.1f, %.1f) -> next (%.1f, %.1f), %.1f m apart\n", dx, dz, px, pz, away_skip);
+	CHECK(found);
+	CHECK(found && away_skip >= 8.0f);
+	CHECK(found && s.petra_land_at(px, pz) == land);
+}
+
 // attackPlan.js chooseTarget/updatePreparation: with a base of ours on the target's land the
 // plan rallies there and needs no ship for the attack itself; its army on the home land is
 // ferried to the rally point, and marches from there.
@@ -3538,6 +3566,7 @@ int main() {
 	test_petra_overseas_attack();
 	test_petra_attack_from_far_base();
 	test_petra_landing_spot();
+	test_petra_boarding_skip_drop();
 	test_petra_unreachable_target();
 	test_petra_overseas_base();
 	test_petra_builders_cross_without_ship();
