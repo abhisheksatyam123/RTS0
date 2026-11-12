@@ -4361,6 +4361,7 @@ private:
 	};
 	mutable PetraAccess petra_access_;
 	uint32_t nav_terrain_stamp_ = 1; // bumped whenever the nav grid's terrain may have changed
+	uint32_t nav_access_stamp_ = 1; // bumped when the Petra access map's inputs may have changed (nav cells, terrain, reset)
 	// This AI's topology classified from its home land (headquarters.js navalMap, landRegions).
 	const PetraNavalTopo &petra_classified_topo(uint16_t &home) const;
 	mutable PetraNavalTopo petra_class_topo_; // per AI turn, derived: not saved
