@@ -45,10 +45,21 @@ namespace detail {
 
 // Whether building `b`'s bounding box expanded by `radius` comes within `reach` of `pos` on both axes.
 // Small enough to inline, so the loops below reject far buildings without a call.
+// The footprint grown by `radius` (each side moved out by radius along its own axis), and how far its
+// bounding box reaches from the centre: footprint_extent plus radius times the footprint's width along
+// the axes, |ux| + |uz| (1 when it is aligned). A 2 m square turned 45 degrees grows by 1.41 radius on
+// each axis, not by one, so a clearance of 0.8 m reaches 0.33 m further than the unturned square's.
+template <class B>
+float grown_extent(const B& b, float radius)
+{
+	const float along = b.uz == 0.0f ? 1.0f : std::fabs(b.ux) + std::fabs(b.uz);
+	return footprint_extent(b) + radius * along;
+}
+
 template <class B>
 bool within_reach(const B& b, Vec2 pos, float radius, float reach)
 {
-	const float r = reach + footprint_extent(b) + radius;
+	const float r = reach + grown_extent(b, radius);
 	return !(std::fabs(b.x - pos.x) > r || std::fabs(b.z - pos.y) > r);
 }
 
