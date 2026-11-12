@@ -978,6 +978,52 @@ static void test_petra_boarding_skip_drop() {
 	CHECK(found && s.petra_land_at(px, pz) == land);
 }
 
+// transportPlan.js onSailing: a ship within 25 m of its boarding point unloads its passengers,
+// even when it lies short of the water beside that point. A ship 10-20 m off the landing point
+// that stays sailing would keep its passengers aboard until the 90 s timeout.
+static void test_petra_unload_radius() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.spawn_building_world(20.0f, -30.0f, BLD_TOWN_CENTER, 0);
+	run(s, 2.0f);
+	s.petra_pid_ = 1;
+	const uint16_t land = s.petra_land_at(20.0f, -40.0f);
+	auto [cx, cz] = s.nav_grid_.world_to_cell(0.0f, 0.0f);
+	const uint16_t sea = s.nav_grid_.global_region_at(cx, cz, PASS_SHIP);
+	float dx = 0.0f, dz = 0.0f;
+	CHECK(s.petra_boarding_pos(land, sea, 20.0f, 0.0f, 20.0f, -40.0f, false, dx, dz));
+	// A water cell 10-20 m from the landing point, where the ship will lie.
+	float wx = 0.0f, wz = 0.0f;
+	bool water = false;
+	for (float r = 10.0f; r <= 20.0f && !water; r += 1.0f)
+		for (float a = 0.0f; a < 6.2832f && !water; a += 0.2f) {
+			const float x = dx + r * std::cos(a), z = dz + r * std::sin(a);
+			auto [gx, gz] = s.nav_grid_.world_to_cell(x, z);
+			if (s.nav_grid_.global_region_at(gx, gz, PASS_SHIP) == sea) { wx = x; wz = z; water = true; }
+		}
+	CHECK(water);
+	const uint32_t ship = s.spawn_unit(wx, wz, 1, UNIT_TRIREME, 0.0f, tmpl_of("athen/ship_arrow"));
+	const uint32_t spear = s.spawn_unit(wx, wz, 1, UNIT_SPEARMAN);
+	s.order_board_transport(&spear, 1, ship);
+	run(s, 3.0f);
+	CHECK(aboard(s, ship, spear));
+	PetraTransportPlan tp;
+	tp.owner = PETRA_TRANSPORT_BUILDERS;
+	tp.state = PetraTransportPlan::SAILING;
+	tp.ship_id = ship;
+	tp.sea = sea;
+	tp.drop_x = dx;
+	tp.drop_z = dz;
+	tp.passenger_ids = {spear};
+	std::vector<PetraReferry> referry;
+	s.petra_step_transport(tp, 0.1f, referry);
+	std::printf("Petra unload radius: ship %.1f m from the landing point, state %d\n",
+	            std::sqrt((wx - dx) * (wx - dx) + (wz - dz) * (wz - dz)), (int)tp.state);
+	CHECK(tp.state == PetraTransportPlan::UNLOADING);
+}
+
 // attackPlan.js chooseTarget/updatePreparation: with a base of ours on the target's land the
 // plan rallies there and needs no ship for the attack itself; its army on the home land is
 // ferried to the rally point, and marches from there.
@@ -3567,6 +3613,7 @@ int main() {
 	test_petra_attack_from_far_base();
 	test_petra_landing_spot();
 	test_petra_boarding_skip_drop();
+	test_petra_unload_radius();
 	test_petra_unreachable_target();
 	test_petra_overseas_base();
 	test_petra_builders_cross_without_ship();
