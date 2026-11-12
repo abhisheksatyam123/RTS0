@@ -626,6 +626,7 @@ Simulation::Simulation() {
 	unit_paths_.assign(UNIT_CAP, WaypointPath{});
 	nav_grid_.init(map_half_, grid_res_);
 	++nav_terrain_stamp_;
+	++nav_access_stamp_;
 	// Default civ per slot (game setup overrides via set_team_civ). Slots 0-3 keep the legacy
 	// player_civ_[4] defaults; teams start free-for-all (each player its own team).
 	static constexpr Civilization kDefaultCivs[MAX_PLAYERS] = {
@@ -659,6 +660,7 @@ void Simulation::set_map_half(float h) {
 	nav_grid_.init(map_half_, grid_res_);
 	note_tree_edit(); // C5 step 2: init cleared tree_sub; trees alive on this call are masked at the next read
 	++nav_terrain_stamp_;
+	++nav_access_stamp_;
 	territory_grid_.clear();
 	influence_grid_.clear();
 	territory_tiles_.fill(0); // the cleared grid's (rebuild_territory_grids counts them)
@@ -871,6 +873,7 @@ void Simulation::reset() {
 	search_memo_.clear(); // the last game's searches (reset() also re-inits the nav grid)
 	nav_grid_.init(map_half_, grid_res_);
 	++nav_terrain_stamp_;
+	++nav_access_stamp_;
 	territory_grid_.clear();
 	influence_grid_.clear();
 	territory_tiles_.fill(0); // the cleared grid's (rebuild_territory_grids counts them)
@@ -2859,16 +2862,24 @@ void Simulation::rebuild_nav_grid() {
 	// Precise dirty bits: diff new cells vs snapshot (covers placements,
 	// completions AND demolitions). Falls back to full remesh only when the
 	// grid was freshly initialised (no snapshot to diff against).
+	// petra_access_at keys on nav_access_stamp_: a rebuild that leaves every navcell as it was
+	// cannot change the access map (its inputs are the cells, the steep flags and the water classes,
+	// which do not change in a match), so only a rebuild that changed a cell bumps it.
+	bool cells_changed = true;
 	if (have_old && old_cells.size() == nav_grid_.cells.data.size()) {
+		cells_changed = false;
 		for (size_t i = 0; i < nav_grid_.cells.data.size(); ++i)
-			if (nav_grid_.cells.data[i] != old_cells[i])
+			if (nav_grid_.cells.data[i] != old_cells[i]) {
 				nav_grid_.dirty.data[i] = 1;
+				cells_changed = true;
+			}
 	} else if (!nav_grid_.dirty.blank()) {
 		nav_grid_.dirty.fill(1);
 	}
 	sync_tile_obstructions(true);
 	nav_grid_.rebuild_dirty_regions();
 	++nav_terrain_stamp_;
+	if (cells_changed) ++nav_access_stamp_;
 }
 
 namespace {
@@ -28728,8 +28739,8 @@ uint16_t Simulation::petra_access_at(float x, float z) const {
 	const int nres = nav_grid_.res, tw = nav_grid_.steep_tile_res();
 	const int res = tw > 0 ? tw : nres;
 	const float half = nav_grid_.map_half, cell = 2.0f * half / (float)res;
-	if (a.stamp != nav_terrain_stamp_ || a.res != res) {
-		a.stamp = nav_terrain_stamp_;
+	if (a.stamp != nav_access_stamp_ || a.res != res) {
+		a.stamp = nav_access_stamp_;
 		const auto &wc = nav_grid_.height_cache_;
 		const bool water_known = wc.water_valid && wc.water.size() == (size_t)nres * nres;
 		const float per = (float)nres / (float)res;
@@ -38512,6 +38523,12 @@ void Simulation::petra_manage_diplomacy(float dt) {
 	// checkRequestedTributes: warn once after 60 s, drop the offer 60 s later.
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
 		PetraReceivedRequest &req = dip.received[p];
+		// DiplomacyManager PlayerDefeated: a defeated player's requests are dropped unanswered.
+		if (is_defeated(p)) {
+			req = PetraReceivedRequest{};
+			petra_tribute_request_wanted_[p][me] = 0;
+			continue;
+		}
 		if (req.status != PetraReceivedRequest::WAITING_FOR_TRIBUTE || dip.elapsed < req.warn_time) continue;
 		if (req.sent_warning) {
 			const uint8_t type = req.type;
@@ -38562,6 +38579,7 @@ void Simulation::petra_manage_diplomacy(float dt) {
 				petra_send_diplomacy_request();
 		}
 		for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
+			if (is_defeated(p)) { sd.sent_type[p] = 0; continue; } // PlayerDefeated: the sent request goes too
 			if (!sd.sent_type[p] || dip.elapsed <= sd.sent_time[p] + 60.0f || pop_current(me) <= 70 ||
 			    petra_attack_mgr_.save_resources) continue;
 			petra_say(PETRA_CHAT_REQUEST_EXPIRED, p, p, sd.sent_type[p] == 1 ? 0 : 1);
@@ -40193,6 +40211,7 @@ bool Simulation::load_state(const char *filepath) {
 	// that had steep tiles; a client joins with the map its own Game Setup built.
 	nav_grid_.init(map_half_, grid_res_);
 	++nav_terrain_stamp_;
+	++nav_access_stamp_;
 	// The supplies' subtypes and flora come with the tick state, after the supplies themselves: the
 	// trees' and bushes' signature is worked out afresh from all of it (sync_tile_obstructions).
 	tile_gaia_sig_ = 0;
