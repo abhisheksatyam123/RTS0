@@ -6210,6 +6210,27 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		int clip = fauna_clip_of(fview.behavior[f], vx * vx + vz * vz, fview.alive[f] != 0);
 		f_counts[ft][with_fauna_variant(clip, ft, fview.id[f])]++;
 	}
+	// Flaming-pig corpses (Simulation::lingering_corpses): dead animals with no meat that
+	// lie in their death pose for the decay time, then vanish. Each is one more instance of
+	// its animal's carcass clip, so it shares that MultiMesh and its death frame.
+	struct CorpseDraw {
+		int row, clip;
+		float x, y, z;
+	};
+	std::vector<CorpseDraw> corpse_draws;
+	const auto &corpses = sim->lingering_corpses();
+	corpse_draws.reserve(corpses.size());
+	for (size_t i = 0; i < corpses.size(); ++i) {
+		const rtso::Simulation::LingeringCorpse &lc = corpses[i];
+		if (lc.fauna_type >= rtso::FAUNA_COUNT) continue;
+		// Corpses have no owner: visible where the player sees the ground, not by ownership.
+		if (!fauna_visible(lc.x, lc.z, lc.fauna_type, rtso::MAX_PLAYERS)) continue;
+		const int row = fauna_row(lc.fauna_type, (uint32_t)i);
+		ensure_fauna_frames(row);
+		const int clip = with_fauna_variant(3, row, (uint32_t)i);
+		corpse_draws.push_back({row, clip, lc.x, sim->get_terrain_height(lc.x, lc.z), lc.z});
+		f_counts[row][clip]++;
+	}
 	float *fauna_ptr[FAUNA_ROWS][FAUNA_CLIP_COUNT] = {};
 	for (int ft = 0; ft < fauna_rows_; ++ft) {
 		cycle_fauna_meshes(fauna_puppet[ft], fauna_mm[ft], f_counts[ft], FAUNA_CLIP_COUNT, FAUNA_DEATH_SLOTS);
@@ -6288,6 +6309,22 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			const rtso::StatusBarsSize sb = rtso::fauna_status_bars(rtso::fauna_type_info(ft).template_name);
 			const float fm = fent.metre;
 			draw_status_stack(sim, Vector3(fx, fy + sb.height_offset * fm, fz), sb.bar_width * fm, sb.bar_height * fm, fm, st);
+		}
+	}
+	// Corpses lie in the death pose: the death frame is the carcass clip's last frame.
+	for (const CorpseDraw &cd : corpse_draws) {
+		const auto &cent = rtso::ModelLibrary::get("units", fauna_row_model_[cd.row]);
+		const float csc = cent.scale > 0.05f ? cent.scale : 1.0f;
+		Transform3D cxf(Basis(Vector3(0, 1, 0), (float)Math_PI).scaled(Vector3(csc, csc, csc)),
+				Vector3(cd.x, cd.y + cent.y_offset, cd.z));
+		const int cslot = f_written[cd.row][cd.clip]++;
+		if (float *cp = fauna_ptr[cd.row][cd.clip]) {
+			cp += cslot * 16;
+			write_xf12(cp, cxf);
+			cp[12] = 1.0f;
+			cp[13] = 1.0f;
+			cp[14] = 1.0f;
+			cp[15] = 1.0f;
 		}
 	}
 	for (int ft = 0; ft < fauna_rows_; ++ft) {
