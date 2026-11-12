@@ -993,8 +993,9 @@ static void test_petra_unload_radius() {
 	const uint16_t sea = s.nav_grid_.global_region_at(cx, cz, PASS_SHIP);
 	float dx = 0.0f, dz = 0.0f;
 	CHECK(s.petra_boarding_pos(land, sea, 20.0f, 0.0f, 20.0f, -40.0f, false, dx, dz));
-	// Units are 4 m. A water cell 8-24 m from the landing point (2-6 units) is where the ship
-	// lies; a cell 40-48 m away (10-12 units) is out of range.
+	// Units are 4 m. A water cell 16-24 m from the landing point (4-6 units) is where the ship
+	// lies, inside 25 m but beyond the 12 m the sail-point rule allowed; a cell 40-48 m away
+	// (10-12 units) is out of range.
 	auto water_cell = [&](float r_lo, float r_hi, float &ox, float &oz) {
 		for (float r = r_lo; r <= r_hi; r += 0.25f)
 			for (float a = 0.0f; a < 6.2832f; a += 0.2f) {
@@ -1005,7 +1006,7 @@ static void test_petra_unload_radius() {
 		return false;
 	};
 	float wx = 0.0f, wz = 0.0f, fx = 0.0f, fz = 0.0f;
-	CHECK(water_cell(2.0f, 6.0f, wx, wz));
+	CHECK(water_cell(4.0f, 6.0f, wx, wz));
 	CHECK(water_cell(10.0f, 12.0f, fx, fz));
 	const uint32_t ship = s.spawn_unit(wx, wz, 1, UNIT_TRIREME, 0.0f, tmpl_of("athen/ship_arrow"));
 	const uint32_t spear = s.spawn_unit(wx, wz, 1, UNIT_SPEARMAN);
@@ -1024,7 +1025,7 @@ static void test_petra_unload_radius() {
 	s.petra_step_transport(tp, 0.1f, referry);
 	const float near_m = 4.0f * std::sqrt((wx - dx) * (wx - dx) + (wz - dz) * (wz - dz));
 	std::printf("Petra unload radius: ship %.1f m from the landing point, state %d\n", near_m, (int)tp.state);
-	CHECK(near_m <= 25.0f);
+	CHECK(near_m >= 16.0f && near_m <= 25.0f);
 	CHECK(tp.state == PetraTransportPlan::UNLOADING);
 
 	// Out of range (40 m or more): still sailing, passengers stay aboard.
