@@ -12,6 +12,8 @@
 //                  LongPathfinder.cpp:400 (octile heuristic) are REFERENCE ONLY.
 // Active runtime is this file + NavGrid/Territory owned by Simulation (src/simulation/simulation.h).
 
+#include <climits>
+#include <atomic>
 #include <cstdint>
 #include <vector>
 #include <algorithm>
@@ -203,6 +205,32 @@ struct NavGrid {
     Grid<uint8_t> cells; // NavCell per navcell
     // 1 where a wood is closed to PASS_LARGE but not to the default class; empty, or as many as cells.
     std::vector<uint8_t> large_closed;
+    // The NavCell a wood closed (Simulation::rebuild_nav_grid's forest closure) on a navcell that stood passable, that
+    // value; 0 elsewhere; empty, or as many as cells. Obstruct() clears a navcell's entry when a mine or the map edge
+    // obstructs it. structural_open reads through it, so the 1 m re-plan does not take a wood's closure for ground.
+    std::vector<uint8_t> wood_closed_from;
+    // Obstructs navcell (x, y) for good: a mine's cover or the map's edge (not a wood's closure, wood_closed_from).
+    void obstruct(int x, int y) {
+        cells.at(x, y) = NAV_OBSTRUCTED;
+        clear_wood_closure(x, y);
+    }
+    // Drops a wood's closure record for navcell (x, y) and keeps its value: the navcell is closed for good (a gate's line
+    // or covered cell the gate pass leaves closed), so structural_open must not read through the wood to what it stood as.
+    void clear_wood_closure(int x, int y) {
+        const long long k = static_cast<long long>(y) * cells.w + x; // the index cells.at wrote (a mine's loop may pass the edge)
+        if (!wood_closed_from.empty() && k >= 0 && k < static_cast<long long>(wood_closed_from.size())) wood_closed_from[static_cast<size_t>(k)] = 0;
+    }
+    // Whether navcell (cx, cy) is open to the 1 m re-plan's structure: terrain, buildings, mines and the map edge, as the
+    // navcells stood before a wood closed them, and not steep (is_steep). Woods are left to the trees' own subcells
+    // (tree_sub), which the 1 m search routes between; the search is not restricted by the navcell closure of a wood.
+    bool structural_open(int cx, int cy) const {
+        if (!cells.inside(cx, cy)) return false;
+        const size_t i = static_cast<size_t>(cy) * static_cast<size_t>(cells.w) + static_cast<size_t>(cx);
+        uint8_t c = cells.data[i];
+        if (c == NAV_OBSTRUCTED && wood_closed_from.size() == cells.data.size() && wood_closed_from[i] != 0) c = wood_closed_from[i];
+        if (c != NAV_PASSABLE && c != NAV_SHALLOW) return false;
+        return !is_steep(cx, cy);
+    }
     Grid<uint8_t> dirty; // 0=clean, 1=needs hierarchical rebuild
     // A circular map's passable edge radius (Simulation::past_map_edge), 0 on a square map.
     // The navcells whose centre lies past it are closed (Simulation::rebuild_nav_grid); square
@@ -234,6 +262,66 @@ struct NavGrid {
     // Re-plans a path whose legs cross a blocked subcell with the partly covered navcells closed
     // (PASS_MINE_CLOSED). 0: no change; 1: out and the goal are replaced; 2: no route avoids the mines.
     int avoid_mine_subcells(float sx, float sz, float &gx, float &gz, struct WaypointPath &out, uint8_t pass) const;
+
+    // Trees and bushes (C1), per passability class (0 default, 1 large), on the same 1 m subcells as mine_sub: a
+    // subcell is blocked iff its four corners all lie within the class clearance plus 0 A.D.'s 1 m
+    // CLEARANCE_EXTENSION_RADIUS (Pathfinding.h:160, rounded corners) of a live tree's square
+    // (Simulation::rebuild_nav_grid, Rasterize.cpp:48). The navcells stay as they are; only the long path's legs are
+    // checked against these masks (avoid_tree_subcells). Not 1 unit: that is nav::kClearanceExtensionRadius, the
+    // navcell raster's deviation.
+    // mutable: Simulation::refresh_tree_masks rebuilds them lazily (a const path query reads them).
+    mutable std::vector<uint64_t> tree_sub[2];
+    // Whether tree_sub was built from the live trees since init (cleared by init). A build is current until a tree edit
+    // marks it stale (Simulation::tree_masks_dirty_), so a full rebuild that finds the masks current skips the build.
+    mutable bool tree_sub_built = false;
+    bool tree_any() const { return !tree_sub[0].empty() || !tree_sub[1].empty(); }
+    bool tree_subcell_blocked(int cls, int sx, int sy) const {
+        if (tree_sub[cls].empty() || sx < 0 || sy < 0 || sx >= res * 8 || sy >= res * 8) return false;
+        const uint64_t m = tree_sub[cls][static_cast<size_t>(sy / 8) * static_cast<size_t>(res) + static_cast<size_t>(sx / 8)];
+        return ((m >> ((sy % 8) * 8 + sx % 8)) & 1u) != 0;
+    }
+    // C1 water: per navcell, the 8x8 subcells of a NAV_WATER navcell that 0 A.D.'s 1 m depth rule closes (bit
+    // (y%8)*8+(x%8), as tree_sub): a subcell whose ground lies deeper than the sea surface's depth limit
+    // (Simulation::build_water_masks). Set only for NAV_WATER navcells; empty without water. mutable: refreshed lazily.
+    mutable std::vector<uint64_t> water_sub;
+    bool water_subcell_deep(int sx, int sy) const {
+        if (water_sub.empty() || sx < 0 || sy < 0 || sx >= res * 8 || sy >= res * 8) return false;
+        const uint64_t m = water_sub[static_cast<size_t>(sy / 8) * static_cast<size_t>(res) + static_cast<size_t>(sx / 8)];
+        return ((m >> ((sy % 8) * 8 + sx % 8)) & 1u) != 0;
+    }
+    // Whether the terrain itself is water at navcell (cx, cy): set_water_from_heights' class by the centre height, which
+    // the structures' closures do not change (water_sub is built from it, so the mask holds through a rebuild).
+    bool terrain_water_navcell(int cx, int cy) const {
+        const HeightSampleCache &h = height_cache_;
+        const size_t n = static_cast<size_t>(res) * static_cast<size_t>(res);
+        return h.water_valid && h.water.size() == n && h.water[static_cast<size_t>(cy) * static_cast<size_t>(res) + static_cast<size_t>(cx)] == NAV_WATER;
+    }
+    // Whether water_sub was built, and from which water_class_gen: refresh_water_masks.
+    mutable bool water_built = false;
+    mutable uint64_t water_built_gen = 0;
+    // Counts the recomputations of the terrain water classes (height_cache_.water, set_water_from_heights): the mask is
+    // built from them, so it is rebuilt when they change, and not when only the structures' closures do.
+    uint64_t water_class_gen = 0;
+    // Blocked for the 1 m search: a tree's or a mine's subcell of this class.
+    bool sub_blocked(int cls, int sx, int sy) const { return tree_subcell_blocked(cls, sx, sy) || mine_subcell_blocked(cls, sx, sy); }
+    // Whether a long path leg of out (from (sx, sz)) crosses a blocked tree subcell of this class, walked as crosses_mine_sub.
+    bool crosses_tree_sub(int cls, float sx, float sz, const struct WaypointPath &out) const;
+    // G171: whether one leg crosses a tree (TILE_OBS_GAIA flora/treasure) grown by the class clearance,
+    // with a unit starting inside it allowed to walk out (crosses_tree_sub's left rule, at the clearance
+    // instead of the subcells' clearance plus 1 m). One leg only, so find_path_on can gate the tile
+    // path on the legs ImprovePathWaypoints never tested (first, goal, small, collinear) without
+    // reverting a whole path that merely passes within that metre of a tree.
+    bool leg_crosses_gaia_clearance(float ax, float az, float bx, float bz, int cls) const;
+    // Whether any leg of a fresh tile path (from (sx, sz) through its waypoints) crosses as above.
+    bool tile_path_crosses_tree_clearance(float sx, float sz, const struct WaypointPath &path, int cls) const;
+    // Re-plans a path whose legs cross a tree subcell on the 1 m grid (avoid_tree_subcells). On success out and the goal
+    // are replaced; otherwise they are left as the navcells gave them.
+    void avoid_tree_subcells(float sx, float sz, float &gx, float &gz, struct WaypointPath &out, uint8_t pass, float rx, float rz) const;
+    // Re-plans made, and re-plans that kept the navcell path (over budget, unreachable, or too long), over every thread.
+    static inline std::atomic<uint64_t> tree_sub_replans{0};
+    static inline std::atomic<uint64_t> tree_sub_fallbacks{0};
+    static constexpr int TREE_BOX_PAD = 20;        // subcells (20 m at 1 m) the search box first grows by; doubled while clipped
+    static constexpr int TREE_BFS_CELLS = 1 << 17; // the search box's cell budget
 
     // Phase 8A: Hierarchical chunk region data.
     // chunk_regions_: res x res, stores per-navcell local region ID within its chunk (0=impassable).
@@ -378,6 +466,11 @@ struct NavGrid {
         regions_ready_ = false;
         tile_open_ready_ = false;
         edge_r = 0.0f;
+        tree_sub[0].clear(); // C1: a new map's trees are masked afresh (rebuild_nav_grid)
+        tree_sub[1].clear();
+        tree_sub_built = false;
+        water_sub.clear(); // C1: and its water subcells (refresh_water_masks)
+        water_built = false;
         // A new map: Simulation::rebuild_nav_grid lists its obstructions afresh.
         for (int set = 0; set < TILE_OBS_SETS; ++set) {
             tile_obs_[set].clear();
@@ -2120,6 +2213,7 @@ struct NavGrid {
             }
             c.water_thresh = thresh;
             c.water_valid = true;
+            ++water_class_gen;
         }
         for (int y = 0; y < this->res; ++y) {
             for (int x = 0; x < this->res; ++x) {
@@ -2146,10 +2240,15 @@ struct NavGrid {
     // A "large" path that finds no way takes the default class's, as woods its 8 m navcells close
     // whole would shut it off (PASS_LARGE), but not one planned round a gap too narrow for the class
     // (find_path_on's `narrow_gap`), which keeps the nodes' own end.
-    bool find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass = PASS_INFANTRY) const;
+    // navcells_only: the long path on the navcells alone, with no tree re-plan (watch_tree_leg's fallback). The plan
+    // records it in out.tree_off, so the walk's obstructed re-plans (obstructed_long_path) keep the same choice.
+    bool find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass = PASS_INFANTRY,
+            bool navcells_only = false) const;
+    bool find_path_planned(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass, bool navcells_only) const;
     // `narrow_gap`, when given, is set when the path returned was planned on the nodes round a gap
     // between two structures too narrow for the "large" class (path_through_narrow_gap).
-    bool find_path_on(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass, bool *narrow_gap = nullptr) const;
+    bool find_path_on(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass, bool *narrow_gap = nullptr,
+            bool navcells_only = false) const;
     // find_path_on's search on the navcells alone, before its pass on the terrain tiles. It leaves
     // (tx, tz) where MakeGoalReachable moved the goal (ashore, into the start's region).
     bool find_path_cells(float sx, float sz, float &tx, float &tz, WaypointPath &out, uint8_t pass) const;
@@ -2251,8 +2350,18 @@ struct WaypointPath {
     bool has_goal = false;
     float goal_x = 0.f;
     float goal_z = 0.f;
+    // C1 tree watch (Simulation::watch_tree_leg). These fields come after the 532 bytes tick_state_io saves: a loaded
+    // walk starts unwatched and tree-aware (a documented reset rule). clear() resets them, so a new path starts fresh.
+    bool tree_replanned = false; // avoid_tree_subcells re-planned this path (a leg a tree's subcell blocked)
+    bool tree_off = false;       // planned on the navcells alone (find_path's navcells_only): obstructed re-plans keep so
+    int watch_cur = -1;          // the waypoint the watch counts for
+    float watch_best = 0.0f;     // the least distance to it so far, world units
+    int watch_turns = 0;         // turns since that distance last fell by 1 m
 
-    void clear() { count = 0; cur = 0; has_goal = false; }
+    void clear() {
+        count = 0; cur = 0; has_goal = false;
+        tree_replanned = false; tree_off = false; watch_cur = -1; watch_best = 0.0f; watch_turns = 0;
+    }
 
     bool done() const { return cur >= count; }
 
@@ -2319,28 +2428,463 @@ inline int NavGrid::avoid_mine_subcells(float sx, float sz, float &gx, float &gz
     return 1;
 }
 
-inline bool NavGrid::find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass) const {
+// C1: crosses_mine_sub on the trees' masks, the same walk and exemptions: the subcells of a leg's start and goal navcells
+// do not count as a crossing. The path is one walk across all its legs: a unit on blocked ground walks out of it (as
+// crosses_mine_sub's comment says), and once the walk has stood on open ground, entering blocked ground is a crossing.
+// The state carries over from leg to leg; a leg that starts on blocked ground (a waypoint the search left inside a
+// tree's clearance) must not count its own first subcell as open ground.
+inline bool NavGrid::crosses_tree_sub(int cls, float sx, float sz, const WaypointPath &out) const {
+    if (tree_sub[cls].empty() || out.count == 0) return false;
+    const auto start = world_to_cell(sx, sz);
+    const auto goal = world_to_cell(out.xs[out.count - 1], out.zs[out.count - 1]);
+    const float k = static_cast<float>(res) * 8.0f / (map_half * 2.0f);
+    float px = sx, pz = sz;
+    bool left = false; // the walk has stood on open ground
+    for (int leg = 0; leg < out.count; ++leg) {
+        const float x1 = out.xs[leg], z1 = out.zs[leg];
+        bool hit = false;
+        walk_grid(res * 8, (px + map_half) * k, (pz + map_half) * k, (x1 + map_half) * k, (z1 + map_half) * k,
+                [&](int x, int y) {
+                    const int cx = x / 8, cy = y / 8;
+                    const bool exempt = (cx == start.first && cy == start.second) || (cx == goal.first && cy == goal.second);
+                    if (!tree_subcell_blocked(cls, x, y)) left = true;
+                    else if (left && !exempt) hit = true;
+                    return !hit;
+                });
+        if (hit) return true;
+        px = x1;
+        pz = z1;
+    }
+    return false;
+}
+
+// G171: one leg against the trees' squares grown by the class clearance (tile_path_clearance, as
+// tile_line_clear tests them), not the subcells' clearance plus 1 m. The leg's blocked intervals
+// (one per tree square it enters) are merged: a leg that starts open and enters one crosses; one
+// that starts inside one and leaves it (a unit standing within about a metre of a palm) crosses only
+// if it re-enters blocked ground after it has stood on open ground, as crosses_tree_sub allows.
+// Only the GAIA set is tested (TileObsKind K_FLORA/K_TREASURE, simulation.cpp: key bits 56+), so a
+// leg past a house or along a shore is not this row's case.
+inline bool NavGrid::leg_crosses_gaia_clearance(float ax, float az, float bx, float bz, int cls) const {
+    const float g = tile_clearance(cls) + TILE_HAIR;
+    thread_local std::vector<std::pair<float, float>> iv, merged;
+    iv.clear();
+    merged.clear();
+    any_tile_obs_near_segment(ax, az, bx, bz, g, [&](const TileObstruction &o_in) {
+        const uint64_t kind = o_in.key >> 56;
+        if (kind != 5 && kind != 6) return false; // K_FLORA, K_TREASURE only
+        const TileObstruction o = cls == 1 ? tile_obs_crowd_grown(o_in) : o_in;
+        const float hu = o.hu + g, hv = o.hv + g;
+        const float pax = ax - o.x, paz = az - o.z, pbx = bx - o.x, pbz = bz - o.z;
+        const float ua = o.uz == 0.0f ? pax : pax * o.ux + paz * o.uz, va = o.uz == 0.0f ? paz : paz * o.ux - pax * o.uz;
+        const float ub = o.uz == 0.0f ? pbx : pbx * o.ux + pbz * o.uz, vb = o.uz == 0.0f ? pbz : pbz * o.ux - pbx * o.uz;
+        float t0 = 0.0f, t1 = 1.0f;
+        auto slab = [&](float p, float q, float h) {
+            const float d = q - p;
+            if (std::fabs(d) < 1e-9f) return std::fabs(p) < h;
+            float s0 = (-h - p) / d, s1 = (h - p) / d;
+            if (s0 > s1) std::swap(s0, s1);
+            t0 = std::max(t0, s0);
+            t1 = std::min(t1, s1);
+            return t0 < t1;
+        };
+        if (!slab(ua, ub, hu) || !slab(va, vb, hv)) return false;
+        iv.emplace_back(t0, t1);
+        return false;
+    });
+    if (iv.empty()) return false;
+    std::sort(iv.begin(), iv.end());
+    merged.push_back(iv[0]);
+    for (size_t k = 1; k < iv.size(); ++k) {
+        if (iv[k].first > merged.back().second + 1e-6f) merged.push_back(iv[k]);
+        else merged.back().second = std::max(merged.back().second, iv[k].second);
+    }
+    if (merged[0].first > 1e-6f) return true; // starts on open ground, enters a tree's clearance
+    return merged.size() > 1; // starts inside one, leaves it, then enters blocked ground again
+}
+
+inline bool NavGrid::tile_path_crosses_tree_clearance(float sx, float sz, const WaypointPath &path, int cls) const {
+    if (path.count == 0) return false;
+    const int cur = std::max(path.cur, 0);
+    // Only the legs the thinning never tested: the first from the unit to its first node, the last
+    // into the goal, and every leg of a small path (at most two jump points, kept count <= 2 plus
+    // the start leg). A middle leg of a longer path is either a shortcut the thinning tested with
+    // tile_line_clear at the same clearance, or a jump segment between open nodes, and re-testing
+    // them all would revert whole paths that merely pass a tree at the clearance, as crosses_tree_sub
+    // on the whole tile path did (G171's held candidate). A collinear shortcut in the middle is the
+    // same line as its jump segments, so it does not enter a clearance they clear.
+    auto leg = [&](int k) {
+        const float px = k == cur ? sx : path.xs[k - 1];
+        const float pz = k == cur ? sz : path.zs[k - 1];
+        return leg_crosses_gaia_clearance(px, pz, path.xs[k], path.zs[k], cls);
+    };
+    if (leg(cur)) return true;
+    if (path.count - cur <= 2) return leg(path.count - 1) || (path.count - cur == 2 && leg(cur + 1));
+    return leg(path.count - 1);
+}
+
+// C1 (0 A.D. paths its units on 1 m obstruction navcells; RTS0 on 8 m ones, with the trees' squares on the 1 m ones
+// only here). A path whose legs cross a tree's subcell is planned again on the 1 m grid, and the navcell path is kept
+// when it crosses none (so routes that clear the trees keep their exact path):
+//  - a 4-connected search over the subcells the class leaves open, in the box spanned by the start, the goal and the
+//    path, grown by TREE_BOX_PAD and doubled while both the start's and the goal's regions run past its edges (a goal
+//    the search cannot reach while its region stays inside the box is unreachable: see below). The goal's subcell is
+//    exempt. A blocked subcell is entered only from a blocked one, so a unit standing in an obstruction walks out of it
+//    and cannot walk back in on open ground;
+//  - a goal the search does not reach ends where the nearest open subcell the search reached lies, ties by row then
+//    column (MakeGoalReachable's rule, grid_nav.h find_path_cells);
+//  - the cells are string-pulled at 1 m: a leg is kept only while it crosses no blocked subcell (the same rule as above).
+// A mine's blocked subcells count as blocked too, so the new path never enters a mine's square the navcells avoided.
+// Over budget (a box of more than TREE_BFS_CELLS subcells), with no open subcell reached, or with more waypoints than
+// WaypointPath holds, the navcell path stays and the fallback is counted.
+inline void NavGrid::avoid_tree_subcells(float sx, float sz, float &gx, float &gz, WaypointPath &out, uint8_t pass, float rx, float rz) const {
+    const int cls = tile_class(pass);
+    if (!tree_any() || (pass & PASS_SHIP) || !crosses_tree_sub(cls, sx, sz, out)) return;
+    const int S = res * 8;
+    const float k = static_cast<float>(S) / (map_half * 2.0f); // subcells per world unit: 1 m each
+    auto sub_i = [&](float v) { return std::clamp(static_cast<int>((v + map_half) * k), 0, S - 1); };
+    const int si = sub_i(sx), sj = sub_i(sz);
+    const int gi = sub_i(rx), gj = sub_i(rz); // the goal the caller asked for: 1 m's nearest reachable point is ranked to it
+    int lo0_i = std::min(si, gi), hi0_i = std::max(si, gi), lo0_j = std::min(sj, gj), hi0_j = std::max(sj, gj);
+    for (int v = 0; v < out.count; ++v) {
+        const int xi = sub_i(out.xs[v]), zj = sub_i(out.zs[v]);
+        lo0_i = std::min(lo0_i, xi);
+        hi0_i = std::max(hi0_i, xi);
+        lo0_j = std::min(lo0_j, zj);
+        hi0_j = std::max(hi0_j, zj);
+    }
+    // The requested goal's subcell and the navcell path's end (the 8 m goal) are open for the search (exempt).
+    const int mi = sub_i(out.xs[out.count - 1]), mj = sub_i(out.zs[out.count - 1]);
+    // A navcell its structure closes (a wall, a cliff, the map's edge, a mine's cover: structural_open) is never entered
+    // by the re-plan, as the 8 m path never enters it; the navcell the walk starts in is the exception, so a unit standing
+    // in a structure walks out of it. A wood's closure is not part of this: the trees' own subcells stand for it, so the
+    // search routes between trees as the 8 m grid cannot. The goal's and the path's end's subcells are exempt.
+    const int snav_i = si / 8, snav_j = sj / 8;
+    auto goal_sub = [&](int i, int j) { return (i == gi && j == gj) || (i == mi && j == mj); };
+    // A NAV_WATER navcell is closed by the 1 m depth rule per subcell (water_sub), not as a whole: 0 A.D.'s water
+    // passability reads the ground under each 1 m navcell (the probe's dock: the 8 m navcell's closure cost 11 s).
+    // A navcell's structural closure (structural_open) is the same for all its subcells and for the whole call, so it is
+    // computed once per navcell per call: the box's subcells share their navcells, and the string pull tests them again.
+    thread_local std::vector<uint32_t> nav_stamp;
+    thread_local std::vector<uint8_t> nav_closed;
+    thread_local uint32_t nav_gen = 0;
+    if (++nav_gen == 0) { // the stamps wrapped: clear them
+        std::fill(nav_stamp.begin(), nav_stamp.end(), 0u);
+        nav_gen = 1;
+    }
+    if (nav_stamp.size() < cells.data.size()) {
+        nav_stamp.resize(cells.data.size(), 0u);
+        nav_closed.resize(cells.data.size(), 0);
+    }
+    auto navcell_closed = [&](int cx, int cy) -> bool {
+        if (!cells.inside(cx, cy)) return true; // structural_open is false off the map
+        const size_t k2 = static_cast<size_t>(cy) * static_cast<size_t>(cells.w) + static_cast<size_t>(cx);
+        if (nav_stamp[k2] != nav_gen) {
+            nav_stamp[k2] = nav_gen;
+            nav_closed[k2] = structural_open(cx, cy) ? 0 : 1;
+        }
+        return nav_closed[k2] != 0;
+    };
+    // The subcell's closure: the goal's and the path's end's subcells and the start's navcell are open; a NAV_WATER
+    // navcell is closed by its depth rule, or whole when steep (structural_open closes steep ground too).
+    auto closed = [&](int i, int j) {
+        if (goal_sub(i, j) || (i / 8 == snav_i && j / 8 == snav_j)) return false;
+        if (!water_sub.empty() && cells.inside(i / 8, j / 8) && cells.at(i / 8, j / 8) == NAV_WATER)
+            return water_subcell_deep(i, j) || is_steep(i / 8, j / 8);
+        return navcell_closed(i / 8, j / 8);
+    };
+    // The box: its subcells padded by one on each side. The padding is closed, so the flood never leaves the box, and
+    // a flood's neighbour is a plain index step. One byte per padded subcell: kClosed (closed), kBlocked (the flood's
+    // blocked state: closed, or a tree's or mine's subcell unless it is the goal's, so a unit standing in one walks out
+    // of it), kSub (a tree's or mine's subcell, the string pull's own rule). Filled once per box, a navcell at a time.
+    constexpr uint8_t kClosed = 1, kBlocked = 2, kSub = 4;
+    thread_local std::vector<uint8_t> st;
+    // from[c]: the padded cell the search reached c from (-1 for the start). seen[c] == gen: the current flood reached c.
+    // The stamps let a flood start without a fill (from is read only at cells seen by the current flood).
+    thread_local std::vector<int32_t> from, queue;
+    thread_local std::vector<uint32_t> seen;
+    thread_local uint32_t gen = 0;
+    int lo_i = 0, hi_i = 0, lo_j = 0, hi_j = 0, W = 0, H = 0, PW = 0;
+    size_t np = 0;     // padded cells
+    int goal_p = 0, mend_p = 0; // the requested goal's and the path's end's padded cells
+    int near_c = -1;   // the nearest open subcell the last flood reached to the goal (padded), -1 if none
+    long long near_d = -1;
+    auto pidx = [&](int i, int j) { return (i - lo_i + 1) + (j - lo_j + 1) * PW; };
+    auto fill = [&]() {
+        st.assign(np, static_cast<uint8_t>(kClosed | kBlocked));
+        const bool water_on = !water_sub.empty();
+        const bool tree_on = !tree_sub[cls].empty(), mine_on = !mine_sub[cls].empty();
+        for (int cy = lo_j / 8; cy <= hi_j / 8; ++cy) {
+            for (int cx = lo_i / 8; cx <= hi_i / 8; ++cx) {
+                const size_t nv = static_cast<size_t>(cy) * static_cast<size_t>(res) + static_cast<size_t>(cx);
+                const bool water = water_on && cells.inside(cx, cy) && cells.at(cx, cy) == NAV_WATER;
+                const bool nav_cl = water ? false : navcell_closed(cx, cy);
+                const bool steep = water && is_steep(cx, cy);
+                const uint64_t ww = water ? water_sub[nv] : 0u;
+                const uint64_t sub = (tree_on ? tree_sub[cls][nv] : 0u) | (mine_on ? mine_sub[cls][nv] : 0u);
+                const bool snav = cx == snav_i && cy == snav_j;
+                const int x0 = std::max(lo_i, cx * 8), x1 = std::min(hi_i, cx * 8 + 7);
+                const int y0 = std::max(lo_j, cy * 8), y1 = std::min(hi_j, cy * 8 + 7);
+                uint8_t *sp = st.data();
+                for (int y = y0; y <= y1; ++y) {
+                    uint8_t *cell = sp + pidx(x0, y);
+                    for (int x = x0; x <= x1; ++x, ++cell) {
+                        const int bit = (y & 7) * 8 + (x & 7);
+                        const bool ex = goal_sub(x, y);
+                        bool cl = water ? (((ww >> bit) & 1u) != 0 || steep) : nav_cl;
+                        if (ex || snav) cl = false;
+                        const bool sb = ((sub >> bit) & 1u) != 0;
+                        const bool bl = cl || (!ex && sb);
+                        *cell = static_cast<uint8_t>((cl ? kClosed : 0) | (bl ? kBlocked : 0) | (sb ? kSub : 0));
+                    }
+                }
+            }
+        }
+    };
+    // Floods the box from src (a step c -> nb is allowed iff c is blocked or nb is open). Stops at the goal's subcell.
+    auto flood = [&](int src) {
+        if (from.size() < np) from.resize(np);
+        if (seen.size() < np) seen.resize(np, 0u);
+        if (++gen == 0) { // the stamps wrapped: clear them
+            std::fill(seen.begin(), seen.end(), 0u);
+            gen = 1;
+        }
+        // A cell is queued once per flood, so the queue holds at most np cells: a flat buffer with a head and a tail.
+        if (queue.size() < np) queue.resize(np);
+        int32_t *q = queue.data();
+        const uint8_t *sp = st.data();
+        uint32_t *se = seen.data();
+        int32_t *fr = from.data();
+        size_t head = 0, tail = 0;
+        se[src] = gen;
+        fr[src] = -1;
+        q[tail++] = src;
+        if (src == goal_p) return;
+        // The flood ends where it discovers the goal's subcell: each cell's from is set before the cell is pushed, so the
+        // chain from the goal is complete, and the pad loop takes the goal as reached (its nearest-subcell scan unused).
+        while (head < tail) {
+            const int c = q[head++];
+            const bool cb = (sp[c] & kBlocked) != 0;
+            const int nb[4] = {c + 1, c - 1, c + PW, c - PW};
+            for (int d = 0; d < 4; ++d) {
+                const int nc = nb[d];
+                if (sp[nc] & kClosed) continue; // a structure's navcell is never entered
+                if (se[nc] == gen) continue;
+                if (!cb && (sp[nc] & kBlocked)) continue; // a step leaves open ground only into open ground
+                se[nc] = gen;
+                fr[nc] = c;
+                q[tail++] = nc;
+                if (nc == goal_p) return;
+            }
+        }
+    };
+    // Whether the last flood, which ran to its end, reached a subcell on an edge of the box that is not an edge of the map
+    // (the region may go on past it).
+    auto clipped_edge = [&]() {
+        if (lo_i > 0)
+            for (int j = lo_j; j <= hi_j; ++j)
+                if (seen[static_cast<size_t>(pidx(lo_i, j))] == gen) return true;
+        if (hi_i < S - 1)
+            for (int j = lo_j; j <= hi_j; ++j)
+                if (seen[static_cast<size_t>(pidx(hi_i, j))] == gen) return true;
+        if (lo_j > 0)
+            for (int i = lo_i; i <= hi_i; ++i)
+                if (seen[static_cast<size_t>(pidx(i, lo_j))] == gen) return true;
+        if (hi_j < S - 1)
+            for (int i = lo_i; i <= hi_i; ++i)
+                if (seen[static_cast<size_t>(pidx(i, hi_j))] == gen) return true;
+        return false;
+    };
+    // The nearest open subcell the last flood reached to the goal: the least squared distance, ties by box index (the
+    // row-major first: the scan is row-major, and the first of equal distances is kept).
+    auto nearest = [&]() {
+        near_d = -1;
+        near_c = -1;
+        for (int j = lo_j; j <= hi_j; ++j) {
+            const long long dz = j - gj;
+            for (int i = lo_i; i <= hi_i; ++i) {
+                const int p = pidx(i, j);
+                if (seen[static_cast<size_t>(p)] != gen || (st[static_cast<size_t>(p)] & kBlocked)) continue;
+                const long long dx = i - gi, d = dx * dx + dz * dz;
+                if (near_c < 0 || d < near_d) {
+                    near_d = d;
+                    near_c = p;
+                }
+            }
+        }
+    };
+    // The box grows by pad subcells around the start, the goal and the path, doubling while the start's region runs past
+    // its edges and the nearest open subcell found so far is not yet provably the nearest: a subcell outside the box lies
+    // at least the box's edge distance from the goal, so a nearer one found inside it is the nearest overall. The goal's
+    // region may be closed in (unreachable): the nearest reached subcell can then lie outside a box that was too small.
+    bool reached_goal = false, reached_end = false;
+    for (int pad = TREE_BOX_PAD;; pad *= 2) {
+        lo_i = std::max(0, lo0_i - pad);
+        hi_i = std::min(S - 1, hi0_i + pad);
+        lo_j = std::max(0, lo0_j - pad);
+        hi_j = std::min(S - 1, hi0_j + pad);
+        W = hi_i - lo_i + 1;
+        H = hi_j - lo_j + 1;
+        if (static_cast<long long>(W) * H > TREE_BFS_CELLS) {
+            ++tree_sub_fallbacks;
+            return;
+        }
+        PW = W + 2;
+        np = static_cast<size_t>(PW) * static_cast<size_t>(H + 2);
+        goal_p = pidx(gi, gj);
+        mend_p = pidx(mi, mj);
+        fill();
+        flood(pidx(si, sj));
+        reached_goal = seen[static_cast<size_t>(goal_p)] == gen;
+        reached_end = seen[static_cast<size_t>(mend_p)] == gen;
+        if (reached_goal || reached_end || !clipped_edge()) break;
+        nearest();
+        long long dl = LLONG_MAX; // the distance from the goal to the nearest box edge that is not the map's
+        if (lo_i > 0) dl = std::min<long long>(dl, gi - (lo_i - 1));
+        if (hi_i < S - 1) dl = std::min<long long>(dl, (hi_i + 1) - gi);
+        if (lo_j > 0) dl = std::min<long long>(dl, gj - (lo_j - 1));
+        if (hi_j < S - 1) dl = std::min<long long>(dl, (hi_j + 1) - gj);
+        if (near_d >= 0 && near_d < dl * dl) break;
+    }
+    // The goal the search reached: the requested one (as 0.28's MakeGoalReachable leaves a reachable goal), else the
+    // navcell path's end (the goal RTS0's MakeGoalReachable chose, when the path reaches it), else the nearest reached
+    // subcell to the requested goal (MakeGoalReachable on the 1 m grid).
+    int target = goal_p;
+    if (!reached_goal) {
+        target = mend_p;
+        if (!reached_end) {
+            // Neither the goal nor the navcell end is reached: no tree re-plan. The nearest reached subcell would end
+            // the leg at a shore point that the unit's clearance bars, so the walk never gets past it (G168).
+            ++tree_sub_fallbacks;
+            return;
+        }
+    }
+    // The box cells from the start to the target.
+    thread_local std::vector<int> chain;
+    chain.clear();
+    for (int c = target; c != -1; c = from[static_cast<size_t>(c)]) chain.push_back(c);
+    std::reverse(chain.begin(), chain.end());
+    const int m = static_cast<int>(chain.size()) - 1;
+    auto cell_centre = [&](int c, float &x, float &z) {
+        x = (static_cast<float>(c % PW - 1 + lo_i) + 0.5f) / k - map_half;
+        z = (static_cast<float>(c / PW - 1 + lo_j) + 0.5f) / k - map_half;
+    };
+    // Vertex i of the chain: the goal itself where the search reached it, else the centre of its subcell.
+    auto vertex = [&](int i, float &x, float &z) {
+        if (i == m && reached_goal) {
+            x = rx;
+            z = rz;
+        } else if (i == m && reached_end) {
+            x = out.xs[out.count - 1];
+            z = out.zs[out.count - 1];
+        } else {
+            cell_centre(chain[static_cast<size_t>(i)], x, z);
+        }
+    };
+    // A straight leg from (ax, az) to (bx, bz) that crosses no blocked subcell once it has left the blocked ground
+    // it starts on (the rule of the search above; the goal's subcell is open). The box's subcells are read from st; a
+    // subcell outside the box (the walk may touch one) is read as the structure and sub-cell rules give it.
+    auto leg_clear = [&](float ax, float az, float bx, float bz) {
+        bool left = false, ok = true;
+        walk_grid(S, (ax + map_half) * k, (az + map_half) * k, (bx + map_half) * k, (bz + map_half) * k,
+                [&](int x, int y) {
+                    bool cl, sb;
+                    if (x >= lo_i && x <= hi_i && y >= lo_j && y <= hi_j) {
+                        const uint8_t s = st[static_cast<size_t>(pidx(x, y))];
+                        cl = (s & kClosed) != 0;
+                        sb = (s & kSub) != 0;
+                    } else {
+                        cl = closed(x, y);
+                        sb = sub_blocked(cls, x, y);
+                    }
+                    if (cl) { // a structure's navcell: the leg is refused
+                        ok = false;
+                        return false;
+                    }
+                    if ((x == gi && y == gj) || !sb) {
+                        left = true;
+                        return true;
+                    }
+                    if (left) ok = false;
+                    return ok;
+                });
+        return ok;
+    };
+    // String pulling at 1 m: from each anchor the farthest vertex of the chain the leg reaches before the first that it
+    // does not (the next cell is always a leg of the search itself).
+    thread_local std::vector<std::pair<float, float>> verts;
+    verts.clear();
+    float ax = sx, az = sz;
+    int i = 0;
+    while (i < m) {
+        int best = i + 1;
+        for (int j = i + 2; j <= m; ++j) {
+            float jx, jz;
+            vertex(j, jx, jz);
+            if (!leg_clear(ax, az, jx, jz)) break;
+            best = j;
+        }
+        float bx, bz;
+        vertex(best, bx, bz);
+        verts.emplace_back(bx, bz);
+        ax = bx;
+        az = bz;
+        i = best;
+    }
+    if (m == 0) {
+        float x, z;
+        vertex(0, x, z);
+        verts.emplace_back(x, z);
+    }
+    if (verts.size() > static_cast<size_t>(WaypointPath::MAX_WP)) {
+        ++tree_sub_fallbacks;
+        return;
+    }
+    out.clear();
+    for (const auto &v : verts) out.push_back(v.first, v.second);
+    out.cur = 0;
+    gx = verts.back().first; // the path's end: the goal reached, or the nearest reachable subcell's centre
+    gz = verts.back().second;
+    ++tree_sub_replans;
+    out.tree_replanned = true; // C1 tree watch: this leg was re-planned round a tree's subcell
+}
+
+inline bool NavGrid::find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass, bool navcells_only) const {
+    const bool found = find_path_planned(sx, sz, tx, tz, out, pass, navcells_only);
+    out.tree_off = navcells_only; // set after the plan (its out.clear() reset it); the walk's later re-plans read it
+    return found;
+}
+
+inline bool NavGrid::find_path_planned(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass, bool navcells_only) const {
     if (pass & PASS_LARGE) {
         bool narrow_gap = false;
-        if (find_path_on(sx, sz, tx, tz, out, pass, &narrow_gap)) return true;
+        if (find_path_on(sx, sz, tx, tz, out, pass, &narrow_gap, navcells_only)) return true;
         // A path planned on the nodes round a gap too narrow for the class that does not reach the
         // goal ends where MakeGoalReachable moves it, the nearest node of the start's region
         // (HierarchicalPathfinder.cpp:689-719), as 0.28's long path for the class does: it has no
         // other class to fall back on. The default class's path would take the unit into the gap it
         // was planned round, where its steps are refused at the mouth (Simulation::large_step_barred).
         if (narrow_gap) return false;
-        return find_path_on(sx, sz, tx, tz, out, pass & ~PASS_LARGE);
+        return find_path_on(sx, sz, tx, tz, out, pass & ~PASS_LARGE, nullptr, navcells_only);
     }
-    if (!(pass & PASS_SHIP_CLEARANCE)) return find_path_on(sx, sz, tx, tz, out, pass);
-    return find_path_on(sx, sz, tx, tz, out, pass) || find_path_on(sx, sz, tx, tz, out, PASS_SHIP);
+    if (!(pass & PASS_SHIP_CLEARANCE)) return find_path_on(sx, sz, tx, tz, out, pass, nullptr, navcells_only);
+    return find_path_on(sx, sz, tx, tz, out, pass, nullptr, navcells_only) ||
+           find_path_on(sx, sz, tx, tz, out, PASS_SHIP, nullptr, navcells_only);
 }
 
-inline bool NavGrid::find_path_on(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass, bool *narrow_gap) const {
+inline bool NavGrid::find_path_on(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass, bool *narrow_gap,
+        bool navcells_only) const {
     float gx = tx, gz = tz;
     bool reached = find_path_cells(sx, sz, gx, gz, out, pass);
     if (reached) {
         const int mines = avoid_mine_subcells(sx, sz, gx, gz, out, pass);
         if (mines == 2) return false;
+        // C1: the trees' subcells, after the mines' (avoid_tree_subcells).
+        // The tree search ranks to the navcell path's end (gx, gz), not the requested point. That end is the requested goal
+        // unless find_path_cells moved it: the G163 snap of a point inside an obstruction, the water branch's shore point
+        // for a water goal (point_goal_snaps is false for those, so the requested point would end the walk in the water),
+        // or a region move. A walk to a water point stopped at the shore must not be extended into the water.
+        if (!navcells_only) avoid_tree_subcells(sx, sz, gx, gz, out, pass, gx, gz);
     }
     if ((pass & PASS_SHIP) || cells.blank()) return reached;
     const int cls = tile_class(pass);
@@ -2369,9 +2913,25 @@ inline bool NavGrid::find_path_on(float sx, float sz, float tx, float tz, Waypoi
     if (!fine && cls == 1) fine = gap = path_through_narrow_gap(sx, sz, out);
     if (!fine) return reached;
     // The tiles take the goal as given: their own MakeGoalReachable moves it, not the navcells'.
+    const WaypointPath navcell = out;
+    const bool navcell_reached = reached;
     WaypointPath tiles;
     bool tiles_reached = false;
     if (!find_path_tiles(sx, sz, tx, tz, tiles, tiles_reached, cls)) return reached;
+    // G171: ImprovePathWaypoints (find_path_tiles) tests each shortcut it takes with tile_line_clear,
+    // but not the first leg from the unit to its first node, the leg into the goal, or any leg of a
+    // path with at most two jump points (a collinear shortcut in the middle is the same line as its
+    // jump segments). A leg of those that enters a tree's clearance (GAIA grown by the class
+    // clearance, not the subcells' clearance plus 1 m) would be walked into a tree the steering
+    // must go round, and the navcell path was just re-planned round the trees. Keep the navcell
+    // path when the first or last such leg crosses (tile_path_crosses_tree_clearance); middle legs
+    // the thinning did test already passed tile_line_clear at the same clearance. Skipped for the
+    // narrow-gap case, where the navcell path takes the gap the tile path was planned round, and
+    // with navcells_only, where the walk asked for the tree-blind navcell path.
+    if (!navcells_only && !gap && tile_path_crosses_tree_clearance(sx, sz, tiles, cls)) {
+        out = navcell;
+        return navcell_reached;
+    }
     out = tiles;
     if (narrow_gap) *narrow_gap = gap;
     return tiles_reached;

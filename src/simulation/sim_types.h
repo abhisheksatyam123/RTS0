@@ -2399,8 +2399,13 @@ struct MotionTurn {
 	uint8_t span_repeats = 0; // reversals over the span in a row
 	uint8_t span_two = 0;    // span2_x, span2_z are set
 	uint8_t span_pad = 0;    // explicit, so the saved struct holds no hidden padding
+	// G119: the unit's rest position: where a standing unit stood when this turn began. separation() bins a standing unit
+	// by it, as it bins a stepping unit by where its first step began, so a push within the turn never moves it between
+	// pushing squares. Saved after the 48-byte record from SAVE_VERSION_PUSH_REST on.
+	float rest_x = 0.0f, rest_z = 0.0f;
 };
-static_assert(sizeof(MotionTurn) == 48, "MotionTurn is saved raw");
+static_assert(offsetof(MotionTurn, rest_x) == 48, "MotionTurn's 48-byte record is saved first");
+static_assert(sizeof(MotionTurn) == 56, "MotionTurn is saved raw (its record, then rest)");
 
 struct CivHeroAura {
 	const char *id;

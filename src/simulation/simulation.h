@@ -175,6 +175,15 @@ struct PlayerState {
 	}
 };
 
+// C1 tree masks: one tree's footprint in the NavGrid::tree_sub masks, per class, as (word, bits) pairs. Cached per
+// resource while its square (x, z, block half) and the map stay the same (Simulation::build_tree_masks); a derived
+// cache, so it is not part of tick_state_io.
+struct TreeFootprint {
+	float x = 0.0f, z = 0.0f, h = 0.0f;
+	bool valid = false;
+	std::vector<std::pair<uint32_t, uint64_t>> words[2];
+};
+
 class Simulation {
 public:
 	// Player Petra drives. Area C ("Fix and scale the AI") makes Petra per-player.
@@ -191,7 +200,11 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 144; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 148; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_PETRA_PLAN_QUEUES = 148; // per-plan train queues (attackPlan.js:221-223): 27 queues, one plan set per mustering plan
+	static constexpr uint32_t SAVE_VERSION_LINGERING_CORPSE = 147; // each lingering corpse (x, z, timer, template) after the fauna records
+	static constexpr uint32_t SAVE_VERSION_PUSH_REST = 146; // each unit's MotionTurn rest position (G119), after its 48-byte record
+	static constexpr uint32_t SAVE_VERSION_TREE_WATCH = 145; // each unit's path tree watch (tree_replanned, tree_off, watch_cur/best/turns) after its saved record
 	static constexpr uint32_t SAVE_VERSION_AIM_VELOCITY = 143; // each unit's and animal's last-turn velocity (aim_vx/aim_vz; fauna beside fauna_)
 	static constexpr uint32_t SAVE_VERSION_PETRA_ROUTE_CACHE = 139; // Petra's last checkRoutes result (tradeRoute kept between trade events)
 	static constexpr uint32_t SAVE_VERSION_FAUNA_QUEUED_TARGET = 137; // each animal's set-aside attack target (fauna_queued_target_)
@@ -897,11 +910,14 @@ public:
 	// marks water on the nav grid, so call it even for maps with no buildings.
 	void begin_bulk_spawn() { bulk_spawn_ = true; }
 	void end_bulk_spawn();
+	// Resolve spawn overlaps without issuing orders (avoids t=0 movement/jitter).
+	void settle_spawn_overlaps(int iterations = 4);
 	void set_terrain_data(const std::vector<float> &heights, int res, float water_h) {
 		terrain_heights_ = heights;
 		terrain_res_ = res;
 		terrain_water_height_ = water_h;
 		terrain_lowest_known_ = false;
+		water_masks_dirty_ = true; // C1: the water mask follows the ground (refresh_water_masks)
 	}
 	void set_map_info(const std::string &id, const std::string &name, const std::string &biome) {
 		current_map_id_ = id;
@@ -1926,8 +1942,10 @@ public:
 	// shoreline and distance rules.
 	enum PlacementResult : uint8_t {
 		PLACE_OK = 0,
-		PLACE_OBSTRUCTED, // off the map, on another building or on a resource
-		PLACE_TERRAIN,    // water under a land building, deep water under a wall, a slope too steep
+		PLACE_OBSTRUCTED, // on another building or on a resource (CheckFoundation's TestStaticShape)
+		PLACE_TERRAIN,    // water under a land building, deep water under a wall, a slope too steep,
+		                  // or past the map's passable edge (CheckBuildingPlacement's spans outside the
+		                  // grid or on the MAP_EDGE_TILES band, impassable to every class)
 		PLACE_TERRITORY,  // territory the template does not allow
 		PLACE_SHORE,      // a dock not on a shoreline facing a sea
 		PLACE_DISTANCE,   // too close to the player's own building of the same class
@@ -2914,6 +2932,9 @@ private:
 	// gave it, with waypoints left, more than LONG_PATH_MIN_DIST from where it is going.
 	bool follows_long_path(size_t i) const;
 	void obstructed_long_path(size_t i, uint8_t failed);
+	// C1 tree watch: a tree-re-planned leg on which the unit gets no 1 m nearer its waypoint for 12 turns is re-planned on
+	// the navcells alone (WaypointPath::tree_off). Called on each turn end the unit steps (motion_feedback).
+	void watch_tree_leg(size_t i);
 	// HandleObstructedMove's short path (ComputePathToGoal) for a land unit's walk whose way trees or
 	// structures block: kept as the unit's path to its goal (unit_paths_). With `beyond_queue`, a far or
 	// sub-goal search the unit is due (its goal's centre beyond 56 m) is queued there, not run
@@ -2940,6 +2961,24 @@ private:
 	// the path ends on the goal test `goal.distance(path.back())`.
 	bool obstructed_search(size_t i, const nav::ShortPathGoal &goal, float range, uint32_t ignore,
 			std::vector<nav::Vec2> &path, size_t *searched = nullptr) const;
+	// The last search each unit ran (obstructed_search). A search reads the statics (the steering
+	// obstacles keyed by short_path_key_, the woods and supplies keyed by forest_sig_of_gaia, the nav
+	// grid keyed by nav_terrain_stamp_) and its own unit alone, so the same unit asking the same
+	// question of the same statics gets the same answer:
+	// a unit whose order outlives MoveFailed, or that searches again on its next turn, takes the answer
+	// back without the search. The trees it would have culled are charged to the budget as they were, so
+	// the turn's queue runs as it did.
+	struct SearchMemo {
+		bool valid = false, reached = false;
+		uint8_t goal_type = 0;
+		nav::Vec2 pos, center, u, v;
+		float clr = 0.0f, range = 0.0f, hw = 0.0f, hh = 0.0f;
+		uint32_t ignore = 0, nav = 0;
+		uint64_t sps = 0, gsig = 0;
+		size_t cost = 0;
+		std::vector<nav::Vec2> path;
+	};
+	mutable std::vector<SearchMemo> search_memo_;
 	enum : int { kTailNone, kTailHeld, kTailTarget };
 	// Unit i's path to its target becomes `path` followed by `tail`:
 	//   kTailNone   nothing;
@@ -3269,6 +3308,14 @@ private:
 	// The fog a player sees (FOW_* per cell) from its line of sight, los_shared_mask included.
 	void fill_fow_from_los(std::vector<uint8_t> &grid, uint8_t player) const;
 	void rebuild_nav_grid(); // Phase1: rebuild NavGrid from buildings+water (mirrors CCmpObstructionManager rasterize)
+	// C5 (step 2): the tree masks from the live trees (the one builder), and their lazy refresh (see simulation.cpp).
+	void build_tree_masks(std::vector<uint64_t> (&out)[2]) const;
+	void refresh_tree_masks() const;
+	// A tree's square may have joined or left the masks: the next refresh rebuilds them.
+	void note_tree_edit() { tree_masks_dirty_ = true; }
+	// C1 water: NavGrid::water_sub, the 1 m depth rule over the NAV_WATER navcells (see simulation.cpp).
+	void build_water_masks(std::vector<uint64_t> &out) const;
+	void refresh_water_masks() const;
 	// The static obstructions of the long paths on the terrain tiles (NavGrid::set_tile_obstructions):
 	// with `structures` the structures, scenery and mines; the trees, bushes and treasures when they
 	// changed.
@@ -3290,7 +3337,8 @@ private:
 		if (circular_map()) return x1 * x1 + z1 * z1 > x0 * x0 + z0 * z0;
 		return std::max(std::fabs(x1), std::fabs(z1)) > std::max(std::fabs(x0), std::fabs(z0));
 	}
-	bool find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass = PASS_INFANTRY) const;
+	bool find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass = PASS_INFANTRY,
+		bool navcells_only = false) const;
 	int territory_owner_at(float x, float z) const; // G2: query territory_grid_
 	void rebuild_territory(); // G2: rebuild territory/influence grids from TC/Fortress/Tower
 	void rebuild_auras(); // G4: rebuild AuraManager from temples/heroes/carnyx/female citizens
@@ -3301,6 +3349,7 @@ public:
 	// Attack.js IsTargetInRange: d2 (squared gap) within unit i's attack range, the target's
 	// height above the ground or water target_offset (GetEffectiveParabolicRange).
 	bool in_attack_range(size_t i, float d2, float target_offset) const;
+	float unit_gap2(size_t i, size_t j) const; // squared edge-to-edge gap between two units (IsInTargetRange)
 private:
 	void apply_health_auras(); // Health/Max auras: rescale max_hp and hp as units enter or leave them
 	float structure_max_capture(const Building &b) const; // Capturable/CapturePoints with its owner's modifiers and auras
@@ -3501,6 +3550,20 @@ private:
 	// each turn start like the units'), beside fauna_ like fauna_owner_; save v143 adds it.
 	float fauna_aim_vx_[FaunaStorage::MAX_FAUNA] = {};
 	float fauna_aim_vz_[FaunaStorage::MAX_FAUNA] = {};
+	// An animal with no meat (no ResourceSupply) leaves a corpse that lies for a while, then goes
+	// (0 A.D. Health.js CreateCorpse with the template's Decay, e.g. the flaming pig's 10 s). Saved from
+	// SAVE_VERSION_LINGERING_CORPSE; not a resource, so nothing gathers it.
+public:
+	// Read-only view for presentation (the corpse draw pass in world_view_node.cpp).
+	struct LingeringCorpse {
+		float x, z;
+		float timer; // seconds left
+		uint8_t fauna_type;
+	};
+	const std::vector<LingeringCorpse> &lingering_corpses() const { return lingering_corpses_; }
+private:
+	std::vector<LingeringCorpse> lingering_corpses_;
+	static constexpr float LINGERING_CORPSE_TIME = 10.0f; // fauna_pig_flaming.xml Decay DelayTime
 	IdIndex fauna_id_to_idx_;
 	std::unordered_map<uint32_t, std::vector<uint32_t>> transport_passengers_;
 	// UnitMotionFlying.js state of each flying unit (units/plane), by unit id, so it saves and
@@ -3553,6 +3616,11 @@ private:
 	// Every add or remove must bump supply_list_edits_, every in-place edit gaia_edits_ (sync_tile_obstructions).
 	ResourceSoA resources_;
 	std::vector<Building> buildings_;
+	// builder_stand_point's candidate structures, packed once per tick in serial code before the
+	// parallel unit pass (buildings_ is read-only there): a builder's scan reads these few bytes
+	// per structure instead of every Building (its D1 misses were 8% of the late-game run).
+	struct BlockBound { float x, z, r; uint32_t idx; };
+	std::vector<BlockBound> block_bounds_;
 	std::vector<Projectile> projectiles_;
 	// 0 A.D. StatusEffectsReceiver (Stackability Stack): every Poisoned or Burning hit is its own
 	// status with its own timer, credited to whoever applied it. It deals its Damage on the next
@@ -3632,6 +3700,15 @@ private:
 	mutable uint64_t resource_block_tick_ = UINT64_MAX;
 	mutable size_t resource_block_count_ = SIZE_MAX;
 	mutable int resource_block_w_ = 0;
+	// C5 (step 2): NavGrid::tree_sub is stale (a tree's square joined or left). refresh_tree_masks rebuilds it before
+	// any path query reads it; rebuild_nav_grid rebuilds it in full and clears this.
+	mutable bool tree_masks_dirty_ = false;
+	mutable std::vector<TreeFootprint> tree_footprints_; // by resource index (build_tree_masks)
+	mutable float tree_fp_map_half_ = -1.0f;            // the map the cached footprints were made for
+	mutable int tree_fp_res_ = -1;
+	// C1 water: NavGrid::water_sub is stale (the navcells' classes changed). rebuild_nav_grid sets it, and
+	// refresh_water_masks clears it before a path query reads it.
+	mutable bool water_masks_dirty_ = true;
 	void ensure_resource_block_cells() const;
 	// check_placement over the cells `cells` of a footprint whose bounds are [x0, x1] x [z0, z1]
 	// and centre (cx, cz); `rect` is a turned footprint (a WallSet piece) or null for a square, and
@@ -3762,6 +3839,8 @@ private:
 	bool regicide_hero_lost(int t) const;
 	uint8_t player_color_[MAX_PLAYERS] = {0, 1, 2, 3, 4, 5, 6, 7};
 	void remove_player_structures(); // Nomad
+	// Danubius only (generate_random_map): each land animal on an unwalkable navcell steps to the nearest walkable one.
+	void settle_danubius_fauna();
 	bool explore_map_ = false;
 	float wonder_duration_ = 600.0f;
 	float relic_duration_ = 180.0f;
@@ -4070,8 +4149,10 @@ private:
 	// Whether a finished building of ours trains some roster template of the class, busy or
 	// not (findTrainableUnits; trainMoreUnits drops a class without one from the plan).
 	bool petra_unit_stat_trainable(const PetraUnitStat &st) const;
-	// The plan queue an attack plan's order trains in (trainMoreUnits: by the order's classes).
-	static uint8_t petra_plan_order_queue(const PetraUnitStat &st);
+	// The plan queue an attack plan's order trains in (trainMoreUnits: by the order's classes),
+	// in the queue set of base (PETRA_Q_PLAN / RAID_PLAN / NEXT_PLAN; attackPlan.js:221-223).
+	static uint8_t petra_plan_order_queue(const PetraUnitStat &st); // the slot's plan's queue
+	static uint8_t petra_plan_queue_for(uint8_t base, const PetraUnitStat &st);
 	// Whether a finished building of ours lists roster template `tmpl`, busy or not.
 	bool petra_has_trainer(uint16_t tmpl) const;
 	bool petra_raid_target_ok(uint32_t bld_id) const;
@@ -4914,6 +4995,11 @@ private:
 	// (CCmpObstructionManager::TestLine, Geometry::TestRaySquare), its target excepted, and the line
 	// keeps the clearance off deep water and steep ground (CheckLineMovement on the terrain grid).
 	bool direct_walk_clear(size_t i, float x0, float z0, float x1, float z1) const;
+	// Whether that line is blocked by a tree or other gaia obstruction alone (no structures, no
+	// terrain), as direct_walk_clear's gaia part. G170: separates a crowd/gate stall (gaia-clear)
+	// from a tree stall (gaia-blocked) without relying on motion's blocked bit, which the short path's
+	// refusal also sets.
+	bool line_blocked_by_gaia(size_t i, float x0, float z0, float x1, float z1) const;
 	// Whether land unit i, of the "large" passability class, steps or is pushed from (x, z) to (nx, nz)
 	// into a standing structure's or mine's square grown by its 3 m clearance that it did not start in:
 	// CheckMovement refuses that (TestRaySquare), so no gap of 6 m or less lets it through. On its own

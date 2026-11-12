@@ -2687,7 +2687,7 @@ static void test_petra_islands_wood_reserve() {
 	s->petra_attack_mgr_.save_resources = 1;
 	s->players_[0].res[RES_WOOD] = 600.0f;
 	CHECK(!s->petra_wood_starved(), "not short while the trees stand");
-	for (size_t r : home_trees) s->resources_.amount[r] = 0;
+	for (size_t r : home_trees) s->set_resource_amount(s->resources_.id[r], 0); // the sim API: marks the trees' squares (C1)
 	CHECK(s->petra_wood_starved(), "short once they are cut");
 	CHECK(!s->petra_try_pay(PETRA_Q_HOUSE, 0.0f, 150.0f, 0.0f, 0.0f), "a house waits");
 	CHECK(!s->petra_try_pay(PETRA_Q_MAJOR_TECH, 500.0f, 500.0f, 0.0f, 0.0f), "the phase waits for its account");
@@ -4715,6 +4715,44 @@ static void test_plan_siege_batch_waits_funded() {
 	CHECK(qm.wants[PETRA_Q_PLAN_SIEGE].wood == 0.0f, "with no plan mustering it goes");
 }
 
+// attackPlan.js:221-223: each mustering plan has its own queues at its kind's priority
+// (Rush 250, Raid 150, HugeAttack 90, Attack 70, champion one more, difficulty-scaled).
+// Before, a raid and an attack shared one set at the higher of the two, so the attack
+// trained at raid priority while the raid mustered (G147).
+static void test_plan_queue_priorities() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->set_petra_difficulty(PETRA_MEDIUM);
+	auto &m = s->petra_attack_mgr_;
+	m.kind = PETRA_ATTACK_ATTACK;
+	s->petra_attack_plan_.state = Simulation::AttackPlan::MUSTER;
+	s->petra_raid_plan_.state = Simulation::AttackPlan::MUSTER;
+	s->petra_next_plan_.plan.state = Simulation::AttackPlan::MUSTER;
+	s->petra_next_plan_.plan.kind = PETRA_ATTACK_RUSH;
+	s->petra_next_plan_.muster.kind = PETRA_ATTACK_RUSH;
+	CHECK(s->petra_queue_base_priority(PETRA_Q_PLAN) == 70, "the attack trains at attack priority");
+	CHECK(s->petra_queue_base_priority(PETRA_Q_PLAN_CHAMP) == 71, "its champion queue one more");
+	CHECK(s->petra_queue_base_priority(PETRA_Q_PLAN_SIEGE) == 70, "its siege queue at attack priority");
+	CHECK(s->petra_queue_base_priority(PETRA_Q_RAID_PLAN) == 150, "the raid trains at raid priority");
+	CHECK(s->petra_queue_base_priority(PETRA_Q_RAID_PLAN_CHAMP) == 151, "its champion queue one more");
+	CHECK(s->petra_queue_base_priority(PETRA_Q_RAID_PLAN_SIEGE) == 150, "its siege queue at raid priority");
+	CHECK(s->petra_queue_base_priority(PETRA_Q_NEXT_PLAN) == 250, "a beside rush trains at rush priority");
+	CHECK(s->petra_queue_base_priority(PETRA_Q_NEXT_PLAN_CHAMP) == 251, "its champion queue one more");
+	CHECK(s->petra_queue_base_priority(PETRA_Q_NEXT_PLAN_SIEGE) == 250, "its siege queue at rush priority");
+	std::printf("  attack 70, raid 150, beside rush 250 (champion +1)\n");
+	m.kind = PETRA_ATTACK_HUGE;
+	CHECK(s->petra_queue_base_priority(PETRA_Q_PLAN) == 90, "a HugeAttack trains at 90");
+	s->petra_attack_plan_.state = Simulation::AttackPlan::UNEXECUTED;
+	CHECK(s->petra_queue_base_priority(PETRA_Q_PLAN) == 1, "a plan not mustering holds no priority");
+	// Each order trains in its own plan's set, by its classes.
+	using St = Simulation::PetraUnitStat;
+	const St elephants{TC_ELEPHANT | TC_MELEE, 1.0f, 0, 2, 2, 0.0f, 3.0f, 1.0f, 1.0f};
+	const St infantry{TC_INFANTRY | TC_MELEE, 1.0f, 6, 16, 3, 1.6f, 0.0f, 1.0f, 1.0f};
+	CHECK(Simulation::petra_plan_queue_for(PETRA_Q_RAID_PLAN, elephants) == PETRA_Q_RAID_PLAN_SIEGE, "the raid's siege order trains in the raid's siege queue");
+	CHECK(Simulation::petra_plan_queue_for(PETRA_Q_NEXT_PLAN, infantry) == PETRA_Q_NEXT_PLAN, "the beside plan's order trains in the beside plan's queue");
+}
+
 // attackPlan.js:689-695 trains a plan's batches with its name as "plan" metadata: the units
 // are the plan's as they spawn, so no other plan takes them (the main plan used to take the
 // raid's siege, and citizen cavalry trained for it went hunting). A batch whose plan has started or been replaced comes out of plan
@@ -5695,7 +5733,7 @@ static void test_placement_miss_memory_exact() {
 				const int cx = hcx + dx, cz = hcz + dz;
 				for (size_t i = 0; i < s->resources_.count; ++i) {
 					const int rx = (int)std::floor(s->resources_.x[i] / G), rz = (int)std::floor(s->resources_.z[i] / G);
-					if (rx >= cx && rx < cx + foot && rz >= cz && rz < cz + foot) s->resources_.amount[i] = 0;
+					if (rx >= cx && rx < cx + foot && rz >= cz && rz < cz + foot) { s->resources_.amount[i] = 0; s->note_tree_edit(); }
 				}
 				s->resource_block_tick_ = UINT64_MAX;
 				freed = s->petra_can_place(cx, cz, foot, BLD_TEMPLE);
@@ -5747,7 +5785,7 @@ static void test_dropsite_sites() {
 		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { hx = b.x; hz = b.z; }
 	auto &r = s->resources_;
 	for (size_t i = 0; i < r.count; ++i)
-		if (r.alive[i] && std::hypot(r.x[i] - hx, r.z[i] - hz) < 45.0f) r.amount[i] = 0;
+		if (r.alive[i] && std::hypot(r.x[i] - hx, r.z[i] - hz) < 45.0f) { r.amount[i] = 0; s->note_tree_edit(); }
 	// Toward the map centre a forest of 30 trees 22-30 units out, the other way a grove of 3.
 	const float ux = hx > 0.0f ? -1.0f : 1.0f, uz = hz > 0.0f ? -1.0f : 1.0f;
 	for (int i = 0; i < 6; ++i)
@@ -6479,8 +6517,8 @@ static void test_gather_limits() {
 	CHECK(tree != SIZE_MAX && mine != SIZE_MAX, "a tree and a mine on the map");
 	if (tree == SIZE_MAX || mine == SIZE_MAX) return;
 	for (size_t k = 0; k < r.count; ++k)
-		if (k != tree && k != mine) r.amount[k] = 0;
-	r.amount[tree] = r.amount[mine] = 5000;
+		if (k != tree && k != mine) { r.amount[k] = 0; s->note_tree_edit(); }
+	r.amount[tree] = r.amount[mine] = 5000; s->note_tree_edit();
 	for (size_t f = 0; f < s->fauna_.count; ++f) s->fauna_.food_amount[f] = 0;
 	// No foundations: a gatherer with no supply would help build a dropsite for its resource.
 	for (auto &b : s->buildings_)
@@ -6635,7 +6673,13 @@ static void test_decay_garrison() {
 	const int cap = ours ? s->buildings_[it->second].garrison_cap : 0;
 	std::printf("  decaying tower in enemy land: needs %d, garrisoned %zu, still ours %s\n", need, inside, ours ? "yes" : "no");
 	CHECK(need > 0, "a tower in enemy territory decays");
-	CHECK(ours && (int)inside >= std::min(need, cap), "Petra garrisons a decaying tower (TYPE_DECAY)");
+	// A soldier that reaches an enemy inside its attack range fights it (edge to edge, IsInTargetRange),
+	// so it counts as busy rather than missing from the garrison.
+	int fighting = 0;
+	for (size_t u = 0; u < s->units_.count; ++u)
+		if (s->units_.alive[u] && s->units_.team[u] == 1 && s->units_.unit_type[u] == UNIT_SPEARMAN &&
+				s->units_.action_state[u] == ACTION_ATTACK) ++fighting;
+	CHECK(ours && (int)inside + fighting >= std::min(need, cap), "Petra garrisons a decaying tower (TYPE_DECAY)");
 	// A barracks is held only just after Petra captures it (addDecayingStructure justCaptured).
 	const uint32_t bar = s->spawn_building_world(tx, tz + 16.0f, BLD_BARRACKS, 0);
 	auto bi = s->building_id_to_idx_.find(bar);
@@ -6911,7 +6955,7 @@ static void test_petra_wood_poor_corral() {
 	CHECK(farm && !corral, "a large land short of food with wood wants a field");
 	s->players_[0].res[RES_WOOD] = 0.0f;
 	for (size_t r = 0; r < s->resources_.count; ++r)
-		if (s->resources_.type[r] == RES_WOOD) s->resources_.amount[r] = 0;
+		if (s->resources_.type[r] == RES_WOOD) { s->resources_.amount[r] = 0; s->note_tree_edit(); }
 	s->petra_kept_ = PetraKept{};
 	s->petra_config_first_base();
 	std::printf("  wood-poor start: needFarm %d, needCorral %d\n", (int)s->petra_kept_.need_farm, (int)s->petra_kept_.need_corral);
@@ -9292,7 +9336,7 @@ static void test_queued_dropsite_starts() {
 	}
 	auto &r = s->resources_;
 	for (size_t i = 0; i < r.count; ++i)
-		if (r.alive[i]) r.amount[i] = 0;
+		if (r.alive[i]) { r.amount[i] = 0; s->note_tree_edit(); }
 	// A grove of three trees: a site well under checkResourceLevels' 50.
 	const float ux = hx > 0.0f ? -1.0f : 1.0f;
 	std::vector<size_t> grove;
@@ -9330,7 +9374,7 @@ static void test_queued_dropsite_starts() {
 	s->petra_check_resource_levels(501);
 	CHECK(storehouses() == before + 1 && dc.pending == 0, "the queued storehouse starts on a site under 50");
 	// With no resource left by any site, the queued plan takes the general placement in its base.
-	for (size_t i : grove) r.amount[i] = 0;
+	for (size_t i : grove) { r.amount[i] = 0; s->note_tree_edit(); }
 	for (auto &b : s->buildings_)
 		if (b.team == 1) b.build_progress = 1.0f;
 	s->petra_turn_built_ = false;
@@ -10860,6 +10904,7 @@ int main(int argc, char **argv) {
 	RUN(test_huge_attack_drops_classes);
 	RUN(test_plan_counts_every_class);
 	RUN(test_plan_siege_batch_waits_funded);
+	RUN(test_plan_queue_priorities);
 	RUN(test_trained_units_join_their_plan);
 	RUN(test_plan_cost_weights_kept);
 	RUN(test_plan_class_sizes_sum);

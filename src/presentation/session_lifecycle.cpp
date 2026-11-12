@@ -791,11 +791,11 @@ void RtsoMain::_ready() {
 			amb_stream->set("loop", true);
 			ambient_player = memnew(AudioStreamPlayer);
 			ambient_player->set_stream(amb_stream);
-			ambient_player->set_autoplay(true);
+			// F8: defer ambient autoplay until after the first frame/loading is complete
+			// (started from _process); avoids playing over load/setup.
 			ambient_player->set_volume_db(-1.3f); // 20 log10(0.6 / 0.7)
 			ambient_player->set_bus("Ambient");
 			add_child(ambient_player);
-			ambient_player->play();
 		}
 	}
 
@@ -1311,7 +1311,8 @@ void RtsoMain::_process(double delta) {
 	update_music_state();
 
 	// The dayscape loop never stops (PlayAmbientSound's looping track).
-	if (ambient_player && !ambient_player->is_playing()) ambient_player->play();
+	// F8: defer start until after first frame/loading complete.
+	if (ambient_player && !ambient_player->is_playing() && !net_loading_hold()) ambient_player->play();
 
 	// Update Building Placement Ghost (0 A.D. gui/session/building_placement.js:45-92 BuildPreview parity)
 	std::array<float, 4> preview_ring{}; // x, z, max and min range ring of the placed structure

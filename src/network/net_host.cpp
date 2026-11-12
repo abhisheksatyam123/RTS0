@@ -356,6 +356,22 @@ void NetHost::send_raw_packet(const std::string &ip, uint16_t port, const uint8_
 		sim_loss_rng_ ^= sim_loss_rng_ << 5;
 		if ((float)(sim_loss_rng_ & 0xFFFFFF) / 16777216.0f < sim_loss_) return;
 	}
+	if (sim_delay_ms_ > 0) {
+		sim_delay_rng_ ^= sim_delay_rng_ << 13;
+		sim_delay_rng_ ^= sim_delay_rng_ >> 17;
+		sim_delay_rng_ ^= sim_delay_rng_ << 5;
+		uint32_t hold = sim_delay_rng_ % (sim_delay_ms_ + 1);
+		if (hold > 0) {
+			HeldDatagram h{get_now_ms() + hold, ip, port, std::vector<uint8_t>(data, data + size)};
+			sim_held_.push_back(std::move(h));
+			return;
+		}
+	}
+	sendto_now(ip, port, data, size);
+}
+
+void NetHost::sendto_now(const std::string &ip, uint16_t port, const uint8_t *data, size_t size) {
+	if (socket_fd_ < 0) return;
 	sockaddr_in dest{};
 	dest.sin_family = AF_INET;
 	dest.sin_port = htons(port);
@@ -442,6 +458,16 @@ void NetHost::send_ack(const std::string &ip, uint16_t port, uint32_t peer_id, u
 	hdr.payload_len = 0;
 	(void)peer_id;
 	send_raw_packet(ip, port, reinterpret_cast<const uint8_t*>(&hdr), sizeof(hdr));
+}
+
+uint32_t NetHost::lastSentSeq(uint32_t peer_id) const {
+	const NetPeer *p = getPeer(peer_id);
+	return p ? p->last_sent_seq : 0;
+}
+
+bool NetHost::reliableStillPending(uint32_t peer_id, uint32_t seq) const {
+	return std::any_of(pending_acks_.begin(), pending_acks_.end(),
+			[=](const PendingReliablePacket &p) { return p.peer_id == peer_id && p.seq == seq; });
 }
 
 void NetHost::sendCommand(uint32_t peer_id, const uint8_t *data, size_t size) {
@@ -692,7 +718,11 @@ void NetHost::handle_incoming_packet(const uint8_t *data, size_t size, const std
 			}
 		}
 
-		if (!peer && (hdr.flags & NET_FLAG_CONNECT_REQ)) {
+		if (!peer && (hdr.flags & NET_FLAG_CONNECT_REQ) && banned_addresses_.count(from_ip)) {
+			// 0 A.D. NetServer HandleConnect: a banned address is turned away
+			// before a session is made (NDR_BANNED), each time it asks.
+			send_wire_packet(from_ip, from_port, 0, NET_FLAG_DISCONNECT, NDR_BANNED, nullptr, 0, false);
+		} else if (!peer && (hdr.flags & NET_FLAG_CONNECT_REQ)) {
 			// Sessions that left keep their entry (ids stay unique), so count
 			// only the connected ones, as 0 A.D. counts m_Sessions.
 			const size_t live = (size_t)std::count_if(peers_.begin(), peers_.end(),
@@ -1232,6 +1262,18 @@ void NetHost::check_peer_timeouts(uint64_t now_ms) {
 void NetHost::poll(Arena &arena) {
 	(void)arena;
 	if (socket_fd_ < 0) return;
+	if (!sim_held_.empty()) {
+		uint64_t now = get_now_ms();
+		for (size_t i = 0; i < sim_held_.size();) {
+			if (sim_held_[i].due_ms <= now) {
+				HeldDatagram h = std::move(sim_held_[i]);
+				sim_held_.erase(sim_held_.begin() + (std::ptrdiff_t)i);
+				sendto_now(h.ip, h.port, h.data.data(), h.data.size());
+			} else {
+				++i;
+			}
+		}
+	}
 
 	// A whole UDP datagram: a shorter buffer cuts a long one off unseen.
 	static thread_local std::vector<uint8_t> recv_buf(65536);

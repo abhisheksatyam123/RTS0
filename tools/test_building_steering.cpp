@@ -211,6 +211,9 @@
 // 48. The G30 gap sweep: a ram's large-class long path across a barrier of houses with one gap of 6.5 to
 //     9 m, over 32 phases of the gap's centre. Houses less than 8 m from another are crowded and grow 1 m for
 //     the large class, so the gaps of 6.5, 7 and 7.5 m close at every phase; the 9 m gap stays open.
+// 49. The search memo and the nav grid (G84): a far search's answer is reused, budget and all, while its
+//     inputs stand; a nav grid rebuild changes `nav_terrain_stamp_` even when the steering obstacles'
+//     key does not (a gate opening, scenery falling, a terrain edit), and must miss the memo.
 //  For every scenario the unit bodies must never overlap a footprint that blocks movement by more
 //  than MAX_PENETRATION (separation() alone allows deep overlap when a unit walks head-on into a wall).
 //  Exit: 0 = PASS, 1 = FAIL. Prints the measurements either way.
@@ -1455,9 +1458,11 @@ static void circular_map_edge() {
 	}
 	std::printf("  map edge: a house reaching %.1f out placed %d on a square map, %d on a circular one; reaching %.1f, %d on the square (0 = ok)\n",
 			(float)(cell_x + foot) * Simulation::GRID, (int)res[0], (int)res[1], (float)(in_x + foot) * Simulation::GRID, (int)in_square);
-	check(res[0] == Simulation::PLACE_OBSTRUCTED, "a house reaching past a square map's edge frame was placed");
+	// CheckBuildingPlacement: a span outside the grid or on the edge band is FAIL_TERRAIN_CLASS,
+	// so BuildRestrictions reports "invalid terrain", not "on another building or resource".
+	check(res[0] == Simulation::PLACE_TERRAIN, "a house reaching past a square map's edge frame wasn't invalid terrain");
 	check(in_square == Simulation::PLACE_OK, "a house inside a square map's edge frame couldn't be placed");
-	check(res[1] == Simulation::PLACE_OBSTRUCTED, "a house reaching past a circular map's edge was placed");
+	check(res[1] == Simulation::PLACE_TERRAIN, "a house reaching past a circular map's edge wasn't invalid terrain");
 }
 
 // 23. A wood too thick to walk through closes its navcells to long paths (0 A.D. rasterizes each
@@ -3151,6 +3156,91 @@ static void large_path_round_crowded_gaps() {
 	}
 }
 
+// 49. The search memo and the nav grid: the last answer is reused while its inputs stand; a nav grid
+// rebuild changes `nav_terrain_stamp_` even when the steering obstacles' key does not (a gate opening,
+// scenery falling, a terrain edit), and must miss the memo.
+static void search_memo_nav_stamp() {
+	Simulation s;
+	setup(s);
+	const uint32_t uid = s.spawn_unit(-20.0f, 0.0f, 0, UNIT_VILLAGER);
+	const int idx = index_of(s, uid);
+	check(idx >= 0, "scenario 49's unit");
+	if (idx < 0) return;
+	nav::ShortPathGoal goal;
+	goal.type = nav::ShortPathGoal::POINT;
+	goal.center = nav::Vec2(20.0f, 0.0f);
+	std::vector<nav::Vec2> first, second, third;
+	size_t first_cost = 0, second_cost = 0, third_cost = 0;
+	const bool first_reached = s.obstructed_search((size_t)idx, goal, 56.0f, 0, first, &first_cost);
+	const uint32_t stamp = s.search_memo_[(size_t)idx].nav;
+	// A sentinel answer proves the second call is answered from the memo.
+	s.search_memo_[(size_t)idx].cost = 4321;
+	s.search_memo_[(size_t)idx].path.assign(1, nav::Vec2(999.0f, 999.0f));
+	const bool second_reached = s.obstructed_search((size_t)idx, goal, 56.0f, 0, second, &second_cost);
+	check(second_reached == first_reached && second.size() == 1 && second[0].x == 999.0f &&
+			second_cost == 4321, "an unchanged search is answered from the memo, budget and all");
+	// A nav grid rebuild bumps the stamp alone, as a gate opening, scenery falling or a terrain edit
+	// does: the next search must run afresh rather than take the sentinel back.
+	++s.nav_terrain_stamp_;
+	const bool third_reached = s.obstructed_search((size_t)idx, goal, 56.0f, 0, third, &third_cost);
+	check(s.search_memo_[(size_t)idx].nav == s.nav_terrain_stamp_, "a nav rebuild misses the memo");
+	check(third.size() != 1 || third[0].x != 999.0f, "the search after a nav rebuild is fresh");
+	check(third_reached == first_reached && third_cost == first_cost && third.size() == first.size(),
+			"the fresh search keeps the answer and charges its own tree budget");
+	// Reset drops the memo with the game.
+	s.reset();
+	check(s.search_memo_.empty(), "reset clears the search memo");
+}
+
+// The steering line test (line_blocked_by_buildings) must agree with the exact test on a building's
+// clearance square for every line: turned squares' corners reach radius * (|ux| + |uz|) past their
+// bounding box, and within_reach once padded them by one radius, so a line through a corner band
+// 0.33 m wide (0.8 m clearance, 45 degrees) was called clear. Every start outside the grown square,
+// every aim outside it, and every reach, on aligned and turned squares at two clearances.
+static void turned_corner_band() {
+	struct Bld {
+		uint32_t id;
+		float x, z, ux, uz, hu, hv;
+		uint8_t type;
+		bool wrecked;
+		float ext;
+	};
+	const float radii[2] = {CLEARANCE_DEFAULT, CLEARANCE_LARGE};
+	long total = 0, mismatch = 0;
+	for (float r : radii)
+		for (float deg : {0.0f, 30.0f, 45.0f, 60.0f}) {
+			const float ang = deg * 3.14159265f / 180.0f;
+			Bld b{1, 0.0f, 0.0f, std::cos(ang), std::sin(ang), 0.5f, 0.5f, BLD_HOUSE, false, 0.0f};
+			if (deg == 0.0f) b.ux = 1.0f, b.uz = 0.0f;
+			b.ext = nav::footprint_extent(nav::Footprint{b.x, b.z, b.ux, b.uz, b.hu, b.hv});
+			const std::vector<Bld> bs{b};
+			const nav::Vec2 c(b.x, b.z), u = nav::footprint_u(b), v = nav::footprint_v(b);
+			const nav::Vec2 half(b.hu + r, b.hv + r);
+			for (float px = -2.0f; px <= 2.0001f; px += 0.05f)
+				for (float pz = -2.0f; pz <= 2.0001f; pz += 0.05f) {
+					const nav::Vec2 pos(px, pz);
+					if (nav::PointIsInSquare(pos - c, u, v, half)) continue;
+					for (int k = 0; k < 24; ++k) {
+						const float a = 2.0f * 3.14159265f * (float)k / 24.0f;
+						for (float ring : {2.0f, 2.6f}) {
+							const nav::Vec2 aim(std::cos(a) * ring, std::sin(a) * ring);
+							if (nav::PointIsInSquare(aim - c, u, v, half)) continue;
+							for (float max_len : {0.3f, 0.5f, 0.8f, 1.2f}) {
+								const nav::Vec2 to_aim = aim - pos;
+								const float len = to_aim.length();
+								const nav::Vec2 end = len > max_len ? pos + to_aim * (max_len / len) : aim;
+								const bool exact = nav::TestRaySquare(pos - c, end - c, u, v, half);
+								++total;
+								if (nav::line_blocked_by_buildings(pos, aim, max_len, r, bs, 0) != exact) ++mismatch;
+							}
+						}
+					}
+				}
+		}
+	std::printf("  corner band: %ld lines, %ld disagree with the exact square\n", total, mismatch);
+	check(mismatch == 0, "a line that crosses a turned building's clearance square is blocked, corner band included");
+}
+
 int main() {
 	std::printf("RTS0 building steering test (src/simulation/nav/building_steering.h)\n");
 	guard_behind_wall();
@@ -3200,6 +3290,8 @@ int main() {
 	field_and_felled_tree_then_load();
 	find_path_after_failed_narrow_gap_replan();
 	large_path_round_crowded_gaps();
+	search_memo_nav_stamp();
+	turned_corner_band();
 	if (g_failures) {
 		std::printf("FAIL (%d)\n", g_failures);
 		return 1;

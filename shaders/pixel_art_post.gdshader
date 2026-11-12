@@ -23,7 +23,7 @@ uniform vec3 outline_tint = vec3(1.0, 1.0, 1.0);
 // Relative depth gap (fraction of the pixel's distance) that draws an outer outline.
 // The line fades in over [0.5, 1.5] x this value, so sub-pixel camera motion moves the
 // edge smoothly instead of switching pixels on and off (shimmer).
-uniform float depth_threshold : hint_range(0.0, 0.2) = 0.03;
+uniform float depth_threshold : hint_range(0.0, 0.2) = 0.06;
 uniform float normal_threshold : hint_range(0.0, 1.0) = 0.2;
 // Beyond this distance (metres) no outline is drawn: flat distant ground otherwise
 // turns dark from depth noise.

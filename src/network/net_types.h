@@ -323,13 +323,17 @@ constexpr uint8_t NDR_SERVER_LOADING = 4; // a join while the host's game loads
 constexpr uint8_t NDR_SERVER_ALREADY_IN_GAME = 5; // a late observer the host does not take
 constexpr uint8_t NDR_PLAYERNAME_IN_USE = 8;
 constexpr uint8_t NDR_SERVER_FULL = 9;
+// 0 A.D. NDR_BANNED: an address the host banned is refused before the handshake.
+constexpr uint8_t NDR_BANNED = 7;
 constexpr uint8_t NDR_LOBBY_AUTH_FAILED = 10;
 constexpr uint8_t NDR_INCORRECT_SOFTWARE_VERSION = 17;
 // What this build sends in its handshake (0 A.D. CNetServerWorker::CheckHandshake
 // compares engine versions and enabled mods): a host refuses any other. Raised whenever
 // builds stop computing the same match from the same commands (0.2: det_math.h maths and
-// the avalanched lockstep hash), so older builds are refused instead of falling out of sync.
-constexpr const char *NET_SOFTWARE_VERSION = "RTS0-0.2";
+// the avalanched lockstep hash; 0.3: the kept steering waypoint (G177) and the deep-water walk
+// test change walks; 0.4: the steering line test sees a turned building's corner band (G84), so
+// walks near turned structures change), so older builds are refused instead of falling out of sync.
+constexpr const char *NET_SOFTWARE_VERSION = "RTS0-0.4";
 
 struct NetConfig {
 	uint16_t port = PS_DEFAULT_PORT; // 20595 (0x5073)

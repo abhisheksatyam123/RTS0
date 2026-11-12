@@ -41,7 +41,7 @@ func _ready() -> void:
 	_emblem = TextureRect.new()
 	_emblem.custom_minimum_size = Vector2(96, 96)
 	_emblem.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	_emblem.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_emblem.stretch_mode = TextureRect.STRETCH_SCALE # civinfo.xml:31, the emblem fills 96x96
 	top.add_child(_emblem)
 	var side := VBoxContainer.new()
 	side.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -65,6 +65,9 @@ func _ready() -> void:
 	side.add_child(_history)
 	_gameplay = Common.rich_text()
 	_gameplay.meta_clicked.connect(_on_meta)
+	# civinfo/styles.xml:4 sans-14 body text; the history is sans-12 (civinfo.xml:47).
+	_gameplay.add_theme_font_size_override("normal_font_size", 14)
+	_history.add_theme_font_size_override("normal_font_size", 12)
 	add_child(_gameplay)
 	set_civ(civ)
 
@@ -88,15 +91,16 @@ func set_civ(index: int) -> void:
 	_gameplay.text = gameplay_text(d)
 	var hist := Common.civ_history(civ)
 	# CivInfoPage.selectCiv: the civ's name (sans-bold-20) beside its emblem, then its History.
-	_name.text = Common.heading(d["name"], 20)
+	# civinfo.xml:38: the name is white sans-bold-20, not the heading gold.
+	_name.text = "[font_size=20][b]%s[/b][/font_size]\n" % d["name"]
 	_history.text = hist
 
-## 0.28 CivInfoPage.formatEntry: "• Name (i)" with the info text on hover, and the
+## 0.28 CivInfoPage.formatEntry: "• Name" and the gold info icon with the info text on hover, and the
 ## description on the next line, indented.
 static func entry(label: String, info: String, description: String) -> String:
 	var t := "• [b]%s[/b]" % label
 	if info != "":
-		t += " [hint=\"%s\"][color=#9fd3ff](i)[/color][/hint]" % info.replace("\"", "\u201d").replace("]", ")")
+		t += " [hint=\"%s\"][img=16x16]res://assets/textures/ui/global/icon/info.png[/img][/hint]" % info.replace("\"", "\u201d").replace("]", ")")
 	if description != "":
 		t += "\n     " + description
 	return t + "\n"
