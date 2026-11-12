@@ -9430,6 +9430,10 @@ static void test_queued_dropsite_starts() {
 	// The poorer site is queued while it can't be paid for.
 	auto &dc = base_dropsite_check(*s);
 	dc = PetraDropsiteCheck{};
+	// The 10 m site above is queued in PETRA_Q_DROPSITES, and 0.28's balance check waits while any
+	// dropsite plan is queued (baseManager.js hasQueuedUnits). This test is about the poorer site
+	// alone, so the queue starts empty.
+	s->petra_queue_heads_ = {};
 	dc.used[0] = 60;
 	dc.lost[0] = 100; // ratio 0.625: past min(25, 12)
 	const int before = storehouses();
