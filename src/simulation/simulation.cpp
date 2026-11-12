@@ -30403,7 +30403,15 @@ void Simulation::petra_check_resource_levels(int32_t turn) {
 		if (petra_start_queued_dropsite((uint8_t)(dc.pending - 1), at, &bmap, (int)a + 1)) dc.pending = 0;
 		return;
 	}
-	bool foundation = false;
+	// worker-side gate in baseManager.js: "queues.dropsites.hasQueuedUnits() || a storehouse
+	// foundation" resets every base's counts and next check. A dropsite plan is queued while its
+	// want is still asking (the queue head, PETRA_Q_DROPSITES) or while a base holds a site it has
+	// not paid for yet (dc.pending, the queued ConstructionPlan of 0.28).
+	const PetraQueueHeads &qh = petra_queue_heads_;
+	bool foundation = qh.item[PETRA_Q_DROPSITES] != 0 &&
+	                  qh.age[PETRA_Q_DROPSITES] <= PetraQueueManager::want_ttl(PETRA_Q_DROPSITES);
+	for (const auto &c : checks)
+		if (c.check.pending) { foundation = true; break; }
 	for (const Building &b : buildings_)
 		if (b.team == petra_pid_ && b.type == BLD_STOREHOUSE && b.hp > 0.0f && b.build_progress < 1.0f) { foundation = true; break; }
 	// gatherersByType per base: our gatherers by the resource they carry, in the base of their supply.
