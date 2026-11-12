@@ -253,6 +253,9 @@ static void setup(Simulation &s) {
 	s.reset();
 	// Human seats: Petra would defend its passive targets and walk them home (defenseArmy.js clear).
 	for (uint8_t p = 0; p < 2; ++p) s.player(p).active = 1, s.player(p).is_ai = 0;
+	// The geometry below was laid for 1-cell (8 m) houses. Athenian houses are 2 cells now (0 A.D. 0.28's
+	// house obstruction); Gaul houses are still 1 cell, so the setup takes the Gaul civ for team 0.
+	s.set_player_civ(CIV_GAULS);
 	// Far-off town centers for both sides keep the match running (tick() stops once it ends).
 	s.spawn_building_world(-52.0f, -52.0f, BLD_TOWN_CENTER, 0, 1.0f);
 	s.spawn_building_world(52.0f, 52.0f, BLD_TOWN_CENTER, 1, 1.0f);
