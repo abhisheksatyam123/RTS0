@@ -108,8 +108,18 @@ func run() -> void:
 			# Point camera far away looking into empty terrain corner
 			cam_rig.set_camera_data({"x": 100.0, "z": 100.0, "yaw": 2.3, "pitch": 40.0, "zoom": 45.0})
 		else:
-			# Look directly down at the spawned army
-			cam_rig.set_camera_data({"x": 0.0, "z": 0.0, "yaw": 0.0, "pitch": 45.0, "zoom": 35.0})
+			# Look directly down at the spawned army. debug_spawn_units places the units where the
+			# sim finds room, not at (0, 0): aim at the first crowd batch's first instance. The
+			# origin is unexplored fog (black), so a camera there captures nothing.
+			var ax := 0.0
+			var az := 0.0
+			for mmi in main.find_children("*", "MultiMeshInstance3D", true, false):
+				if mmi.multimesh and mmi.multimesh.instance_count > 0:
+					var p: Vector3 = mmi.multimesh.get_instance_transform(0).origin
+					ax = p.x
+					az = p.z
+					break
+			cam_rig.set_camera_data({"x": ax, "z": az, "yaw": 0.0, "pitch": 45.0, "zoom": 35.0})
 
 	# Warmup frames
 	var warmup := int(args["warmup"])
