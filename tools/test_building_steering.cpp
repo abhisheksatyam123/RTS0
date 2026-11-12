@@ -1732,6 +1732,14 @@ static void tree_gap_dead_end() {
 // too for z in [-4, 4], so the navcells either side of the ridge there are steep: a line across it
 // there crosses navcells no land unit can (line_crosses_impassable), and an attacker closing in is
 // pathed. With gap tiles, the samples at z = 0 to gap are left flat: a gap that many tiles wide.
+// Distance from (x, z) to the edge of the storehouse set at (7, 0) by thin_ridges(). It is 2 cells (0.28's 14 m
+// obstruction, rounded up to 16 m), so its half-size is 2 world units; a drop point is measured from that edge.
+static float store_edge_distance(float x, float z) {
+	const float hs = building_type_info(BLD_STOREHOUSE).footprint * Simulation::GRID * 0.5f;
+	const float dx = std::fabs(x - 7.0f) - hs, dz = std::fabs(z) - hs;
+	return std::hypot(dx > 0.0f ? dx : 0.0f, dz > 0.0f ? dz : 0.0f);
+}
+
 static void thin_ridge_setup(Simulation &s, bool thick_middle = false, int gap = 0) {
 	setup(s);
 	constexpr int RES = 129;
@@ -1789,13 +1797,13 @@ static void thin_ridges() {
 			if (s.player_resource(0, RES_WOOD) >= wood0 + 10) dropped = t;
 		}
 		const int i = index_of(s, woman);
-		const float from_store = std::hypot(s.units_.pos_x[i] - 7.0f, s.units_.pos_z[i]);
+		const float from_store = store_edge_distance(s.units_.pos_x[i], s.units_.pos_z[i]);
 		std::printf("  thin ridge: a woman returning wood across it dropped it after %d ticks (-1 = never in 2400), last at (%.2f, %.2f), "
-				"%.1f from the storehouse\n", dropped, s.units_.pos_x[i], s.units_.pos_z[i], from_store);
+				"%.1f from the storehouse's edge\n", dropped, s.units_.pos_x[i], s.units_.pos_z[i], from_store);
 		check(dropped >= 0, "a woman never got round a thin ridge to her storehouse");
 		// At the storehouse, not at setup()'s town centre (-52, -52), where UnitAI sends her when she
 		// can't get round (the nearest other dropsite).
-		check(dropped >= 0 && from_store < 4.0f, "a woman returning wood across a thin ridge dropped it elsewhere than at her storehouse");
+		check(dropped >= 0 && from_store < 2.5f, "a woman returning wood across a thin ridge dropped it elsewhere than at her storehouse");
 	}
 	{
 		// The same return, but the woman still holds the path straight across the ridge that a long
@@ -1832,13 +1840,13 @@ static void thin_ridges() {
 			if (s.player_resource(0, RES_WOOD) >= wood0 + 10) dropped = t;
 		}
 		const int i = index_of(s, woman);
-		const float from_store = std::hypot(s.units_.pos_x[i] - 7.0f, s.units_.pos_z[i]);
+		const float from_store = store_edge_distance(s.units_.pos_x[i], s.units_.pos_z[i]);
 		std::printf("  thin ridge: a woman holding a path across it reached its margin after %d ticks, dropped the wood after %d "
-				"(-1 = never in 2400), last at (%.2f, %.2f), %.1f from the storehouse\n", at_ridge, dropped, s.units_.pos_x[i],
+				"(-1 = never in 2400), last at (%.2f, %.2f), %.1f from the storehouse's edge\n", at_ridge, dropped, s.units_.pos_x[i],
 				s.units_.pos_z[i], from_store);
 		check(at_ridge >= 0, "a woman holding a path across a thin ridge never walked up to it");
 		check(dropped >= 0, "a woman holding a path across a thin ridge never planned it again");
-		check(dropped >= 0 && from_store < 4.0f, "a woman holding a path across a thin ridge dropped the wood elsewhere than at her storehouse");
+		check(dropped >= 0 && from_store < 2.5f, "a woman holding a path across a thin ridge dropped the wood elsewhere than at her storehouse");
 	}
 	{
 		// GARRISON.APPROACHING a tower whose west face, the side the unit comes from, is the ridge's
