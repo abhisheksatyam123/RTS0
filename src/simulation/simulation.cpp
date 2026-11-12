@@ -13284,6 +13284,12 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 
 	refresh_tree_masks(); // the steering job's find_path calls read tree_sub in parallel: refreshed here, in serial code
 	refresh_water_masks();
+	block_bounds_.clear();
+	for (size_t k = 0; k < buildings_.size(); ++k) {
+		const Building &o = buildings_[k];
+		if (o.committed && !o.wrecked && structure_blocks(o))
+			block_bounds_.push_back({o.x, o.z, std::max(o.hu, o.hv), (uint32_t)k});
+	}
 	JobSystem::instance().for_each_index(n, [&](size_t i) {
 		if (!alive[i]) {
 			vx[i] = vz[i] = 0;
@@ -17880,10 +17886,10 @@ void Simulation::builder_stand_point(size_t i, const Building &b, float x, float
 	const float clear = unit_clearance_at(i);
 	const float reach = std::max(b.hu, b.hv) + off + clear;
 	std::vector<const Building *> near;
-	for (const Building &o : buildings_)
-		if (&o != &b && o.committed && !o.wrecked && structure_blocks(o) &&
-				std::fabs(o.x - b.x) < reach + std::max(o.hu, o.hv) + 1.0f && std::fabs(o.z - b.z) < reach + std::max(o.hu, o.hv) + 1.0f)
-			near.push_back(&o);
+	const uint32_t self = (uint32_t)(&b - buildings_.data());
+	for (const BlockBound &q : block_bounds_)
+		if (q.idx != self && std::fabs(q.x - b.x) < reach + q.r + 1.0f && std::fabs(q.z - b.z) < reach + q.r + 1.0f)
+			near.push_back(&buildings_[q.idx]);
 	auto open = [&](float wx, float wz) {
 		auto [cx, cy] = nav_grid_.world_to_cell(wx, wz);
 		if (!nav_grid_.is_passable_for(cx, cy, pass) || !nav_grid_.reachable(ux, uy, cx, cy, pass)) return false;
@@ -30382,7 +30388,15 @@ void Simulation::petra_check_resource_levels(int32_t turn) {
 		if (petra_start_queued_dropsite((uint8_t)(dc.pending - 1), at, &bmap, (int)a + 1)) dc.pending = 0;
 		return;
 	}
-	bool foundation = false;
+	// worker-side gate in baseManager.js: "queues.dropsites.hasQueuedUnits() || a storehouse
+	// foundation" resets every base's counts and next check. A dropsite plan is queued while its
+	// want is still asking (the queue head, PETRA_Q_DROPSITES) or while a base holds a site it has
+	// not paid for yet (dc.pending, the queued ConstructionPlan of 0.28).
+	const PetraQueueHeads &qh = petra_queue_heads_;
+	bool foundation = qh.item[PETRA_Q_DROPSITES] != 0 &&
+	                  qh.age[PETRA_Q_DROPSITES] <= PetraQueueManager::want_ttl(PETRA_Q_DROPSITES);
+	for (const auto &c : checks)
+		if (c.check.pending) { foundation = true; break; }
 	for (const Building &b : buildings_)
 		if (b.team == petra_pid_ && b.type == BLD_STOREHOUSE && b.hp > 0.0f && b.build_progress < 1.0f) { foundation = true; break; }
 	// gatherersByType per base: our gatherers by the resource they carry, in the base of their supply.
