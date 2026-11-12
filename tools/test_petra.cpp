@@ -10003,7 +10003,7 @@ static void test_temple_wonder_save() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
 	s->reset();
-	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 128.0f);
 	s->set_victory_condition(VICTORY_ENDLESS);
 	run_for(*s, 20.0f);
 	s->petra_pid_ = 1;
