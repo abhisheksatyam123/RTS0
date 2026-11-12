@@ -140,8 +140,10 @@ func _arrow_button(dir: String) -> TextureButton:
 			b.set(pair[0], load(path))
 	return b
 
-# BarterButton.xml: a 38 px icon with the amount over its top half and, on the
-# selected sell button, the corners frame.
+# BarterButton.xml: a 38 px button whose icon and corners frame sit 3 px in,
+# a 35 px icon. On a 32 px button a 1 px inset keeps the same proportion (30 px),
+# where a 3 px inset shrank the icon to 26 px. The amount sits over the top half
+# and, on the selected sell button, the corners frame.
 func _icon_button(r: int, size: Vector2) -> Button:
 	var b := Button.new()
 	b.flat = false
@@ -151,7 +153,7 @@ func _icon_button(r: int, size: Vector2) -> Button:
 	ico.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	ico.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	ico.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_place(ico, b, Vector2(3, 3), size - Vector2(6, 6))
+	_place(ico, b, Vector2(1, 1), size - Vector2(2, 2))
 	var t := _label("")
 	t.name = "amount" # resourceText: left-aligned
 	t.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -163,7 +165,7 @@ func _icon_button(r: int, size: Vector2) -> Button:
 		c.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		c.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		c.visible = false
-		_place(c, b, Vector2(3, 3), size - Vector2(6, 6))
+		_place(c, b, Vector2(1, 1), size - Vector2(2, 2))
 	return b
 
 func _build() -> void:
