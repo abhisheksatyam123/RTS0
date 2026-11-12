@@ -6166,7 +6166,8 @@ static void test_wonder_guards() {
 	float tx = 0.0f, tz = 0.0f;
 	for (const auto &b : s->buildings())
 		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
-	const float wx = tx * 0.8f, wz = tz * 0.8f;
+	// Half-way out: the wonder is 7 cells (14 units across), and at 0.8 of the centre it overlapped the 4-cell centre.
+	const float wx = tx * 0.5f, wz = tz * 0.5f;
 	const uint32_t wonder = s->spawn_building_world(wx, wz, BLD_WONDER, 1, 1.0f);
 	std::vector<uint32_t> champs;
 	for (int i = 0; i < 4; ++i) champs.push_back(s->spawn_unit(tx + 10.0f + 3.0f * (float)i, tz + 10.0f, 1, UNIT_ELEPHANT));
