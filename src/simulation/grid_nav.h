@@ -2627,17 +2627,23 @@ inline void NavGrid::avoid_tree_subcells(float sx, float sz, float &gx, float &g
                 const bool snav = cx == snav_i && cy == snav_j;
                 const int x0 = std::max(lo_i, cx * 8), x1 = std::min(hi_i, cx * 8 + 7);
                 const int y0 = std::max(lo_j, cy * 8), y1 = std::min(hi_j, cy * 8 + 7);
+                // The same values as goal_sub and the closure tests per subcell, worked out as bit masks over the
+                // navcell's 64 subcells: the goal subcells inside it are exempt (their closure is off, and their
+                // bit in `sub` does not block them), and the start's navcell is open.
+                uint64_t ex_mask = 0;
+                for (int g = 0; g < 2; ++g) {
+                    const int gx = g ? mi : gi, gy = g ? mj : gj;
+                    if (gx / 8 == cx && gy / 8 == cy) ex_mask |= 1ull << ((gy & 7) * 8 + (gx & 7));
+                }
+                const uint64_t cl_all = snav ? 0ull : (water ? (ww | (steep ? ~0ull : 0ull)) : (nav_cl ? ~0ull : 0ull));
+                const uint64_t cl_eff = cl_all & ~ex_mask;
+                const uint64_t bl_all = cl_eff | (sub & ~ex_mask);
                 uint8_t *sp = st.data();
                 for (int y = y0; y <= y1; ++y) {
                     uint8_t *cell = sp + pidx(x0, y);
                     for (int x = x0; x <= x1; ++x, ++cell) {
-                        const int bit = (y & 7) * 8 + (x & 7);
-                        const bool ex = goal_sub(x, y);
-                        bool cl = water ? (((ww >> bit) & 1u) != 0 || steep) : nav_cl;
-                        if (ex || snav) cl = false;
-                        const bool sb = ((sub >> bit) & 1u) != 0;
-                        const bool bl = cl || (!ex && sb);
-                        *cell = static_cast<uint8_t>((cl ? kClosed : 0) | (bl ? kBlocked : 0) | (sb ? kSub : 0));
+                        const uint64_t m = 1ull << ((y & 7) * 8 + (x & 7));
+                        *cell = static_cast<uint8_t>(((cl_eff & m) ? kClosed : 0) | ((bl_all & m) ? kBlocked : 0) | ((sub & m) ? kSub : 0));
                     }
                 }
             }
