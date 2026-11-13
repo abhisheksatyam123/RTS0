@@ -3513,6 +3513,111 @@ static void test_petra_multi_sea_queues() {
 	CHECK(queued(second_dock) == 0);
 	CHECK(PetraKept::at(s.petra_kept_.wanted_transport, second) == second_wanted);
 }
+// attackPlan.js chooseTarget/updatePreparation: with a base of ours on the target's land the
+// plan rallies there and needs no ship for the attack itself; its army on the home land is
+// ferried to the rally point, and marches from there.
+// attackPlan.js checkEvents: an enemy structure built on one of our base lands while the plan
+// is unexecuted clears its overseas flag for good, so the plan walks from then on, even after
+// that structure falls. RTS0 must not bring the ship requirement back.
+static void test_petra_overseas_cleared_sticky() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.set_player_resources(1, 5000, 5000, 5000, 5000);
+	s.players_[1].phase = 2;
+	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+	const uint32_t far = s.spawn_building_world(30.0f, -40.0f, BLD_OUTPOST, 0); // the other land
+	run(s, 1.0f);
+	const uint16_t home = s.petra_land_at(-30.0f, 40.0f);
+	// An enemy outpost site on our home land, 8-16 m from the civic centre.
+	float ex = 0.0f, ez = 0.0f;
+	bool found = false;
+	for (float r = 8.0f; r <= 16.0f && !found; r += 1.0f)
+		for (float a = 0.0f; a < 6.2832f && !found; a += 0.5f) {
+			const float x = -30.0f + r * std::cos(a), z = 40.0f + r * std::sin(a);
+			if (s.petra_land_at(x, z) == home && s.territory_owner_at(x, z) == 1) { ex = x; ez = z; found = true; }
+		}
+	CHECK(found);
+	s.petra_attack_plan_.state = Simulation::AttackPlan::MUSTER;
+	s.petra_attack_plan_.target_building_id = 0;
+	const uint16_t before = s.petra_plan_prep_sea(s.petra_attack_plan_);
+	CHECK(before != 0 && s.petra_land_at(30.0f, -40.0f) != home);
+	const uint32_t raid = s.spawn_building_world(ex, ez, BLD_OUTPOST, 0);
+	const uint16_t during = s.petra_plan_prep_sea(s.petra_attack_plan_);
+	CHECK(during == 0 && s.petra_attack_plan_.overseas_cleared);
+	// The enemy structure falls: the flag stays cleared, so the plan still needs no ship.
+	s.buildings_[s.building_id_to_idx_.at(raid)].wrecked = true;
+	const uint16_t after = s.petra_plan_prep_sea(s.petra_attack_plan_);
+	std::printf("Petra overseas cleared: sea %u before, %u with an enemy structure on our land, %u after it falls (flag %d)\n",
+	            (unsigned)before, (unsigned)during, (unsigned)after, (int)s.petra_attack_plan_.overseas_cleared);
+	(void)far;
+	CHECK(after == 0);
+}
+
+// attackPlan.js chooseTarget/updatePreparation: with a base of ours on the target's land the
+// plan rallies there and needs no ship for the attack itself; its army on the home land is
+// ferried to the rally point, and marches from there.
+// attackManager.js switchDefenseToAttack (from defenseManager's civic-centre retake): a defender
+// joins the new attack only if it stands on the target's land; one across the water is left out.
+static void test_petra_retake_same_land_only() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.set_player_active(2, true, true);
+	s.set_player_resources(1, 5000, 5000, 5000, 5000);
+	s.players_[1].phase = 2;
+	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	const uint32_t cc = s.spawn_building_world(-30.0f, 44.0f, BLD_TOWN_CENTER, 0);
+	run(s, 1.0f);
+	s.petra_pid_ = 1;
+	// Spawned after the run: the enemy civic centre would shoot them otherwise.
+	const uint32_t foe = s.spawn_unit(-30.0f, 46.0f, 0, UNIT_SPEARMAN);
+	const uint32_t home = s.spawn_unit(-26.0f, 40.0f, 1, UNIT_SPEARMAN);
+	const uint32_t across = s.spawn_unit(30.0f, -36.0f, 1, UNIT_SPEARMAN);
+	run(s, 0.1f);
+	CHECK(s.petra_access_at(-26.0f, 40.0f) != s.petra_access_at(30.0f, -36.0f));
+	CHECK(s.petra_access_at(-26.0f, 40.0f) == s.petra_access_at(-30.0f, 44.0f));
+	PetraDefenseArmy army;
+	army.foe_ids = {foe};
+	army.defender_ids = {home, across};
+	s.petra_defense_armies_.push_back(army);
+	s.petra_turn_captures_.push_back(Simulation::CivicCentreCapture{cc, 1, 0});
+	const size_t before = s.petra_started_attacks_.size();
+	s.petra_retake_civic_centres();
+	CHECK(s.petra_started_attacks_.size() == before + 1);
+	if (s.petra_started_attacks_.size() == before + 1) {
+		const auto &squad = s.petra_started_attacks_.back().squad;
+		std::printf("Petra retake: %zu in the squad, home %d, across %d\n", squad.size(),
+		            (int)(std::find(squad.begin(), squad.end(), home) != squad.end()),
+		            (int)(std::find(squad.begin(), squad.end(), across) != squad.end()));
+		CHECK(std::find(squad.begin(), squad.end(), home) != squad.end());
+		CHECK(std::find(squad.begin(), squad.end(), across) == squad.end());
+	}
+}
+// attackPlan.js chooseTarget/updatePreparation: with a base of ours on the target's land the
+// plan rallies there and needs no ship for the attack itself; its army on the home land is
+// ferried to the rally point, and marches from there.
+// attackManager.js cancelAttacksAgainstPlayer: every upcoming plan, a raid preparing too, forgets
+// a player who is no longer the target.
+static void test_petra_cancel_clears_raid_target() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.set_player_active(2, true, true);
+	run(s, 1.0f);
+	s.petra_pid_ = 1;
+	s.petra_raid_plan_.state = Simulation::AttackPlan::MUSTER;
+	s.petra_raid_plan_.target_player = 2;
+	s.petra_cancel_attacks_against(2);
+	std::printf("Petra cancel: raid target player now %u (0xFF is none)\n", (unsigned)s.petra_raid_plan_.target_player);
+	CHECK(s.petra_raid_plan_.target_player == 0xFF);
+}
+
+
 
 int main() {
 	test_ships_accelerate();
@@ -3538,6 +3643,9 @@ int main() {
 	test_petra_overseas_attack();
 	test_petra_attack_from_far_base();
 	test_petra_landing_spot();
+	test_petra_overseas_cleared_sticky();
+	test_petra_cancel_clears_raid_target();
+	test_petra_retake_same_land_only();
 	test_petra_unreachable_target();
 	test_petra_overseas_base();
 	test_petra_builders_cross_without_ship();
