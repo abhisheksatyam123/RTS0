@@ -40,23 +40,24 @@ void vertex() {
 // as uniforms instead. Godot's forward renderers store reversed depth (1 at the near plane).
 uniform float cam_near = 0.05;
 uniform float cam_far = 4000.0;
-float linear_depth(vec2 uv) {
-	float d = texture(depth_texture, uv).r;
+// Takes the sampled depth, not the sampler: Godot's GL/Vulkan generators emit the hint
+// texture's declaration after user functions, so sampling inside a helper fails to compile.
+float linear_depth(float d) {
 	return cam_near * cam_far / (cam_near + d * (cam_far - cam_near));
 }
 
-vec3 decode_normal(vec2 uv) {
-	return normalize(texture(normal_roughness_texture, uv).xyz * 2.0 - 1.0);
+vec3 decode_normal(vec4 raw) {
+	return normalize(raw.xyz * 2.0 - 1.0);
 }
 
 void fragment() {
 	vec2 texel = 1.0 / VIEWPORT_SIZE;
 	vec2 offsets[4] = vec2[4](vec2(-1.0, 0.0), vec2(1.0, 0.0), vec2(0.0, -1.0), vec2(0.0, 1.0));
 
-	float center_depth = max(linear_depth(SCREEN_UV), 0.001);
+	float center_depth = max(linear_depth(texture(depth_texture, SCREEN_UV).r), 0.001);
 	// No outline beyond max_outline_distance (fragment() may not return early in Godot 4.3).
 	float in_range = step(center_depth, max_outline_distance);
-	vec3 center_normal = decode_normal(SCREEN_UV);
+	vec3 center_normal = decode_normal(texture(normal_roughness_texture, SCREEN_UV));
 
 	// Outer silhouettes: neighbours much farther away than the centre (relative gap, 0..1).
 	float depth_diff = 0.0;
@@ -68,8 +69,8 @@ void fragment() {
 
 	for (int i = 0; i < 4; i++) {
 		vec2 uv = SCREEN_UV + offsets[i] * texel;
-		float neighbour_depth = linear_depth(uv);
-		vec3 neighbour_normal = decode_normal(uv);
+		float neighbour_depth = linear_depth(texture(depth_texture, uv).r);
+		vec3 neighbour_normal = decode_normal(texture(normal_roughness_texture, uv));
 		float gap = (neighbour_depth - center_depth) / center_depth;
 
 		depth_diff += clamp(gap, 0.0, 1.0);
