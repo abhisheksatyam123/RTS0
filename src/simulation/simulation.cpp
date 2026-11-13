@@ -29426,8 +29426,17 @@ bool Simulation::petra_find_dock_position(uint16_t land, uint16_t sea, int &out_
 	std::vector<Cand> cands;
 	bool found = false;
 	int best_water = 0;
-	for (int iz = bz0; iz <= bz1; ++iz) {
-		for (int ix = bx0; ix <= bx1; ++ix) {
+	// The maps the resource weights read are built here, before the rows scan in parallel (pure: the
+	// same box and resources as the first use would have). Each row reads the world only and fills its own
+	// candidate list; the lists are joined in row order, which is the serial scan order.
+	build_maps();
+	const int nrows = std::max(0, bz1 - bz0 + 1);
+	std::vector<std::vector<Cand>> row_cands((size_t)nrows);
+	auto scan_rows = [&](size_t ra, size_t rb) {
+		for (size_t r = ra; r < rb; ++r) {
+			const int iz = bz0 + (int)r;
+			std::vector<Cand> &out = row_cands[r];
+			for (int ix = bx0; ix <= bx1; ++ix) {
 			const float x = ((float)ix + 0.5f) * kCcTile - map_half_, z = ((float)iz + 0.5f) * kCcTile - map_half_;
 			if (!near_sea[(size_t)(iz - bz0) * mw + (ix - bx0)]) continue;
 			// isDockLocation: land or water here, our land within its depth on one side and
@@ -29510,9 +29519,13 @@ bool Simulation::petra_find_dock_position(uint16_t land, uint16_t sea, int &out_
 				if (!open) break;
 				water += 4;
 			}
-			cands.push_back({score + 16.0f - (float)water, ix, iz, water});
+			out.push_back({score + 16.0f - (float)water, ix, iz, water});
+			}
 		}
-	}
+	};
+	if (nrows >= 8 && JobSystem::instance().running()) JobSystem::instance().parallel_for((size_t)nrows, scan_rows, 2);
+	else scan_rows(0, (size_t)nrows);
+	for (const auto &rc : row_cands) cands.insert(cands.end(), rc.begin(), rc.end());
 	// findDockPosition's scan in tile order: a later spot replaces the best only when its score
 	// plus five times its missing open water is no worse than the best's score plus its own
 	// missing water (bestVal = score + maxWater - water), so open water weighs five times.
@@ -42051,11 +42064,19 @@ void Simulation::fill_fow_from_los(std::vector<uint8_t> &grid, uint8_t player) c
 	const uint8_t mask = los_shared_mask(player);
 	const uint8_t floor = explore_map_ ? FOW_EXPLORED : FOW_UNEXPLORED;
 	const size_t n = std::min(grid.size(), los_.cells());
-	for (size_t c = 0; c < n; ++c) {
-		if (los_.off_world((int)c)) { grid[c] = FOW_UNEXPLORED; continue; } // outside a circular map
-		const uint8_t vis = los_.visible_bits((int)c) & mask, exp = los_.explored_bits((int)c) & mask;
-		grid[c] = vis ? (uint8_t)FOW_VISIBLE : (exp || grid[c] != FOW_UNEXPLORED) ? (uint8_t)FOW_EXPLORED : floor;
-	}
+	// Each cell reads only its own LOS bits and its own previous value, so cell ranges are
+	// independent: the result is the same whatever the thread count.
+	auto fill = [&](size_t a, size_t b) {
+		for (size_t c = a; c < b; ++c) {
+			if (los_.off_world((int)c)) { grid[c] = FOW_UNEXPLORED; continue; } // outside a circular map
+			const uint8_t vis = los_.visible_bits((int)c) & mask, exp = los_.explored_bits((int)c) & mask;
+			grid[c] = vis ? (uint8_t)FOW_VISIBLE : (exp || grid[c] != FOW_UNEXPLORED) ? (uint8_t)FOW_EXPLORED : floor;
+		}
+	};
+	if (n >= 16384 && JobSystem::instance().running())
+		JobSystem::instance().parallel_for(n, fill, 4096);
+	else
+		fill(0, n);
 }
 
 float Simulation::owned_fauna_vision(size_t f) const {
