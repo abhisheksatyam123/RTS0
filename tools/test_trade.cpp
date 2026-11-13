@@ -66,8 +66,10 @@ static void test_tribute() {
 	}
 	const int negative[RES_COUNT] = {10, -5, 0, 0};
 	CHECK(!s.cmd_tribute(2, 3, negative));
+	// Player.js TributeResource: an all-zero payment still passes SubtractResourcesOrNotify and AddResources,
+	// so it is accepted and notified, moving nothing.
 	const int nothing[RES_COUNT] = {};
-	CHECK(!s.cmd_tribute(2, 3, nothing));
+	CHECK(s.cmd_tribute(2, 3, nothing));
 	CHECK(!s.cmd_tribute(2, 2, RES_FOOD, 10));
 	CHECK(!s.cmd_tribute(2, 8, RES_FOOD, 10));
 	CHECK(!s.cmd_tribute(2, 3, RES_COUNT, 10));

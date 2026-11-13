@@ -5827,7 +5827,8 @@ bool Simulation::cmd_tribute(uint8_t from, uint8_t to, const int amounts[RES_COU
 		}
 		total += amounts[r];
 	}
-	if (total == 0) return false;
+	// Player.js TributeResource: an all-zero payment still passes SubtractResourcesOrNotify and
+	// AddResources, and the tribute notification goes out with zeros.
 	if (short_of) return note_session(need), false;
 	for (int r = 0; r < RES_COUNT; ++r) {
 		players_[from].res[r] -= (float)amounts[r];
