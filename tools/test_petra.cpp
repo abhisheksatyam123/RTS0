@@ -10907,6 +10907,34 @@ static void test_g58_wardog_and_trainer_timings() {
 	CHECK(pick_healer == temple, "temple picked for healer");
 }
 
+// assignDefenders (defenseManager.js:430-450) skips a unit whose plan subrole is completing,
+// walking or attacking. A unit still mustering (its plan set, subrole not yet changed) may be
+// drafted, and leaves the plan. RTS0 kept every squad member of a mustering plan out of the draft.
+static void test_muster_units_drafted() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	s->petra_attack_plan_.squad.clear();
+	s->petra_next_plan_.plan.squad.clear();
+	s->petra_raid_plan_.squad.clear();
+	s->petra_started_attacks_.clear();
+	const uint32_t spear = s->spawn_unit(0.0f, 0.0f, 1, UNIT_SPEARMAN);
+	s->petra_attack_plan_.squad = {spear};
+	s->petra_attack_plan_.state = Simulation::AttackPlan::MUSTER;
+	CHECK(!s->petra_in_busy_plan(spear), "a unit still mustering may be drafted as a defender");
+	s->petra_attack_plan_.state = Simulation::AttackPlan::WALKING;
+	CHECK(s->petra_in_busy_plan(spear), "a unit of a plan that has started is not drafted");
+	s->petra_attack_plan_.state = Simulation::AttackPlan::MUSTER;
+	s->petra_attack_plan_.completing = true;
+	CHECK(s->petra_in_busy_plan(spear), "a completing unit is not drafted");
+	s->petra_attack_plan_.completing = false;
+	s->petra_attack_plan_.squad.clear();
+	CHECK(!s->petra_in_busy_plan(spear), "a unit in no plan may be drafted");
+}
+
 int main(int argc, char **argv) {
 	// The scenarios below were laid out on Continental's original river; keep it so they
 	// don't shift whenever that map is retuned.
@@ -11053,6 +11081,7 @@ int main(int argc, char **argv) {
 	RUN(test_defense_armies);
 	RUN(test_soldier_fights_back);
 	RUN(test_defender_orders);
+	RUN(test_muster_units_drafted);
 	RUN(test_out_of_plan);
 	RUN(test_regroup_stranded_released);
 	RUN(test_attack_follows_unit_target);
