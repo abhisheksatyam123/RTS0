@@ -4412,6 +4412,7 @@ private:
 	void petra_attack_units(AttackPlan &plan); // attackPlan.js update while attacking: each unit's target
 	uint32_t petra_plan_next_target(AttackPlan &plan, float &tx, float &tz, uint16_t same_land = 0, bool must_start = false);
 	bool petra_in_attack_squad(uint32_t uid) const; // in the prepared or a started attack's army
+	bool petra_in_busy_plan(uint32_t uid) const;    // assignDefenders: a unit of a plan past mustering
 	bool petra_attack_can_spare(uint32_t uid, bool decay) const; // garrisonUnitsInside's attack plan rule
 	void petra_attack_remove_unit(uint32_t uid); // attackPlan.js removeUnit, from every plan
 	void petra_out_of_plan(uint32_t uid); // attackPlan.js removeUnit: plan -1 (outOfPlan)
