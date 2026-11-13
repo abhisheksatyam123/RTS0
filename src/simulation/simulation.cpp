@@ -21188,6 +21188,10 @@ void Simulation::spawn_regicide_heroes() {
 			}
 			if (regicide_hero_[p]) break;
 		}
+		// victoryManager.js init: the hero's starting stance by class, a Soldier aggressive and
+		// any other hero passive. Set now, not left to the first victory update.
+		if (const int32_t h = regicide_hero_[p] ? lookup_unit(regicide_hero_[p]) : -1; h >= 0)
+			units_.stance[h] = (unit_classes_at((size_t)h) & TC_SOLDIER) ? STANCE_AGGRESSIVE : STANCE_PASSIVE;
 	}
 }
 
@@ -29603,16 +29607,24 @@ void Simulation::petra_config_first_base() {
 	if (topo.sea_size.size() > 1) topo.classify(land);
 	// startingStrategy.js startingSize: every region holding a base anchor of ours counts once,
 	// so a start spread over several lands (the civic centre's and a colony's) sums them.
+	// Each anchor keeps its building, so the food count below can reach the resources around every
+	// anchor (basesManager.js getTotalResourceLevel sums every base's dropsite supplies).
+	struct Anchor { const Building *b; uint16_t land; };
+	std::vector<Anchor> anchors;
 	std::vector<uint16_t> anchor_lands;
 	if (!nav_grid_.cells.blank()) {
 		for (const Building &b : buildings_) {
 			if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked || b.build_progress < 1.0f) continue;
 			if (!is_civic_centre(b.type) && b.type != BLD_MILITARY_COLONY) continue;
 			const uint16_t l = &b == cc ? land : petra_building_land(b, &topo);
-			if (l && std::find(anchor_lands.begin(), anchor_lands.end(), l) == anchor_lands.end()) anchor_lands.push_back(l);
+			if (l && std::find(anchor_lands.begin(), anchor_lands.end(), l) == anchor_lands.end()) {
+				anchor_lands.push_back(l);
+				anchors.push_back({&b, l});
+			}
 		}
 	}
 	if (anchor_lands.empty() && land) anchor_lands.push_back(land);
+	if (anchors.empty()) anchors.push_back({cc, land});
 	float starting_m2 = 0.0f;
 	for (uint16_t l : anchor_lands)
 		if (l < topo.land_size.size()) starting_m2 += topo.cell_m2 * (float)topo.land_size[l];
@@ -29630,9 +29642,13 @@ void Simulation::petra_config_first_base() {
 			continue;
 		}
 		if (resources_.subtype[r] == RES_SUB_MEAT || field_bld_by_res_.count(resources_.id[r])) continue;
-		const float dx = resources_.x[r] - cc->x, dz = resources_.z[r] - cc->z;
-		if (dx * dx + dz * dz >= REACH * REACH || petra_land_at(resources_.x[r], resources_.z[r]) != land) continue;
-		food += (float)resources_.amount[r];
+		// Counted once, by the first anchor whose land and reach hold it.
+		for (const Anchor &a : anchors) {
+			const float dx = resources_.x[r] - a.b->x, dz = resources_.z[r] - a.b->z;
+			if (dx * dx + dz * dz >= REACH * REACH || petra_land_at(resources_.x[r], resources_.z[r]) != a.land) continue;
+			food += (float)resources_.amount[r];
+			break;
+		}
 	}
 	for (size_t sea = 1; sea < nseas; ++sea) {
 		if (sea >= topo.naval.size() || !topo.naval[sea]) continue;
@@ -33210,9 +33226,10 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 				plan.target_building_id = 0;
 				// An Attack musters (and trains) without a target; it picks one when it must
 				// start and fails if there is none (attackPlan.js updatePreparation).
-				target_id = find_petra_attack_target(tx, tz, 0, &plan, false, false);
-				if (target_id == 0)
-					if (const auto *base = get_primary_petra_base()) { tx = base->x; tz = base->z; }
+				// attackPlan.js: an Attack's getNearestTarget runs when it must start, so while it
+				// musters it has no target and walks to the primary base (RTS0 used a provisional pick).
+				target_id = 0;
+				if (const auto *base = get_primary_petra_base()) { tx = base->x; tz = base->z; }
 				// targetPlayer stays unset while the plan prepares (an attack request may set it):
 				// chooseTarget asks getEnemyPlayer when the plan must start.
 				plan.target_player = 0xFF;
@@ -35116,12 +35133,9 @@ void Simulation::petra_answer_attack_request(uint8_t source, uint8_t target) {
 			if (plan.state == AttackPlan::MUSTER) {
 				float tx = 0.0f, tz = 0.0f;
 				plan.target_building_id = 0;
-				if (const uint32_t id = find_petra_attack_target(tx, tz, 0, &plan)) {
-					plan.target_building_id = id;
-					plan.blocked = petra_pick_blocked_;
-					plan.target_x = tx;
-					plan.target_z = tz;
-				}
+				if (const auto *base = get_primary_petra_base()) { tx = base->x; tz = base->z; }
+				plan.target_x = tx;
+				plan.target_z = tz;
 				plan.target_player = target;
 				if (plan.squad.size() > 2) available += plan.squad.size();
 			}
