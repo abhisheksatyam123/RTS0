@@ -16388,6 +16388,28 @@ bool Simulation::follows_long_path(size_t i) const {
 // failed turn (ShouldAlternatePathfinder) the whole path is planned again from where the unit
 // stands, in case it went down a dead end.
 void Simulation::obstructed_long_path(size_t i, uint8_t failed) {
+	// A returner whose straight walk to its dropsite is obstructed has no long path to replan (its leg
+	// started without one). Once it is obstructed (the second turn, OBSTRUCTED_AT), it plans one from
+	// where it stands, as a MoveTo's long path would have been. Egypt seed 514's cart archer 6053 stood
+	// 100 s beside a wood line with no path. Planning at every leg start instead pinned returners in
+	// the dropsite crowd (seed 17: 6 to 15 stuck).
+	if (failed == 10 && i < unit_paths_.size() && units_.action_state[i] == ACTION_RETURN_DROPSITE &&
+			units_.waypoint_count[i] <= 0) {
+		const float dx = units_.target_x[i] - units_.pos_x[i], dz = units_.target_z[i] - units_.pos_z[i];
+		if (dx * dx + dz * dz >= 4.0f * 4.0f) {
+			WaypointPath wpn;
+			if (find_path(units_.pos_x[i], units_.pos_z[i], units_.target_x[i], units_.target_z[i], wpn,
+					unit_is_ship(units_.unit_type[i]) ? unit_ship_pass(units_.unit_type[i]) : unit_land_pass(i)) && wpn.count > 0) {
+				wpn.has_goal = true;
+				wpn.goal_x = units_.target_x[i];
+				wpn.goal_z = units_.target_z[i];
+				unit_paths_[i] = wpn;
+				units_.waypoint_cur[i] = static_cast<int16_t>(wpn.cur);
+				units_.waypoint_count[i] = static_cast<int16_t>(wpn.count);
+			}
+		}
+		return;
+	}
 	if (!follows_long_path(i)) return;
 	WaypointPath &wp = unit_paths_[i];
 	const int cnt = units_.waypoint_count[i], cur = units_.waypoint_cur[i];
@@ -29404,8 +29426,17 @@ bool Simulation::petra_find_dock_position(uint16_t land, uint16_t sea, int &out_
 	std::vector<Cand> cands;
 	bool found = false;
 	int best_water = 0;
-	for (int iz = bz0; iz <= bz1; ++iz) {
-		for (int ix = bx0; ix <= bx1; ++ix) {
+	// The maps the resource weights read are built here, before the rows scan in parallel (pure: the
+	// same box and resources as the first use would have). Each row reads the world only and fills its own
+	// candidate list; the lists are joined in row order, which is the serial scan order.
+	build_maps();
+	const int nrows = std::max(0, bz1 - bz0 + 1);
+	std::vector<std::vector<Cand>> row_cands((size_t)nrows);
+	auto scan_rows = [&](size_t ra, size_t rb) {
+		for (size_t r = ra; r < rb; ++r) {
+			const int iz = bz0 + (int)r;
+			std::vector<Cand> &out = row_cands[r];
+			for (int ix = bx0; ix <= bx1; ++ix) {
 			const float x = ((float)ix + 0.5f) * kCcTile - map_half_, z = ((float)iz + 0.5f) * kCcTile - map_half_;
 			if (!near_sea[(size_t)(iz - bz0) * mw + (ix - bx0)]) continue;
 			// isDockLocation: land or water here, our land within its depth on one side and
@@ -29488,9 +29519,13 @@ bool Simulation::petra_find_dock_position(uint16_t land, uint16_t sea, int &out_
 				if (!open) break;
 				water += 4;
 			}
-			cands.push_back({score + 16.0f - (float)water, ix, iz, water});
+			out.push_back({score + 16.0f - (float)water, ix, iz, water});
+			}
 		}
-	}
+	};
+	if (nrows >= 8 && JobSystem::instance().running()) JobSystem::instance().parallel_for((size_t)nrows, scan_rows, 2);
+	else scan_rows(0, (size_t)nrows);
+	for (const auto &rc : row_cands) cands.insert(cands.end(), rc.begin(), rc.end());
 	// findDockPosition's scan in tile order: a later spot replaces the best only when its score
 	// plus five times its missing open water is no worse than the best's score plus its own
 	// missing water (bestVal = score + maxWater - water), so open water weighs five times.
@@ -33957,6 +33992,18 @@ void Simulation::petra_retake_civic_centres() {
 	}
 }
 
+// assignDefenders (defenseManager.js:430-450) skips a unit whose plan subrole is completing,
+// walking or attacking. A unit still mustering (its plan set, not yet completing or started) may
+// be drafted; drafting takes it out of its plan (petra_leave_mustering).
+bool Simulation::petra_in_busy_plan(uint32_t uid) const {
+	const auto has = [uid](const std::vector<uint32_t> &sq) { return std::find(sq.begin(), sq.end(), uid) != sq.end(); };
+	for (const AttackPlan *p : {&petra_attack_plan_, &petra_next_plan_.plan, &petra_raid_plan_})
+		if ((p->completing || (p->state != AttackPlan::UNEXECUTED && p->state != AttackPlan::MUSTER)) && has(p->squad)) return true;
+	for (const AttackPlan &p : petra_started_attacks_)
+		if (has(p.squad)) return true;
+	return false;
+}
+
 bool Simulation::petra_in_attack_squad(uint32_t uid) const {
 	const auto in = [uid](const AttackPlan &p) { return std::find(p.squad.begin(), p.squad.end(), uid) != p.squad.end(); };
 	if (in(petra_attack_plan_) || in(petra_next_plan_.plan)) return true;
@@ -34745,8 +34792,10 @@ void Simulation::petra_refresh_queue_accounts(float dt) {
 	};
 
 	const bool wood_starved = petra_wood_starved();
-	// distributeResources, one resource at a time.
-	auto distribute = [&](float PetraQueueAccount::*field, float total) {
+	// distributeResources, one resource at a time. The cap an account is funded to is the next
+	// plan's cost plus 60% of the plan after it (queue.js maxAccountWanted(gameState, 0.6)), and a
+	// queue whose account covers its next plan has its priority halved.
+	auto distribute = [&](float PetraQueueAccount::*field, float PetraQueuePlan::*pfield, float total) {
 		// petra_wood_starved (RTS0): the wood goes to what petra_wood_kept_for names only.
 		auto kept_out = [&](int j) {
 			return wood_starved && field == &PetraQueueAccount::wood && !petra_wood_kept_for(j);
@@ -34785,26 +34834,34 @@ void Simulation::petra_refresh_queue_accounts(float dt) {
 		}
 		// Queues short of their next item's cost share what is free by priority, each up to
 		// what it misses; an account over its queue's cost gives the excess back first.
-		int total_prio = 0;
-		int temp_prio[PETRA_Q_COUNT] = {};
+		float total_prio = 0.0f;
+		float temp_prio[PETRA_Q_COUNT] = {};
 		float max_need[PETRA_Q_COUNT] = {};
 		for (int j = 0; j < PETRA_Q_COUNT; ++j) {
-			const float cost = qm.paused[j] || kept_out(j) ? 0.0f : qm.wants[j].*field;
+			const PetraQueuePlan &next = qm.plans[j][1];
+			const PetraQueuePlan &head = qm.plans[j][0];
+			// queue.js maxAccountWanted: the head's cost plus 60% of the plan after it.
+			float cost = qm.wants[j].*field;
+			if (next.go) cost += 0.6f * (next.*pfield);
+			if (qm.paused[j] || kept_out(j)) cost = 0.0f;
 			if (has_plan(j) && !qm.paused[j] && !kept_out(j) && qm.accounts[j].*field < cost) {
-				temp_prio[j] = prio[j];
+				temp_prio[j] = (float)prio[j];
+				// queue.js: once the account covers the next plan, the queue's priority halves.
+				if (head.go && qm.accounts[j].*field >= head.*pfield) temp_prio[j] /= 2.0f;
 				max_need[j] = cost - qm.accounts[j].*field;
-				total_prio += temp_prio[j];
+				if (temp_prio[j] > 0.0f) total_prio += temp_prio[j];
+				else temp_prio[j] = 0.0f;
 			} else if (qm.accounts[j].*field > cost) {
 				available += qm.accounts[j].*field - cost;
 				qm.accounts[j].*field = cost;
 			}
 		}
-		if (total_prio == 0) return;
+		if (total_prio <= 0.0f) return;
 		float left = available;
 		bool missing = false;
 		for (int j = 0; j < PETRA_Q_COUNT; ++j) {
-			if (!temp_prio[j]) continue;
-			float add = std::floor(available * (float)temp_prio[j] / (float)total_prio);
+			if (temp_prio[j] <= 0.0f) continue;
+			float add = std::floor(available * temp_prio[j] / total_prio);
 			if (add >= max_need[j]) add = max_need[j];
 			else missing = true;
 			qm.accounts[j].*field += add;
@@ -34813,16 +34870,16 @@ void Simulation::petra_refresh_queue_accounts(float dt) {
 		}
 		if (missing && left > 0.0f) // what the floors left goes to any queue still short
 			for (int j = 0; j < PETRA_Q_COUNT && left > 0.0f; ++j) {
-				if (!temp_prio[j]) continue;
+				if (temp_prio[j] <= 0.0f) continue;
 				const float add = std::min(max_need[j], left);
 				qm.accounts[j].*field += add;
 				left -= add;
 			}
 	};
-	distribute(&PetraQueueAccount::food, petra_ps().food());
-	distribute(&PetraQueueAccount::wood, petra_ps().wood());
-	distribute(&PetraQueueAccount::gold, petra_ps().gold());
-	distribute(&PetraQueueAccount::stone, petra_ps().stone());
+	distribute(&PetraQueueAccount::food, &PetraQueuePlan::food, petra_ps().food());
+	distribute(&PetraQueueAccount::wood, &PetraQueuePlan::wood, petra_ps().wood());
+	distribute(&PetraQueueAccount::gold, &PetraQueuePlan::gold, petra_ps().gold());
+	distribute(&PetraQueueAccount::stone, &PetraQueuePlan::stone, petra_ps().stone());
 }
 
 // headquarters.js buildMarket: put what is available into this queue's account, then take
@@ -34958,8 +35015,13 @@ bool Simulation::petra_try_pay(uint8_t queue, float food, float wood, float gold
 		w.food = std::max(w.food, food); w.wood = std::max(w.wood, wood);
 		w.gold = std::max(w.gold, gold); w.stone = std::max(w.stone, stone);
 		qm.want_age[queue] = 0.0f;
-		// The head plan is the item this check is for (queue.js plans[0]).
-		qm.plans[queue][0] = PetraQueuePlan{food, wood, gold, stone, 1, {}};
+		// The item this check is for: the head (queue.js plans[0]), or, while a different head
+		// waits, the next plan the queue holds (plans[1], queue.js maxAccountWanted's second cost).
+		const PetraQueuePlan req{food, wood, gold, stone, 1, {}};
+		PetraQueuePlan &head = qm.plans[queue][0];
+		const bool same_head = head.food == req.food && head.wood == req.wood && head.gold == req.gold && head.stone == req.stone;
+		if (head.go && !same_head) qm.plans[queue][1] = req;
+		else head = req;
 		return false;
 	}
 	if (!pay) return true;
@@ -37712,7 +37774,9 @@ void Simulation::petra_manage_defense(float dt) {
 			if (units_.id[i] == petra_scout_unit_id_) continue;
 			if (units_.action_state[i] == ACTION_GARRISONED || units_.action_state[i] == ACTION_DYING) continue;
 			if (units_.order_kind[i] == ORDER_GARRISON) continue; // garrisonManager has it
-			if (in_attack_squad(units_.id[i]) || petra_is_critical_ent(i) || petra_guards_critical_ent(i)) continue;
+			// assignDefenders skips a unit whose plan subrole is completing, walking or attacking; one
+			// still mustering (plan set, subrole not yet changed) may be drafted, and leaves the plan.
+			if (petra_in_busy_plan(units_.id[i]) || petra_is_critical_ent(i) || petra_guards_critical_ent(i)) continue;
 			if (petra_ship_in_plan(units_.id[i]) || petra_passenger(units_.id[i])) continue;
 			if (petra_is_defender(units_.id[i])) continue;
 			candidates.push_back({units_.id[i], i});
@@ -42000,11 +42064,19 @@ void Simulation::fill_fow_from_los(std::vector<uint8_t> &grid, uint8_t player) c
 	const uint8_t mask = los_shared_mask(player);
 	const uint8_t floor = explore_map_ ? FOW_EXPLORED : FOW_UNEXPLORED;
 	const size_t n = std::min(grid.size(), los_.cells());
-	for (size_t c = 0; c < n; ++c) {
-		if (los_.off_world((int)c)) { grid[c] = FOW_UNEXPLORED; continue; } // outside a circular map
-		const uint8_t vis = los_.visible_bits((int)c) & mask, exp = los_.explored_bits((int)c) & mask;
-		grid[c] = vis ? (uint8_t)FOW_VISIBLE : (exp || grid[c] != FOW_UNEXPLORED) ? (uint8_t)FOW_EXPLORED : floor;
-	}
+	// Each cell reads only its own LOS bits and its own previous value, so cell ranges are
+	// independent: the result is the same whatever the thread count.
+	auto fill = [&](size_t a, size_t b) {
+		for (size_t c = a; c < b; ++c) {
+			if (los_.off_world((int)c)) { grid[c] = FOW_UNEXPLORED; continue; } // outside a circular map
+			const uint8_t vis = los_.visible_bits((int)c) & mask, exp = los_.explored_bits((int)c) & mask;
+			grid[c] = vis ? (uint8_t)FOW_VISIBLE : (exp || grid[c] != FOW_UNEXPLORED) ? (uint8_t)FOW_EXPLORED : floor;
+		}
+	};
+	if (n >= 16384 && JobSystem::instance().running())
+		JobSystem::instance().parallel_for(n, fill, 4096);
+	else
+		fill(0, n);
 }
 
 float Simulation::owned_fauna_vision(size_t f) const {
