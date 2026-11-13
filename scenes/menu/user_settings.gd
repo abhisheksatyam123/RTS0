@@ -625,6 +625,8 @@ func _apply_viewport() -> void:
 	vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR if tech == "fsr" and fsr_ok and vp.scaling_3d_scale < 1.0 else Viewport.SCALING_3D_MODE_BILINEAR
 	# 3D pixel-art look (pixelart): the world renders in a low-res SubViewport owned by the
 	# camera rig (camera_rig.cpp sync_pixel_world), so this viewport keeps its own scale.
+	# The unit shader's pixel-art palette and team colour push (shaders/player_color.gdshader).
+	RenderingServer.global_shader_parameter_set("rtso_pixel_art", cfg.get_bool("pixelart"))
 	var aa := cfg.get_value("antialiasing")
 	vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA if aa == "fxaa" else Viewport.SCREEN_SPACE_AA_DISABLED
 	match aa:
@@ -742,6 +744,9 @@ func _apply_node(n) -> void:
 		if not n.has_meta("rtso_shadow"):
 			n.set_meta("rtso_shadow", n.shadow_enabled)
 		n.shadow_enabled = n.get_meta("rtso_shadow") and cfg.get_bool("shadows")
+		# Pixel-art look: shadows lift a little (opacity 0.8) so building shadows keep their
+		# detail; the 0 A.D. look keeps full-strength shadows.
+		n.shadow_opacity = 0.8 if cfg.get_bool("pixelart") else 1.0
 		# CShadowMap: shadowscutoffdistance metres from the camera (4 m a world unit),
 		# over shadowscascadecount cascades (0.28 default: one map, 300 m).
 		n.directional_shadow_max_distance = clampf(cfg.get_number("shadowscutoffdistance"), 100.0, 1500.0) / METRES_PER_UNIT

@@ -83,3 +83,5 @@
 - 2026-10-31 16:15 [lead] T42: Resolved SPIR-V runtime compilation in GpuSeparation; verified 7.6k unit compute dispatch in 9.41ms on Intel Iris Xe GT2.
 - 2026-10-31 20:40 [lead] T43: Staged, committed, and pushed all modified and new files for T33–T42 optimization roadmap to origin/main (commit 3d8e99a10).
 - 2026-10-31 21:00 [lead] T48: Cleaned and updated docs/README.md, docs/PERFORMANCE.md, todo.md, and scratchpad/todo.md with current status and optimization links.
+- 2026-11-09_05:46 [lead] T101 subagent looped; re-launching
+- 2026-11-09 11:44 [sub ses_17942047491022tulk9] T125 second startup audit: verified session_setup spawn/settle paths, sim tick order/Petra/fauna gates, session GDScript lifecycle, map data (JSON-only); no user-order traffic before input found, reported evidence file:line.

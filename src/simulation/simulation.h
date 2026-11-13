@@ -200,7 +200,9 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 146; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 148; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_PETRA_PLAN_QUEUES = 148; // per-plan train queues (attackPlan.js:221-223): 27 queues, one plan set per mustering plan
+	static constexpr uint32_t SAVE_VERSION_LINGERING_CORPSE = 147; // each lingering corpse (x, z, timer, template) after the fauna records
 	static constexpr uint32_t SAVE_VERSION_PUSH_REST = 146; // each unit's MotionTurn rest position (G119), after its 48-byte record
 	static constexpr uint32_t SAVE_VERSION_TREE_WATCH = 145; // each unit's path tree watch (tree_replanned, tree_off, watch_cur/best/turns) after its saved record
 	static constexpr uint32_t SAVE_VERSION_AIM_VELOCITY = 143; // each unit's and animal's last-turn velocity (aim_vx/aim_vz; fauna beside fauna_)
@@ -908,6 +910,8 @@ public:
 	// marks water on the nav grid, so call it even for maps with no buildings.
 	void begin_bulk_spawn() { bulk_spawn_ = true; }
 	void end_bulk_spawn();
+	// Resolve spawn overlaps without issuing orders (avoids t=0 movement/jitter).
+	void settle_spawn_overlaps(int iterations = 4);
 	void set_terrain_data(const std::vector<float> &heights, int res, float water_h) {
 		terrain_heights_ = heights;
 		terrain_res_ = res;
@@ -1938,8 +1942,10 @@ public:
 	// shoreline and distance rules.
 	enum PlacementResult : uint8_t {
 		PLACE_OK = 0,
-		PLACE_OBSTRUCTED, // off the map, on another building or on a resource
-		PLACE_TERRAIN,    // water under a land building, deep water under a wall, a slope too steep
+		PLACE_OBSTRUCTED, // on another building or on a resource (CheckFoundation's TestStaticShape)
+		PLACE_TERRAIN,    // water under a land building, deep water under a wall, a slope too steep,
+		                  // or past the map's passable edge (CheckBuildingPlacement's spans outside the
+		                  // grid or on the MAP_EDGE_TILES band, impassable to every class)
 		PLACE_TERRITORY,  // territory the template does not allow
 		PLACE_SHORE,      // a dock not on a shoreline facing a sea
 		PLACE_DISTANCE,   // too close to the player's own building of the same class
@@ -2955,6 +2961,24 @@ private:
 	// the path ends on the goal test `goal.distance(path.back())`.
 	bool obstructed_search(size_t i, const nav::ShortPathGoal &goal, float range, uint32_t ignore,
 			std::vector<nav::Vec2> &path, size_t *searched = nullptr) const;
+	// The last search each unit ran (obstructed_search). A search reads the statics (the steering
+	// obstacles keyed by short_path_key_, the woods and supplies keyed by forest_sig_of_gaia, the nav
+	// grid keyed by nav_terrain_stamp_) and its own unit alone, so the same unit asking the same
+	// question of the same statics gets the same answer:
+	// a unit whose order outlives MoveFailed, or that searches again on its next turn, takes the answer
+	// back without the search. The trees it would have culled are charged to the budget as they were, so
+	// the turn's queue runs as it did.
+	struct SearchMemo {
+		bool valid = false, reached = false;
+		uint8_t goal_type = 0;
+		nav::Vec2 pos, center, u, v;
+		float clr = 0.0f, range = 0.0f, hw = 0.0f, hh = 0.0f;
+		uint32_t ignore = 0, nav = 0;
+		uint64_t sps = 0, gsig = 0;
+		size_t cost = 0;
+		std::vector<nav::Vec2> path;
+	};
+	mutable std::vector<SearchMemo> search_memo_;
 	enum : int { kTailNone, kTailHeld, kTailTarget };
 	// Unit i's path to its target becomes `path` followed by `tail`:
 	//   kTailNone   nothing;
@@ -3325,6 +3349,7 @@ public:
 	// Attack.js IsTargetInRange: d2 (squared gap) within unit i's attack range, the target's
 	// height above the ground or water target_offset (GetEffectiveParabolicRange).
 	bool in_attack_range(size_t i, float d2, float target_offset) const;
+	float unit_gap2(size_t i, size_t j) const; // squared edge-to-edge gap between two units (IsInTargetRange)
 private:
 	void apply_health_auras(); // Health/Max auras: rescale max_hp and hp as units enter or leave them
 	float structure_max_capture(const Building &b) const; // Capturable/CapturePoints with its owner's modifiers and auras
@@ -3525,6 +3550,20 @@ private:
 	// each turn start like the units'), beside fauna_ like fauna_owner_; save v143 adds it.
 	float fauna_aim_vx_[FaunaStorage::MAX_FAUNA] = {};
 	float fauna_aim_vz_[FaunaStorage::MAX_FAUNA] = {};
+	// An animal with no meat (no ResourceSupply) leaves a corpse that lies for a while, then goes
+	// (0 A.D. Health.js CreateCorpse with the template's Decay, e.g. the flaming pig's 10 s). Saved from
+	// SAVE_VERSION_LINGERING_CORPSE; not a resource, so nothing gathers it.
+public:
+	// Read-only view for presentation (the corpse draw pass in world_view_node.cpp).
+	struct LingeringCorpse {
+		float x, z;
+		float timer; // seconds left
+		uint8_t fauna_type;
+	};
+	const std::vector<LingeringCorpse> &lingering_corpses() const { return lingering_corpses_; }
+private:
+	std::vector<LingeringCorpse> lingering_corpses_;
+	static constexpr float LINGERING_CORPSE_TIME = 10.0f; // fauna_pig_flaming.xml Decay DelayTime
 	IdIndex fauna_id_to_idx_;
 	std::unordered_map<uint32_t, std::vector<uint32_t>> transport_passengers_;
 	// UnitMotionFlying.js state of each flying unit (units/plane), by unit id, so it saves and
@@ -3577,6 +3616,11 @@ private:
 	// Every add or remove must bump supply_list_edits_, every in-place edit gaia_edits_ (sync_tile_obstructions).
 	ResourceSoA resources_;
 	std::vector<Building> buildings_;
+	// builder_stand_point's candidate structures, packed once per tick in serial code before the
+	// parallel unit pass (buildings_ is read-only there): a builder's scan reads these few bytes
+	// per structure instead of every Building (its D1 misses were 8% of the late-game run).
+	struct BlockBound { float x, z, r; uint32_t idx; };
+	std::vector<BlockBound> block_bounds_;
 	std::vector<Projectile> projectiles_;
 	// 0 A.D. StatusEffectsReceiver (Stackability Stack): every Poisoned or Burning hit is its own
 	// status with its own timer, credited to whoever applied it. It deals its Damage on the next
@@ -3795,6 +3839,8 @@ private:
 	bool regicide_hero_lost(int t) const;
 	uint8_t player_color_[MAX_PLAYERS] = {0, 1, 2, 3, 4, 5, 6, 7};
 	void remove_player_structures(); // Nomad
+	// Danubius only (generate_random_map): each land animal on an unwalkable navcell steps to the nearest walkable one.
+	void settle_danubius_fauna();
 	bool explore_map_ = false;
 	float wonder_duration_ = 600.0f;
 	float relic_duration_ = 180.0f;
@@ -4103,8 +4149,10 @@ private:
 	// Whether a finished building of ours trains some roster template of the class, busy or
 	// not (findTrainableUnits; trainMoreUnits drops a class without one from the plan).
 	bool petra_unit_stat_trainable(const PetraUnitStat &st) const;
-	// The plan queue an attack plan's order trains in (trainMoreUnits: by the order's classes).
-	static uint8_t petra_plan_order_queue(const PetraUnitStat &st);
+	// The plan queue an attack plan's order trains in (trainMoreUnits: by the order's classes),
+	// in the queue set of base (PETRA_Q_PLAN / RAID_PLAN / NEXT_PLAN; attackPlan.js:221-223).
+	static uint8_t petra_plan_order_queue(const PetraUnitStat &st); // the slot's plan's queue
+	static uint8_t petra_plan_queue_for(uint8_t base, const PetraUnitStat &st);
 	// Whether a finished building of ours lists roster template `tmpl`, busy or not.
 	bool petra_has_trainer(uint16_t tmpl) const;
 	bool petra_raid_target_ok(uint32_t bld_id) const;
@@ -4309,6 +4357,7 @@ private:
 	};
 	mutable PetraAccess petra_access_;
 	uint32_t nav_terrain_stamp_ = 1; // bumped whenever the nav grid's terrain may have changed
+	uint32_t nav_access_stamp_ = 1; // bumped when the Petra access map's inputs may have changed (nav cells, terrain, reset)
 	// This AI's topology classified from its home land (headquarters.js navalMap, landRegions).
 	const PetraNavalTopo &petra_classified_topo(uint16_t &home) const;
 	mutable PetraNavalTopo petra_class_topo_; // per AI turn, derived: not saved
@@ -4620,6 +4669,19 @@ private:
 		int at(float x, float z, float half) const;
 	};
 	void petra_bases_map(PetraBasesMap &m) const;
+	// The last petra_bases_map result and the inputs it was worked out from (its key), so later calls
+	// with the same inputs copy it.
+	struct PetraBasesCache {
+		bool valid = false;
+		int pid = -1, tile_w = -1;
+		uint32_t stamp = 0;
+		bool naval = false;
+		std::vector<PetraBasesMap::Anchor> anchors;
+		std::vector<uint8_t> territory;
+		std::vector<uint32_t> tile_anchor;
+		PetraBasesMap out;
+	};
+	mutable PetraBasesCache petra_bases_cache_;
 	// basesManager.js update: one base a turn, in anchor order (petra_kept_.current_base). The
 	// anchor whose base runs this turn, 0 while there is at most one base (every base runs).
 	uint32_t petra_turn_anchor_ = 0;
@@ -4947,6 +5009,11 @@ private:
 	// (CCmpObstructionManager::TestLine, Geometry::TestRaySquare), its target excepted, and the line
 	// keeps the clearance off deep water and steep ground (CheckLineMovement on the terrain grid).
 	bool direct_walk_clear(size_t i, float x0, float z0, float x1, float z1) const;
+	// Whether that line is blocked by a tree or other gaia obstruction alone (no structures, no
+	// terrain), as direct_walk_clear's gaia part. G170: separates a crowd/gate stall (gaia-clear)
+	// from a tree stall (gaia-blocked) without relying on motion's blocked bit, which the short path's
+	// refusal also sets.
+	bool line_blocked_by_gaia(size_t i, float x0, float z0, float x1, float z1) const;
 	// Whether land unit i, of the "large" passability class, steps or is pushed from (x, z) to (nx, nz)
 	// into a standing structure's or mine's square grown by its 3 m clearance that it did not start in:
 	// CheckMovement refuses that (TestRaySquare), so no gap of 6 m or less lets it through. On its own

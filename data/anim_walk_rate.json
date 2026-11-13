@@ -1,1 +1,346 @@
-{}
+{
+ "athen_infantry_archer_b": {
+  "run": 5,
+  "walk": 10
+ },
+ "athen_infantry_archer_e": {
+  "run": 5,
+  "walk": 10
+ },
+ "athen_infantry_slinger_a": {
+  "run": 4,
+  "walk": 10
+ },
+ "athen_infantry_slinger_b": {
+  "run": 4,
+  "walk": 10
+ },
+ "athen_infantry_slinger_e": {
+  "run": 4,
+  "walk": 10
+ },
+ "athen_infantry_spearman_a": {
+  "run": 9,
+  "walk": 31
+ },
+ "athen_infantry_spearman_e": {
+  "run": 9,
+  "walk": 31
+ },
+ "brit_infantry_slinger_a": {
+  "run": 4,
+  "walk": 10
+ },
+ "brit_infantry_slinger_e": {
+  "run": 4,
+  "walk": 10
+ },
+ "brit_infantry_spearman_a": {
+  "run": 9,
+  "walk": 31
+ },
+ "brit_infantry_spearman_b": {
+  "run": 9,
+  "walk": 31
+ },
+ "brit_infantry_spearman_e": {
+  "run": 9,
+  "walk": 31
+ },
+ "cart_infantry_archer_a": {
+  "run": 5,
+  "walk": 10
+ },
+ "cart_infantry_archer_e": {
+  "run": 5,
+  "walk": 10
+ },
+ "cart_infantry_spearman_a": {
+  "run": 9,
+  "walk": 31
+ },
+ "cart_infantry_spearman_b": {
+  "run": 9,
+  "walk": 31
+ },
+ "cart_infantry_spearman_e": {
+  "run": 9,
+  "walk": 31
+ },
+ "gaul_infantry_slinger_a": {
+  "run": 4,
+  "walk": 10
+ },
+ "gaul_infantry_slinger_e": {
+  "run": 4,
+  "walk": 10
+ },
+ "gaul_infantry_spearman_a": {
+  "run": 9,
+  "walk": 31
+ },
+ "gaul_infantry_spearman_b": {
+  "run": 9,
+  "walk": 31
+ },
+ "gaul_infantry_spearman_e": {
+  "run": 9,
+  "walk": 31
+ },
+ "han_infantry_archer_a": {
+  "run": 5,
+  "walk": 10
+ },
+ "han_infantry_archer_b": {
+  "run": 5,
+  "walk": 10
+ },
+ "han_infantry_archer_e": {
+  "run": 5,
+  "walk": 10
+ },
+ "han_infantry_crossbowman_a": {
+  "run": 10,
+  "walk": 8
+ },
+ "han_infantry_crossbowman_b": {
+  "run": 10,
+  "walk": 8
+ },
+ "han_infantry_crossbowman_e": {
+  "run": 10,
+  "walk": 8
+ },
+ "han_infantry_spearman_a": {
+  "run": 9,
+  "walk": 31
+ },
+ "han_infantry_spearman_b": {
+  "run": 9,
+  "walk": 31
+ },
+ "han_infantry_spearman_e": {
+  "run": 9,
+  "walk": 31
+ },
+ "iber_infantry_spearman_a": {
+  "run": 9,
+  "walk": 31
+ },
+ "iber_infantry_spearman_e": {
+  "run": 9,
+  "walk": 31
+ },
+ "iber_infantry_swordsman_a": {
+  "run": 9,
+  "walk": 10
+ },
+ "iber_infantry_swordsman_b": {
+  "run": 9,
+  "walk": 10
+ },
+ "iber_infantry_swordsman_e": {
+  "run": 9,
+  "walk": 10
+ },
+ "kush_infantry_archer_a": {
+  "run": 5,
+  "walk": 10
+ },
+ "kush_infantry_archer_e": {
+  "run": 5,
+  "walk": 10
+ },
+ "kush_infantry_pikeman_a": {
+  "run": 10,
+  "walk": 30
+ },
+ "kush_infantry_pikeman_e": {
+  "run": 10,
+  "walk": 30
+ },
+ "kush_infantry_spearman_a": {
+  "run": 9,
+  "walk": 31
+ },
+ "kush_infantry_spearman_e": {
+  "run": 9,
+  "walk": 31
+ },
+ "kush_infantry_swordsman_a": {
+  "run": 9,
+  "walk": 30
+ },
+ "kush_infantry_swordsman_e": {
+  "run": 9,
+  "walk": 30
+ },
+ "mace_infantry_archer_a": {
+  "run": 5,
+  "walk": 10
+ },
+ "mace_infantry_archer_e": {
+  "run": 5,
+  "walk": 10
+ },
+ "mace_infantry_pikeman_a": {
+  "run": 10,
+  "walk": 30
+ },
+ "mace_infantry_pikeman_e": {
+  "run": 10,
+  "walk": 30
+ },
+ "mace_infantry_slinger_a": {
+  "run": 4,
+  "walk": 10
+ },
+ "mace_infantry_slinger_b": {
+  "run": 4,
+  "walk": 10
+ },
+ "mace_infantry_slinger_e": {
+  "run": 4,
+  "walk": 10
+ },
+ "maur_infantry_archer_a": {
+  "run": 5,
+  "walk": 10
+ },
+ "maur_infantry_archer_e": {
+  "run": 5,
+  "walk": 10
+ },
+ "maur_infantry_spearman_a": {
+  "run": 9,
+  "walk": 31
+ },
+ "maur_infantry_spearman_e": {
+  "run": 9,
+  "walk": 31
+ },
+ "maur_infantry_swordsman_a": {
+  "run": 9,
+  "walk": 30
+ },
+ "maur_infantry_swordsman_e": {
+  "run": 9,
+  "walk": 30
+ },
+ "pers_infantry_archer_a": {
+  "run": 5,
+  "walk": 10
+ },
+ "pers_infantry_archer_b": {
+  "run": 5,
+  "walk": 10
+ },
+ "pers_infantry_archer_e": {
+  "run": 5,
+  "walk": 10
+ },
+ "pers_infantry_spearman_a": {
+  "run": 9,
+  "walk": 31
+ },
+ "pers_infantry_spearman_b": {
+  "run": 9,
+  "walk": 31
+ },
+ "pers_infantry_spearman_e": {
+  "run": 9,
+  "walk": 31
+ },
+ "ptol_infantry_archer_a": {
+  "run": 5,
+  "walk": 10
+ },
+ "ptol_infantry_archer_e": {
+  "run": 5,
+  "walk": 10
+ },
+ "ptol_infantry_pikeman_a": {
+  "run": 10,
+  "walk": 30
+ },
+ "ptol_infantry_pikeman_b": {
+  "run": 10,
+  "walk": 30
+ },
+ "ptol_infantry_pikeman_e": {
+  "run": 10,
+  "walk": 30
+ },
+ "ptol_infantry_slinger_a": {
+  "run": 4,
+  "walk": 10
+ },
+ "ptol_infantry_slinger_b": {
+  "run": 4,
+  "walk": 10
+ },
+ "ptol_infantry_slinger_e": {
+  "run": 4,
+  "walk": 10
+ },
+ "rome_infantry_spearman_a": {
+  "run": 9,
+  "walk": 31
+ },
+ "rome_infantry_spearman_e": {
+  "run": 9,
+  "walk": 31
+ },
+ "rome_infantry_swordsman_a": {
+  "run": 9,
+  "walk": 30
+ },
+ "rome_infantry_swordsman_b": {
+  "run": 9,
+  "walk": 30
+ },
+ "rome_infantry_swordsman_e": {
+  "run": 9,
+  "walk": 30
+ },
+ "sele_infantry_pikeman_a": {
+  "run": 10,
+  "walk": 30
+ },
+ "sele_infantry_pikeman_b": {
+  "run": 10,
+  "walk": 30
+ },
+ "sele_infantry_pikeman_e": {
+  "run": 10,
+  "walk": 30
+ },
+ "sele_infantry_spearman_a": {
+  "run": 9,
+  "walk": 31
+ },
+ "sele_infantry_spearman_b": {
+  "run": 9,
+  "walk": 31
+ },
+ "sele_infantry_spearman_e": {
+  "run": 9,
+  "walk": 31
+ },
+ "spart_infantry_spearman_a": {
+  "run": 9,
+  "walk": 31
+ },
+ "spart_infantry_spearman_b": {
+  "run": 9,
+  "walk": 31
+ },
+ "spart_infantry_spearman_e": {
+  "run": 9,
+  "walk": 31
+ },
+ "spart_infantry_spearman_neodamodes": {
+  "run": 9,
+  "walk": 31
+ }
+}

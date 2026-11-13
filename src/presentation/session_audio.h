@@ -387,7 +387,12 @@ public:
 	}
 
 	// sel_<structure> (interface/select/building).
-	void play_building_select(uint8_t type, uint8_t civ) { play_group("interface/select/building", building_sound_name(type, true, civ), 1.0f); }
+	void play_building_select(uint8_t type, uint8_t civ) {
+		const char *n = building_sound_name(type, true, civ);
+		// sel_temple is also a prefix of sel_temple_10.ogg (the pyramids'): play the exact file 0.28 names.
+		if (std::strcmp(n, "sel_temple") == 0) { play_one_of("interface/select/building", {"sel_temple.ogg"}, 1.0f); return; }
+		play_group("interface/select/building", n, 1.0f);
+	}
 
 	// template_player.xml SoundGroups, played by Player.OnGlobalPlayerDefeated to
 	// each player: "defeated" when it falls, "defeated_ally" when an ally does,
@@ -693,6 +698,12 @@ public:
 			case BLD_FORGE: n = "forge"; break;
 			case BLD_ELEPHANT_STABLE: n = "elephant_stable"; break;
 			case BLD_THEATER: n = "theater"; break;
+				// 0.28 structure templates: ptol/military_colony selects with gymnasium; germ/encampment
+				// uses civ_center; gaul/tavern uses broch; han/laozigate uses iber_monument.
+				case BLD_MILITARY_COLONY: n = "gymnasium"; break;
+				case BLD_WAGON_ENCAMPMENT: n = "civ_center"; break;
+				case BLD_TAVERN: n = "broch"; break;
+				case BLD_LAOZI_GATE: n = "iber_monument"; break;
 			default: break;
 		}
 		static thread_local std::string s;

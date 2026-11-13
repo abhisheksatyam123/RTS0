@@ -4715,6 +4715,44 @@ static void test_plan_siege_batch_waits_funded() {
 	CHECK(qm.wants[PETRA_Q_PLAN_SIEGE].wood == 0.0f, "with no plan mustering it goes");
 }
 
+// attackPlan.js:221-223: each mustering plan has its own queues at its kind's priority
+// (Rush 250, Raid 150, HugeAttack 90, Attack 70, champion one more, difficulty-scaled).
+// Before, a raid and an attack shared one set at the higher of the two, so the attack
+// trained at raid priority while the raid mustered (G147).
+static void test_plan_queue_priorities() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->set_petra_difficulty(PETRA_MEDIUM);
+	auto &m = s->petra_attack_mgr_;
+	m.kind = PETRA_ATTACK_ATTACK;
+	s->petra_attack_plan_.state = Simulation::AttackPlan::MUSTER;
+	s->petra_raid_plan_.state = Simulation::AttackPlan::MUSTER;
+	s->petra_next_plan_.plan.state = Simulation::AttackPlan::MUSTER;
+	s->petra_next_plan_.plan.kind = PETRA_ATTACK_RUSH;
+	s->petra_next_plan_.muster.kind = PETRA_ATTACK_RUSH;
+	CHECK(s->petra_queue_base_priority(PETRA_Q_PLAN) == 70, "the attack trains at attack priority");
+	CHECK(s->petra_queue_base_priority(PETRA_Q_PLAN_CHAMP) == 71, "its champion queue one more");
+	CHECK(s->petra_queue_base_priority(PETRA_Q_PLAN_SIEGE) == 70, "its siege queue at attack priority");
+	CHECK(s->petra_queue_base_priority(PETRA_Q_RAID_PLAN) == 150, "the raid trains at raid priority");
+	CHECK(s->petra_queue_base_priority(PETRA_Q_RAID_PLAN_CHAMP) == 151, "its champion queue one more");
+	CHECK(s->petra_queue_base_priority(PETRA_Q_RAID_PLAN_SIEGE) == 150, "its siege queue at raid priority");
+	CHECK(s->petra_queue_base_priority(PETRA_Q_NEXT_PLAN) == 250, "a beside rush trains at rush priority");
+	CHECK(s->petra_queue_base_priority(PETRA_Q_NEXT_PLAN_CHAMP) == 251, "its champion queue one more");
+	CHECK(s->petra_queue_base_priority(PETRA_Q_NEXT_PLAN_SIEGE) == 250, "its siege queue at rush priority");
+	std::printf("  attack 70, raid 150, beside rush 250 (champion +1)\n");
+	m.kind = PETRA_ATTACK_HUGE;
+	CHECK(s->petra_queue_base_priority(PETRA_Q_PLAN) == 90, "a HugeAttack trains at 90");
+	s->petra_attack_plan_.state = Simulation::AttackPlan::UNEXECUTED;
+	CHECK(s->petra_queue_base_priority(PETRA_Q_PLAN) == 1, "a plan not mustering holds no priority");
+	// Each order trains in its own plan's set, by its classes.
+	using St = Simulation::PetraUnitStat;
+	const St elephants{TC_ELEPHANT | TC_MELEE, 1.0f, 0, 2, 2, 0.0f, 3.0f, 1.0f, 1.0f};
+	const St infantry{TC_INFANTRY | TC_MELEE, 1.0f, 6, 16, 3, 1.6f, 0.0f, 1.0f, 1.0f};
+	CHECK(Simulation::petra_plan_queue_for(PETRA_Q_RAID_PLAN, elephants) == PETRA_Q_RAID_PLAN_SIEGE, "the raid's siege order trains in the raid's siege queue");
+	CHECK(Simulation::petra_plan_queue_for(PETRA_Q_NEXT_PLAN, infantry) == PETRA_Q_NEXT_PLAN, "the beside plan's order trains in the beside plan's queue");
+}
+
 // attackPlan.js:689-695 trains a plan's batches with its name as "plan" metadata: the units
 // are the plan's as they spawn, so no other plan takes them (the main plan used to take the
 // raid's siege, and citizen cavalry trained for it went hunting). A batch whose plan has started or been replaced comes out of plan
@@ -6635,7 +6673,13 @@ static void test_decay_garrison() {
 	const int cap = ours ? s->buildings_[it->second].garrison_cap : 0;
 	std::printf("  decaying tower in enemy land: needs %d, garrisoned %zu, still ours %s\n", need, inside, ours ? "yes" : "no");
 	CHECK(need > 0, "a tower in enemy territory decays");
-	CHECK(ours && (int)inside >= std::min(need, cap), "Petra garrisons a decaying tower (TYPE_DECAY)");
+	// A soldier that reaches an enemy inside its attack range fights it (edge to edge, IsInTargetRange),
+	// so it counts as busy rather than missing from the garrison.
+	int fighting = 0;
+	for (size_t u = 0; u < s->units_.count; ++u)
+		if (s->units_.alive[u] && s->units_.team[u] == 1 && s->units_.unit_type[u] == UNIT_SPEARMAN &&
+				s->units_.action_state[u] == ACTION_ATTACK) ++fighting;
+	CHECK(ours && (int)inside + fighting >= std::min(need, cap), "Petra garrisons a decaying tower (TYPE_DECAY)");
 	// A barracks is held only just after Petra captures it (addDecayingStructure justCaptured).
 	const uint32_t bar = s->spawn_building_world(tx, tz + 16.0f, BLD_BARRACKS, 0);
 	auto bi = s->building_id_to_idx_.find(bar);
@@ -7852,6 +7896,73 @@ static void test_defenders_stop_hopeless_capture() {
 
 // attackManager.js assignBombers: an idle stone thrower shells an enemy structure it can
 // reach from our land, and leaves alone those deep in enemy land.
+// attackManager.js assignBombers: a field is a bombing target only while gatherers work it,
+// in enemy land (fields carry no attack restriction in 0 A.D.).
+static void test_assign_bombers_fields() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	const Simulation::Building *enemy_cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f && b.team == 0) enemy_cc = &b;
+	CHECK(enemy_cc != nullptr, "the enemy has a civic centre");
+	if (!enemy_cc) return;
+	// Everything sits in enemy land: a bomber's approach point must be in our land, so the
+	// target stays within the stone thrower's reach (no walk needed). Find a spot pair in
+	// enemy land: the stone thrower's and a field half its reach away.
+	const float ex = enemy_cc->x, ez = enemy_cc->z;
+	const uint32_t cat_probe = s->spawn_unit(ex, ez, 1, UNIT_CATAPULT);
+	const int32_t cp = s->lookup_unit(cat_probe);
+	CHECK(cp >= 0, "the stone thrower exists");
+	if (cp < 0) return;
+	const float reach = s->units_.attack_range[cp] * 0.5f;
+	float cx = 0.0f, cz = 0.0f;
+	bool found = false;
+	for (int r = 4; r <= 40 && !found; r += 2)
+		for (int k = 0; k < 8 && !found; ++k) {
+			const float a = 0.785398f * (float)k;
+			const float px = ex + (float)r * std::cos(a), pz = ez + (float)r * std::sin(a);
+			if (s->territory_owner_at(px, pz) == 0 && s->territory_owner_at(px, pz + reach) == 0) {
+				cx = px;
+				cz = pz;
+				found = true;
+			}
+		}
+	CHECK(found, "there is a spot in enemy land to bomb from");
+	if (!found) return;
+	const float fx = cx, fz = cz + reach;
+	std::printf("  bombers: enemy-land spot at (%.1f, %.1f), reach %.1f\n", cx, cz, reach);
+	const uint32_t field = s->spawn_building_world(fx, fz, BLD_FIELD, 0, 1.0f);
+	run_for(*s, 0.1f); // the field's grain supply is synced in the tick
+	const uint32_t grain = s->field_resource_id(field);
+	CHECK(grain != 0, "a finished enemy field has its grain supply");
+	if (grain == 0) return;
+	// Only the field is a bombing target: the enemy's other structures are wrecked (skipped).
+	for (auto &b : s->buildings_)
+		if (b.team == 0 && b.id != field) b.wrecked = true;
+	// Called straight after spawning, while the stone thrower is idle.
+	const uint32_t cat = s->spawn_unit(cx, cz, 1, UNIT_CATAPULT);
+	s->petra_assign_bombers();
+	int32_t ci = s->lookup_unit(cat);
+	const bool empty_shelled = ci >= 0 && s->units_.order_kind[ci] == ORDER_ATTACK_BUILDING && s->units_.order_target[ci] == field;
+	CHECK(!empty_shelled, "an empty field (no gatherers) is not shelled");
+	// One enemy unit working the field makes it a target.
+	const uint32_t worker = s->spawn_unit(fx + 2.0f, fz + 2.0f, 0, UNIT_CATAPULT);
+	const int32_t wi = s->lookup_unit(worker);
+	if (wi >= 0) {
+		s->units_.action_state[wi] = ACTION_GATHER;
+		s->units_.target_resource_id[wi] = grain;
+	}
+	s->petra_assign_bombers();
+	ci = s->lookup_unit(cat);
+	const bool shelling = ci >= 0 && s->units_.order_kind[ci] == ORDER_ATTACK_BUILDING && s->units_.order_target[ci] == field;
+	std::printf("  bombers: idle stone thrower shells a field worked by an enemy: %s\n", shelling ? "yes" : "no");
+	CHECK(shelling, "a field with gatherers in enemy land is a bombing target");
+}
+
 static void test_assign_bombers() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -9319,6 +9430,10 @@ static void test_queued_dropsite_starts() {
 	// The poorer site is queued while it can't be paid for.
 	auto &dc = base_dropsite_check(*s);
 	dc = PetraDropsiteCheck{};
+	// The 10 m site above is queued in PETRA_Q_DROPSITES, and 0.28's balance check waits while any
+	// dropsite plan is queued (baseManager.js hasQueuedUnits). This test is about the poorer site
+	// alone, so the queue starts empty.
+	s->petra_queue_heads_ = {};
 	dc.used[0] = 60;
 	dc.lost[0] = 100; // ratio 0.625: past min(25, 12)
 	const int before = storehouses();
@@ -10860,6 +10975,7 @@ int main(int argc, char **argv) {
 	RUN(test_huge_attack_drops_classes);
 	RUN(test_plan_counts_every_class);
 	RUN(test_plan_siege_batch_waits_funded);
+	RUN(test_plan_queue_priorities);
 	RUN(test_trained_units_join_their_plan);
 	RUN(test_plan_cost_weights_kept);
 	RUN(test_plan_class_sizes_sum);
@@ -10908,6 +11024,7 @@ int main(int argc, char **argv) {
 	RUN(test_no_scout);
 	RUN(test_defenders_stop_hopeless_capture);
 	RUN(test_assign_bombers);
+	RUN(test_assign_bombers_fields);
 	RUN(test_cancel_attacks_on_peace);
 	RUN(test_builders_per_foundation);
 	RUN(test_new_base_builders);
