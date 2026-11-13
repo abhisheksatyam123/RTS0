@@ -35947,6 +35947,42 @@ void Simulation::petra_bases_map(PetraBasesMap &m) const {
 	m.x1 = m.z1 = -1;
 	m.base.clear();
 	if (m.anchors.empty()) return;
+	// The map is a function of the anchors (above), the territory grid, the tile claims, the nav grid
+	// (petra_access_at reads it, through nav_terrain_stamp_), the AI's player and its naval class. When
+	// all of them match the last call's, that call's result is the same, so it is copied. Callers
+	// within a turn ask for the same map many times over.
+	PetraBasesCache &cache = petra_bases_cache_;
+	{
+		const auto &ca = cache.anchors;
+		bool same = cache.valid && cache.pid == (int)petra_pid_ && cache.stamp == nav_terrain_stamp_ &&
+				cache.naval == m.naval && cache.tile_w == petra_tile_bases_.w && ca.size() == m.anchors.size() &&
+				cache.territory == territory_grid_.data && cache.tile_anchor == petra_tile_bases_.anchor;
+		for (size_t a = 0; same && a < ca.size(); ++a)
+			same = ca[a].x == m.anchors[a].x && ca[a].z == m.anchors[a].z && ca[a].land == m.anchors[a].land &&
+					ca[a].id == m.anchors[a].id;
+		if (same) {
+			m = cache.out;
+			return;
+		}
+	}
+	// Stores the map worked out below on the way out, whichever return it takes. The inputs are the
+	// ones checked above: nothing here changes them.
+	struct Store {
+		PetraBasesCache &c;
+		const PetraBasesMap &m;
+		const Simulation &s;
+		~Store() {
+			c.valid = true;
+			c.pid = (int)s.petra_pid_;
+			c.stamp = s.nav_terrain_stamp_;
+			c.naval = m.naval;
+			c.anchors = m.anchors;
+			c.territory = s.territory_grid_.data;
+			c.tile_w = s.petra_tile_bases_.w;
+			c.tile_anchor = s.petra_tile_bases_.anchor;
+			c.out = m;
+		}
+	} store{cache, m, *this};
 	auto centre = [&](int i) { return ((float)i + 0.5f) * GRID - map_half_; };
 	// territory_owner_at(centre(ix), centre(iz)), with each column's and row's territory tile
 	// worked out once (by its own expression, so to the same tile) instead of on every call.
