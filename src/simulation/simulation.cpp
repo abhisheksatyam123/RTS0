@@ -36710,7 +36710,8 @@ size_t Simulation::petra_attacked_unit_holder(size_t i, bool emergency, const st
 		if (!is_ally(petra_pid_, b.team) || b.wrecked || b.build_progress < 1.0f || b.garrison_cap <= 0) continue;
 		if (turret_points_of(b) || !structure_accepts_garrison(b, i)) continue;
 		if (!emergency && structure_garrison_heal(b) <= 0.0f) continue;
-		const int slots = (int)b.garrisoned_units.size() + (bi < incoming.size() ? incoming[bi] : 0);
+		// numberOfGarrisonedSlots: occupied slots (a ram takes 11), plus the units already sent.
+		const int slots = occupied_slots(b.garrisoned_units) + (bi < incoming.size() ? incoming[bi] : 0);
 		if (slots >= b.garrison_cap && (!emergency || b.garrisoned_units.empty())) continue;
 		if (!structure_has_enough_health(b)) continue;
 		const float dx = units_.pos_x[i] - b.x, dz = units_.pos_z[i] - b.z;
@@ -36730,9 +36731,12 @@ bool Simulation::petra_garrison_attacked_unit(size_t i, bool emergency, std::vec
 	const size_t best = petra_attacked_unit_holder(i, emergency, incoming);
 	if (best == SIZE_MAX) return false;
 	const Building &b = buildings_[best];
-	if (emergency && (int)b.garrisoned_units.size() >= b.garrison_cap) { // make room for this one
+	if (emergency && occupied_slots(b.garrisoned_units) + (best < incoming.size() ? incoming[best] : 0) >= b.garrison_cap &&
+	    !b.garrisoned_units.empty()) {
+		// garrisonAttackedUnit: nearest.unload(nearest.garrisoned()[0]). Petra's own order on an ally's
+		// holder, so it unloads whatever is first, not only Petra's own units (cmd_unload's rule).
 		const uint32_t first = b.garrisoned_units.front();
-		cmd_unload(petra_pid_, b.id, &first, 1); // Commands.js unload: an ally's holder, only ours
+		order_ungarrison_single(b.id, first);
 	}
 	++incoming[best];
 	const uint32_t uid = units_.id[i];
