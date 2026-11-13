@@ -1910,6 +1910,73 @@ static void test_regicide_hero_heal_holder() {
 	CHECK(!in_cc, "protection rules in a healing holder: a melee hero over 0.4 health leaves when only siege is near");
 }
 
+// defenseManager.js garrisonAttackedUnit: a full holder is judged by its occupied slots
+// (numberOfGarrisonedSlots), not its unit count. A holder with one unit of two slots (a loaded
+// transport) and capacity 2 is full, so an ordinary attacked unit is not sent into it.
+static void test_garrison_attacked_full_by_slots() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_REGICIDE);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	const uint32_t cc_id = [&] {
+		for (const auto &b : s->buildings_) if (b.team == 1 && b.type == BLD_TOWN_CENTER) return b.id;
+		return 0u;
+	}();
+	CHECK(cc_id != 0, "AI 1 has a civic centre");
+	if (!cc_id) return;
+	const size_t cc_i = s->building_id_to_idx_.at(cc_id);
+	const uint32_t carrier = s->spawn_unit(s->buildings_[cc_i].x + 8.0f, s->buildings_[cc_i].z, 1, UNIT_SWORDSMAN);
+	const uint32_t cargo = s->spawn_unit(s->buildings_[cc_i].x + 9.0f, s->buildings_[cc_i].z, 1, UNIT_SWORDSMAN);
+	s->transport_passengers_[carrier] = {cargo};
+	const uint32_t man = s->spawn_unit(s->buildings_[cc_i].x + 10.0f, s->buildings_[cc_i].z, 1, UNIT_SWORDSMAN);
+	s->buildings_[cc_i].garrison_cap = 2;
+	s->buildings_[cc_i].garrisoned_units = {carrier}; // one unit, two slots: full
+	const size_t m = (size_t)s->lookup_unit(man);
+	std::vector<int> incoming;
+	const size_t full = s->petra_attacked_unit_holder(m, false, incoming);
+	std::printf("  holder with a 2-slot unit at capacity 2: ordinary attacked unit goes to %s\n", full == SIZE_MAX ? "no holder" : "the civic centre");
+	CHECK(full == SIZE_MAX, "a holder full by slots takes no ordinary attacked unit");
+	s->buildings_[cc_i].garrison_cap = 3; // one slot free: now it takes him
+	const size_t room = s->petra_attacked_unit_holder(m, false, incoming);
+	CHECK(room != SIZE_MAX, "a holder with a free slot takes the attacked unit");
+}
+
+// defenseManager.js garrisonAttackedUnit (emergency): the room made is nearest.unload(garrisoned()[0]),
+// the first unit in, whoever owns it. A mutual ally's holder unloads its ally's unit too, where
+// Petra's own unload order skipped units of another player.
+static void test_garrison_emergency_unloads_first() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_REGICIDE);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	size_t cc_i = SIZE_MAX;
+	for (size_t bi = 0; bi < s->buildings_.size(); ++bi)
+		if (s->buildings_[bi].team == 1 && s->buildings_[bi].type == BLD_TOWN_CENTER) { cc_i = bi; break; }
+	CHECK(cc_i != SIZE_MAX, "AI 1 has a civic centre");
+	if (cc_i == SIZE_MAX) return;
+	s->diplomacy_[1][2] = s->diplomacy_[2][1] = Simulation::DIPLO_ALLY; // mutual allies (is_ally)
+	s->buildings_[cc_i].team = 2; // a mutual ally's civic centre
+	const float cx = s->buildings_[cc_i].x, cz = s->buildings_[cc_i].z;
+	const uint32_t cc_id = s->buildings_[cc_i].id;
+	const uint32_t allied_unit = s->spawn_unit(cx + 8.0f, cz, 2, UNIT_SWORDSMAN);
+	const uint32_t man = s->spawn_unit(cx + 10.0f, cz, 1, UNIT_SWORDSMAN);
+	s->buildings_[cc_i].garrison_cap = 1;
+	s->buildings_[cc_i].garrisoned_units = {allied_unit}; // full, its first unit is the ally's
+	std::vector<int> incoming;
+	const bool done = s->petra_garrison_attacked_unit((size_t)s->lookup_unit(man), true, incoming);
+	const auto &g = s->buildings_[s->building_id_to_idx_.at(cc_id)].garrisoned_units;
+	const bool out = std::find(g.begin(), g.end(), allied_unit) == g.end();
+	std::printf("  emergency into a full ally's civic centre: garrisoned %d, the ally's first unit out %d\n", done, out);
+	CHECK(done, "an emergency garrison goes into the full ally holder");
+	CHECK(out, "the room made unloads the holder's first unit, the ally's own");
+}
+
 // worker.js:325-345: a Petra builder that autocontinue sends from a finished house to a field
 // foundation is taken off it (fields are built by their farmers, buildAnyField); another
 // foundation nearby it does build.
@@ -10992,6 +11059,8 @@ int main(int argc, char **argv) {
 	RUN(test_gather_rate_civ_bonus);
 	RUN(test_garrison_melee_attack);
 	RUN(test_regicide_hero_heal_holder);
+	RUN(test_garrison_attacked_full_by_slots);
+	RUN(test_garrison_emergency_unloads_first);
 	RUN(test_house_builder_skips_field);
 	RUN(test_one_base_a_turn);
 	RUN(test_no_room_only_once_funded);
