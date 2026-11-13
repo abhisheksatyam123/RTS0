@@ -5827,7 +5827,8 @@ bool Simulation::cmd_tribute(uint8_t from, uint8_t to, const int amounts[RES_COU
 		}
 		total += amounts[r];
 	}
-	if (total == 0) return false;
+	// Player.js TributeResource: an all-zero payment still passes SubtractResourcesOrNotify and
+	// AddResources, and the tribute notification goes out with zeros.
 	if (short_of) return note_session(need), false;
 	for (int r = 0; r < RES_COUNT; ++r) {
 		players_[from].res[r] -= (float)amounts[r];
@@ -16388,6 +16389,28 @@ bool Simulation::follows_long_path(size_t i) const {
 // failed turn (ShouldAlternatePathfinder) the whole path is planned again from where the unit
 // stands, in case it went down a dead end.
 void Simulation::obstructed_long_path(size_t i, uint8_t failed) {
+	// A returner whose straight walk to its dropsite is obstructed has no long path to replan (its leg
+	// started without one). Once it is obstructed (the second turn, OBSTRUCTED_AT), it plans one from
+	// where it stands, as a MoveTo's long path would have been. Egypt seed 514's cart archer 6053 stood
+	// 100 s beside a wood line with no path. Planning at every leg start instead pinned returners in
+	// the dropsite crowd (seed 17: 6 to 15 stuck).
+	if (failed == 10 && i < unit_paths_.size() && units_.action_state[i] == ACTION_RETURN_DROPSITE &&
+			units_.waypoint_count[i] <= 0) {
+		const float dx = units_.target_x[i] - units_.pos_x[i], dz = units_.target_z[i] - units_.pos_z[i];
+		if (dx * dx + dz * dz >= 4.0f * 4.0f) {
+			WaypointPath wpn;
+			if (find_path(units_.pos_x[i], units_.pos_z[i], units_.target_x[i], units_.target_z[i], wpn,
+					unit_is_ship(units_.unit_type[i]) ? unit_ship_pass(units_.unit_type[i]) : unit_land_pass(i)) && wpn.count > 0) {
+				wpn.has_goal = true;
+				wpn.goal_x = units_.target_x[i];
+				wpn.goal_z = units_.target_z[i];
+				unit_paths_[i] = wpn;
+				units_.waypoint_cur[i] = static_cast<int16_t>(wpn.cur);
+				units_.waypoint_count[i] = static_cast<int16_t>(wpn.count);
+			}
+		}
+		return;
+	}
 	if (!follows_long_path(i)) return;
 	WaypointPath &wp = unit_paths_[i];
 	const int cnt = units_.waypoint_count[i], cur = units_.waypoint_cur[i];
@@ -29404,8 +29427,17 @@ bool Simulation::petra_find_dock_position(uint16_t land, uint16_t sea, int &out_
 	std::vector<Cand> cands;
 	bool found = false;
 	int best_water = 0;
-	for (int iz = bz0; iz <= bz1; ++iz) {
-		for (int ix = bx0; ix <= bx1; ++ix) {
+	// The maps the resource weights read are built here, before the rows scan in parallel (pure: the
+	// same box and resources as the first use would have). Each row reads the world only and fills its own
+	// candidate list; the lists are joined in row order, which is the serial scan order.
+	build_maps();
+	const int nrows = std::max(0, bz1 - bz0 + 1);
+	std::vector<std::vector<Cand>> row_cands((size_t)nrows);
+	auto scan_rows = [&](size_t ra, size_t rb) {
+		for (size_t r = ra; r < rb; ++r) {
+			const int iz = bz0 + (int)r;
+			std::vector<Cand> &out = row_cands[r];
+			for (int ix = bx0; ix <= bx1; ++ix) {
 			const float x = ((float)ix + 0.5f) * kCcTile - map_half_, z = ((float)iz + 0.5f) * kCcTile - map_half_;
 			if (!near_sea[(size_t)(iz - bz0) * mw + (ix - bx0)]) continue;
 			// isDockLocation: land or water here, our land within its depth on one side and
@@ -29488,9 +29520,13 @@ bool Simulation::petra_find_dock_position(uint16_t land, uint16_t sea, int &out_
 				if (!open) break;
 				water += 4;
 			}
-			cands.push_back({score + 16.0f - (float)water, ix, iz, water});
+			out.push_back({score + 16.0f - (float)water, ix, iz, water});
+			}
 		}
-	}
+	};
+	if (nrows >= 8 && JobSystem::instance().running()) JobSystem::instance().parallel_for((size_t)nrows, scan_rows, 2);
+	else scan_rows(0, (size_t)nrows);
+	for (const auto &rc : row_cands) cands.insert(cands.end(), rc.begin(), rc.end());
 	// findDockPosition's scan in tile order: a later spot replaces the best only when its score
 	// plus five times its missing open water is no worse than the best's score plus its own
 	// missing water (bestVal = score + maxWater - water), so open water weighs five times.
@@ -42033,11 +42069,19 @@ void Simulation::fill_fow_from_los(std::vector<uint8_t> &grid, uint8_t player) c
 	const uint8_t mask = los_shared_mask(player);
 	const uint8_t floor = explore_map_ ? FOW_EXPLORED : FOW_UNEXPLORED;
 	const size_t n = std::min(grid.size(), los_.cells());
-	for (size_t c = 0; c < n; ++c) {
-		if (los_.off_world((int)c)) { grid[c] = FOW_UNEXPLORED; continue; } // outside a circular map
-		const uint8_t vis = los_.visible_bits((int)c) & mask, exp = los_.explored_bits((int)c) & mask;
-		grid[c] = vis ? (uint8_t)FOW_VISIBLE : (exp || grid[c] != FOW_UNEXPLORED) ? (uint8_t)FOW_EXPLORED : floor;
-	}
+	// Each cell reads only its own LOS bits and its own previous value, so cell ranges are
+	// independent: the result is the same whatever the thread count.
+	auto fill = [&](size_t a, size_t b) {
+		for (size_t c = a; c < b; ++c) {
+			if (los_.off_world((int)c)) { grid[c] = FOW_UNEXPLORED; continue; } // outside a circular map
+			const uint8_t vis = los_.visible_bits((int)c) & mask, exp = los_.explored_bits((int)c) & mask;
+			grid[c] = vis ? (uint8_t)FOW_VISIBLE : (exp || grid[c] != FOW_UNEXPLORED) ? (uint8_t)FOW_EXPLORED : floor;
+		}
+	};
+	if (n >= 16384 && JobSystem::instance().running())
+		JobSystem::instance().parallel_for(n, fill, 4096);
+	else
+		fill(0, n);
 }
 
 float Simulation::owned_fauna_vision(size_t f) const {
