@@ -33932,6 +33932,18 @@ void Simulation::petra_retake_civic_centres() {
 	}
 }
 
+// assignDefenders (defenseManager.js:430-450) skips a unit whose plan subrole is completing,
+// walking or attacking. A unit still mustering (its plan set, not yet completing or started) may
+// be drafted; drafting takes it out of its plan (petra_leave_mustering).
+bool Simulation::petra_in_busy_plan(uint32_t uid) const {
+	const auto has = [uid](const std::vector<uint32_t> &sq) { return std::find(sq.begin(), sq.end(), uid) != sq.end(); };
+	for (const AttackPlan *p : {&petra_attack_plan_, &petra_next_plan_.plan, &petra_raid_plan_})
+		if ((p->completing || (p->state != AttackPlan::UNEXECUTED && p->state != AttackPlan::MUSTER)) && has(p->squad)) return true;
+	for (const AttackPlan &p : petra_started_attacks_)
+		if (has(p.squad)) return true;
+	return false;
+}
+
 bool Simulation::petra_in_attack_squad(uint32_t uid) const {
 	const auto in = [uid](const AttackPlan &p) { return std::find(p.squad.begin(), p.squad.end(), uid) != p.squad.end(); };
 	if (in(petra_attack_plan_) || in(petra_next_plan_.plan)) return true;
@@ -37663,7 +37675,9 @@ void Simulation::petra_manage_defense(float dt) {
 			if (units_.id[i] == petra_scout_unit_id_) continue;
 			if (units_.action_state[i] == ACTION_GARRISONED || units_.action_state[i] == ACTION_DYING) continue;
 			if (units_.order_kind[i] == ORDER_GARRISON) continue; // garrisonManager has it
-			if (in_attack_squad(units_.id[i]) || petra_is_critical_ent(i) || petra_guards_critical_ent(i)) continue;
+			// assignDefenders skips a unit whose plan subrole is completing, walking or attacking; one
+			// still mustering (plan set, subrole not yet changed) may be drafted, and leaves the plan.
+			if (petra_in_busy_plan(units_.id[i]) || petra_is_critical_ent(i) || petra_guards_critical_ent(i)) continue;
 			if (petra_ship_in_plan(units_.id[i]) || petra_passenger(units_.id[i])) continue;
 			if (petra_is_defender(units_.id[i])) continue;
 			candidates.push_back({units_.id[i], i});
