@@ -4357,6 +4357,7 @@ private:
 	};
 	mutable PetraAccess petra_access_;
 	uint32_t nav_terrain_stamp_ = 1; // bumped whenever the nav grid's terrain may have changed
+	uint32_t nav_access_stamp_ = 1; // bumped when the Petra access map's inputs may have changed (nav cells, terrain, reset)
 	// This AI's topology classified from its home land (headquarters.js navalMap, landRegions).
 	const PetraNavalTopo &petra_classified_topo(uint16_t &home) const;
 	mutable PetraNavalTopo petra_class_topo_; // per AI turn, derived: not saved
@@ -4668,6 +4669,19 @@ private:
 		int at(float x, float z, float half) const;
 	};
 	void petra_bases_map(PetraBasesMap &m) const;
+	// The last petra_bases_map result and the inputs it was worked out from (its key), so later calls
+	// with the same inputs copy it.
+	struct PetraBasesCache {
+		bool valid = false;
+		int pid = -1, tile_w = -1;
+		uint32_t stamp = 0;
+		bool naval = false;
+		std::vector<PetraBasesMap::Anchor> anchors;
+		std::vector<uint8_t> territory;
+		std::vector<uint32_t> tile_anchor;
+		PetraBasesMap out;
+	};
+	mutable PetraBasesCache petra_bases_cache_;
 	// basesManager.js update: one base a turn, in anchor order (petra_kept_.current_base). The
 	// anchor whose base runs this turn, 0 while there is at most one base (every base runs).
 	uint32_t petra_turn_anchor_ = 0;

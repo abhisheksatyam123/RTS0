@@ -7896,6 +7896,73 @@ static void test_defenders_stop_hopeless_capture() {
 
 // attackManager.js assignBombers: an idle stone thrower shells an enemy structure it can
 // reach from our land, and leaves alone those deep in enemy land.
+// attackManager.js assignBombers: a field is a bombing target only while gatherers work it,
+// in enemy land (fields carry no attack restriction in 0 A.D.).
+static void test_assign_bombers_fields() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	const Simulation::Building *enemy_cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f && b.team == 0) enemy_cc = &b;
+	CHECK(enemy_cc != nullptr, "the enemy has a civic centre");
+	if (!enemy_cc) return;
+	// Everything sits in enemy land: a bomber's approach point must be in our land, so the
+	// target stays within the stone thrower's reach (no walk needed). Find a spot pair in
+	// enemy land: the stone thrower's and a field half its reach away.
+	const float ex = enemy_cc->x, ez = enemy_cc->z;
+	const uint32_t cat_probe = s->spawn_unit(ex, ez, 1, UNIT_CATAPULT);
+	const int32_t cp = s->lookup_unit(cat_probe);
+	CHECK(cp >= 0, "the stone thrower exists");
+	if (cp < 0) return;
+	const float reach = s->units_.attack_range[cp] * 0.5f;
+	float cx = 0.0f, cz = 0.0f;
+	bool found = false;
+	for (int r = 4; r <= 40 && !found; r += 2)
+		for (int k = 0; k < 8 && !found; ++k) {
+			const float a = 0.785398f * (float)k;
+			const float px = ex + (float)r * std::cos(a), pz = ez + (float)r * std::sin(a);
+			if (s->territory_owner_at(px, pz) == 0 && s->territory_owner_at(px, pz + reach) == 0) {
+				cx = px;
+				cz = pz;
+				found = true;
+			}
+		}
+	CHECK(found, "there is a spot in enemy land to bomb from");
+	if (!found) return;
+	const float fx = cx, fz = cz + reach;
+	std::printf("  bombers: enemy-land spot at (%.1f, %.1f), reach %.1f\n", cx, cz, reach);
+	const uint32_t field = s->spawn_building_world(fx, fz, BLD_FIELD, 0, 1.0f);
+	run_for(*s, 0.1f); // the field's grain supply is synced in the tick
+	const uint32_t grain = s->field_resource_id(field);
+	CHECK(grain != 0, "a finished enemy field has its grain supply");
+	if (grain == 0) return;
+	// Only the field is a bombing target: the enemy's other structures are wrecked (skipped).
+	for (auto &b : s->buildings_)
+		if (b.team == 0 && b.id != field) b.wrecked = true;
+	// Called straight after spawning, while the stone thrower is idle.
+	const uint32_t cat = s->spawn_unit(cx, cz, 1, UNIT_CATAPULT);
+	s->petra_assign_bombers();
+	int32_t ci = s->lookup_unit(cat);
+	const bool empty_shelled = ci >= 0 && s->units_.order_kind[ci] == ORDER_ATTACK_BUILDING && s->units_.order_target[ci] == field;
+	CHECK(!empty_shelled, "an empty field (no gatherers) is not shelled");
+	// One enemy unit working the field makes it a target.
+	const uint32_t worker = s->spawn_unit(fx + 2.0f, fz + 2.0f, 0, UNIT_CATAPULT);
+	const int32_t wi = s->lookup_unit(worker);
+	if (wi >= 0) {
+		s->units_.action_state[wi] = ACTION_GATHER;
+		s->units_.target_resource_id[wi] = grain;
+	}
+	s->petra_assign_bombers();
+	ci = s->lookup_unit(cat);
+	const bool shelling = ci >= 0 && s->units_.order_kind[ci] == ORDER_ATTACK_BUILDING && s->units_.order_target[ci] == field;
+	std::printf("  bombers: idle stone thrower shells a field worked by an enemy: %s\n", shelling ? "yes" : "no");
+	CHECK(shelling, "a field with gatherers in enemy land is a bombing target");
+}
+
 static void test_assign_bombers() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -9363,6 +9430,10 @@ static void test_queued_dropsite_starts() {
 	// The poorer site is queued while it can't be paid for.
 	auto &dc = base_dropsite_check(*s);
 	dc = PetraDropsiteCheck{};
+	// The 10 m site above is queued in PETRA_Q_DROPSITES, and 0.28's balance check waits while any
+	// dropsite plan is queued (baseManager.js hasQueuedUnits). This test is about the poorer site
+	// alone, so the queue starts empty.
+	s->petra_queue_heads_ = {};
 	dc.used[0] = 60;
 	dc.lost[0] = 100; // ratio 0.625: past min(25, 12)
 	const int before = storehouses();
@@ -10953,6 +11024,7 @@ int main(int argc, char **argv) {
 	RUN(test_no_scout);
 	RUN(test_defenders_stop_hopeless_capture);
 	RUN(test_assign_bombers);
+	RUN(test_assign_bombers_fields);
 	RUN(test_cancel_attacks_on_peace);
 	RUN(test_builders_per_foundation);
 	RUN(test_new_base_builders);
