@@ -28889,6 +28889,9 @@ uint16_t Simulation::petra_plan_prep_sea(const AttackPlan &plan) const {
 	uint16_t naval_home = 0;
 	const PetraNavalTopo &topo = petra_classified_topo(naval_home);
 	if (!topo.naval_map) return 0;
+	// checkEvents clears the plan's overseas flag for good; it is not set again while the plan is
+	// unexecuted.
+	if (plan.overseas_cleared) return 0;
 	const PetraBase *pb = get_primary_petra_base();
 	if (!pb) return 0;
 	std::vector<uint16_t> ours;
@@ -28908,7 +28911,10 @@ uint16_t Simulation::petra_plan_prep_sea(const AttackPlan &plan) const {
 		uint16_t lands[8];
 		petra_lands_around(b.x, b.z, b.half_size, lands);
 		for (uint16_t l : lands)
-			if (l && std::find(ours.begin(), ours.end(), l) != ours.end()) return 0;
+			if (l && std::find(ours.begin(), ours.end(), l) != ours.end()) {
+				if (plan.state == AttackPlan::UNEXECUTED || plan.state == AttackPlan::MUSTER) plan.overseas_cleared = true;
+				return 0;
+			}
 		if (!sea) sea = petra_overseas(topo, pb->x, pb->z, b.id);
 	}
 	return sea;
@@ -29563,7 +29569,22 @@ void Simulation::petra_config_first_base() {
 	PetraNavalTopo topo = nav_grid_.cells.blank() ? PetraNavalTopo() : petra_topo();
 	const uint16_t land = nav_grid_.cells.blank() ? 0 : petra_building_land(*cc, &topo);
 	if (topo.sea_size.size() > 1) topo.classify(land);
-	const bool small_land = land && land < topo.land_size.size() && topo.cell_m2 * (float)topo.land_size[land] < 25000.0f;
+	// startingStrategy.js startingSize: every region holding a base anchor of ours counts once,
+	// so a start spread over several lands (the civic centre's and a colony's) sums them.
+	std::vector<uint16_t> anchor_lands;
+	if (!nav_grid_.cells.blank()) {
+		for (const Building &b : buildings_) {
+			if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked || b.build_progress < 1.0f) continue;
+			if (!is_civic_centre(b.type) && b.type != BLD_MILITARY_COLONY) continue;
+			const uint16_t l = &b == cc ? land : petra_building_land(b, &topo);
+			if (l && std::find(anchor_lands.begin(), anchor_lands.end(), l) == anchor_lands.end()) anchor_lands.push_back(l);
+		}
+	}
+	if (anchor_lands.empty() && land) anchor_lands.push_back(land);
+	float starting_m2 = 0.0f;
+	for (uint16_t l : anchor_lands)
+		if (l < topo.land_size.size()) starting_m2 += topo.cell_m2 * (float)topo.land_size[l];
+	const bool small_land = !anchor_lands.empty() && starting_m2 < 25000.0f;
 	const size_t nseas = topo.sea_size.size();
 	std::vector<int> fish(nseas, 0);
 	float food = petra_ps().food();
@@ -33907,6 +33928,9 @@ void Simulation::petra_retake_civic_centres() {
 		const Building &cc = buildings_[bit->second];
 		// Every army whose foes are within range gives its defenders and is dropped.
 		constexpr float RANGE = 150.0f * 0.28f;
+		// attackManager.js switchDefenseToAttack: a defender joins only if it has a position (not
+		// garrisoned or aboard), no plan, and stands on the target's land access (getLandAccess).
+		const uint16_t target_access = petra_access_at(cc.x, cc.z);
 		AttackPlan plan;
 		for (size_t a = 0; a < petra_defense_armies_.size(); ++a) {
 			float ax, az;
@@ -33915,7 +33939,8 @@ void Simulation::petra_retake_civic_centres() {
 			if (dx * dx + dz * dz > RANGE * RANGE) continue;
 			for (uint32_t uid : petra_defense_armies_[a].defender_ids) {
 				const int32_t i = lookup_unit(uid);
-				if (i < 0 || !units_.alive[i] || units_.action_state[i] == ACTION_GARRISONED) continue;
+				if (i < 0 || !units_.alive[i] || units_.action_state[i] == ACTION_GARRISONED || petra_aboard(uid)) continue;
+				if (target_access && petra_access_at(units_.pos_x[i], units_.pos_z[i]) != target_access) continue;
 				plan.squad.push_back(uid);
 			}
 			petra_defense_armies_.erase(petra_defense_armies_.begin() + (ptrdiff_t)a--);
@@ -35525,10 +35550,31 @@ void Simulation::petra_manage_transport(float dt) {
 	}
 }
 
+// Debugging only: RTS0_PETRA_DEBUG=1 prints a transport plan's state to stderr every 10 s of
+// plan time. Never saved or hashed, and it changes nothing the simulation computes.
+static bool petra_debug_transport() {
+	static const bool on = std::getenv("RTS0_PETRA_DEBUG") != nullptr;
+	return on;
+}
+
 void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt, std::vector<PetraReferry> &referry) {
+	const float prev_timer = tp.state_timer;
 	tp.state_timer += dt;
 
 	int32_t sidx = tp.ship_id ? lookup_unit(tp.ship_id) : -1;
+	if (petra_debug_transport() && sidx >= 0 && std::floor(tp.state_timer / 10.0f) != std::floor(prev_timer / 10.0f)) {
+		static const char *const names[] = {"IDLE", "BOARDING", "SAILING", "UNLOADING", "FAILED"};
+		const int st = (int)tp.state;
+		const float sx = units_.pos_x[sidx], sz = units_.pos_z[sidx];
+		std::fprintf(stderr,
+			"[petra-transport] t=%.0fs state=%s owner=%u sea=%u ship=%u at (%.1f,%.1f) action=%u aboard=%zu "
+			"drop=(%.1f,%.1f) land(ship)=%u land(drop)=%u pickup=(%.1f,%.1f) passengers=%zu\n",
+			(double)tp.state_timer, st >= 0 && st < 5 ? names[st] : "?", (unsigned)tp.owner, (unsigned)tp.sea,
+			(unsigned)tp.ship_id, (double)sx, (double)sz, (unsigned)units_.action_state[sidx],
+			get_transport_passenger_count(tp.ship_id), (double)tp.drop_x, (double)tp.drop_z,
+			(unsigned)petra_land_at(sx, sz), (unsigned)petra_land_at(tp.drop_x, tp.drop_z),
+			(double)tp.pickup_x, (double)tp.pickup_z, tp.passenger_ids.size());
+	}
 	if (sidx < 0 || !units_.alive[sidx] || (units_.unit_type[sidx] != UNIT_TRIREME && units_.unit_type[sidx] != UNIT_MERCHANT_SHIP)) {
 		// navalManager.checkEvents: a ship lost while boarding leaves the plan
 		// waiting for another (assignShipsToPlans). Lost at sea, its survivors (those it set
@@ -35845,7 +35891,10 @@ void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt, std::vec
 		sail_point(x, z);
 		const float dx = units_.pos_x[sidx] - x, dz = units_.pos_z[sidx] - z;
 		const bool stopped = units_.action_state[sidx] == ACTION_IDLE && tp.state_timer > 2.0f;
-		if (dx * dx + dz * dz <= 9.0f || stopped || tp.state_timer > 90.0f) {
+		// transportPlan.js onSailing unloads every passenger once the ship is within 25 m
+		// (dist < 625 m²) of its boarding point, not only once it reaches the water beside it.
+		// Units are 4 m, so 25 m is 6.25 units, 39.06 units².
+		if (dx * dx + dz * dz <= 39.0625f || stopped || tp.state_timer > 90.0f) {
 			if (unload()) return;
 			make_room();
 			tp.state = PetraTransportPlan::UNLOADING;
@@ -38713,7 +38762,8 @@ void Simulation::petra_change_diplomacy(uint8_t player, uint8_t stance) {
 // the player as their target, and every started attack on that player is aborted (its army
 // walks home).
 void Simulation::petra_cancel_attacks_against(uint8_t player) {
-	for (AttackPlan *p : {&petra_attack_plan_, &petra_next_plan_.plan}) {
+	// cancelAttacksAgainstPlayer clears targetPlayer on every upcoming plan, a raid preparing too.
+	for (AttackPlan *p : {&petra_attack_plan_, &petra_next_plan_.plan, &petra_raid_plan_}) {
 		if (p->target_player != player) continue;
 		p->target_player = 0xFF;
 		if (auto it = building_id_to_idx_.find(p->target_building_id);
@@ -40837,6 +40887,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 				if (v.path_x.size() != v.path_z.size()) ar.ok = false;
 		}
 		if (ar.version >= S::SAVE_VERSION_PETRA_BLOCKED) ar.pod(v.blocked);
+		if (ar.version >= S::SAVE_VERSION_PETRA_OVERSEAS_CLEARED) ar.pod(v.overseas_cleared);
 		if constexpr (Ar::loading)
 			if (v.state > S::AttackPlan::ABORT || (v.kind > PETRA_ATTACK_RAID && v.kind != PETRA_ATTACK_UNIQUE)) ar.ok = false;
 	};
