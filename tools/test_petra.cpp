@@ -1981,6 +1981,9 @@ static void test_garrison_emergency_unloads_first() {
 // when its ship is full (plans.sort with a one-argument comparator keeps the order); the full
 // ship then sends the unit to a new plan, not to a second plan that has room.
 static void test_transport_join_first_plan() {
+// navalManager.js seaTransportShips: a warship in a defense army is a transport ship too (the
+// two overlap), so the nearest free ship for a boarding plan is picked even when it defends.
+static void test_transport_ship_defender_pick() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
 	s->reset();
@@ -2008,6 +2011,16 @@ static void test_transport_join_first_plan() {
 	std::printf("  two boarding plans on this crossing, the first with a full ship: the unit joins %s\n",
 	            got == &s->petra_transports_[0] ? "the first plan" : got == &s->petra_transports_[1] ? "the second plan" : "no plan");
 	CHECK(got == &s->petra_transports_[0], "the unit joins the first boarding plan of the crossing, whether or not it has room");
+	const float x = 100.0f, z = 100.0f;
+	const uint32_t near_ship = s->spawn_unit(x + 10.0f, z, 1, UNIT_TRIREME);
+	const uint32_t far_ship = s->spawn_unit(x + 40.0f, z, 1, UNIT_TRIREME);
+	PetraDefenseArmy army;
+	army.defender_ids = {near_ship};
+	s->petra_defense_armies_.push_back(army);
+	const uint32_t pick = s->petra_free_transport_ship(0, x, z);
+	std::printf("  nearest free ship to a boarding point, the nearer one defending: picks %s\n",
+	            pick == near_ship ? "the defender" : pick == far_ship ? "the far ship" : "none");
+	CHECK(pick == near_ship, "a defending warship is a transport ship when it is the nearest free one");
 }
 
 // worker.js:325-345: a Petra builder that autocontinue sends from a finished house to a field
@@ -11095,6 +11108,7 @@ int main(int argc, char **argv) {
 	RUN(test_transport_join_first_plan);
 	RUN(test_garrison_attacked_full_by_slots);
 	RUN(test_garrison_emergency_unloads_first);
+	RUN(test_transport_ship_defender_pick);
 	RUN(test_house_builder_skips_field);
 	RUN(test_one_base_a_turn);
 	RUN(test_no_room_only_once_funded);
