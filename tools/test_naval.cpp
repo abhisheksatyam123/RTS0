@@ -980,6 +980,75 @@ static void test_petra_boarding_skip_drop() {
 
 // transportPlan.js onSailing: a ship within 25 m of its boarding point unloads its passengers,
 // even when it lies short of the water beside that point; a ship 40 m or more off does not.
+// transportPlan.js onBoarding (lines 375-389): a ship that stops short of its boarding point is sent
+// there again on each retry (nTry), and on every second one it picks another point. Here a retry
+// falls on every third 2 s check (6 s, against 0 A.D.'s 5 s). The ship is forced idle before each
+// check, as a ship that stopped short lies: its tries read 1, 2, 3 (sent to the same point), 4, 5 and
+// then 0 on the sixth (re-picked).
+static void test_petra_boarding_retry() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.spawn_building_world(20.0f, -30.0f, BLD_TOWN_CENTER, 0);
+	run(s, 2.0f);
+	s.petra_pid_ = 1;
+	auto [cx, cz] = s.nav_grid_.world_to_cell(0.0f, 0.0f);
+	const uint16_t sea = s.nav_grid_.global_region_at(cx, cz, PASS_SHIP);
+	const float bx = 20.0f, bz = -40.0f; // the beach the passenger waits on
+	// The water a boarding ship lies at beside this beach (petra_boarding_pos, as the unload test
+	// finds it). Units are 4 m. A ship in the sea more than 6.5 units off the beach is not ready to
+	// board, which needs it within 6 units (24 m).
+	const uint16_t land = s.petra_land_at(bx, bz);
+	float dx = 0.0f, dz = 0.0f;
+	CHECK(s.petra_boarding_pos(land, sea, 20.0f, 0.0f, bx, bz, false, dx, dz));
+	float wx = 0.0f, wz = 0.0f;
+	bool found = false;
+	for (float r = 4.0f; r <= 12.0f && !found; r += 0.25f)
+		for (float a = 0.0f; a < 6.2832f && !found; a += 0.2f) {
+			const float x = dx + r * std::cos(a), z = dz + r * std::sin(a);
+			const float ox = x - bx, oz = z - bz;
+			if (ox * ox + oz * oz <= 6.5f * 6.5f) continue;
+			auto [gx, gz] = s.nav_grid_.world_to_cell(x, z);
+			if (s.nav_grid_.global_region_at(gx, gz, PASS_SHIP) == sea) { wx = x; wz = z; found = true; }
+		}
+	CHECK(found);
+	const uint32_t ship = s.spawn_unit(wx, wz, 1, UNIT_TRIREME, 0.0f, tmpl_of("athen/ship_arrow"));
+	const uint32_t spear = s.spawn_unit(bx, bz, 1, UNIT_SPEARMAN);
+	const int32_t sidx = s.lookup_unit(ship);
+	CHECK(sidx >= 0);
+	PetraTransportPlan tp;
+	tp.owner = PETRA_TRANSPORT_BUILDERS;
+	tp.state = PetraTransportPlan::BOARDING;
+	tp.ship_id = ship;
+	tp.sea = sea;
+	tp.pickup_x = bx;
+	tp.pickup_z = bz;
+	tp.passenger_ids = {spear};
+	std::vector<PetraReferry> referry;
+	auto ship_tries = [&]() {
+		for (const auto &b : tp.boarding)
+			if (b.uid == ship) return b.tries;
+		return 999u;
+	};
+	std::vector<uint32_t> seen;
+	for (int k = 0; k < 5; ++k) {
+		s.units_.action_state[sidx] = ACTION_IDLE;
+		s.petra_step_transport(tp, 2.0f, referry);
+		seen.push_back(ship_tries());
+	}
+	// The first retry sends the ship to the same point: it is still the beach it was.
+	CHECK(tp.pickup_x == bx && tp.pickup_z == bz);
+	s.units_.action_state[sidx] = ACTION_IDLE;
+	s.petra_step_transport(tp, 2.0f, referry);
+	seen.push_back(ship_tries());
+	std::printf("Petra boarding retry: ship tries per check");
+	for (uint32_t t : seen) std::printf(" %u", t);
+	std::printf("\n");
+	CHECK((seen == std::vector<uint32_t>{1, 2, 3, 4, 5, 0}));
+	CHECK(tp.state == PetraTransportPlan::BOARDING);
+}
+
 static void test_petra_unload_radius() {
 	static Simulation s;
 	fresh(s);
@@ -3739,6 +3808,7 @@ int main() {
 	test_petra_attack_from_far_base();
 	test_petra_landing_spot();
 	test_petra_boarding_skip_drop();
+	test_petra_boarding_retry();
 	test_petra_unload_radius();
 	test_petra_overseas_cleared_sticky();
 	test_petra_cancel_clears_raid_target();
