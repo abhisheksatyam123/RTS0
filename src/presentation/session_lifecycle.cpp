@@ -232,7 +232,7 @@ void RtsoMain::_ready() {
 	top_hud_panel->set_offset(SIDE_LEFT, 12.0f);
 	top_hud_panel->set_offset(SIDE_RIGHT, -12.0f);
 	top_hud_panel->set_offset(SIDE_TOP, 8.0f);
-	top_hud_panel->set_offset(SIDE_BOTTOM, 54.0f);
+	top_hud_panel->set_offset(SIDE_BOTTOM, 44.0f); // 0.28 TopPanel.xml "-3 0 100%+3 36": a 36 px bar
 
 	Ref<StyleBoxFlat> top_style;
 	top_style.instantiate();
@@ -1657,8 +1657,7 @@ void RtsoMain::_refresh_menu_tooltip() {
 	};
 	top_panel_.set_dialog_tooltips(tip("session.gui.diplomacy.toggle", "Diplomacy"),
 			tip("session.gui.barter.toggle", "Barter & Trade"),
-			tip(rtso::hotkeys::table().get("session.gui.matchsettings.toggle") ? "session.gui.matchsettings.toggle" : "session.gui.objectives.toggle",
-					"Match Settings"));
+			tip("session.gui.matchsettings.toggle", "Match Settings"));
 }
 
 void RtsoMain::refresh_chat_tooltips() {

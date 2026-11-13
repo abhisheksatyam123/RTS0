@@ -626,6 +626,7 @@ Simulation::Simulation() {
 	unit_paths_.assign(UNIT_CAP, WaypointPath{});
 	nav_grid_.init(map_half_, grid_res_);
 	++nav_terrain_stamp_;
+	++nav_access_stamp_;
 	// Default civ per slot (game setup overrides via set_team_civ). Slots 0-3 keep the legacy
 	// player_civ_[4] defaults; teams start free-for-all (each player its own team).
 	static constexpr Civilization kDefaultCivs[MAX_PLAYERS] = {
@@ -659,6 +660,7 @@ void Simulation::set_map_half(float h) {
 	nav_grid_.init(map_half_, grid_res_);
 	note_tree_edit(); // C5 step 2: init cleared tree_sub; trees alive on this call are masked at the next read
 	++nav_terrain_stamp_;
+	++nav_access_stamp_;
 	territory_grid_.clear();
 	influence_grid_.clear();
 	territory_tiles_.fill(0); // the cleared grid's (rebuild_territory_grids counts them)
@@ -871,6 +873,7 @@ void Simulation::reset() {
 	search_memo_.clear(); // the last game's searches (reset() also re-inits the nav grid)
 	nav_grid_.init(map_half_, grid_res_);
 	++nav_terrain_stamp_;
+	++nav_access_stamp_;
 	territory_grid_.clear();
 	influence_grid_.clear();
 	territory_tiles_.fill(0); // the cleared grid's (rebuild_territory_grids counts them)
@@ -2858,16 +2861,24 @@ void Simulation::rebuild_nav_grid() {
 	// Precise dirty bits: diff new cells vs snapshot (covers placements,
 	// completions AND demolitions). Falls back to full remesh only when the
 	// grid was freshly initialised (no snapshot to diff against).
+	// petra_access_at keys on nav_access_stamp_: a rebuild that leaves every navcell as it was
+	// cannot change the access map (its inputs are the cells, the steep flags and the water classes,
+	// which do not change in a match), so only a rebuild that changed a cell bumps it.
+	bool cells_changed = true;
 	if (have_old && old_cells.size() == nav_grid_.cells.data.size()) {
+		cells_changed = false;
 		for (size_t i = 0; i < nav_grid_.cells.data.size(); ++i)
-			if (nav_grid_.cells.data[i] != old_cells[i])
+			if (nav_grid_.cells.data[i] != old_cells[i]) {
 				nav_grid_.dirty.data[i] = 1;
+				cells_changed = true;
+			}
 	} else if (!nav_grid_.dirty.blank()) {
 		nav_grid_.dirty.fill(1);
 	}
 	sync_tile_obstructions(true);
 	nav_grid_.rebuild_dirty_regions();
 	++nav_terrain_stamp_;
+	if (cells_changed) ++nav_access_stamp_;
 }
 
 namespace {
@@ -28727,8 +28738,8 @@ uint16_t Simulation::petra_access_at(float x, float z) const {
 	const int nres = nav_grid_.res, tw = nav_grid_.steep_tile_res();
 	const int res = tw > 0 ? tw : nres;
 	const float half = nav_grid_.map_half, cell = 2.0f * half / (float)res;
-	if (a.stamp != nav_terrain_stamp_ || a.res != res) {
-		a.stamp = nav_terrain_stamp_;
+	if (a.stamp != nav_access_stamp_ || a.res != res) {
+		a.stamp = nav_access_stamp_;
 		const auto &wc = nav_grid_.height_cache_;
 		const bool water_known = wc.water_valid && wc.water.size() == (size_t)nres * nres;
 		const float per = (float)nres / (float)res;
@@ -30387,7 +30398,15 @@ void Simulation::petra_check_resource_levels(int32_t turn) {
 		if (petra_start_queued_dropsite((uint8_t)(dc.pending - 1), at, &bmap, (int)a + 1)) dc.pending = 0;
 		return;
 	}
-	bool foundation = false;
+	// worker-side gate in baseManager.js: "queues.dropsites.hasQueuedUnits() || a storehouse
+	// foundation" resets every base's counts and next check. A dropsite plan is queued while its
+	// want is still asking (the queue head, PETRA_Q_DROPSITES) or while a base holds a site it has
+	// not paid for yet (dc.pending, the queued ConstructionPlan of 0.28).
+	const PetraQueueHeads &qh = petra_queue_heads_;
+	bool foundation = qh.item[PETRA_Q_DROPSITES] != 0 &&
+	                  qh.age[PETRA_Q_DROPSITES] <= PetraQueueManager::want_ttl(PETRA_Q_DROPSITES);
+	for (const auto &c : checks)
+		if (c.check.pending) { foundation = true; break; }
 	for (const Building &b : buildings_)
 		if (b.team == petra_pid_ && b.type == BLD_STOREHOUSE && b.hp > 0.0f && b.build_progress < 1.0f) { foundation = true; break; }
 	// gatherersByType per base: our gatherers by the resource they carry, in the base of their supply.
@@ -32839,6 +32858,10 @@ void Simulation::petra_assign_bombers() {
 	std::unordered_map<uint32_t, int> bombing;
 	for (size_t i = 0; i < units_.count; ++i)
 		if (bomber(i) && units_.order_kind[i] == ORDER_ATTACK_BUILDING && units_.order_target[i] != 0) ++bombing[units_.order_target[i]];
+	// ResourceSupply.numGatherers of each resource: the units working it now (a field's count).
+	std::unordered_map<uint32_t, int> working;
+	for (size_t i = 0; i < units_.count; ++i)
+		if (units_.alive[i] && units_.action_state[i] == ACTION_GATHER && units_.target_resource_id[i] != 0) ++working[units_.target_resource_id[i]];
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!bomber(i) || units_.action_state[i] != ACTION_IDLE || units_.has_order[i] || units_.attack_range[i] <= 0.0f) continue;
 		const uint32_t uid = units_.id[i];
@@ -32847,14 +32870,22 @@ void Simulation::petra_assign_bombers() {
 		const float ux = units_.pos_x[i], uz = units_.pos_z[i];
 		const uint16_t land = petra_land_at(ux, uz);
 		for (const Building &b : buildings_) {
-			if (b.wrecked || b.hp <= 0.0f || !petra_foe(b.team) || b.type == BLD_FIELD) continue;
+			if (b.wrecked || b.hp <= 0.0f || !petra_foe(b.team)) continue;
 			if (!can_attack(petra_pid_, b.team) || !unit_can_target_building(i, b.type)) continue;
+			// attackManager.js:207-212: a field is a target only while gatherers work it and it
+			// stands in enemy land (0 A.D.'s stone thrower has no restriction against fields).
+			if (b.type == BLD_FIELD) {
+				const uint32_t grain = field_resource_id(b.id);
+				const auto w = grain ? working.find(grain) : working.end();
+				if (w == working.end() || w->second <= 0 || !petra_foe(territory_owner_at(b.x, b.z))) continue;
+			}
 			const float dist = det::hypot(b.x - ux, b.z - uz);
 			float px = ux, pz = uz;
 			if (dist > range) {
 				const float safety = det::hypot(b.half_size, b.half_d) + 30.0f * 0.28f;
 				const int owner = territory_owner_at(b.x + (ux - b.x) * safety / dist, b.z + (uz - b.z) * safety / dist);
-				if (petra_foe(owner)) continue;
+				// attackManager.js:220: owner != 0 && isPlayerEnemy(owner): unowned land is no bar.
+				if (owner > 0 && petra_foe(owner)) continue;
 				px = b.x + (ux - b.x) * range / dist;
 				pz = b.z + (uz - b.z) * range / dist;
 				if (territory_owner_at(px, pz) != petra_pid_ || petra_land_at(px, pz) != land) continue;
@@ -35915,6 +35946,42 @@ void Simulation::petra_bases_map(PetraBasesMap &m) const {
 	m.x1 = m.z1 = -1;
 	m.base.clear();
 	if (m.anchors.empty()) return;
+	// The map is a function of the anchors (above), the territory grid, the tile claims, the nav grid
+	// (petra_access_at reads it, through nav_terrain_stamp_), the AI's player and its naval class. When
+	// all of them match the last call's, that call's result is the same, so it is copied. Callers
+	// within a turn ask for the same map many times over.
+	PetraBasesCache &cache = petra_bases_cache_;
+	{
+		const auto &ca = cache.anchors;
+		bool same = cache.valid && cache.pid == (int)petra_pid_ && cache.stamp == nav_terrain_stamp_ &&
+				cache.naval == m.naval && cache.tile_w == petra_tile_bases_.w && ca.size() == m.anchors.size() &&
+				cache.territory == territory_grid_.data && cache.tile_anchor == petra_tile_bases_.anchor;
+		for (size_t a = 0; same && a < ca.size(); ++a)
+			same = ca[a].x == m.anchors[a].x && ca[a].z == m.anchors[a].z && ca[a].land == m.anchors[a].land &&
+					ca[a].id == m.anchors[a].id;
+		if (same) {
+			m = cache.out;
+			return;
+		}
+	}
+	// Stores the map worked out below on the way out, whichever return it takes. The inputs are the
+	// ones checked above: nothing here changes them.
+	struct Store {
+		PetraBasesCache &c;
+		const PetraBasesMap &m;
+		const Simulation &s;
+		~Store() {
+			c.valid = true;
+			c.pid = (int)s.petra_pid_;
+			c.stamp = s.nav_terrain_stamp_;
+			c.naval = m.naval;
+			c.anchors = m.anchors;
+			c.territory = s.territory_grid_.data;
+			c.tile_w = s.petra_tile_bases_.w;
+			c.tile_anchor = s.petra_tile_bases_.anchor;
+			c.out = m;
+		}
+	} store{cache, m, *this};
 	auto centre = [&](int i) { return ((float)i + 0.5f) * GRID - map_half_; };
 	// territory_owner_at(centre(ix), centre(iz)), with each column's and row's territory tile
 	// worked out once (by its own expression, so to the same tile) instead of on every call.
@@ -38491,6 +38558,12 @@ void Simulation::petra_manage_diplomacy(float dt) {
 	// checkRequestedTributes: warn once after 60 s, drop the offer 60 s later.
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
 		PetraReceivedRequest &req = dip.received[p];
+		// DiplomacyManager PlayerDefeated: a defeated player's requests are dropped unanswered.
+		if (is_defeated(p)) {
+			req = PetraReceivedRequest{};
+			petra_tribute_request_wanted_[p][me] = 0;
+			continue;
+		}
 		if (req.status != PetraReceivedRequest::WAITING_FOR_TRIBUTE || dip.elapsed < req.warn_time) continue;
 		if (req.sent_warning) {
 			const uint8_t type = req.type;
@@ -38541,6 +38614,7 @@ void Simulation::petra_manage_diplomacy(float dt) {
 				petra_send_diplomacy_request();
 		}
 		for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
+			if (is_defeated(p)) { sd.sent_type[p] = 0; continue; } // PlayerDefeated: the sent request goes too
 			if (!sd.sent_type[p] || dip.elapsed <= sd.sent_time[p] + 60.0f || pop_current(me) <= 70 ||
 			    petra_attack_mgr_.save_resources) continue;
 			petra_say(PETRA_CHAT_REQUEST_EXPIRED, p, p, sd.sent_type[p] == 1 ? 0 : 1);
@@ -40172,6 +40246,7 @@ bool Simulation::load_state(const char *filepath) {
 	// that had steep tiles; a client joins with the map its own Game Setup built.
 	nav_grid_.init(map_half_, grid_res_);
 	++nav_terrain_stamp_;
+	++nav_access_stamp_;
 	// The supplies' subtypes and flora come with the tick state, after the supplies themselves: the
 	// trees' and bushes' signature is worked out afresh from all of it (sync_tile_obstructions).
 	tile_gaia_sig_ = 0;

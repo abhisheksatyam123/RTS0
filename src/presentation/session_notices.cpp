@@ -382,7 +382,24 @@ void RtsoMain::play_inspected_select() {
 		}
 		break;
 	}
-	case RtsoInspectorView::INSPECT_TREASURE: session_audio_.play_group("interface/select/building", "sel_universal"); break;
+	case RtsoInspectorView::INSPECT_TREASURE: {
+		// 0.28 gaia/treasure templates naming a select group: metal, metal_persian_* sel_metal; stone,
+		// standing_stone sel_stone; wood sel_tree. The rest inherit sel_universal (food has none).
+		// A treasure outside the sim's list (a fogged mirage) keeps sel_universal.
+		uint8_t type = rtso::TREASURE_TYPE_COUNT;
+		for (const auto &t : sim->treasures())
+			if (t.id == id) { type = t.type; break; }
+		switch (type) {
+		case rtso::TREASURE_METAL: case rtso::TREASURE_METAL_PERSIAN_BIG: case rtso::TREASURE_METAL_PERSIAN_SMALL:
+			session_audio_.play_group("interface/select/resource", "sel_metal"); break;
+		case rtso::TREASURE_STONE: case rtso::TREASURE_STANDING_STONE:
+			session_audio_.play_group("interface/select/resource", "sel_stone"); break;
+		case rtso::TREASURE_WOOD:
+			session_audio_.play_group("interface/select/resource", "sel_tree"); break;
+		default: session_audio_.play_group("interface/select/building", "sel_universal"); break;
+		}
+		break;
+	}
 	case RtsoInspectorView::INSPECT_FAUNA: {
 		auto fv = sim->fauna();
 		for (size_t f = 0; f < fv.count; ++f)

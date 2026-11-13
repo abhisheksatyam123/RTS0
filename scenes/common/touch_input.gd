@@ -59,6 +59,10 @@ var _mods := {KEY_SHIFT: false, KEY_CTRL: false, KEY_ALT: false}
 func _ready() -> void:
 	if OS.has_feature("mobile") or "--touch-input" in OS.get_cmdline_user_args() or DisplayServer.is_touchscreen_available():
 		activate()
+		# Phones get a larger UI so menu buttons are easier to hit (touch_ui_scale.gd).
+		var TouchUiScale := preload("res://scenes/common/touch_ui_scale.gd")
+		var size := get_viewport().get_visible_rect().size
+		TouchUiScale.apply(get_tree().root, minf(size.x / 1280.0, size.y / 720.0), true)
 	else:
 		set_process(false)
 		set_process_input(false)
