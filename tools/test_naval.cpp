@@ -996,11 +996,11 @@ static void test_petra_boarding_retry() {
 	auto [cx, cz] = s.nav_grid_.world_to_cell(0.0f, 0.0f);
 	const uint16_t sea = s.nav_grid_.global_region_at(cx, cz, PASS_SHIP);
 	const float bx = 20.0f, bz = -40.0f; // the beach the passenger waits on
-	// Units are 4 m. A water cell 10-12 units (40-48 m) off the beach: a ship there is not ready to
+	// Units are 4 m. A water cell 7-16 units (28-64 m) off the beach: a ship there is not ready to
 	// board, which needs it within 6 units (24 m).
 	float wx = 0.0f, wz = 0.0f;
 	bool found = false;
-	for (float r = 10.0f; r <= 12.0f && !found; r += 0.25f)
+	for (float r = 7.0f; r <= 16.0f && !found; r += 0.25f)
 		for (float a = 0.0f; a < 6.2832f && !found; a += 0.2f) {
 			const float x = bx + r * std::cos(a), z = bz + r * std::sin(a);
 			auto [gx, gz] = s.nav_grid_.world_to_cell(x, z);
