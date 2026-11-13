@@ -21188,6 +21188,10 @@ void Simulation::spawn_regicide_heroes() {
 			}
 			if (regicide_hero_[p]) break;
 		}
+		// victoryManager.js init: the hero's starting stance by class, a Soldier aggressive and
+		// any other hero passive. Set now, not left to the first victory update.
+		if (const int32_t h = regicide_hero_[p] ? lookup_unit(regicide_hero_[p]) : -1; h >= 0)
+			units_.stance[h] = (unit_classes_at((size_t)h) & TC_SOLDIER) ? STANCE_AGGRESSIVE : STANCE_PASSIVE;
 	}
 }
 
