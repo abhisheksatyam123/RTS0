@@ -996,13 +996,19 @@ static void test_petra_boarding_retry() {
 	auto [cx, cz] = s.nav_grid_.world_to_cell(0.0f, 0.0f);
 	const uint16_t sea = s.nav_grid_.global_region_at(cx, cz, PASS_SHIP);
 	const float bx = 20.0f, bz = -40.0f; // the beach the passenger waits on
-	// Units are 4 m. A water cell 7-16 units (28-64 m) off the beach: a ship there is not ready to
+	// The water a boarding ship lies at beside this beach (petra_boarding_pos, as the unload test
+	// finds it). Units are 4 m. A ship in the sea more than 6.5 units off the beach is not ready to
 	// board, which needs it within 6 units (24 m).
+	const uint16_t land = s.petra_land_at(bx, bz);
+	float dx = 0.0f, dz = 0.0f;
+	CHECK(s.petra_boarding_pos(land, sea, 20.0f, 0.0f, bx, bz, false, dx, dz));
 	float wx = 0.0f, wz = 0.0f;
 	bool found = false;
-	for (float r = 7.0f; r <= 16.0f && !found; r += 0.25f)
+	for (float r = 4.0f; r <= 12.0f && !found; r += 0.25f)
 		for (float a = 0.0f; a < 6.2832f && !found; a += 0.2f) {
-			const float x = bx + r * std::cos(a), z = bz + r * std::sin(a);
+			const float x = dx + r * std::cos(a), z = dz + r * std::sin(a);
+			const float ox = x - bx, oz = z - bz;
+			if (ox * ox + oz * oz <= 6.5f * 6.5f) continue;
 			auto [gx, gz] = s.nav_grid_.world_to_cell(x, z);
 			if (s.nav_grid_.global_region_at(gx, gz, PASS_SHIP) == sea) { wx = x; wz = z; found = true; }
 		}
