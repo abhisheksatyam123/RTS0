@@ -35849,17 +35849,20 @@ void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt, std::vec
 		} else if (tp.state_timer < 0.0f) {
 			tp.state_timer = 0.0f;
 		}
-		// transportPlan.js onBoarding waits for every passenger. RTS0 still sails after 120 s at
-		// the beach with whoever made it aboard, so a passenger that can never reach the ship
-		// without standing still (circling a building) can't hold the plan for good.
-		if (tp.state_timer > 120.0f) {
-			if (aboard == 0) {
+		// transportPlan.js onBoarding waits for every passenger (no sailing with whoever made it
+		// aboard). A plan left with no one to carry, aboard or still walking (all destroyed or
+		// dead), ends: the ship is freed and the plan has no units (update returns 0).
+		{
+			bool any_left = false;
+			for (uint32_t uid : tp.passenger_ids) {
+				const int32_t u = lookup_unit(uid);
+				if (u >= 0 && units_.alive[u]) { any_left = true; break; }
+			}
+			if (!any_left && aboard == 0) {
 				tp.state = PetraTransportPlan::FAILED;
 				tp.failed = true;
 				return;
 			}
-			sail(); // with whoever made it aboard
-			return;
 		}
 		// Every 2 s, a passenger standing where it stood beside a waiting ship is blocked
 		// (nTry): it walks 30-35 m off on its second try and leaves the plan after its fifth
