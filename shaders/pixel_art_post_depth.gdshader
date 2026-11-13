@@ -23,8 +23,9 @@ void vertex() {
 }
 
 // Reversed depth (1 at the near plane), as Godot's forward renderers store it.
-float linear_depth(vec2 uv) {
-	float d = texture(depth_texture, uv).r;
+// Takes the sampled depth, not the sampler: Godot's generators declare the hint texture
+// after user functions, so sampling inside a helper fails to compile.
+float linear_depth(float d) {
 	return cam_near * cam_far / (cam_near + d * (cam_far - cam_near));
 }
 
@@ -32,12 +33,12 @@ void fragment() {
 	vec2 texel = 1.0 / VIEWPORT_SIZE;
 	vec2 offsets[4] = vec2[4](vec2(-1.0, 0.0), vec2(1.0, 0.0), vec2(0.0, -1.0), vec2(0.0, 1.0));
 
-	float center_depth = max(linear_depth(SCREEN_UV), 0.001);
+	float center_depth = max(linear_depth(texture(depth_texture, SCREEN_UV).r), 0.001);
 	// No outline beyond max_outline_distance (no early return in fragment() in Godot 4.3).
 	float in_range = step(center_depth, max_outline_distance);
 	float depth_diff = 0.0;
 	for (int i = 0; i < 4; i++) {
-		float gap = (linear_depth(SCREEN_UV + offsets[i] * texel) - center_depth) / center_depth;
+		float gap = (linear_depth(texture(depth_texture, SCREEN_UV + offsets[i] * texel).r) - center_depth) / center_depth;
 		depth_diff += clamp(gap, 0.0, 1.0);
 	}
 	float outer = smoothstep(depth_threshold * 0.5, depth_threshold * 1.5, depth_diff) * in_range;
