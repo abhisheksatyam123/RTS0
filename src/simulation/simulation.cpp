@@ -29565,7 +29565,22 @@ void Simulation::petra_config_first_base() {
 	PetraNavalTopo topo = nav_grid_.cells.blank() ? PetraNavalTopo() : petra_topo();
 	const uint16_t land = nav_grid_.cells.blank() ? 0 : petra_building_land(*cc, &topo);
 	if (topo.sea_size.size() > 1) topo.classify(land);
-	const bool small_land = land && land < topo.land_size.size() && topo.cell_m2 * (float)topo.land_size[land] < 25000.0f;
+	// startingStrategy.js startingSize: every region holding a base anchor of ours counts once,
+	// so a start spread over several lands (the civic centre's and a colony's) sums them.
+	std::vector<uint16_t> anchor_lands;
+	if (!nav_grid_.cells.blank()) {
+		for (const Building &b : buildings_) {
+			if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked || b.build_progress < 1.0f) continue;
+			if (!is_civic_centre(b.type) && b.type != BLD_MILITARY_COLONY) continue;
+			const uint16_t l = &b == cc ? land : petra_building_land(b, &topo);
+			if (l && std::find(anchor_lands.begin(), anchor_lands.end(), l) == anchor_lands.end()) anchor_lands.push_back(l);
+		}
+	}
+	if (anchor_lands.empty() && land) anchor_lands.push_back(land);
+	float starting_m2 = 0.0f;
+	for (uint16_t l : anchor_lands)
+		if (l < topo.land_size.size()) starting_m2 += topo.cell_m2 * (float)topo.land_size[l];
+	const bool small_land = !anchor_lands.empty() && starting_m2 < 25000.0f;
 	const size_t nseas = topo.sea_size.size();
 	std::vector<int> fish(nseas, 0);
 	float food = petra_ps().food();
