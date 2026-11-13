@@ -28885,6 +28885,9 @@ uint16_t Simulation::petra_plan_prep_sea(const AttackPlan &plan) const {
 	uint16_t naval_home = 0;
 	const PetraNavalTopo &topo = petra_classified_topo(naval_home);
 	if (!topo.naval_map) return 0;
+	// checkEvents clears the plan's overseas flag for good; it is not set again while the plan is
+	// unexecuted.
+	if (plan.overseas_cleared) return 0;
 	const PetraBase *pb = get_primary_petra_base();
 	if (!pb) return 0;
 	std::vector<uint16_t> ours;
@@ -28904,7 +28907,10 @@ uint16_t Simulation::petra_plan_prep_sea(const AttackPlan &plan) const {
 		uint16_t lands[8];
 		petra_lands_around(b.x, b.z, b.half_size, lands);
 		for (uint16_t l : lands)
-			if (l && std::find(ours.begin(), ours.end(), l) != ours.end()) return 0;
+			if (l && std::find(ours.begin(), ours.end(), l) != ours.end()) {
+				if (plan.state == AttackPlan::UNEXECUTED || plan.state == AttackPlan::MUSTER) plan.overseas_cleared = true;
+				return 0;
+			}
 		if (!sea) sea = petra_overseas(topo, pb->x, pb->z, b.id);
 	}
 	return sea;
@@ -29572,7 +29578,22 @@ void Simulation::petra_config_first_base() {
 	PetraNavalTopo topo = nav_grid_.cells.blank() ? PetraNavalTopo() : petra_topo();
 	const uint16_t land = nav_grid_.cells.blank() ? 0 : petra_building_land(*cc, &topo);
 	if (topo.sea_size.size() > 1) topo.classify(land);
-	const bool small_land = land && land < topo.land_size.size() && topo.cell_m2 * (float)topo.land_size[land] < 25000.0f;
+	// startingStrategy.js startingSize: every region holding a base anchor of ours counts once,
+	// so a start spread over several lands (the civic centre's and a colony's) sums them.
+	std::vector<uint16_t> anchor_lands;
+	if (!nav_grid_.cells.blank()) {
+		for (const Building &b : buildings_) {
+			if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked || b.build_progress < 1.0f) continue;
+			if (!is_civic_centre(b.type) && b.type != BLD_MILITARY_COLONY) continue;
+			const uint16_t l = &b == cc ? land : petra_building_land(b, &topo);
+			if (l && std::find(anchor_lands.begin(), anchor_lands.end(), l) == anchor_lands.end()) anchor_lands.push_back(l);
+		}
+	}
+	if (anchor_lands.empty() && land) anchor_lands.push_back(land);
+	float starting_m2 = 0.0f;
+	for (uint16_t l : anchor_lands)
+		if (l < topo.land_size.size()) starting_m2 += topo.cell_m2 * (float)topo.land_size[l];
+	const bool small_land = !anchor_lands.empty() && starting_m2 < 25000.0f;
 	const size_t nseas = topo.sea_size.size();
 	std::vector<int> fish(nseas, 0);
 	float food = petra_ps().food();
@@ -33916,6 +33937,9 @@ void Simulation::petra_retake_civic_centres() {
 		const Building &cc = buildings_[bit->second];
 		// Every army whose foes are within range gives its defenders and is dropped.
 		constexpr float RANGE = 150.0f * 0.28f;
+		// attackManager.js switchDefenseToAttack: a defender joins only if it has a position (not
+		// garrisoned or aboard), no plan, and stands on the target's land access (getLandAccess).
+		const uint16_t target_access = petra_access_at(cc.x, cc.z);
 		AttackPlan plan;
 		for (size_t a = 0; a < petra_defense_armies_.size(); ++a) {
 			float ax, az;
@@ -33924,7 +33948,8 @@ void Simulation::petra_retake_civic_centres() {
 			if (dx * dx + dz * dz > RANGE * RANGE) continue;
 			for (uint32_t uid : petra_defense_armies_[a].defender_ids) {
 				const int32_t i = lookup_unit(uid);
-				if (i < 0 || !units_.alive[i] || units_.action_state[i] == ACTION_GARRISONED) continue;
+				if (i < 0 || !units_.alive[i] || units_.action_state[i] == ACTION_GARRISONED || petra_aboard(uid)) continue;
+				if (target_access && petra_access_at(units_.pos_x[i], units_.pos_z[i]) != target_access) continue;
 				plan.squad.push_back(uid);
 			}
 			petra_defense_armies_.erase(petra_defense_armies_.begin() + (ptrdiff_t)a--);
@@ -33943,6 +33968,18 @@ void Simulation::petra_retake_civic_centres() {
 		order_attack_move(plan.squad.data(), plan.squad.size(), cc.x, cc.z, false, false, true, petra_attack_avoid(plan, false));
 		petra_started_attacks_.push_back(std::move(plan));
 	}
+}
+
+// assignDefenders (defenseManager.js:430-450) skips a unit whose plan subrole is completing,
+// walking or attacking. A unit still mustering (its plan set, not yet completing or started) may
+// be drafted; drafting takes it out of its plan (petra_leave_mustering).
+bool Simulation::petra_in_busy_plan(uint32_t uid) const {
+	const auto has = [uid](const std::vector<uint32_t> &sq) { return std::find(sq.begin(), sq.end(), uid) != sq.end(); };
+	for (const AttackPlan *p : {&petra_attack_plan_, &petra_next_plan_.plan, &petra_raid_plan_})
+		if ((p->completing || (p->state != AttackPlan::UNEXECUTED && p->state != AttackPlan::MUSTER)) && has(p->squad)) return true;
+	for (const AttackPlan &p : petra_started_attacks_)
+		if (has(p.squad)) return true;
+	return false;
 }
 
 bool Simulation::petra_in_attack_squad(uint32_t uid) const {
@@ -34733,8 +34770,10 @@ void Simulation::petra_refresh_queue_accounts(float dt) {
 	};
 
 	const bool wood_starved = petra_wood_starved();
-	// distributeResources, one resource at a time.
-	auto distribute = [&](float PetraQueueAccount::*field, float total) {
+	// distributeResources, one resource at a time. The cap an account is funded to is the next
+	// plan's cost plus 60% of the plan after it (queue.js maxAccountWanted(gameState, 0.6)), and a
+	// queue whose account covers its next plan has its priority halved.
+	auto distribute = [&](float PetraQueueAccount::*field, float PetraQueuePlan::*pfield, float total) {
 		// petra_wood_starved (RTS0): the wood goes to what petra_wood_kept_for names only.
 		auto kept_out = [&](int j) {
 			return wood_starved && field == &PetraQueueAccount::wood && !petra_wood_kept_for(j);
@@ -34773,26 +34812,34 @@ void Simulation::petra_refresh_queue_accounts(float dt) {
 		}
 		// Queues short of their next item's cost share what is free by priority, each up to
 		// what it misses; an account over its queue's cost gives the excess back first.
-		int total_prio = 0;
-		int temp_prio[PETRA_Q_COUNT] = {};
+		float total_prio = 0.0f;
+		float temp_prio[PETRA_Q_COUNT] = {};
 		float max_need[PETRA_Q_COUNT] = {};
 		for (int j = 0; j < PETRA_Q_COUNT; ++j) {
-			const float cost = qm.paused[j] || kept_out(j) ? 0.0f : qm.wants[j].*field;
+			const PetraQueuePlan &next = qm.plans[j][1];
+			const PetraQueuePlan &head = qm.plans[j][0];
+			// queue.js maxAccountWanted: the head's cost plus 60% of the plan after it.
+			float cost = qm.wants[j].*field;
+			if (next.go) cost += 0.6f * (next.*pfield);
+			if (qm.paused[j] || kept_out(j)) cost = 0.0f;
 			if (has_plan(j) && !qm.paused[j] && !kept_out(j) && qm.accounts[j].*field < cost) {
-				temp_prio[j] = prio[j];
+				temp_prio[j] = (float)prio[j];
+				// queue.js: once the account covers the next plan, the queue's priority halves.
+				if (head.go && qm.accounts[j].*field >= head.*pfield) temp_prio[j] /= 2.0f;
 				max_need[j] = cost - qm.accounts[j].*field;
-				total_prio += temp_prio[j];
+				if (temp_prio[j] > 0.0f) total_prio += temp_prio[j];
+				else temp_prio[j] = 0.0f;
 			} else if (qm.accounts[j].*field > cost) {
 				available += qm.accounts[j].*field - cost;
 				qm.accounts[j].*field = cost;
 			}
 		}
-		if (total_prio == 0) return;
+		if (total_prio <= 0.0f) return;
 		float left = available;
 		bool missing = false;
 		for (int j = 0; j < PETRA_Q_COUNT; ++j) {
-			if (!temp_prio[j]) continue;
-			float add = std::floor(available * (float)temp_prio[j] / (float)total_prio);
+			if (temp_prio[j] <= 0.0f) continue;
+			float add = std::floor(available * temp_prio[j] / total_prio);
 			if (add >= max_need[j]) add = max_need[j];
 			else missing = true;
 			qm.accounts[j].*field += add;
@@ -34801,16 +34848,16 @@ void Simulation::petra_refresh_queue_accounts(float dt) {
 		}
 		if (missing && left > 0.0f) // what the floors left goes to any queue still short
 			for (int j = 0; j < PETRA_Q_COUNT && left > 0.0f; ++j) {
-				if (!temp_prio[j]) continue;
+				if (temp_prio[j] <= 0.0f) continue;
 				const float add = std::min(max_need[j], left);
 				qm.accounts[j].*field += add;
 				left -= add;
 			}
 	};
-	distribute(&PetraQueueAccount::food, petra_ps().food());
-	distribute(&PetraQueueAccount::wood, petra_ps().wood());
-	distribute(&PetraQueueAccount::gold, petra_ps().gold());
-	distribute(&PetraQueueAccount::stone, petra_ps().stone());
+	distribute(&PetraQueueAccount::food, &PetraQueuePlan::food, petra_ps().food());
+	distribute(&PetraQueueAccount::wood, &PetraQueuePlan::wood, petra_ps().wood());
+	distribute(&PetraQueueAccount::gold, &PetraQueuePlan::gold, petra_ps().gold());
+	distribute(&PetraQueueAccount::stone, &PetraQueuePlan::stone, petra_ps().stone());
 }
 
 // headquarters.js buildMarket: put what is available into this queue's account, then take
@@ -34946,8 +34993,13 @@ bool Simulation::petra_try_pay(uint8_t queue, float food, float wood, float gold
 		w.food = std::max(w.food, food); w.wood = std::max(w.wood, wood);
 		w.gold = std::max(w.gold, gold); w.stone = std::max(w.stone, stone);
 		qm.want_age[queue] = 0.0f;
-		// The head plan is the item this check is for (queue.js plans[0]).
-		qm.plans[queue][0] = PetraQueuePlan{food, wood, gold, stone, 1, {}};
+		// The item this check is for: the head (queue.js plans[0]), or, while a different head
+		// waits, the next plan the queue holds (plans[1], queue.js maxAccountWanted's second cost).
+		const PetraQueuePlan req{food, wood, gold, stone, 1, {}};
+		PetraQueuePlan &head = qm.plans[queue][0];
+		const bool same_head = head.food == req.food && head.wood == req.wood && head.gold == req.gold && head.stone == req.stone;
+		if (head.go && !same_head) qm.plans[queue][1] = req;
+		else head = req;
 		return false;
 	}
 	if (!pay) return true;
@@ -35534,10 +35586,31 @@ void Simulation::petra_manage_transport(float dt) {
 	}
 }
 
+// Debugging only: RTS0_PETRA_DEBUG=1 prints a transport plan's state to stderr every 10 s of
+// plan time. Never saved or hashed, and it changes nothing the simulation computes.
+static bool petra_debug_transport() {
+	static const bool on = std::getenv("RTS0_PETRA_DEBUG") != nullptr;
+	return on;
+}
+
 void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt, std::vector<PetraReferry> &referry) {
+	const float prev_timer = tp.state_timer;
 	tp.state_timer += dt;
 
 	int32_t sidx = tp.ship_id ? lookup_unit(tp.ship_id) : -1;
+	if (petra_debug_transport() && sidx >= 0 && std::floor(tp.state_timer / 10.0f) != std::floor(prev_timer / 10.0f)) {
+		static const char *const names[] = {"IDLE", "BOARDING", "SAILING", "UNLOADING", "FAILED"};
+		const int st = (int)tp.state;
+		const float sx = units_.pos_x[sidx], sz = units_.pos_z[sidx];
+		std::fprintf(stderr,
+			"[petra-transport] t=%.0fs state=%s owner=%u sea=%u ship=%u at (%.1f,%.1f) action=%u aboard=%zu "
+			"drop=(%.1f,%.1f) land(ship)=%u land(drop)=%u pickup=(%.1f,%.1f) passengers=%zu\n",
+			(double)tp.state_timer, st >= 0 && st < 5 ? names[st] : "?", (unsigned)tp.owner, (unsigned)tp.sea,
+			(unsigned)tp.ship_id, (double)sx, (double)sz, (unsigned)units_.action_state[sidx],
+			get_transport_passenger_count(tp.ship_id), (double)tp.drop_x, (double)tp.drop_z,
+			(unsigned)petra_land_at(sx, sz), (unsigned)petra_land_at(tp.drop_x, tp.drop_z),
+			(double)tp.pickup_x, (double)tp.pickup_z, tp.passenger_ids.size());
+	}
 	if (sidx < 0 || !units_.alive[sidx] || (units_.unit_type[sidx] != UNIT_TRIREME && units_.unit_type[sidx] != UNIT_MERCHANT_SHIP)) {
 		// navalManager.checkEvents: a ship lost while boarding leaves the plan
 		// waiting for another (assignShipsToPlans). Lost at sea, its survivors (those it set
@@ -35854,7 +35927,10 @@ void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt, std::vec
 		sail_point(x, z);
 		const float dx = units_.pos_x[sidx] - x, dz = units_.pos_z[sidx] - z;
 		const bool stopped = units_.action_state[sidx] == ACTION_IDLE && tp.state_timer > 2.0f;
-		if (dx * dx + dz * dz <= 9.0f || stopped || tp.state_timer > 90.0f) {
+		// transportPlan.js onSailing unloads every passenger once the ship is within 25 m
+		// (dist < 625 m²) of its boarding point, not only once it reaches the water beside it.
+		// Units are 4 m, so 25 m is 6.25 units, 39.06 units².
+		if (dx * dx + dz * dz <= 39.0625f || stopped || tp.state_timer > 90.0f) {
 			if (unload()) return;
 			make_room();
 			tp.state = PetraTransportPlan::UNLOADING;
@@ -37676,7 +37752,9 @@ void Simulation::petra_manage_defense(float dt) {
 			if (units_.id[i] == petra_scout_unit_id_) continue;
 			if (units_.action_state[i] == ACTION_GARRISONED || units_.action_state[i] == ACTION_DYING) continue;
 			if (units_.order_kind[i] == ORDER_GARRISON) continue; // garrisonManager has it
-			if (in_attack_squad(units_.id[i]) || petra_is_critical_ent(i) || petra_guards_critical_ent(i)) continue;
+			// assignDefenders skips a unit whose plan subrole is completing, walking or attacking; one
+			// still mustering (plan set, subrole not yet changed) may be drafted, and leaves the plan.
+			if (petra_in_busy_plan(units_.id[i]) || petra_is_critical_ent(i) || petra_guards_critical_ent(i)) continue;
 			if (petra_ship_in_plan(units_.id[i]) || petra_passenger(units_.id[i])) continue;
 			if (petra_is_defender(units_.id[i])) continue;
 			candidates.push_back({units_.id[i], i});
@@ -38722,7 +38800,8 @@ void Simulation::petra_change_diplomacy(uint8_t player, uint8_t stance) {
 // the player as their target, and every started attack on that player is aborted (its army
 // walks home).
 void Simulation::petra_cancel_attacks_against(uint8_t player) {
-	for (AttackPlan *p : {&petra_attack_plan_, &petra_next_plan_.plan}) {
+	// cancelAttacksAgainstPlayer clears targetPlayer on every upcoming plan, a raid preparing too.
+	for (AttackPlan *p : {&petra_attack_plan_, &petra_next_plan_.plan, &petra_raid_plan_}) {
 		if (p->target_player != player) continue;
 		p->target_player = 0xFF;
 		if (auto it = building_id_to_idx_.find(p->target_building_id);
@@ -40846,6 +40925,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 				if (v.path_x.size() != v.path_z.size()) ar.ok = false;
 		}
 		if (ar.version >= S::SAVE_VERSION_PETRA_BLOCKED) ar.pod(v.blocked);
+		if (ar.version >= S::SAVE_VERSION_PETRA_OVERSEAS_CLEARED) ar.pod(v.overseas_cleared);
 		if constexpr (Ar::loading)
 			if (v.state > S::AttackPlan::ABORT || (v.kind > PETRA_ATTACK_RAID && v.kind != PETRA_ATTACK_UNIQUE)) ar.ok = false;
 	};
