@@ -950,6 +950,170 @@ static void test_petra_landing_spot() {
 	CHECK(s.petra_land_at(ax, az) == land);
 }
 
+// transportPlan.js onSailing: a ship lying at its landing point that cannot unload there asks
+// getBoardingPos for another one (nTry). RTS0's unload() passes the ship's drop point as the
+// skip point; the next landing point must be a shore cell more than 8 m from that point and
+// from the ship, not the cell the ship already lies at.
+static void test_petra_boarding_skip_drop() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.spawn_building_world(20.0f, -30.0f, BLD_TOWN_CENTER, 0);
+	run(s, 2.0f);
+	s.petra_pid_ = 1;
+	const uint16_t land = s.petra_land_at(20.0f, -40.0f);
+	auto [cx, cz] = s.nav_grid_.world_to_cell(0.0f, 0.0f);
+	const uint16_t sea = s.nav_grid_.global_region_at(cx, cz, PASS_SHIP);
+	float dx = 0.0f, dz = 0.0f;
+	CHECK(s.petra_boarding_pos(land, sea, 20.0f, 0.0f, 20.0f, -40.0f, false, dx, dz));
+	// The ship lies at that landing point (a shore cell) and cannot unload there.
+	const float skip[2] = {dx, dz};
+	float px = 0.0f, pz = 0.0f;
+	const bool found = s.petra_boarding_pos(land, sea, dx, dz, dx, dz, true, px, pz, skip);
+	const float away_skip = std::hypot(px - dx, pz - dz);
+	std::printf("Petra boarding skip: drop (%.1f, %.1f) -> next (%.1f, %.1f), %.1f m apart\n", dx, dz, px, pz, away_skip);
+	CHECK(found);
+	CHECK(found && away_skip >= 8.0f);
+	CHECK(found && s.petra_land_at(px, pz) == land);
+}
+
+// transportPlan.js onSailing: a ship within 25 m of its boarding point unloads its passengers,
+// even when it lies short of the water beside that point; a ship 40 m or more off does not.
+// transportPlan.js onBoarding (lines 375-389): a ship that stops short of its boarding point is sent
+// there again on each retry (nTry), and on every second one it picks another point. Here a retry
+// falls on every third 2 s check (6 s, against 0 A.D.'s 5 s). The ship is forced idle before each
+// check, as a ship that stopped short lies: its tries read 1, 2, 3 (sent to the same point), 4, 5 and
+// then 0 on the sixth (re-picked).
+static void test_petra_boarding_retry() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.spawn_building_world(20.0f, -30.0f, BLD_TOWN_CENTER, 0);
+	run(s, 2.0f);
+	s.petra_pid_ = 1;
+	auto [cx, cz] = s.nav_grid_.world_to_cell(0.0f, 0.0f);
+	const uint16_t sea = s.nav_grid_.global_region_at(cx, cz, PASS_SHIP);
+	const float bx = 20.0f, bz = -40.0f; // the beach the passenger waits on
+	// The water a boarding ship lies at beside this beach (petra_boarding_pos, as the unload test
+	// finds it). Units are 4 m. A ship in the sea more than 6.5 units off the beach is not ready to
+	// board, which needs it within 6 units (24 m).
+	const uint16_t land = s.petra_land_at(bx, bz);
+	float dx = 0.0f, dz = 0.0f;
+	CHECK(s.petra_boarding_pos(land, sea, 20.0f, 0.0f, bx, bz, false, dx, dz));
+	float wx = 0.0f, wz = 0.0f;
+	bool found = false;
+	for (float r = 4.0f; r <= 12.0f && !found; r += 0.25f)
+		for (float a = 0.0f; a < 6.2832f && !found; a += 0.2f) {
+			const float x = dx + r * std::cos(a), z = dz + r * std::sin(a);
+			const float ox = x - bx, oz = z - bz;
+			if (ox * ox + oz * oz <= 6.5f * 6.5f) continue;
+			auto [gx, gz] = s.nav_grid_.world_to_cell(x, z);
+			if (s.nav_grid_.global_region_at(gx, gz, PASS_SHIP) == sea) { wx = x; wz = z; found = true; }
+		}
+	CHECK(found);
+	const uint32_t ship = s.spawn_unit(wx, wz, 1, UNIT_TRIREME, 0.0f, tmpl_of("athen/ship_arrow"));
+	const uint32_t spear = s.spawn_unit(bx, bz, 1, UNIT_SPEARMAN);
+	const int32_t sidx = s.lookup_unit(ship);
+	CHECK(sidx >= 0);
+	PetraTransportPlan tp;
+	tp.owner = PETRA_TRANSPORT_BUILDERS;
+	tp.state = PetraTransportPlan::BOARDING;
+	tp.ship_id = ship;
+	tp.sea = sea;
+	tp.pickup_x = bx;
+	tp.pickup_z = bz;
+	tp.passenger_ids = {spear};
+	std::vector<PetraReferry> referry;
+	auto ship_tries = [&]() {
+		for (const auto &b : tp.boarding)
+			if (b.uid == ship) return b.tries;
+		return 999u;
+	};
+	std::vector<uint32_t> seen;
+	for (int k = 0; k < 5; ++k) {
+		s.units_.action_state[sidx] = ACTION_IDLE;
+		s.petra_step_transport(tp, 2.0f, referry);
+		seen.push_back(ship_tries());
+	}
+	// The first retry sends the ship to the same point: it is still the beach it was.
+	CHECK(tp.pickup_x == bx && tp.pickup_z == bz);
+	s.units_.action_state[sidx] = ACTION_IDLE;
+	s.petra_step_transport(tp, 2.0f, referry);
+	seen.push_back(ship_tries());
+	std::printf("Petra boarding retry: ship tries per check");
+	for (uint32_t t : seen) std::printf(" %u", t);
+	std::printf("\n");
+	CHECK((seen == std::vector<uint32_t>{1, 2, 3, 4, 5, 0}));
+	CHECK(tp.state == PetraTransportPlan::BOARDING);
+}
+
+static void test_petra_unload_radius() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.spawn_building_world(20.0f, -30.0f, BLD_TOWN_CENTER, 0);
+	run(s, 2.0f);
+	s.petra_pid_ = 1;
+	const uint16_t land = s.petra_land_at(20.0f, -40.0f);
+	auto [cx, cz] = s.nav_grid_.world_to_cell(0.0f, 0.0f);
+	const uint16_t sea = s.nav_grid_.global_region_at(cx, cz, PASS_SHIP);
+	float dx = 0.0f, dz = 0.0f;
+	CHECK(s.petra_boarding_pos(land, sea, 20.0f, 0.0f, 20.0f, -40.0f, false, dx, dz));
+	// Units are 4 m. A water cell 16-24 m from the landing point (4-6 units) is where the ship
+	// lies, inside 25 m but beyond the 12 m the sail-point rule allowed; a cell 40-48 m away
+	// (10-12 units) is out of range.
+	auto water_cell = [&](float r_lo, float r_hi, float &ox, float &oz) {
+		for (float r = r_lo; r <= r_hi; r += 0.25f)
+			for (float a = 0.0f; a < 6.2832f; a += 0.2f) {
+				const float x = dx + r * std::cos(a), z = dz + r * std::sin(a);
+				auto [gx, gz] = s.nav_grid_.world_to_cell(x, z);
+				if (s.nav_grid_.global_region_at(gx, gz, PASS_SHIP) == sea) { ox = x; oz = z; return true; }
+			}
+		return false;
+	};
+	float wx = 0.0f, wz = 0.0f, fx = 0.0f, fz = 0.0f;
+	CHECK(water_cell(4.0f, 6.0f, wx, wz));
+	CHECK(water_cell(10.0f, 12.0f, fx, fz));
+	const uint32_t ship = s.spawn_unit(wx, wz, 1, UNIT_TRIREME, 0.0f, tmpl_of("athen/ship_arrow"));
+	const uint32_t spear = s.spawn_unit(wx, wz, 1, UNIT_SPEARMAN);
+	s.order_board_transport(&spear, 1, ship);
+	run(s, 3.0f);
+	CHECK(aboard(s, ship, spear));
+	PetraTransportPlan tp;
+	tp.owner = PETRA_TRANSPORT_BUILDERS;
+	tp.state = PetraTransportPlan::SAILING;
+	tp.ship_id = ship;
+	tp.sea = sea;
+	tp.drop_x = dx;
+	tp.drop_z = dz;
+	tp.passenger_ids = {spear};
+	std::vector<PetraReferry> referry;
+	s.petra_step_transport(tp, 0.1f, referry);
+	const float near_m = 4.0f * std::sqrt((wx - dx) * (wx - dx) + (wz - dz) * (wz - dz));
+	std::printf("Petra unload radius: ship %.1f m from the landing point, state %d\n", near_m, (int)tp.state);
+	CHECK(near_m >= 16.0f && near_m <= 25.0f);
+	CHECK(tp.state == PetraTransportPlan::UNLOADING);
+
+	// Out of range (40 m or more): still sailing, passengers stay aboard.
+	const uint32_t far_ship = s.spawn_unit(fx, fz, 1, UNIT_TRIREME, 0.0f, tmpl_of("athen/ship_arrow"));
+	PetraTransportPlan far;
+	far.owner = PETRA_TRANSPORT_BUILDERS;
+	far.state = PetraTransportPlan::SAILING;
+	far.ship_id = far_ship;
+	far.sea = sea;
+	far.drop_x = dx;
+	far.drop_z = dz;
+	far.passenger_ids = {spear};
+	s.petra_step_transport(far, 0.1f, referry);
+	const float far_m = 4.0f * std::sqrt((fx - dx) * (fx - dx) + (fz - dz) * (fz - dz));
+	std::printf("Petra unload radius: ship %.1f m from the landing point, state %d\n", far_m, (int)far.state);
+	CHECK(far_m >= 40.0f);
+	CHECK(far.state == PetraTransportPlan::SAILING);
+}
+
 // attackPlan.js chooseTarget/updatePreparation: with a base of ours on the target's land the
 // plan rallies there and needs no ship for the attack itself; its army on the home land is
 // ferried to the rally point, and marches from there.
@@ -3513,6 +3677,111 @@ static void test_petra_multi_sea_queues() {
 	CHECK(queued(second_dock) == 0);
 	CHECK(PetraKept::at(s.petra_kept_.wanted_transport, second) == second_wanted);
 }
+// attackPlan.js chooseTarget/updatePreparation: with a base of ours on the target's land the
+// plan rallies there and needs no ship for the attack itself; its army on the home land is
+// ferried to the rally point, and marches from there.
+// attackPlan.js checkEvents: an enemy structure built on one of our base lands while the plan
+// is unexecuted clears its overseas flag for good, so the plan walks from then on, even after
+// that structure falls. RTS0 must not bring the ship requirement back.
+static void test_petra_overseas_cleared_sticky() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.set_player_resources(1, 5000, 5000, 5000, 5000);
+	s.players_[1].phase = 2;
+	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+	const uint32_t far = s.spawn_building_world(30.0f, -40.0f, BLD_OUTPOST, 0); // the other land
+	run(s, 1.0f);
+	const uint16_t home = s.petra_land_at(-30.0f, 40.0f);
+	// An enemy outpost site on our home land, 8-16 m from the civic centre.
+	float ex = 0.0f, ez = 0.0f;
+	bool found = false;
+	for (float r = 8.0f; r <= 16.0f && !found; r += 1.0f)
+		for (float a = 0.0f; a < 6.2832f && !found; a += 0.5f) {
+			const float x = -30.0f + r * std::cos(a), z = 40.0f + r * std::sin(a);
+			if (s.petra_land_at(x, z) == home && s.territory_owner_at(x, z) == 1) { ex = x; ez = z; found = true; }
+		}
+	CHECK(found);
+	s.petra_attack_plan_.state = Simulation::AttackPlan::MUSTER;
+	s.petra_attack_plan_.target_building_id = 0;
+	const uint16_t before = s.petra_plan_prep_sea(s.petra_attack_plan_);
+	CHECK(before != 0 && s.petra_land_at(30.0f, -40.0f) != home);
+	const uint32_t raid = s.spawn_building_world(ex, ez, BLD_OUTPOST, 0);
+	const uint16_t during = s.petra_plan_prep_sea(s.petra_attack_plan_);
+	CHECK(during == 0 && s.petra_attack_plan_.overseas_cleared);
+	// The enemy structure falls: the flag stays cleared, so the plan still needs no ship.
+	s.buildings_[s.building_id_to_idx_.at(raid)].wrecked = true;
+	const uint16_t after = s.petra_plan_prep_sea(s.petra_attack_plan_);
+	std::printf("Petra overseas cleared: sea %u before, %u with an enemy structure on our land, %u after it falls (flag %d)\n",
+	            (unsigned)before, (unsigned)during, (unsigned)after, (int)s.petra_attack_plan_.overseas_cleared);
+	(void)far;
+	CHECK(after == 0);
+}
+
+// attackPlan.js chooseTarget/updatePreparation: with a base of ours on the target's land the
+// plan rallies there and needs no ship for the attack itself; its army on the home land is
+// ferried to the rally point, and marches from there.
+// attackManager.js switchDefenseToAttack (from defenseManager's civic-centre retake): a defender
+// joins the new attack only if it stands on the target's land; one across the water is left out.
+static void test_petra_retake_same_land_only() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.set_player_active(2, true, true);
+	s.set_player_resources(1, 5000, 5000, 5000, 5000);
+	s.players_[1].phase = 2;
+	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	const uint32_t cc = s.spawn_building_world(-30.0f, 44.0f, BLD_TOWN_CENTER, 0);
+	run(s, 1.0f);
+	s.petra_pid_ = 1;
+	// Spawned after the run: the enemy civic centre would shoot them otherwise.
+	const uint32_t foe = s.spawn_unit(-30.0f, 46.0f, 0, UNIT_SPEARMAN);
+	const uint32_t home = s.spawn_unit(-26.0f, 40.0f, 1, UNIT_SPEARMAN);
+	const uint32_t across = s.spawn_unit(30.0f, -36.0f, 1, UNIT_SPEARMAN);
+	run(s, 0.1f);
+	CHECK(s.petra_access_at(-26.0f, 40.0f) != s.petra_access_at(30.0f, -36.0f));
+	CHECK(s.petra_access_at(-26.0f, 40.0f) == s.petra_access_at(-30.0f, 44.0f));
+	PetraDefenseArmy army;
+	army.foe_ids = {foe};
+	army.defender_ids = {home, across};
+	s.petra_defense_armies_.push_back(army);
+	s.petra_turn_captures_.push_back(Simulation::CivicCentreCapture{cc, 1, 0});
+	const size_t before = s.petra_started_attacks_.size();
+	s.petra_retake_civic_centres();
+	CHECK(s.petra_started_attacks_.size() == before + 1);
+	if (s.petra_started_attacks_.size() == before + 1) {
+		const auto &squad = s.petra_started_attacks_.back().squad;
+		std::printf("Petra retake: %zu in the squad, home %d, across %d\n", squad.size(),
+		            (int)(std::find(squad.begin(), squad.end(), home) != squad.end()),
+		            (int)(std::find(squad.begin(), squad.end(), across) != squad.end()));
+		CHECK(std::find(squad.begin(), squad.end(), home) != squad.end());
+		CHECK(std::find(squad.begin(), squad.end(), across) == squad.end());
+	}
+}
+// attackPlan.js chooseTarget/updatePreparation: with a base of ours on the target's land the
+// plan rallies there and needs no ship for the attack itself; its army on the home land is
+// ferried to the rally point, and marches from there.
+// attackManager.js cancelAttacksAgainstPlayer: every upcoming plan, a raid preparing too, forgets
+// a player who is no longer the target.
+static void test_petra_cancel_clears_raid_target() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.set_player_active(2, true, true);
+	run(s, 1.0f);
+	s.petra_pid_ = 1;
+	s.petra_raid_plan_.state = Simulation::AttackPlan::MUSTER;
+	s.petra_raid_plan_.target_player = 2;
+	s.petra_cancel_attacks_against(2);
+	std::printf("Petra cancel: raid target player now %u (0xFF is none)\n", (unsigned)s.petra_raid_plan_.target_player);
+	CHECK(s.petra_raid_plan_.target_player == 0xFF);
+}
+
+
 
 int main() {
 	test_ships_accelerate();
@@ -3538,6 +3807,12 @@ int main() {
 	test_petra_overseas_attack();
 	test_petra_attack_from_far_base();
 	test_petra_landing_spot();
+	test_petra_boarding_skip_drop();
+	test_petra_boarding_retry();
+	test_petra_unload_radius();
+	test_petra_overseas_cleared_sticky();
+	test_petra_cancel_clears_raid_target();
+	test_petra_retake_same_land_only();
 	test_petra_unreachable_target();
 	test_petra_overseas_base();
 	test_petra_builders_cross_without_ship();

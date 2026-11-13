@@ -200,7 +200,9 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 148; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 150; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_PETRA_QUEUE_FUNDING = 150; // queue.js funding: a queue's account cap adds 60% of its second plan and halves once the account covers the next plan (G158); the layout is unchanged, older saves have no second plan
+	static constexpr uint32_t SAVE_VERSION_PETRA_OVERSEAS_CLEARED = 149; // each Petra attack plan's overseas_cleared (attackPlan.js checkEvents)
 	static constexpr uint32_t SAVE_VERSION_PETRA_PLAN_QUEUES = 148; // per-plan train queues (attackPlan.js:221-223): 27 queues, one plan set per mustering plan
 	static constexpr uint32_t SAVE_VERSION_LINGERING_CORPSE = 147; // each lingering corpse (x, z, timer, template) after the fauna records
 	static constexpr uint32_t SAVE_VERSION_PUSH_REST = 146; // each unit's MotionTurn rest position (G119), after its 48-byte record
@@ -2433,8 +2435,15 @@ public:
 		float pos5_x = 1e6f, pos5_z = 1e6f;
 		// attackPlan.js isBlocked: the last target pick found a blocker (any enemy structure) on the way.
 		bool blocked = false;
+		// attackPlan.js constructor overseas cleared (checkEvents: an enemy structure on one of our
+		// base lands, while unexecuted): the plan walks from then on, even once that structure falls.
+		mutable bool overseas_cleared = false;
 	};
 	const AttackPlan &petra_attack_plan() const { return petra_attack_plan_; }
+	// The main attack plan of any Petra player (the active one lives in the members above, the rest in its slot).
+	const AttackPlan &petra_attack_plan_of(uint8_t pid) const {
+		return (pid == petra_pid_ || pid >= petra_slots_.size()) ? petra_attack_plan_ : petra_slots_[pid].petra_attack_plan_;
+	}
 	const std::vector<AttackPlan> &petra_started_attacks() const { return petra_started_attacks_; }
 	const AttackPlan &petra_raid_plan() const { return petra_raid_plan_; }
 	const PetraAttackManager &petra_attack_manager() const { return petra_attack_mgr_; }
@@ -4407,6 +4416,7 @@ private:
 	void petra_attack_units(AttackPlan &plan); // attackPlan.js update while attacking: each unit's target
 	uint32_t petra_plan_next_target(AttackPlan &plan, float &tx, float &tz, uint16_t same_land = 0, bool must_start = false);
 	bool petra_in_attack_squad(uint32_t uid) const; // in the prepared or a started attack's army
+	bool petra_in_busy_plan(uint32_t uid) const;    // assignDefenders: a unit of a plan past mustering
 	bool petra_attack_can_spare(uint32_t uid, bool decay) const; // garrisonUnitsInside's attack plan rule
 	void petra_attack_remove_unit(uint32_t uid); // attackPlan.js removeUnit, from every plan
 	void petra_out_of_plan(uint32_t uid); // attackPlan.js removeUnit: plan -1 (outOfPlan)

@@ -290,6 +290,7 @@ int main(int argc, char **argv) {
 	double save_at = -1.0;
 	uint32_t watch = 0;
 	int watch_from = 0;
+	bool diag = false;
 	std::vector<int> civs = {0, 1, 2, 3};
 	std::string json;
 	std::vector<int> diffs = {3};
@@ -304,6 +305,7 @@ int main(int argc, char **argv) {
 		else if (!strcmp(argv[i], "--twin")) twin = true;
 		else if (!strcmp(argv[i], "--circular")) circular = true;
 		else if (!strcmp(argv[i], "--serial")) serial = true;
+		else if (!strcmp(argv[i], "--diag")) diag = true;
 		else if (!strcmp(argv[i], "--save-at")) save_at = atof(next());
 		else if (!strcmp(argv[i], "--watch")) watch = (uint32_t)strtoul(next(), nullptr, 10);
 		else if (!strcmp(argv[i], "--watch-from")) watch_from = atoi(next());
@@ -547,6 +549,29 @@ int main(int argc, char **argv) {
 				++desyncs;
 				c.reset();
 			}
+		}
+		if (diag && sec % 30 == 0) {
+			std::printf("[diag] t=%ds", sec);
+			for (int p = 0; p < players; ++p) {
+				int alive = 0, attacking = 0, ordered_idle = 0, soldiers_ordered = 0;
+				for (size_t i = 0; i < s.units_.count; ++i) {
+					if (!s.units_.alive[i] || s.units_.team[i] != p) continue;
+					++alive;
+					if (s.units_.action_state[i] == ACTION_ATTACK) ++attacking;
+					if (s.units_.has_order[i] && s.units_.action_state[i] == ACTION_IDLE) ++ordered_idle;
+					if (s.units_.has_order[i]) ++soldiers_ordered;
+				}
+				const auto &pl = s.petra_attack_plan_of((uint8_t)p);
+				int squad_alive = 0;
+				for (uint32_t uid : pl.squad) {
+					const int32_t ix = s.lookup_unit(uid);
+					squad_alive += ix >= 0 && s.units_.alive[(size_t)ix];
+				}
+				std::printf(" | p%d alive=%d attacking=%d ordered_idle=%d ordered=%d plan{st=%d kind=%d squad=%d/%zu tp=%d tb=%u blk=%d cmp=%d forced=%d}",
+						p, alive, attacking, ordered_idle, soldiers_ordered, (int)pl.state, (int)pl.kind, squad_alive, pl.squad.size(),
+						(int)pl.target_player, pl.target_building_id, (int)pl.blocked, (int)pl.completing, (int)pl.forced);
+			}
+			std::printf("\n");
 		}
 		if (sec % 300 == 0) {
 			std::printf("[sample] t=%dm", sec / 60);

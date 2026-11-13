@@ -1910,6 +1910,95 @@ static void test_regicide_hero_heal_holder() {
 	CHECK(!in_cc, "protection rules in a healing holder: a melee hero over 0.4 health leaves when only siege is near");
 }
 
+// defenseManager.js garrisonAttackedUnit: a full holder is judged by its occupied slots
+// (numberOfGarrisonedSlots), not its unit count. A holder with one unit of two slots (a loaded
+// transport) and capacity 2 is full, so an ordinary attacked unit is not sent into it.
+static void test_garrison_attacked_full_by_slots() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_REGICIDE);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	const uint32_t cc_id = [&] {
+		for (const auto &b : s->buildings_) if (b.team == 1 && b.type == BLD_TOWN_CENTER) return b.id;
+		return 0u;
+	}();
+	CHECK(cc_id != 0, "AI 1 has a civic centre");
+	if (!cc_id) return;
+	const size_t cc_i = s->building_id_to_idx_.at(cc_id);
+	const uint32_t carrier = s->spawn_unit(s->buildings_[cc_i].x + 8.0f, s->buildings_[cc_i].z, 1, UNIT_SWORDSMAN);
+	const uint32_t cargo = s->spawn_unit(s->buildings_[cc_i].x + 9.0f, s->buildings_[cc_i].z, 1, UNIT_SWORDSMAN);
+	s->transport_passengers_[carrier] = {cargo};
+	const uint32_t man = s->spawn_unit(s->buildings_[cc_i].x + 10.0f, s->buildings_[cc_i].z, 1, UNIT_SWORDSMAN);
+	s->buildings_[cc_i].garrison_cap = 2;
+	s->buildings_[cc_i].garrisoned_units = {carrier}; // one unit, two slots: full
+	const size_t m = (size_t)s->lookup_unit(man);
+	std::vector<int> incoming;
+	const size_t full = s->petra_attacked_unit_holder(m, false, incoming);
+	std::printf("  holder with a 2-slot unit at capacity 2: ordinary attacked unit goes to %s\n", full == SIZE_MAX ? "no holder" : "the civic centre");
+	CHECK(full == SIZE_MAX, "a holder full by slots takes no ordinary attacked unit");
+	s->buildings_[cc_i].garrison_cap = 3; // one slot free: now it takes him
+	const size_t room = s->petra_attacked_unit_holder(m, false, incoming);
+	CHECK(room != SIZE_MAX, "a holder with a free slot takes the attacked unit");
+}
+
+// defenseManager.js garrisonAttackedUnit (emergency): the room made is nearest.unload(garrisoned()[0]),
+// the first unit in, whoever owns it. A mutual ally's holder unloads its ally's unit too, where
+// Petra's own unload order skipped units of another player.
+static void test_garrison_emergency_unloads_first() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_REGICIDE);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	size_t cc_i = SIZE_MAX;
+	for (size_t bi = 0; bi < s->buildings_.size(); ++bi)
+		if (s->buildings_[bi].team == 1 && s->buildings_[bi].type == BLD_TOWN_CENTER) { cc_i = bi; break; }
+	CHECK(cc_i != SIZE_MAX, "AI 1 has a civic centre");
+	if (cc_i == SIZE_MAX) return;
+	s->diplomacy_[1][2] = s->diplomacy_[2][1] = Simulation::DIPLO_ALLY; // mutual allies (is_ally)
+	s->buildings_[cc_i].team = 2; // a mutual ally's civic centre
+	const float cx = s->buildings_[cc_i].x, cz = s->buildings_[cc_i].z;
+	const uint32_t cc_id = s->buildings_[cc_i].id;
+	const uint32_t allied_unit = s->spawn_unit(cx + 8.0f, cz, 2, UNIT_SWORDSMAN);
+	const uint32_t man = s->spawn_unit(cx + 10.0f, cz, 1, UNIT_SWORDSMAN);
+	s->buildings_[cc_i].garrison_cap = 1;
+	s->buildings_[cc_i].garrisoned_units = {allied_unit}; // full, its first unit is the ally's
+	std::vector<int> incoming;
+	const bool done = s->petra_garrison_attacked_unit((size_t)s->lookup_unit(man), true, incoming);
+	const auto &g = s->buildings_[s->building_id_to_idx_.at(cc_id)].garrisoned_units;
+	const bool out = std::find(g.begin(), g.end(), allied_unit) == g.end();
+	std::printf("  emergency into a full ally's civic centre: garrisoned %d, the ally's first unit out %d\n", done, out);
+	CHECK(done, "an emergency garrison goes into the full ally holder");
+	CHECK(out, "the room made unloads the holder's first unit, the ally's own");
+}
+
+// navalManager.js seaTransportShips: a warship in a defense army is a transport ship too (the
+// two overlap), so the nearest free ship for a boarding plan is picked even when it defends.
+static void test_transport_ship_defender_pick() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_REGICIDE);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	const float x = 100.0f, z = 100.0f;
+	const uint32_t near_ship = s->spawn_unit(x + 10.0f, z, 1, UNIT_TRIREME);
+	const uint32_t far_ship = s->spawn_unit(x + 40.0f, z, 1, UNIT_TRIREME);
+	PetraDefenseArmy army;
+	army.defender_ids = {near_ship};
+	s->petra_defense_armies_.push_back(army);
+	const uint32_t pick = s->petra_free_transport_ship(0, x, z);
+	std::printf("  nearest free ship to a boarding point, the nearer one defending: picks %s\n",
+	            pick == near_ship ? "the defender" : pick == far_ship ? "the far ship" : "none");
+	CHECK(pick == near_ship, "a defending warship is a transport ship when it is the nearest free one");
+}
+
 // worker.js:325-345: a Petra builder that autocontinue sends from a finished house to a field
 // foundation is taken off it (fields are built by their farmers, buildAnyField); another
 // foundation nearby it does build.
@@ -6962,6 +7051,52 @@ static void test_petra_wood_poor_corral() {
 	CHECK(!s->petra_kept_.need_farm && s->petra_kept_.need_corral, "without wood it wants a corral instead");
 }
 
+// startingStrategy.js startingSize: each region holding one of our base anchors counts once, so a
+// start with a second civic centre on another land is measured by the sum of both lands.
+static void test_petra_starting_size_sums_anchor_lands() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 128.0f);
+	for (uint8_t p = 0; p < 2; ++p) s->set_player_active(p, true, true);
+	s->petra_swap_slot(0);
+	s->petra_pid_ = 0;
+	size_t cc_i = s->buildings_.size();
+	for (size_t i = 0; i < s->buildings_.size(); ++i) {
+		const auto &b = s->buildings_[i];
+		if (b.team == 0 && is_civic_centre(b.type) && b.build_progress >= 1.0f) { cc_i = i; break; }
+	}
+	CHECK(cc_i < s->buildings_.size(), "player 0 starts with a civic centre");
+	if (cc_i >= s->buildings_.size()) return;
+	const auto &cc = s->buildings_[cc_i];
+	uint16_t home = 0;
+	const Simulation::PetraNavalTopo &topo = s->petra_classified_topo(home);
+	const uint16_t home_land = s->petra_building_land(cc, &topo);
+	const float home_m2 = topo.cell_m2 * (float)topo.land_size[home_land];
+	// A second civic centre on another land, as a colony or a captured centre would be.
+	uint16_t other_land = 0;
+	float ox = 0.0f, oz = 0.0f;
+	for (float z = -s->map_half_; z <= s->map_half_ && !other_land; z += 4.0f)
+		for (float x = -s->map_half_; x <= s->map_half_ && !other_land; x += 4.0f) {
+			const uint16_t l = s->petra_access_at(x, z);
+			if (l && l != home_land && l < topo.land_size.size() && topo.land_size[l] > 0) { other_land = l; ox = x; oz = z; }
+		}
+	if (!other_land) {
+		std::printf("  starting size: no second land on this map, skipped\n");
+		return;
+	}
+	const float other_m2 = topo.cell_m2 * (float)topo.land_size[other_land];
+	const uint32_t colony = s->spawn_building((int)(ox / Simulation::GRID), (int)(oz / Simulation::GRID), BLD_TOWN_CENTER, 0, 1.0f);
+	CHECK(colony != 0, "a second civic centre on the other land");
+	s->petra_kept_ = PetraKept{};
+	s->petra_config_first_base();
+	const float total_m2 = home_m2 + other_m2;
+	const bool expect_small = total_m2 < 25000.0f;
+	std::printf("  starting size: home %.0f m2, other land %.0f m2, sum %.0f m2, needCorral %d\n", home_m2, other_m2, total_m2,
+	            (int)s->petra_kept_.need_corral);
+	CHECK(s->petra_kept_.need_corral == expect_small, "the small-land rules measure every anchored land's sum");
+}
+
 // startingStrategy.js configFirstBase runs at every difficulty: Sandbox lays its first
 // storehouse at once too.
 static void test_petra_sandbox_first_storehouse() {
@@ -10861,6 +10996,34 @@ static void test_g58_wardog_and_trainer_timings() {
 	CHECK(pick_healer == temple, "temple picked for healer");
 }
 
+// assignDefenders (defenseManager.js:430-450) skips a unit whose plan subrole is completing,
+// walking or attacking. A unit still mustering (its plan set, subrole not yet changed) may be
+// drafted, and leaves the plan. RTS0 kept every squad member of a mustering plan out of the draft.
+static void test_muster_units_drafted() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	s->petra_attack_plan_.squad.clear();
+	s->petra_next_plan_.plan.squad.clear();
+	s->petra_raid_plan_.squad.clear();
+	s->petra_started_attacks_.clear();
+	const uint32_t spear = s->spawn_unit(0.0f, 0.0f, 1, UNIT_SPEARMAN);
+	s->petra_attack_plan_.squad = {spear};
+	s->petra_attack_plan_.state = Simulation::AttackPlan::MUSTER;
+	CHECK(!s->petra_in_busy_plan(spear), "a unit still mustering may be drafted as a defender");
+	s->petra_attack_plan_.state = Simulation::AttackPlan::WALKING;
+	CHECK(s->petra_in_busy_plan(spear), "a unit of a plan that has started is not drafted");
+	s->petra_attack_plan_.state = Simulation::AttackPlan::MUSTER;
+	s->petra_attack_plan_.completing = true;
+	CHECK(s->petra_in_busy_plan(spear), "a completing unit is not drafted");
+	s->petra_attack_plan_.completing = false;
+	s->petra_attack_plan_.squad.clear();
+	CHECK(!s->petra_in_busy_plan(spear), "a unit in no plan may be drafted");
+}
+
 int main(int argc, char **argv) {
 	// The scenarios below were laid out on Continental's original river; keep it so they
 	// don't shift whenever that map is retuned.
@@ -10918,6 +11081,9 @@ int main(int argc, char **argv) {
 	RUN(test_gather_rate_civ_bonus);
 	RUN(test_garrison_melee_attack);
 	RUN(test_regicide_hero_heal_holder);
+	RUN(test_garrison_attacked_full_by_slots);
+	RUN(test_garrison_emergency_unloads_first);
+	RUN(test_transport_ship_defender_pick);
 	RUN(test_house_builder_skips_field);
 	RUN(test_one_base_a_turn);
 	RUN(test_no_room_only_once_funded);
@@ -11007,6 +11173,7 @@ int main(int argc, char **argv) {
 	RUN(test_defense_armies);
 	RUN(test_soldier_fights_back);
 	RUN(test_defender_orders);
+	RUN(test_muster_units_drafted);
 	RUN(test_out_of_plan);
 	RUN(test_regroup_stranded_released);
 	RUN(test_attack_follows_unit_target);
@@ -11030,6 +11197,7 @@ int main(int argc, char **argv) {
 	RUN(test_new_base_builders);
 	RUN(test_petra_constructing_base);
 	RUN(test_petra_wood_poor_corral);
+	RUN(test_petra_starting_size_sums_anchor_lands);
 	RUN(test_petra_sandbox_first_storehouse);
 	RUN(test_wonder_guards);
 	RUN(test_guards_from_another_land);
