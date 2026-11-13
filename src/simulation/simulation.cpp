@@ -16388,6 +16388,28 @@ bool Simulation::follows_long_path(size_t i) const {
 // failed turn (ShouldAlternatePathfinder) the whole path is planned again from where the unit
 // stands, in case it went down a dead end.
 void Simulation::obstructed_long_path(size_t i, uint8_t failed) {
+	// A returner whose straight walk to its dropsite is obstructed has no long path to replan (its leg
+	// started without one). Once it is obstructed (the second turn, OBSTRUCTED_AT), it plans one from
+	// where it stands, as a MoveTo's long path would have been. Egypt seed 514's cart archer 6053 stood
+	// 100 s beside a wood line with no path. Planning at every leg start instead pinned returners in
+	// the dropsite crowd (seed 17: 6 to 15 stuck).
+	if (failed == 10 && i < unit_paths_.size() && units_.action_state[i] == ACTION_RETURN_DROPSITE &&
+			units_.waypoint_count[i] <= 0) {
+		const float dx = units_.target_x[i] - units_.pos_x[i], dz = units_.target_z[i] - units_.pos_z[i];
+		if (dx * dx + dz * dz >= 4.0f * 4.0f) {
+			WaypointPath wpn;
+			if (find_path(units_.pos_x[i], units_.pos_z[i], units_.target_x[i], units_.target_z[i], wpn,
+					unit_is_ship(units_.unit_type[i]) ? unit_ship_pass(units_.unit_type[i]) : unit_land_pass(i)) && wpn.count > 0) {
+				wpn.has_goal = true;
+				wpn.goal_x = units_.target_x[i];
+				wpn.goal_z = units_.target_z[i];
+				unit_paths_[i] = wpn;
+				units_.waypoint_cur[i] = static_cast<int16_t>(wpn.cur);
+				units_.waypoint_count[i] = static_cast<int16_t>(wpn.count);
+			}
+		}
+		return;
+	}
 	if (!follows_long_path(i)) return;
 	WaypointPath &wp = unit_paths_[i];
 	const int cnt = units_.waypoint_count[i], cur = units_.waypoint_cur[i];
