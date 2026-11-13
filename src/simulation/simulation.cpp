@@ -5827,7 +5827,8 @@ bool Simulation::cmd_tribute(uint8_t from, uint8_t to, const int amounts[RES_COU
 		}
 		total += amounts[r];
 	}
-	if (total == 0) return false;
+	// Player.js TributeResource: an all-zero payment still passes SubtractResourcesOrNotify and
+	// AddResources, and the tribute notification goes out with zeros.
 	if (short_of) return note_session(need), false;
 	for (int r = 0; r < RES_COUNT; ++r) {
 		players_[from].res[r] -= (float)amounts[r];
@@ -33221,9 +33222,10 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 				plan.target_building_id = 0;
 				// An Attack musters (and trains) without a target; it picks one when it must
 				// start and fails if there is none (attackPlan.js updatePreparation).
-				target_id = find_petra_attack_target(tx, tz, 0, &plan, false, false);
-				if (target_id == 0)
-					if (const auto *base = get_primary_petra_base()) { tx = base->x; tz = base->z; }
+				// attackPlan.js: an Attack's getNearestTarget runs when it must start, so while it
+				// musters it has no target and walks to the primary base (RTS0 used a provisional pick).
+				target_id = 0;
+				if (const auto *base = get_primary_petra_base()) { tx = base->x; tz = base->z; }
 				// targetPlayer stays unset while the plan prepares (an attack request may set it):
 				// chooseTarget asks getEnemyPlayer when the plan must start.
 				plan.target_player = 0xFF;
@@ -35127,12 +35129,9 @@ void Simulation::petra_answer_attack_request(uint8_t source, uint8_t target) {
 			if (plan.state == AttackPlan::MUSTER) {
 				float tx = 0.0f, tz = 0.0f;
 				plan.target_building_id = 0;
-				if (const uint32_t id = find_petra_attack_target(tx, tz, 0, &plan)) {
-					plan.target_building_id = id;
-					plan.blocked = petra_pick_blocked_;
-					plan.target_x = tx;
-					plan.target_z = tz;
-				}
+				if (const auto *base = get_primary_petra_base()) { tx = base->x; tz = base->z; }
+				plan.target_x = tx;
+				plan.target_z = tz;
 				plan.target_player = target;
 				if (plan.squad.size() > 2) available += plan.squad.size();
 			}
