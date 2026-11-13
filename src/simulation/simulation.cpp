@@ -28885,6 +28885,9 @@ uint16_t Simulation::petra_plan_prep_sea(const AttackPlan &plan) const {
 	uint16_t naval_home = 0;
 	const PetraNavalTopo &topo = petra_classified_topo(naval_home);
 	if (!topo.naval_map) return 0;
+	// checkEvents clears the plan's overseas flag for good; it is not set again while the plan is
+	// unexecuted.
+	if (plan.overseas_cleared) return 0;
 	const PetraBase *pb = get_primary_petra_base();
 	if (!pb) return 0;
 	std::vector<uint16_t> ours;
@@ -28904,7 +28907,10 @@ uint16_t Simulation::petra_plan_prep_sea(const AttackPlan &plan) const {
 		uint16_t lands[8];
 		petra_lands_around(b.x, b.z, b.half_size, lands);
 		for (uint16_t l : lands)
-			if (l && std::find(ours.begin(), ours.end(), l) != ours.end()) return 0;
+			if (l && std::find(ours.begin(), ours.end(), l) != ours.end()) {
+				if (plan.state == AttackPlan::UNEXECUTED || plan.state == AttackPlan::MUSTER) plan.overseas_cleared = true;
+				return 0;
+			}
 		if (!sea) sea = petra_overseas(topo, pb->x, pb->z, b.id);
 	}
 	return sea;
@@ -32874,6 +32880,10 @@ void Simulation::petra_assign_bombers() {
 	std::unordered_map<uint32_t, int> bombing;
 	for (size_t i = 0; i < units_.count; ++i)
 		if (bomber(i) && units_.order_kind[i] == ORDER_ATTACK_BUILDING && units_.order_target[i] != 0) ++bombing[units_.order_target[i]];
+	// ResourceSupply.numGatherers of each resource: the units working it now (a field's count).
+	std::unordered_map<uint32_t, int> working;
+	for (size_t i = 0; i < units_.count; ++i)
+		if (units_.alive[i] && units_.action_state[i] == ACTION_GATHER && units_.target_resource_id[i] != 0) ++working[units_.target_resource_id[i]];
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!bomber(i) || units_.action_state[i] != ACTION_IDLE || units_.has_order[i] || units_.attack_range[i] <= 0.0f) continue;
 		const uint32_t uid = units_.id[i];
@@ -32882,14 +32892,22 @@ void Simulation::petra_assign_bombers() {
 		const float ux = units_.pos_x[i], uz = units_.pos_z[i];
 		const uint16_t land = petra_land_at(ux, uz);
 		for (const Building &b : buildings_) {
-			if (b.wrecked || b.hp <= 0.0f || !petra_foe(b.team) || b.type == BLD_FIELD) continue;
+			if (b.wrecked || b.hp <= 0.0f || !petra_foe(b.team)) continue;
 			if (!can_attack(petra_pid_, b.team) || !unit_can_target_building(i, b.type)) continue;
+			// attackManager.js:207-212: a field is a target only while gatherers work it and it
+			// stands in enemy land (0 A.D.'s stone thrower has no restriction against fields).
+			if (b.type == BLD_FIELD) {
+				const uint32_t grain = field_resource_id(b.id);
+				const auto w = grain ? working.find(grain) : working.end();
+				if (w == working.end() || w->second <= 0 || !petra_foe(territory_owner_at(b.x, b.z))) continue;
+			}
 			const float dist = det::hypot(b.x - ux, b.z - uz);
 			float px = ux, pz = uz;
 			if (dist > range) {
 				const float safety = det::hypot(b.half_size, b.half_d) + 30.0f * 0.28f;
 				const int owner = territory_owner_at(b.x + (ux - b.x) * safety / dist, b.z + (uz - b.z) * safety / dist);
-				if (petra_foe(owner)) continue;
+				// attackManager.js:220: owner != 0 && isPlayerEnemy(owner): unowned land is no bar.
+				if (owner > 0 && petra_foe(owner)) continue;
 				px = b.x + (ux - b.x) * range / dist;
 				pz = b.z + (uz - b.z) * range / dist;
 				if (territory_owner_at(px, pz) != petra_pid_ || petra_land_at(px, pz) != land) continue;
@@ -33906,6 +33924,9 @@ void Simulation::petra_retake_civic_centres() {
 		const Building &cc = buildings_[bit->second];
 		// Every army whose foes are within range gives its defenders and is dropped.
 		constexpr float RANGE = 150.0f * 0.28f;
+		// attackManager.js switchDefenseToAttack: a defender joins only if it has a position (not
+		// garrisoned or aboard), no plan, and stands on the target's land access (getLandAccess).
+		const uint16_t target_access = petra_access_at(cc.x, cc.z);
 		AttackPlan plan;
 		for (size_t a = 0; a < petra_defense_armies_.size(); ++a) {
 			float ax, az;
@@ -33914,7 +33935,8 @@ void Simulation::petra_retake_civic_centres() {
 			if (dx * dx + dz * dz > RANGE * RANGE) continue;
 			for (uint32_t uid : petra_defense_armies_[a].defender_ids) {
 				const int32_t i = lookup_unit(uid);
-				if (i < 0 || !units_.alive[i] || units_.action_state[i] == ACTION_GARRISONED) continue;
+				if (i < 0 || !units_.alive[i] || units_.action_state[i] == ACTION_GARRISONED || petra_aboard(uid)) continue;
+				if (target_access && petra_access_at(units_.pos_x[i], units_.pos_z[i]) != target_access) continue;
 				plan.squad.push_back(uid);
 			}
 			petra_defense_armies_.erase(petra_defense_armies_.begin() + (ptrdiff_t)a--);
@@ -38712,7 +38734,8 @@ void Simulation::petra_change_diplomacy(uint8_t player, uint8_t stance) {
 // the player as their target, and every started attack on that player is aborted (its army
 // walks home).
 void Simulation::petra_cancel_attacks_against(uint8_t player) {
-	for (AttackPlan *p : {&petra_attack_plan_, &petra_next_plan_.plan}) {
+	// cancelAttacksAgainstPlayer clears targetPlayer on every upcoming plan, a raid preparing too.
+	for (AttackPlan *p : {&petra_attack_plan_, &petra_next_plan_.plan, &petra_raid_plan_}) {
 		if (p->target_player != player) continue;
 		p->target_player = 0xFF;
 		if (auto it = building_id_to_idx_.find(p->target_building_id);
@@ -40836,6 +40859,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 				if (v.path_x.size() != v.path_z.size()) ar.ok = false;
 		}
 		if (ar.version >= S::SAVE_VERSION_PETRA_BLOCKED) ar.pod(v.blocked);
+		if (ar.version >= S::SAVE_VERSION_PETRA_OVERSEAS_CLEARED) ar.pod(v.overseas_cleared);
 		if constexpr (Ar::loading)
 			if (v.state > S::AttackPlan::ABORT || (v.kind > PETRA_ATTACK_RAID && v.kind != PETRA_ATTACK_UNIQUE)) ar.ok = false;
 	};
