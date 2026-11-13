@@ -121,7 +121,7 @@ public:
 		const char *dialog_text[3] = {"Diplo", "Trade", "Obj"};
 		for (int i = 0; i < 3; ++i) {
 			Button *b = memnew(Button);
-			b->set_custom_minimum_size(Vector2(32, 30));
+			b->set_custom_minimum_size(Vector2(28, 28));
 			b->add_theme_font_size_override("font_size", 11);
 			Ref<Texture2D> tex = dialog_icons[i][0] ? rtso::load_ui_texture(dialog_icons[i]) : Ref<Texture2D>();
 			if (tex.is_valid()) {
