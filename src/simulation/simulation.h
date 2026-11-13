@@ -200,7 +200,9 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 148; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 150; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_PETRA_QUEUE_FUNDING = 150; // queue.js funding: a queue's account cap adds 60% of its second plan and halves once the account covers the next plan (G158); the layout is unchanged, older saves have no second plan
+	static constexpr uint32_t SAVE_VERSION_PETRA_OVERSEAS_CLEARED = 149; // each Petra attack plan's overseas_cleared (attackPlan.js checkEvents)
 	static constexpr uint32_t SAVE_VERSION_PETRA_PLAN_QUEUES = 148; // per-plan train queues (attackPlan.js:221-223): 27 queues, one plan set per mustering plan
 	static constexpr uint32_t SAVE_VERSION_LINGERING_CORPSE = 147; // each lingering corpse (x, z, timer, template) after the fauna records
 	static constexpr uint32_t SAVE_VERSION_PUSH_REST = 146; // each unit's MotionTurn rest position (G119), after its 48-byte record
@@ -2433,6 +2435,9 @@ public:
 		float pos5_x = 1e6f, pos5_z = 1e6f;
 		// attackPlan.js isBlocked: the last target pick found a blocker (any enemy structure) on the way.
 		bool blocked = false;
+		// attackPlan.js constructor overseas cleared (checkEvents: an enemy structure on one of our
+		// base lands, while unexecuted): the plan walks from then on, even once that structure falls.
+		mutable bool overseas_cleared = false;
 	};
 	const AttackPlan &petra_attack_plan() const { return petra_attack_plan_; }
 	// The main attack plan of any Petra player (the active one lives in the members above, the rest in its slot).
@@ -4361,6 +4366,7 @@ private:
 	};
 	mutable PetraAccess petra_access_;
 	uint32_t nav_terrain_stamp_ = 1; // bumped whenever the nav grid's terrain may have changed
+	uint32_t nav_access_stamp_ = 1; // bumped when the Petra access map's inputs may have changed (nav cells, terrain, reset)
 	// This AI's topology classified from its home land (headquarters.js navalMap, landRegions).
 	const PetraNavalTopo &petra_classified_topo(uint16_t &home) const;
 	mutable PetraNavalTopo petra_class_topo_; // per AI turn, derived: not saved
@@ -4410,6 +4416,7 @@ private:
 	void petra_attack_units(AttackPlan &plan); // attackPlan.js update while attacking: each unit's target
 	uint32_t petra_plan_next_target(AttackPlan &plan, float &tx, float &tz, uint16_t same_land = 0, bool must_start = false);
 	bool petra_in_attack_squad(uint32_t uid) const; // in the prepared or a started attack's army
+	bool petra_in_busy_plan(uint32_t uid) const;    // assignDefenders: a unit of a plan past mustering
 	bool petra_attack_can_spare(uint32_t uid, bool decay) const; // garrisonUnitsInside's attack plan rule
 	void petra_attack_remove_unit(uint32_t uid); // attackPlan.js removeUnit, from every plan
 	void petra_out_of_plan(uint32_t uid); // attackPlan.js removeUnit: plan -1 (outOfPlan)
@@ -4672,6 +4679,19 @@ private:
 		int at(float x, float z, float half) const;
 	};
 	void petra_bases_map(PetraBasesMap &m) const;
+	// The last petra_bases_map result and the inputs it was worked out from (its key), so later calls
+	// with the same inputs copy it.
+	struct PetraBasesCache {
+		bool valid = false;
+		int pid = -1, tile_w = -1;
+		uint32_t stamp = 0;
+		bool naval = false;
+		std::vector<PetraBasesMap::Anchor> anchors;
+		std::vector<uint8_t> territory;
+		std::vector<uint32_t> tile_anchor;
+		PetraBasesMap out;
+	};
+	mutable PetraBasesCache petra_bases_cache_;
 	// basesManager.js update: one base a turn, in anchor order (petra_kept_.current_base). The
 	// anchor whose base runs this turn, 0 while there is at most one base (every base runs).
 	uint32_t petra_turn_anchor_ = 0;

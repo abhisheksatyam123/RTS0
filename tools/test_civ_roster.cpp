@@ -688,6 +688,23 @@ int main()
 		check(maps >= 100 && missing == 0 && left_out == 0, msg);
 	}
 
+	// Sun-dried Mud Bricks covers houses and economic structures (0.28's House and Economic classes): the
+	// five House-class buildings a house's bonus must reach are Apartment, Inn, Warehouse, Tavern and Tent.
+	{
+		const uint8_t five[] = {BLD_APARTMENT, BLD_INN, BLD_WAREHOUSE, BLD_TAVERN, BLD_TENT};
+		const uint8_t stats[] = {CIV_BONUS_BUILDING_WOOD_COST, CIV_BONUS_BUILDING_HP, CIV_BONUS_BUILDING_CAPTURE_POINTS, CIV_BONUS_BUILDING_BUILD_TIME};
+		bool reaches = true, untouched = true;
+		for (uint8_t b : five)
+			for (uint8_t st : stats) {
+				const float house = civ_bonus_mult(CIV_PTOLEMIES, st, BLD_HOUSE);
+				reaches = reaches && house != 1.0f && civ_bonus_mult(CIV_PTOLEMIES, st, b) == house;
+				// Athenians' own 1.1 HP and capture-point rows reach these classes too; the wood cost stays theirs alone.
+				if (st == CIV_BONUS_BUILDING_WOOD_COST) untouched = untouched && civ_bonus_mult(CIV_ATHENIANS, st, b) == 1.0f;
+			}
+		check(reaches, "Sun-dried Mud Bricks reaches the Ptolemaic House-class buildings (apartment, inn, warehouse, tavern, tent)");
+		check(untouched, "and Athenians get no Ptolemaic bonus on them");
+	}
+
 	std::printf("%d/%d checks passed (%u unit templates, %u hero auras)\n",
 		g_checks - g_failed, g_checks, CIV_UNIT_TEMPLATE_COUNT, CIV_HERO_AURA_COUNT);
 	return g_failed == 0 ? 0 : 1;

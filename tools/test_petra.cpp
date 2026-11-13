@@ -6962,6 +6962,52 @@ static void test_petra_wood_poor_corral() {
 	CHECK(!s->petra_kept_.need_farm && s->petra_kept_.need_corral, "without wood it wants a corral instead");
 }
 
+// startingStrategy.js startingSize: each region holding one of our base anchors counts once, so a
+// start with a second civic centre on another land is measured by the sum of both lands.
+static void test_petra_starting_size_sums_anchor_lands() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 128.0f);
+	for (uint8_t p = 0; p < 2; ++p) s->set_player_active(p, true, true);
+	s->petra_swap_slot(0);
+	s->petra_pid_ = 0;
+	size_t cc_i = s->buildings_.size();
+	for (size_t i = 0; i < s->buildings_.size(); ++i) {
+		const auto &b = s->buildings_[i];
+		if (b.team == 0 && is_civic_centre(b.type) && b.build_progress >= 1.0f) { cc_i = i; break; }
+	}
+	CHECK(cc_i < s->buildings_.size(), "player 0 starts with a civic centre");
+	if (cc_i >= s->buildings_.size()) return;
+	const auto &cc = s->buildings_[cc_i];
+	uint16_t home = 0;
+	const Simulation::PetraNavalTopo &topo = s->petra_classified_topo(home);
+	const uint16_t home_land = s->petra_building_land(cc, &topo);
+	const float home_m2 = topo.cell_m2 * (float)topo.land_size[home_land];
+	// A second civic centre on another land, as a colony or a captured centre would be.
+	uint16_t other_land = 0;
+	float ox = 0.0f, oz = 0.0f;
+	for (float z = -s->map_half_; z <= s->map_half_ && !other_land; z += 4.0f)
+		for (float x = -s->map_half_; x <= s->map_half_ && !other_land; x += 4.0f) {
+			const uint16_t l = s->petra_access_at(x, z);
+			if (l && l != home_land && l < topo.land_size.size() && topo.land_size[l] > 0) { other_land = l; ox = x; oz = z; }
+		}
+	if (!other_land) {
+		std::printf("  starting size: no second land on this map, skipped\n");
+		return;
+	}
+	const float other_m2 = topo.cell_m2 * (float)topo.land_size[other_land];
+	const uint32_t colony = s->spawn_building((int)(ox / Simulation::GRID), (int)(oz / Simulation::GRID), BLD_TOWN_CENTER, 0, 1.0f);
+	CHECK(colony != 0, "a second civic centre on the other land");
+	s->petra_kept_ = PetraKept{};
+	s->petra_config_first_base();
+	const float total_m2 = home_m2 + other_m2;
+	const bool expect_small = total_m2 < 25000.0f;
+	std::printf("  starting size: home %.0f m2, other land %.0f m2, sum %.0f m2, needCorral %d\n", home_m2, other_m2, total_m2,
+	            (int)s->petra_kept_.need_corral);
+	CHECK(s->petra_kept_.need_corral == expect_small, "the small-land rules measure every anchored land's sum");
+}
+
 // startingStrategy.js configFirstBase runs at every difficulty: Sandbox lays its first
 // storehouse at once too.
 static void test_petra_sandbox_first_storehouse() {
@@ -7896,6 +7942,73 @@ static void test_defenders_stop_hopeless_capture() {
 
 // attackManager.js assignBombers: an idle stone thrower shells an enemy structure it can
 // reach from our land, and leaves alone those deep in enemy land.
+// attackManager.js assignBombers: a field is a bombing target only while gatherers work it,
+// in enemy land (fields carry no attack restriction in 0 A.D.).
+static void test_assign_bombers_fields() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	const Simulation::Building *enemy_cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f && b.team == 0) enemy_cc = &b;
+	CHECK(enemy_cc != nullptr, "the enemy has a civic centre");
+	if (!enemy_cc) return;
+	// Everything sits in enemy land: a bomber's approach point must be in our land, so the
+	// target stays within the stone thrower's reach (no walk needed). Find a spot pair in
+	// enemy land: the stone thrower's and a field half its reach away.
+	const float ex = enemy_cc->x, ez = enemy_cc->z;
+	const uint32_t cat_probe = s->spawn_unit(ex, ez, 1, UNIT_CATAPULT);
+	const int32_t cp = s->lookup_unit(cat_probe);
+	CHECK(cp >= 0, "the stone thrower exists");
+	if (cp < 0) return;
+	const float reach = s->units_.attack_range[cp] * 0.5f;
+	float cx = 0.0f, cz = 0.0f;
+	bool found = false;
+	for (int r = 4; r <= 40 && !found; r += 2)
+		for (int k = 0; k < 8 && !found; ++k) {
+			const float a = 0.785398f * (float)k;
+			const float px = ex + (float)r * std::cos(a), pz = ez + (float)r * std::sin(a);
+			if (s->territory_owner_at(px, pz) == 0 && s->territory_owner_at(px, pz + reach) == 0) {
+				cx = px;
+				cz = pz;
+				found = true;
+			}
+		}
+	CHECK(found, "there is a spot in enemy land to bomb from");
+	if (!found) return;
+	const float fx = cx, fz = cz + reach;
+	std::printf("  bombers: enemy-land spot at (%.1f, %.1f), reach %.1f\n", cx, cz, reach);
+	const uint32_t field = s->spawn_building_world(fx, fz, BLD_FIELD, 0, 1.0f);
+	run_for(*s, 0.1f); // the field's grain supply is synced in the tick
+	const uint32_t grain = s->field_resource_id(field);
+	CHECK(grain != 0, "a finished enemy field has its grain supply");
+	if (grain == 0) return;
+	// Only the field is a bombing target: the enemy's other structures are wrecked (skipped).
+	for (auto &b : s->buildings_)
+		if (b.team == 0 && b.id != field) b.wrecked = true;
+	// Called straight after spawning, while the stone thrower is idle.
+	const uint32_t cat = s->spawn_unit(cx, cz, 1, UNIT_CATAPULT);
+	s->petra_assign_bombers();
+	int32_t ci = s->lookup_unit(cat);
+	const bool empty_shelled = ci >= 0 && s->units_.order_kind[ci] == ORDER_ATTACK_BUILDING && s->units_.order_target[ci] == field;
+	CHECK(!empty_shelled, "an empty field (no gatherers) is not shelled");
+	// One enemy unit working the field makes it a target.
+	const uint32_t worker = s->spawn_unit(fx + 2.0f, fz + 2.0f, 0, UNIT_CATAPULT);
+	const int32_t wi = s->lookup_unit(worker);
+	if (wi >= 0) {
+		s->units_.action_state[wi] = ACTION_GATHER;
+		s->units_.target_resource_id[wi] = grain;
+	}
+	s->petra_assign_bombers();
+	ci = s->lookup_unit(cat);
+	const bool shelling = ci >= 0 && s->units_.order_kind[ci] == ORDER_ATTACK_BUILDING && s->units_.order_target[ci] == field;
+	std::printf("  bombers: idle stone thrower shells a field worked by an enemy: %s\n", shelling ? "yes" : "no");
+	CHECK(shelling, "a field with gatherers in enemy land is a bombing target");
+}
+
 static void test_assign_bombers() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -10794,6 +10907,34 @@ static void test_g58_wardog_and_trainer_timings() {
 	CHECK(pick_healer == temple, "temple picked for healer");
 }
 
+// assignDefenders (defenseManager.js:430-450) skips a unit whose plan subrole is completing,
+// walking or attacking. A unit still mustering (its plan set, subrole not yet changed) may be
+// drafted, and leaves the plan. RTS0 kept every squad member of a mustering plan out of the draft.
+static void test_muster_units_drafted() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	s->petra_attack_plan_.squad.clear();
+	s->petra_next_plan_.plan.squad.clear();
+	s->petra_raid_plan_.squad.clear();
+	s->petra_started_attacks_.clear();
+	const uint32_t spear = s->spawn_unit(0.0f, 0.0f, 1, UNIT_SPEARMAN);
+	s->petra_attack_plan_.squad = {spear};
+	s->petra_attack_plan_.state = Simulation::AttackPlan::MUSTER;
+	CHECK(!s->petra_in_busy_plan(spear), "a unit still mustering may be drafted as a defender");
+	s->petra_attack_plan_.state = Simulation::AttackPlan::WALKING;
+	CHECK(s->petra_in_busy_plan(spear), "a unit of a plan that has started is not drafted");
+	s->petra_attack_plan_.state = Simulation::AttackPlan::MUSTER;
+	s->petra_attack_plan_.completing = true;
+	CHECK(s->petra_in_busy_plan(spear), "a completing unit is not drafted");
+	s->petra_attack_plan_.completing = false;
+	s->petra_attack_plan_.squad.clear();
+	CHECK(!s->petra_in_busy_plan(spear), "a unit in no plan may be drafted");
+}
+
 int main(int argc, char **argv) {
 	// The scenarios below were laid out on Continental's original river; keep it so they
 	// don't shift whenever that map is retuned.
@@ -10940,6 +11081,7 @@ int main(int argc, char **argv) {
 	RUN(test_defense_armies);
 	RUN(test_soldier_fights_back);
 	RUN(test_defender_orders);
+	RUN(test_muster_units_drafted);
 	RUN(test_out_of_plan);
 	RUN(test_regroup_stranded_released);
 	RUN(test_attack_follows_unit_target);
@@ -10957,11 +11099,13 @@ int main(int argc, char **argv) {
 	RUN(test_no_scout);
 	RUN(test_defenders_stop_hopeless_capture);
 	RUN(test_assign_bombers);
+	RUN(test_assign_bombers_fields);
 	RUN(test_cancel_attacks_on_peace);
 	RUN(test_builders_per_foundation);
 	RUN(test_new_base_builders);
 	RUN(test_petra_constructing_base);
 	RUN(test_petra_wood_poor_corral);
+	RUN(test_petra_starting_size_sums_anchor_lands);
 	RUN(test_petra_sandbox_first_storehouse);
 	RUN(test_wonder_guards);
 	RUN(test_guards_from_another_land);
