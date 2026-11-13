@@ -32982,21 +32982,27 @@ void Simulation::petra_assign_bombers() {
 // none, where one of our units stands.
 void Simulation::petra_attack_home(float &x, float &z) const {
 	x = z = 36.0f;
-	// attackPlan.js rallyPoint (40-75): the first base whose anchor stands, then any own entity
-	// with a position, buildings included, before units.
+	petra_rally_point(x, z);
+}
+
+// attackPlan.js constructor rallyPoint (40-75): the first base whose anchor stands, then any own
+// entity with a position, buildings included, before units. False when we own nothing to rally on
+// (the plan then fails: `this.failed = true`, so attackManager never makes it).
+bool Simulation::petra_rally_point(float &x, float &z) const {
 	auto anchor_stands = [&](const PetraBase &base) {
 		auto it = building_id_to_idx_.find(base.anchor_building_id);
 		return it != building_id_to_idx_.end() && buildings_[it->second].hp > 0.0f && !buildings_[it->second].wrecked;
 	};
-	if (const PetraBase *primary = get_primary_petra_base(); primary && anchor_stands(*primary)) { x = primary->x; z = primary->z; return; }
+	if (const PetraBase *primary = get_primary_petra_base(); primary && anchor_stands(*primary)) { x = primary->x; z = primary->z; return true; }
 	for (const PetraBase &base : petra_bases_)
-		if (anchor_stands(base)) { x = base.x; z = base.z; return; }
+		if (anchor_stands(base)) { x = base.x; z = base.z; return true; }
 	for (const auto &b : buildings_)
-		if (b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked) { x = b.x; z = b.z; return; }
+		if (b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked) { x = b.x; z = b.z; return true; }
 	for (size_t i = 0; i < units_.count; ++i)
 		if (units_.alive[i] && units_.team[i] == petra_pid_ && !unit_is_ship(units_.unit_type[i])) {
-			x = units_.pos_x[i]; z = units_.pos_z[i]; return;
+			x = units_.pos_x[i]; z = units_.pos_z[i]; return true;
 		}
+	return false;
 }
 
 void Simulation::petra_manage_tactical_attacks(float dt) {
@@ -33237,6 +33243,12 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 				// targetPlayer stays unset while the plan prepares (an attack request may set it):
 				// chooseTarget asks getEnemyPlayer when the plan must start.
 				plan.target_player = 0xFF;
+			}
+			// attackPlan.js constructor: no rally point (no base anchor and nothing of ours to muster
+			// on) fails the plan before attackManager counts it.
+			{
+				float rally_x, rally_z;
+				if (!petra_rally_point(rally_x, rally_z)) return;
 			}
 			petra_plan_sizes(kind);
 			if (kind == PETRA_ATTACK_RUSH) ++mgr.rush_number;
