@@ -172,6 +172,7 @@ Dictionary RtsoMain::get_audio_state() const {
 	d["last_sound"] = session_audio_.last_played();
 	d["in_battle"] = session_audio_.in_battle();
 	d["work_sounds"] = session_audio_.work_sounds_played();
+	d["footsteps"] = session_audio_.footsteps_played();
 	d["workers_at_work"] = session_audio_.workers_at_work();
 	d["workers_in_earshot"] = session_audio_.workers_in_earshot();
 	d["listener"] = session_audio_.listener();

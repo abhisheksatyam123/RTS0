@@ -1977,6 +1977,61 @@ static void test_garrison_emergency_unloads_first() {
 	CHECK(out, "the room made unloads the holder's first unit, the ally's own");
 }
 
+// navalManager.js seaTransportShips: a warship in a defense army is a transport ship too (the
+// two overlap), so the nearest free ship for a boarding plan is picked even when it defends.
+static void test_transport_ship_defender_pick() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_REGICIDE);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	const float x = 100.0f, z = 100.0f;
+	const uint32_t near_ship = s->spawn_unit(x + 10.0f, z, 1, UNIT_TRIREME);
+	const uint32_t far_ship = s->spawn_unit(x + 40.0f, z, 1, UNIT_TRIREME);
+	PetraDefenseArmy army;
+	army.defender_ids = {near_ship};
+	s->petra_defense_armies_.push_back(army);
+	const uint32_t pick = s->petra_free_transport_ship(0, x, z);
+	std::printf("  nearest free ship to a boarding point, the nearer one defending: picks %s\n",
+	            pick == near_ship ? "the defender" : pick == far_ship ? "the far ship" : "none");
+	CHECK(pick == near_ship, "a defending warship is a transport ship when it is the nearest free one");
+}
+
+// navalManager.js requireTransport: the first boarding plan of the crossing takes the unit even
+// when its ship is full (plans.sort with a one-argument comparator keeps the order); the full
+// ship then sends the unit to a new plan, not to a second plan that has room.
+static void test_transport_join_first_plan() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_REGICIDE);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	float cx = 0.0f, cz = 0.0f;
+	for (const auto &b : s->buildings_) if (b.team == 1 && b.type == BLD_TOWN_CENTER) { cx = b.x; cz = b.z; }
+	const uint16_t land = s->petra_land_at(cx, cz);
+	const uint32_t ship = s->spawn_unit(cx + 12.0f, cz, 1, UNIT_TRIREME);
+	s->petra_transports_.clear();
+	PetraTransportPlan full, roomy;
+	for (PetraTransportPlan *p : {&full, &roomy}) {
+		p->state = PetraTransportPlan::BOARDING;
+		p->owner = 1;
+		p->pickup_x = p->drop_x = cx;
+		p->pickup_z = p->drop_z = cz;
+	}
+	full.ship_id = ship;
+	for (int k = 0; k < s->get_transport_capacity(ship); ++k) full.passenger_ids.push_back(900000u + (uint32_t)k);
+	s->petra_transports_.push_back(full);
+	s->petra_transports_.push_back(roomy);
+	const PetraTransportPlan *got = s->petra_transport_join(1, land, land, false);
+	std::printf("  two boarding plans on this crossing, the first with a full ship: the unit joins %s\n",
+	            got == &s->petra_transports_[0] ? "the first plan" : got == &s->petra_transports_[1] ? "the second plan" : "no plan");
+	CHECK(got == &s->petra_transports_[0], "the unit joins the first boarding plan of the crossing, whether or not it has room");
+}
+
 // transportPlan.js onBoarding: a passenger still blocked after its fifth boarding try ("no ways
 // out of the trap") is destroyed (resetUnit, then ent.destroy()) and the plan goes on without it.
 static void test_transport_blocked_passenger_destroyed() {
@@ -11091,9 +11146,11 @@ int main(int argc, char **argv) {
 	RUN(test_gather_rate_civ_bonus);
 	RUN(test_garrison_melee_attack);
 	RUN(test_regicide_hero_heal_holder);
-	RUN(test_transport_blocked_passenger_destroyed);
+	RUN(test_transport_join_first_plan);
 	RUN(test_garrison_attacked_full_by_slots);
 	RUN(test_garrison_emergency_unloads_first);
+	RUN(test_transport_ship_defender_pick);
+	RUN(test_transport_blocked_passenger_destroyed);
 	RUN(test_house_builder_skips_field);
 	RUN(test_one_base_a_turn);
 	RUN(test_no_room_only_once_funded);

@@ -4201,6 +4201,7 @@ private:
 	void petra_dispatch_units();        // startingStrategy.js dispatchUnits
 	bool petra_dispatched_to_ally(uint32_t uid) const; // metadata "allied"
 	bool petra_can_build_units() const { return !petra_kept_.no_units; }
+	bool petra_rally_point(float &x, float &z) const; // false when we own nothing to rally on
 	void petra_attack_home(float &x, float &z) const; // the base an attack starts from, else one of our units // startingStrategy.js configFirstBase: needFish, needFarm, wantedFishShips
 	// worker.js lastHuntSearch: hunters that found nothing to hunt anywhere, and when (petra_timer_);
 	// an idle one searches again only 20 s later. Entries past 20 s are dropped.
@@ -5009,8 +5010,8 @@ private:
 	std::vector<GatePassMemo> gate_pass_memo_;
 	nav::ObstacleGrid sep_grid_; // sep_obstacles_ by cell, rebuilt with it
 	// steer_obstacles_ by cell, rebuilt in move_units when they change, and the line test that
-	// looks only at those under the line. Unlike nav::line_blocked_by_buildings, that test skips only
-	// the squares holding the line's start (0.28's TestLine), not the whole line.
+	// looks only at those under the line. Like nav::line_blocked_by_buildings, it skips only the
+	// squares holding the line's start (0.28's TestLine), not the whole line.
 	nav::ObstacleGrid steer_grid_;
 	uint32_t steer_grid_key_ = 0;
 	float steer_grid_half_ = 0.0f;

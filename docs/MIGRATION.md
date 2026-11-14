@@ -57,6 +57,7 @@ This list covers porting the vendored C++ only. Overall project priorities and g
 
 | Date | PR | Change |
 |---|---|---|
+| 2026-11-14 | version | `NET_SOFTWARE_VERSION` goes from RTS0-0.4 to RTS0-0.5 for the G177 residue below: a fauna walk that starts inside one building's square and crosses another now steers round it, so an older build is refused instead of falling out of sync. |
 | 2026-11-12 | version | `NET_SOFTWARE_VERSION` goes from RTS0-0.3 to RTS0-0.4 for the G84 change below: walks near turned structures change, so an older build is refused instead of falling out of sync. |
 | 2026-11-12 | G84 | `nav::within_reach` pads a turned building's box by its extent plus the clearance times |ux|+|uz| (`grown_extent`), not by one clearance, so the steering line test sees a line through the corner band of a turned building's clearance square (0.33 m for a 2 m square turned 45 degrees with 0.8 m clearance). Lines through that band were called clear and steering started late. `test_building_steering` `turned_corner_band` checks every line against the exact square. |
 | 2026-11-11 | version | `NET_SOFTWARE_VERSION` goes from RTS0-0.2 to RTS0-0.3: the kept steering waypoint (G177) and the deep-water walk test change walks, so a build from this commit refuses an older one instead of desyncing from it. |

@@ -27452,9 +27452,13 @@ void Simulation::petra_dispatch_units() {
 	}
 	if (ccs.empty()) return;
 	std::vector<size_t> units;
-	for (size_t i = 0; i < units_.count; ++i)
-		if (units_.alive[i] && units_.team[i] == petra_pid_ && !unit_is_ship(units_.unit_type[i])) units.push_back(i);
-	int num = std::max(std::min((int)std::lround(0.08f * (1.0f + petra_config_.cooperative) * (float)units.size()), 20), 5);
+	size_t own_units = 0; // gameState.getOwnUnits().length: every Unit, ships included
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
+		++own_units;
+		if (!unit_is_ship(units_.unit_type[i])) units.push_back(i);
+	}
+	int num = std::max(std::min((int)std::lround(0.08f * (1.0f + petra_config_.cooperative) * (float)own_units), 20), 5);
 	int num1 = num / 2, num2 = num1;
 	std::vector<uint32_t> &allied = petra_kept_.allied;
 	auto send = [&](size_t i) {
@@ -29145,12 +29149,12 @@ bool Simulation::petra_require_worker_transport(size_t i, uint16_t from_land, ui
 // lands with room for one more (at most 3 siege engines per plan, navalManager.js:379),
 // else nullptr for a new plan.
 PetraTransportPlan *Simulation::petra_transport_join(uint8_t owner, uint16_t from_land, uint16_t to_land, bool is_siege) {
-	PetraTransportPlan *best = nullptr;
+	// navalManager.js requireTransport: the first boarding plan of this crossing (plans.sort with a
+	// one-argument comparator leaves the order as it was), whether or not its ship has room. A
+	// full ship sends the unit to a new plan (splitTransport, via the caller's can_board check).
 	for (auto &tp : petra_transports_) {
 		if (tp.owner != owner || tp.state != PetraTransportPlan::BOARDING) continue;
 		if (petra_land_at(tp.pickup_x, tp.pickup_z) != from_land || petra_land_at(tp.drop_x, tp.drop_z) != to_land) continue;
-		// A plan still waiting for its ship takes anyone (needTransportShips).
-		if (tp.ship_id && tp.passenger_ids.size() >= (size_t)get_transport_capacity(tp.ship_id)) continue;
 		if (is_siege) {
 			int siege = 0;
 			for (uint32_t uid : tp.passenger_ids) {
@@ -29159,9 +29163,9 @@ PetraTransportPlan *Simulation::petra_transport_join(uint8_t owner, uint16_t fro
 			}
 			if (siege > 3) continue;
 		}
-		if (!best || tp.passenger_ids.size() < best->passenger_ids.size()) best = &tp;
+		return &tp;
 	}
-	return best;
+	return nullptr;
 }
 
 const PetraTransportPlan *Simulation::petra_transport_for(uint8_t owner) const {
@@ -32989,21 +32993,27 @@ void Simulation::petra_assign_bombers() {
 // none, where one of our units stands.
 void Simulation::petra_attack_home(float &x, float &z) const {
 	x = z = 36.0f;
-	// attackPlan.js rallyPoint (40-75): the first base whose anchor stands, then any own entity
-	// with a position, buildings included, before units.
+	petra_rally_point(x, z);
+}
+
+// attackPlan.js constructor rallyPoint (40-75): the first base whose anchor stands, then any own
+// entity with a position, buildings included, before units. False when we own nothing to rally on
+// (the plan then fails: `this.failed = true`, so attackManager never makes it).
+bool Simulation::petra_rally_point(float &x, float &z) const {
 	auto anchor_stands = [&](const PetraBase &base) {
 		auto it = building_id_to_idx_.find(base.anchor_building_id);
 		return it != building_id_to_idx_.end() && buildings_[it->second].hp > 0.0f && !buildings_[it->second].wrecked;
 	};
-	if (const PetraBase *primary = get_primary_petra_base(); primary && anchor_stands(*primary)) { x = primary->x; z = primary->z; return; }
+	if (const PetraBase *primary = get_primary_petra_base(); primary && anchor_stands(*primary)) { x = primary->x; z = primary->z; return true; }
 	for (const PetraBase &base : petra_bases_)
-		if (anchor_stands(base)) { x = base.x; z = base.z; return; }
+		if (anchor_stands(base)) { x = base.x; z = base.z; return true; }
 	for (const auto &b : buildings_)
-		if (b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked) { x = b.x; z = b.z; return; }
+		if (b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked) { x = b.x; z = b.z; return true; }
 	for (size_t i = 0; i < units_.count; ++i)
 		if (units_.alive[i] && units_.team[i] == petra_pid_ && !unit_is_ship(units_.unit_type[i])) {
-			x = units_.pos_x[i]; z = units_.pos_z[i]; return;
+			x = units_.pos_x[i]; z = units_.pos_z[i]; return true;
 		}
+	return false;
 }
 
 void Simulation::petra_manage_tactical_attacks(float dt) {
@@ -33244,6 +33254,12 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 				// targetPlayer stays unset while the plan prepares (an attack request may set it):
 				// chooseTarget asks getEnemyPlayer when the plan must start.
 				plan.target_player = 0xFF;
+			}
+			// attackPlan.js constructor: no rally point (no base anchor and nothing of ours to muster
+			// on) fails the plan before attackManager counts it.
+			{
+				float rally_x, rally_z;
+				if (!petra_rally_point(rally_x, rally_z)) return;
 			}
 			petra_plan_sizes(kind);
 			if (kind == PETRA_ATTACK_RUSH) ++mgr.rush_number;
@@ -35346,9 +35362,8 @@ uint32_t Simulation::petra_free_transport_ship(uint16_t sea, float x, float z) c
 		if (!units_.alive[i] || units_.team[i] != petra_pid_ || !petra_is_transport_ship(i)) continue;
 		if (sea && petra_ship_sea(i) != sea) continue;
 		if (petra_ship_in_plan(units_.id[i])) continue; // busy with another plan
-		// A warship in a defense army fights where the army is; it would never come to the
-		// boarding point (the plan waits for a free ship, needTransportShips).
-		if (petra_is_defender(units_.id[i])) continue;
+		// navalManager.js seaTransportShips takes every ship that can garrison, a warship in a
+		// defense army included (the two overlap, navalManager.js:52-53).
 		const float dx = units_.pos_x[i] - x, dz = units_.pos_z[i] - z;
 		const float d2 = dx * dx + dz * dz;
 		if (ship && d2 >= best_d2) continue;
