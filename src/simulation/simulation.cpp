@@ -27452,9 +27452,13 @@ void Simulation::petra_dispatch_units() {
 	}
 	if (ccs.empty()) return;
 	std::vector<size_t> units;
-	for (size_t i = 0; i < units_.count; ++i)
-		if (units_.alive[i] && units_.team[i] == petra_pid_ && !unit_is_ship(units_.unit_type[i])) units.push_back(i);
-	int num = std::max(std::min((int)std::lround(0.08f * (1.0f + petra_config_.cooperative) * (float)units.size()), 20), 5);
+	size_t own_units = 0; // gameState.getOwnUnits().length: every Unit, ships included
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
+		++own_units;
+		if (!unit_is_ship(units_.unit_type[i])) units.push_back(i);
+	}
+	int num = std::max(std::min((int)std::lround(0.08f * (1.0f + petra_config_.cooperative) * (float)own_units), 20), 5);
 	int num1 = num / 2, num2 = num1;
 	std::vector<uint32_t> &allied = petra_kept_.allied;
 	auto send = [&](size_t i) {
