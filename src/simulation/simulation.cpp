@@ -29134,12 +29134,12 @@ bool Simulation::petra_require_worker_transport(size_t i, uint16_t from_land, ui
 // lands with room for one more (at most 3 siege engines per plan, navalManager.js:379),
 // else nullptr for a new plan.
 PetraTransportPlan *Simulation::petra_transport_join(uint8_t owner, uint16_t from_land, uint16_t to_land, bool is_siege) {
-	PetraTransportPlan *best = nullptr;
+	// navalManager.js requireTransport: the first boarding plan of this crossing (plans.sort with a
+	// one-argument comparator leaves the order as it was), whether or not its ship has room. A
+	// full ship sends the unit to a new plan (splitTransport, via the caller's can_board check).
 	for (auto &tp : petra_transports_) {
 		if (tp.owner != owner || tp.state != PetraTransportPlan::BOARDING) continue;
 		if (petra_land_at(tp.pickup_x, tp.pickup_z) != from_land || petra_land_at(tp.drop_x, tp.drop_z) != to_land) continue;
-		// A plan still waiting for its ship takes anyone (needTransportShips).
-		if (tp.ship_id && tp.passenger_ids.size() >= (size_t)get_transport_capacity(tp.ship_id)) continue;
 		if (is_siege) {
 			int siege = 0;
 			for (uint32_t uid : tp.passenger_ids) {
@@ -29148,9 +29148,9 @@ PetraTransportPlan *Simulation::petra_transport_join(uint8_t owner, uint16_t fro
 			}
 			if (siege > 3) continue;
 		}
-		if (!best || tp.passenger_ids.size() < best->passenger_ids.size()) best = &tp;
+		return &tp;
 	}
-	return best;
+	return nullptr;
 }
 
 const PetraTransportPlan *Simulation::petra_transport_for(uint8_t owner) const {

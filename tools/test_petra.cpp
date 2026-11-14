@@ -1999,6 +1999,39 @@ static void test_transport_ship_defender_pick() {
 	CHECK(pick == near_ship, "a defending warship is a transport ship when it is the nearest free one");
 }
 
+// navalManager.js requireTransport: the first boarding plan of the crossing takes the unit even
+// when its ship is full (plans.sort with a one-argument comparator keeps the order); the full
+// ship then sends the unit to a new plan, not to a second plan that has room.
+static void test_transport_join_first_plan() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_REGICIDE);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	float cx = 0.0f, cz = 0.0f;
+	for (const auto &b : s->buildings_) if (b.team == 1 && b.type == BLD_TOWN_CENTER) { cx = b.x; cz = b.z; }
+	const uint16_t land = s->petra_land_at(cx, cz);
+	const uint32_t ship = s->spawn_unit(cx + 12.0f, cz, 1, UNIT_TRIREME);
+	s->petra_transports_.clear();
+	PetraTransportPlan full, roomy;
+	for (PetraTransportPlan *p : {&full, &roomy}) {
+		p->state = PetraTransportPlan::BOARDING;
+		p->owner = 1;
+		p->pickup_x = p->drop_x = cx;
+		p->pickup_z = p->drop_z = cz;
+	}
+	full.ship_id = ship;
+	for (int k = 0; k < s->get_transport_capacity(ship); ++k) full.passenger_ids.push_back(900000u + (uint32_t)k);
+	s->petra_transports_.push_back(full);
+	s->petra_transports_.push_back(roomy);
+	const PetraTransportPlan *got = s->petra_transport_join(1, land, land, false);
+	std::printf("  two boarding plans on this crossing, the first with a full ship: the unit joins %s\n",
+	            got == &s->petra_transports_[0] ? "the first plan" : got == &s->petra_transports_[1] ? "the second plan" : "no plan");
+	CHECK(got == &s->petra_transports_[0], "the unit joins the first boarding plan of the crossing, whether or not it has room");
+}
+
 // worker.js:325-345: a Petra builder that autocontinue sends from a finished house to a field
 // foundation is taken off it (fields are built by their farmers, buildAnyField); another
 // foundation nearby it does build.
@@ -11081,6 +11114,7 @@ int main(int argc, char **argv) {
 	RUN(test_gather_rate_civ_bonus);
 	RUN(test_garrison_melee_attack);
 	RUN(test_regicide_hero_heal_holder);
+	RUN(test_transport_join_first_plan);
 	RUN(test_garrison_attacked_full_by_slots);
 	RUN(test_garrison_emergency_unloads_first);
 	RUN(test_transport_ship_defender_pick);
