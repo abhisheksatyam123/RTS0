@@ -30932,7 +30932,25 @@ bool Simulation::petra_find_strategic_cc_location(uint8_t btype, float &out_x, f
 			out_z = z;
 		}
 	}
+	if (found) petra_raise_sea_ships_to(out_x, out_z);
 	return found;
+}
+
+// headquarters.js findStrategicCCLocation, after the spot is chosen: setMinimalTransportShips
+// (1 ship) on the sea between the new spot's land and each base of ours on another access land
+// that one sea joins (getSeaBetweenIndices: exactly land, sea, land). Only ever raised.
+void Simulation::petra_raise_sea_ships_to(float x, float z) {
+	uint16_t home = 0;
+	const PetraNavalTopo &topo = petra_classified_topo(home);
+	const uint16_t to_land = petra_land_at(x, z);
+	const uint16_t to_access = petra_access_at(x, z);
+	std::vector<uint8_t> &kept = petra_kept_.wanted_transport;
+	for (const PetraBase &pb : petra_bases_) {
+		if (pb.anchor_building_id == 0) continue;
+		if (petra_access_at(pb.x, pb.z) == to_access) continue;
+		const uint16_t sea = topo.sea_between(petra_land_at(pb.x, pb.z), to_land);
+		if (sea && PetraKept::at(kept, sea) < 1) PetraKept::raise(kept, sea, 1);
+	}
 }
 
 // headquarters.js findEconomicCCLocation, not for a first base: the neutral tile with the most
@@ -31106,6 +31124,9 @@ bool Simulation::petra_find_economic_cc_location(uint8_t btype, uint8_t res, boo
 			out_z = z;
 		}
 	}
+	// headquarters.js findEconomicCCLocation ends with setMinimalTransportShips for the seas to
+	// our bases on other access lands, for any spot it returns (strategic fallback included).
+	if (found) petra_raise_sea_ships_to(out_x, out_z);
 	return found;
 }
 
