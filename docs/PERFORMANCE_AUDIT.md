@@ -38,7 +38,7 @@ Companion docs: [PERFORMANCE.md](PERFORMANCE.md) (what is in place and the rules
 | Technique | Status | Where | Notes / measured impact |
 |---|---|---|---|
 | Data-oriented layout (SoA) | done for units and nav | `src/core/memory/soa_storage.h` (`UnitSoA`, included at `simulation.h:5`); `grid_nav.h` SoA navigation grid; packed per-tick arrays (`sep_obstacles_`) | The design is in place. Cache-miss counts have never been measured (see below). |
-| Cache misses and IPC (`perf stat`) | not measured | no `perf_event` or `perf stat` use in `src/` or `tools/` | We have the perf tools on the container (`/usr/lib/linux-tools-*`). Needs a wrapper script and a baseline. |
+| Cache misses (cachegrind) | measured, flat | `valgrind --tool=cachegrind --cache-sim=yes` on `tools/bench_late.cpp` (Giant 512, 8 Petra, minute-30 save, 2 game minutes, `--threads 0`). `perf` is not installed in the container. | LL misses are negligible (0.8M of 237M LL refs), so the working set fits the last-level cache and the cost is L1 data misses: 174M D1 read misses. The largest share is the separation pair loop (8.9%), then `move_units` (3.5%) and `tick_gather` (2.8%). A pass that packed `builder_stand_point`'s candidates (#2019) and a flood visit record (#2026) each cut their own misses, but the wall-time gain stayed under the 5% noise floor. A dense-array rewrite of `tick_gather`'s gatherer maps was judged not worth the gather-order risk. |
 | Spatial grids | done | `UnitGrid` (`simulation.cpp:364`, 64 to 128 cells per side on large maps); `nav::ObstacleGrid`; `CellSet`; `LosGrid`; 8 m capture grid (`tick_capture`) | Per-tick neighbour and capture queries no longer scan every unit or building. |
 | Per-tick time budgets, leftover work spread over later ticks | partial | `BEYOND_SEARCH_BUDGET = 1000` (`simulation.h:2946`), leftover searches carried to later turns (`simulation.cpp:16277-16506`); `grid_nav.h:316` `TREE_BFS_CELLS` | Long-range tree searches are budgeted. Petra's AI is cadence-based (`ai/petra-cadence-audit.md`), not time-budgeted. There is no general "ms per tick" budget. |
 | Path cost (long paths) | done | JPS in `nav/long_pathfinder.h` (#1612 fast passable lambda: Red Sea worst turn 300 to 158 ms); tree-aware routing (round 9, #1947, +15% tick, being won back by the Speed up thread) | Round 9 added cost; tracked by the Speed up pathfinding thread. |
@@ -79,5 +79,5 @@ No like-for-like run exists. `performance/baseline.md` compares RTS0 with its ow
 1. Device auto-detect presets and dynamic quality on frame time (presentation only, no sim change).
 2. Visibility ranges and LOD for props and flora (presentation only).
 3. A zoomed-in and zoomed-out stress run that prints p99 tick and p99 frame time.
-4. `perf stat` wrapper for the sim bench (cache misses and IPC), with a baseline.
+4. Re-run the cachegrind profile after any large sim change; the sim profile is flat, so the next gains are in presentation (see Rendering).
 5. A general per-tick time budget for Petra and path work, with leftover work spread across ticks (sim change: needs hash and lockstep checks).

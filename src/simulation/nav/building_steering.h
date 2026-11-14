@@ -251,12 +251,17 @@ inline int line_hit(const B& b, Vec2 pos, Vec2 end, Vec2 aim, float radius, uint
 } // namespace detail
 
 // True when the straight line from `pos` towards `aim`, cut at `max_len`, crosses a building expanded
-// by `radius`. False when the unit stands inside one (separation() pushes it out first).
+// by `radius`. A square the unit stands in is passed over, as 0.28's TestLine passes over the square
+// its line starts in, but another square the line crosses still blocks it (G177).
+// `clear_if_inside` keeps the rule from before G177 for the small obstacles (trees, bushes, treasures):
+// a unit standing in one of their squares takes its line as clear. A large unit wedged in a grove,
+// its clearance grown past the gaps between trees, would otherwise search for a way out it cannot
+// take and stall (scenario 40 of test_building_steering).
 // `Buildings` is a range of Simulation::Building, or of anything with its fields id, type, wrecked, x, z,
 // ux, uz, hu and hv. No allocation.
 template <class Buildings>
 bool line_blocked_by_buildings(Vec2 pos, Vec2 aim, float max_len, float radius,
-		const Buildings& buildings, uint32_t ignore_building_id)
+		const Buildings& buildings, uint32_t ignore_building_id, bool clear_if_inside = false)
 {
 	const Vec2 to_aim = aim - pos;
 	const float len = to_aim.length();
@@ -267,19 +272,17 @@ bool line_blocked_by_buildings(Vec2 pos, Vec2 aim, float max_len, float radius,
 	bool blocked = false;
 	for (const auto& b : buildings) {
 		const int hit = detail::line_hit(b, pos, end, aim, radius, ignore_building_id, reach, box);
-		if (hit == detail::LINE_HOLDS_POS) return false;
+		if (hit == detail::LINE_HOLDS_POS && clear_if_inside) return false;
 		if (hit == detail::LINE_CROSSES) blocked = true;
 	}
 	return blocked;
-
 }
 
 // True when the segment from `pos` to `end` crosses a building expanded by `radius`. As in
 // line_blocked_by_buildings, buildings whose expanded footprint contains `aim` (the destination) and
-// `ignore_building_id` don't count, and standing inside one is not blocked. This is the memo and
-// kept-path re-check, and it still clears a segment that starts inside one square and crosses another
-// (G84, docs/REMAINING_GAPS.md): steer_line_blocked, which tests the squares not holding the unit,
-// does block such a line.
+// `ignore_building_id` don't count. The square the unit stands in is passed over, but another square
+// the segment crosses still blocks it (G84, docs/REMAINING_GAPS.md), as steer_line_blocked and
+// line_blocked_by_buildings do. This is the memo and kept-path re-check.
 template <class Buildings>
 bool segment_blocked_by_buildings(Vec2 pos, Vec2 end, Vec2 aim, float radius,
 		const Buildings& buildings, uint32_t ignore_building_id)
@@ -790,7 +793,7 @@ bool steer_around_obstacles(Vec2 pos, Vec2 aim, float radius,
 		return detail::steer_round_buildings(pos, aim, radius, buildings, ignore_building_id, nav, by_terrain, key, memo, out,
 				search, follow, next);
 	}
-	if (!by_buildings && !line_blocked_by_buildings(pos, aim, small_range, radius, small, ignore_building_id)) return straight();
+	if (!by_buildings && !line_blocked_by_buildings(pos, aim, small_range, radius, small, ignore_building_id, true)) return straight();
 	const ConcatRange<T> both{buildings, small};
 	if (memo.key == key && same_aim) {
 		const Vec2 w(memo.x, memo.z);
