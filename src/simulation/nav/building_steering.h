@@ -110,15 +110,17 @@ inline bool segment_near_deep_water(const NavGrid& nav, Vec2 a, Vec2 b, float ra
 	return false;
 }
 
-// How steep ground meets the line from `pos` towards `aim` within BUILDING_STEER_RANGE, a hair
-// inside the clearance, so a unit stopped at a cliff's margin by land_step_barred, or a short-path
-// waypoint at an expanded corner, doesn't count as on it: not at all, only in the margin round an
-// aim that lies within it (a tree or a mine up a slope), which the line enters and doesn't leave,
-// or across the way.
+// How steep ground meets the line from `pos` towards `aim` within BUILDING_STEER_RANGE, at the full
+// clearance: the radius Simulation::land_step_barred refuses a step into. With a slack inside that
+// radius, a line whose first step the barrier refuses could read clear; soak seed 17 then held a
+// Roman returner at (-57, -37) for 8 minutes, and without the slack that jam is gone. The start
+// doesn't count, so a unit stopped at a cliff's margin isn't on the steep ground itself. Otherwise:
+// not at all, only in the margin round an aim that lies within it (a tree or a mine up a slope),
+// which the line enters and doesn't leave, or across the way.
 enum TerrainLine { TERRAIN_LINE_CLEAR, TERRAIN_LINE_AIM_MARGIN, TERRAIN_LINE_BLOCKED };
 inline TerrainLine terrain_line(const NavGrid& nav, Vec2 pos, Vec2 aim, float radius)
 {
-	const float r = radius - TERRAIN_EDGE_SLACK;
+	const float r = radius;
 	const Vec2 to = aim - pos;
 	const float len = to.length();
 	if (len > BUILDING_STEER_RANGE)
