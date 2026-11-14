@@ -3241,6 +3241,40 @@ static void turned_corner_band() {
 	check(mismatch == 0, "a line that crosses a turned building's clearance square is blocked, corner band included");
 }
 
+// A line that starts inside one building's clearance square and crosses another one is blocked, as
+// 0.28's TestLine blocks it: only the square the line starts in is passed over (G177). The steering
+// line test returned false for the whole line as soon as it met a square holding the start, so a
+// unit inside one house kept its straight aim across the next house. The segment test and the
+// live steer_line_blocked already pass over just the start square.
+static void line_leaves_start_square_into_another() {
+	struct Bld {
+		uint32_t id;
+		float x, z, ux, uz, hu, hv;
+		uint8_t type;
+		bool wrecked;
+		float ext;
+	};
+	const float r = CLEARANCE_DEFAULT;
+	Bld a{1, 0.0f, 0.0f, 1.0f, 0.0f, 0.5f, 0.5f, BLD_HOUSE, false, 0.0f};
+	Bld b{2, 2.0f, 0.0f, 1.0f, 0.0f, 0.5f, 0.5f, BLD_HOUSE, false, 0.0f};
+	a.ext = nav::footprint_extent(nav::Footprint{a.x, a.z, a.ux, a.uz, a.hu, a.hv});
+	b.ext = nav::footprint_extent(nav::Footprint{b.x, b.z, b.ux, b.uz, b.hu, b.hv});
+	const std::vector<Bld> bs{a, b};
+	const nav::Vec2 pos(0.3f, 0.0f); // inside a's clearance square (half 0.7 about x = 0)
+	// Into b's square: blocked, whatever the length of the line.
+	check(nav::PointIsInSquare(pos - nav::Vec2(a.x, a.z), nav::footprint_u(a), nav::footprint_v(a), nav::Vec2(a.hu + r, a.hv + r)),
+		"the start lies inside the first house's clearance square");
+	check(nav::line_blocked_by_buildings(pos, nav::Vec2(4.0f, 0.0f), 5.0f, r, bs, 0),
+		"a line from inside one house's clearance square into the next house is blocked");
+	check(nav::segment_blocked_by_buildings(pos, nav::Vec2(4.0f, 0.0f), nav::Vec2(4.0f, 0.0f), r, bs, 0),
+		"the segment test blocks the same line");
+	// Away from b, or past it on a line that misses it: clear.
+	check(!nav::line_blocked_by_buildings(pos, nav::Vec2(-3.0f, 0.0f), 5.0f, r, bs, 0),
+		"a line from inside one house's clearance square that leaves the other way is clear");
+	check(!nav::line_blocked_by_buildings(pos, nav::Vec2(0.3f, 3.0f), 5.0f, r, bs, 0),
+		"a line from inside one house's clearance square that misses the next house is clear");
+}
+
 int main() {
 	std::printf("RTS0 building steering test (src/simulation/nav/building_steering.h)\n");
 	guard_behind_wall();
@@ -3292,6 +3326,7 @@ int main() {
 	large_path_round_crowded_gaps();
 	search_memo_nav_stamp();
 	turned_corner_band();
+	line_leaves_start_square_into_another();
 	if (g_failures) {
 		std::printf("FAIL (%d)\n", g_failures);
 		return 1;
