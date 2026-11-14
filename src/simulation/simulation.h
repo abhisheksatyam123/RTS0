@@ -4702,6 +4702,7 @@ private:
 	// noBase (anchor 0) runs every turn.
 	bool petra_base_turn(uint32_t anchor_id) const { return !petra_turn_anchor_ || !anchor_id || anchor_id == petra_turn_anchor_; }
 	void petra_update_tile_bases();
+	void petra_territory_expansion(const std::vector<uint32_t> &prev_anchor, bool had_prev); // updateTerritories
 	std::vector<uint32_t> petra_switch_anchor_scratch_; // setWorkersIdleByPriority: our live base anchors
 	std::vector<uint8_t> petra_switch_mine_scratch_; // setWorkersIdleByPriority: the checking base's gatherers of a type
 	mutable std::vector<int> petra_bases_tile_scratch_; // petra_bases_map's territory tile per column, then per row

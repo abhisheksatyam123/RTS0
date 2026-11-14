@@ -36191,6 +36191,37 @@ void Simulation::petra_bases_map(PetraBasesMap &m) const {
 
 // headquarters.js updateTerritories: lost tiles leave their base (removeBaseFromTerritoryIndex),
 // new ones go to the nearest base, and the rest stay where they are.
+// headquarters.js updateTerritories: an owned tile on land that one of our bases takes this turn
+// (basesManager.addTerritoryIndexToBase) is expansion. Any expansion ends the room marks
+// (buildManager.resetMissingRoom); over 960 m² (60 tiles of 16 m²) prospects a market
+// (routeProspection). Growth over water, or inside bases already, is not expansion. The first
+// AI turn has no earlier claims, so it clears marks but starts no prospect.
+void Simulation::petra_territory_expansion(const std::vector<uint32_t> &prev_anchor, bool had_prev) {
+	const PetraTileBases &t = petra_tile_bases_;
+	if (t.w <= 0 || territory_grid_.w != t.w || territory_grid_.h != t.w || t.anchor.size() != (size_t)t.w * t.w) return;
+	if (had_prev && prev_anchor.size() != t.anchor.size()) had_prev = false;
+	uint16_t home = 0;
+	const PetraNavalTopo &topo = petra_classified_topo(home);
+	const float cell = map_half_ * 2.0f / (float)t.w;
+	const uint8_t mine = (uint8_t)(petra_pid_ + 1);
+	int expansion = 0;
+	for (int tz = 0; tz < t.w; ++tz)
+		for (int tx = 0; tx < t.w; ++tx) {
+			const size_t k = (size_t)tz * t.w + tx;
+			if (t.anchor[k] == 0 || (had_prev && prev_anchor[k] != 0)) continue;
+			if (territory_grid_.at(tx, tz) != mine) continue;
+			const float wx = -map_half_ + ((float)tx + 0.5f) * cell, wz = -map_half_ + ((float)tz + 0.5f) * cell;
+			if (topo.naval_map) {
+				if (!topo.land_region(petra_land_at(wx, wz))) continue; // landRegions only
+			} else if (!petra_access_at(wx, wz)) {
+				continue;
+			}
+			++expansion;
+		}
+	if (expansion > 0) petra_room_.marks.clear();
+	if (had_prev && (float)expansion * cell * cell > 960.0f / 16.0f) petra_prospect_.active = true;
+}
+
 void Simulation::petra_update_tile_bases() {
 	PetraBasesMap m;
 	petra_bases_map(m);
@@ -39320,20 +39351,17 @@ void Simulation::tick_petra_ai_player(float dt) {
 	// 1. Dynamic Danger & Threat Heatmap (64x64)
 	update_petra_threat_map(dt);
 
-	// headquarters.js updateTerritories: once our territory grows there may be room again
-	// (buildManager.resetMissingRoom); lapsed marks go.
+	// headquarters.js updateTerritories: the tiles our bases newly take this turn are the expansion.
 	{
 		const uint32_t tiles = petra_pid_ < MAX_PLAYERS ? territory_tiles_[petra_pid_] : 0;
-		if (tiles > petra_room_.tiles) {
-			petra_room_.marks.clear();
-			// headquarters.js:2044: and a new market may pay once it grew by over 960 m² (60 units²).
-			const float cell = territory_grid_.w > 0 ? map_half_ * 2.0f / (float)territory_grid_.w : 0.0f;
-			if (petra_room_.tiles && (float)(tiles - petra_room_.tiles) * cell * cell > 960.0f / 16.0f) petra_prospect_.active = true;
-		}
+		std::vector<uint32_t> prev_anchor;
+		prev_anchor.swap(petra_tile_bases_.anchor);
+		const bool had_prev = !prev_anchor.empty();
+		petra_update_tile_bases();
+		petra_territory_expansion(prev_anchor, had_prev);
 		petra_room_.tiles = tiles;
 		std::erase_if(petra_room_.marks, [&](const PetraRoom::Mark &m) { return m.until <= petra_timer_; });
 	}
-	petra_update_tile_bases();
 	petra_pick_turn_base();
 
 	// 2. Multi-Base Expansion & Base Anchors (BasesManager / headquarters.js)
