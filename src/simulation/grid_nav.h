@@ -3227,11 +3227,56 @@ inline bool NavGrid::find_path_tiles(float sx, float sz, float tx, float tz, Way
     int si = node_of(sx), sj = node_of(sz);
     const int si0 = si, sj0 = sj;
     if (!snap_tile(si, sj, sx, sz, tile_snap_reach(), open)) return false;
-    const bool start_moved = si != si0 || sj != sj0;
-    const uint32_t want = cached ? regions[at(si, sj)] : 0;
+    bool start_moved = si != si0 || sj != sj0;
+    uint32_t want = cached ? regions[at(si, sj)] : 0;
     const int gi0 = node_of(tx), gj0 = node_of(tz);
     int gi = gi0, gj = gj0;
     if (!snap_tile(gi, gj, tx, tz, tile_snap_reach(), open) && !want) return false;
+    // The start's node can lie in a pocket of open nodes that the goal's region does not reach: a unit on a navcell
+    // steep for the class is snapped to the one node its tiles leave open, and the goal then moves onto that node
+    // (MakeGoalReachable), so the path is the unit's own node (G198). 0 A.D. has no tile level: its start is the
+    // passable navcell nearest the unit (LongPathfinder.cpp:749-754), and that navcell reaches the goal. So the start
+    // moves to the nearest open node of the goal's region that the unit can walk straight to.
+    // The goal's region is the region of the open node nearest the goal, when the goal's own node is closed
+    // (a goal inside a structure's footprint, which snap_tile found no open node for within its reach).
+    const int reach = tile_snap_reach();
+    uint32_t goal_region = open(gi, gj) ? regions[at(gi, gj)] : 0;
+    if (want && !goal_region) {
+        float gbest = -1.0f;
+        for (int r = 1; r <= reach && gbest < 0.0f; ++r)
+            for (int dj = -r; dj <= r; ++dj)
+                for (int di = -r; di <= r; di += (dj == -r || dj == r || di == r) ? 1 : 2 * r) {
+                    const int i = gi0 + di, j = gj0 + dj;
+                    if (!open(i, j)) continue;
+                    const float ex = node_pos(i) - tx, ez = node_pos(j) - tz;
+                    const float d = ex * ex + ez * ez;
+                    if (gbest >= 0.0f && d >= gbest) continue;
+                    gbest = d;
+                    goal_region = regions[at(i, j)];
+                }
+    }
+    if (want && goal_region != 0 && goal_region != want) {
+        float best = -1.0f;
+        int bi = si, bj = sj;
+        for (int r = 1; r <= reach && best < 0; ++r)
+            for (int dj = -r; dj <= r; ++dj)
+                for (int di = -r; di <= r; di += (dj == -r || dj == r || di == r) ? 1 : 2 * r) {
+                    const int i = si + di, j = sj + dj;
+                    if (!open(i, j) || regions[at(i, j)] != goal_region) continue;
+                    const float ex = node_pos(i) - sx, ez = node_pos(j) - sz;
+                    const float d = ex * ex + ez * ez;
+                    if (best >= 0.0f && d >= best) continue;
+                    best = d;
+                    bi = i;
+                    bj = j;
+                }
+        if (best >= 0) {
+            si = bi;
+            sj = bj;
+            want = goal_region;
+            start_moved = true;
+        }
+    }
     if (want && (!open(gi, gj) || regions[at(gi, gj)] != want)) {
         int best_d = -1, bi = gi0, bj = gj0;
         auto consider = [&](int i, int j) {
