@@ -4201,6 +4201,7 @@ private:
 	void petra_dispatch_units();        // startingStrategy.js dispatchUnits
 	bool petra_dispatched_to_ally(uint32_t uid) const; // metadata "allied"
 	bool petra_can_build_units() const { return !petra_kept_.no_units; }
+	bool petra_rally_point(float &x, float &z) const; // false when we own nothing to rally on
 	void petra_attack_home(float &x, float &z) const; // the base an attack starts from, else one of our units // startingStrategy.js configFirstBase: needFish, needFarm, wantedFishShips
 	// worker.js lastHuntSearch: hunters that found nothing to hunt anywhere, and when (petra_timer_);
 	// an idle one searches again only 20 s later. Entries past 20 s are dropped.
