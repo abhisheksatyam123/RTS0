@@ -17225,7 +17225,7 @@ void Simulation::tick_gather(float dt) {
 						: nav::Vec2(std::max(0.0f, std::fabs(dx) - drop_half), std::max(0.0f, std::fabs(dz) - drop_half));
 				float edge_dx = edge.x, edge_dz = edge.y;
 				// A boat unloads from the water beside the dock, a little further out.
-				const float drop_reach = units_.unit_type[i] == UNIT_FISHING_BOAT ? 4.0f : 1.5f;
+				const float drop_reach = units_.unit_type[i] == UNIT_FISHING_BOAT ? 4.0f : 2.0f;
 				if (dx * dx + dz * dz < 2.5f * 2.5f || std::sqrt(edge_dx * edge_dx + edge_dz * edge_dz) -
 						unit_collision_radius(units_.unit_type[i]) < drop_reach) {
 					deposit_carry(i);
