@@ -4592,6 +4592,12 @@ Ref<Image> rtso_terrain_layer_image(const String &name) { return terrain_layer_i
 
 void RtsoWorldView::rebuild_terrain(const rtso::Simulation *sim) {
 	if (!sim || !terrain) return;
+	// Chunks from the last build (the grid is cut into blocks so the camera and sun passes can
+	// skip the blocks they can't see).
+	for (MeshInstance3D *mi : terrain_chunks_) if (mi) mi->queue_free();
+	for (MeshInstance3D *mi : terrain_shadow_chunks_) if (mi) mi->queue_free();
+	terrain_chunks_.clear();
+	terrain_shadow_chunks_.clear();
 	float half = sim->map_half();
 	const auto &heights = sim->terrain_heights();
 	int res = sim->terrain_res();
@@ -4602,7 +4608,6 @@ void RtsoWorldView::rebuild_terrain(const rtso::Simulation *sim) {
 		terrain->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_ON);
 		if (terrain_shadow) terrain_shadow->set_visible(false);
 	} else {
-		terrain_array_mesh.instantiate();
 		PackedVector3Array vertices;
 		PackedVector3Array normals;
 		PackedVector2Array uvs;
@@ -4653,16 +4658,70 @@ void RtsoWorldView::rebuild_terrain(const rtso::Simulation *sim) {
 		arrays[Mesh::ARRAY_TEX_UV] = uvs;
 		arrays[Mesh::ARRAY_INDEX] = indices;
 
-		terrain_array_mesh->add_surface_from_arrays(Mesh::PRIMITIVE_TRIANGLES, arrays);
-		terrain->set_mesh(terrain_array_mesh);
-	
+		// The grid is cut into blocks of 32 cells, one MeshInstance3D each, so the camera and sun
+		// passes cull the blocks they can't see. The blocks hold the same vertices, normals and
+		// triangles as the full grid, so the picture is unchanged.
+		terrain->set_mesh(Ref<Mesh>());
+		const Ref<Material> terrain_material = terrain->get_material_override();
+		const int chunk_cells = 32;
+		auto make_chunks = [&](const PackedVector3Array &gv, const PackedVector3Array &gn, const PackedVector2Array &guv,
+				int m, MeshInstance3D *parent, std::vector<MeshInstance3D *> &out, bool shadows_only) {
+			for (int cz0 = 0; cz0 < m - 1; cz0 += chunk_cells) {
+				for (int cx0 = 0; cx0 < m - 1; cx0 += chunk_cells) {
+					const int cx1 = std::min(cx0 + chunk_cells, m - 1), cz1 = std::min(cz0 + chunk_cells, m - 1);
+					const int nx = cx1 - cx0 + 1, nz = cz1 - cz0 + 1;
+					PackedVector3Array cv, cn;
+					PackedVector2Array cuv;
+					cv.resize(nx * nz);
+					if (!gn.is_empty()) cn.resize(nx * nz);
+					if (!guv.is_empty()) cuv.resize(nx * nz);
+					for (int z = 0; z < nz; ++z) {
+						for (int x = 0; x < nx; ++x) {
+							const int g = (cz0 + z) * m + (cx0 + x), l = z * nx + x;
+							cv.set(l, gv[g]);
+							if (!gn.is_empty()) cn.set(l, gn[g]);
+							if (!guv.is_empty()) cuv.set(l, guv[g]);
+						}
+					}
+					PackedInt32Array ci;
+					ci.resize((nx - 1) * (nz - 1) * 6);
+					int w = 0;
+					for (int z = 0; z < nz - 1; ++z) {
+						for (int x = 0; x < nx - 1; ++x) {
+							const int i00 = z * nx + x, i10 = i00 + 1, i01 = (z + 1) * nx + x, i11 = i01 + 1;
+							ci.set(w++, i00); ci.set(w++, i01); ci.set(w++, i10);
+							ci.set(w++, i10); ci.set(w++, i01); ci.set(w++, i11);
+						}
+					}
+					Array carr;
+					carr.resize(Mesh::ARRAY_MAX);
+					carr[Mesh::ARRAY_VERTEX] = cv;
+					if (!gn.is_empty()) carr[Mesh::ARRAY_NORMAL] = cn;
+					if (!guv.is_empty()) carr[Mesh::ARRAY_TEX_UV] = cuv;
+					carr[Mesh::ARRAY_INDEX] = ci;
+					Ref<ArrayMesh> am;
+					am.instantiate();
+					am->add_surface_from_arrays(Mesh::PRIMITIVE_TRIANGLES, carr);
+					MeshInstance3D *mi = memnew(MeshInstance3D);
+					mi->set_mesh(am);
+					mi->set_layer_mask(parent->get_layer_mask());
+					if (shadows_only) {
+						mi->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_SHADOWS_ONLY);
+					} else {
+						mi->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_OFF);
+						mi->set_material_override(terrain_material);
+					}
+					parent->add_child(mi);
+					out.push_back(mi);
+				}
+			}
+		};
+		make_chunks(vertices, normals, uvs, res, terrain, terrain_chunks_, false);
+
 		// The terrain itself only receives shadows; its casting comes from the half-resolution
 		// proxy below (SHADOWS_ONLY: drawn in the shadow passes, never in the camera pass).
-		terrain->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_OFF);
 		if (!terrain_shadow) {
 			terrain_shadow = memnew(MeshInstance3D);
-			terrain_shadow_mesh.instantiate();
-			terrain_shadow->set_mesh(terrain_shadow_mesh);
 			terrain_shadow->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_SHADOWS_ONLY);
 			add_child(terrain_shadow);
 		}
@@ -4680,22 +4739,7 @@ void RtsoWorldView::rebuild_terrain(const rtso::Simulation *sim) {
 					sv.set(zi * m + xi, Vector3(-half + gx * step, heights[gz * res + gx], -half + gz * step));
 				}
 			}
-			PackedInt32Array si;
-			si.resize((m - 1) * (m - 1) * 6);
-			int w = 0;
-			for (int zi = 0; zi < m - 1; ++zi) {
-				for (int xi = 0; xi < m - 1; ++xi) {
-					const int i00 = zi * m + xi, i10 = zi * m + xi + 1, i01 = (zi + 1) * m + xi, i11 = (zi + 1) * m + xi + 1;
-					si.set(w++, i00); si.set(w++, i01); si.set(w++, i10);
-					si.set(w++, i10); si.set(w++, i01); si.set(w++, i11);
-				}
-			}
-			Array sarr;
-			sarr.resize(Mesh::ARRAY_MAX);
-			sarr[Mesh::ARRAY_VERTEX] = sv;
-			sarr[Mesh::ARRAY_INDEX] = si;
-			terrain_shadow_mesh->clear_surfaces();
-			terrain_shadow_mesh->add_surface_from_arrays(Mesh::PRIMITIVE_TRIANGLES, sarr);
+			make_chunks(sv, PackedVector3Array(), PackedVector2Array(), m, terrain_shadow, terrain_shadow_chunks_, true);
 		}
 		terrain_shadow->set_visible(true);
 	}
