@@ -101,8 +101,9 @@ inline String resource_amount(int64_t amount, int64_t max, bool infinite) {
 
 // resistanceLevelToPercentageString.
 inline String resistance_percent(float level) {
-	return sprintf0(tr0("%(percentage)s%%"), {{"percentage", num(100 - (int64_t)std::lround(std::pow(0.9, level) * 100.0))}})
-			.replace("%%", "%");
+	// 0.28 wraps the percentage in sans-10 (tooltips.js getDamageResistanceTooltip); sans-14 is our 14 px body.
+	return "[font_size=10]" + sprintf0(tr0("%(percentage)s%%"), {{"percentage", num(100 - (int64_t)std::lround(std::pow(0.9, level) * 100.0))}})
+			.replace("%%", "%") + "[/font_size]";
 }
 
 inline String damage_type_name(int k) {

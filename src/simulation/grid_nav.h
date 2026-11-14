@@ -2627,17 +2627,23 @@ inline void NavGrid::avoid_tree_subcells(float sx, float sz, float &gx, float &g
                 const bool snav = cx == snav_i && cy == snav_j;
                 const int x0 = std::max(lo_i, cx * 8), x1 = std::min(hi_i, cx * 8 + 7);
                 const int y0 = std::max(lo_j, cy * 8), y1 = std::min(hi_j, cy * 8 + 7);
+                // The same values as goal_sub and the closure tests per subcell, worked out as bit masks over the
+                // navcell's 64 subcells: the goal subcells inside it are exempt (their closure is off, and their
+                // bit in `sub` does not block them), and the start's navcell is open.
+                uint64_t ex_mask = 0;
+                for (int g = 0; g < 2; ++g) {
+                    const int gx = g ? mi : gi, gy = g ? mj : gj;
+                    if (gx / 8 == cx && gy / 8 == cy) ex_mask |= 1ull << ((gy & 7) * 8 + (gx & 7));
+                }
+                const uint64_t cl_all = snav ? 0ull : (water ? (ww | (steep ? ~0ull : 0ull)) : (nav_cl ? ~0ull : 0ull));
+                const uint64_t cl_eff = cl_all & ~ex_mask;
+                const uint64_t bl_all = cl_eff | (sub & ~ex_mask);
                 uint8_t *sp = st.data();
                 for (int y = y0; y <= y1; ++y) {
                     uint8_t *cell = sp + pidx(x0, y);
                     for (int x = x0; x <= x1; ++x, ++cell) {
-                        const int bit = (y & 7) * 8 + (x & 7);
-                        const bool ex = goal_sub(x, y);
-                        bool cl = water ? (((ww >> bit) & 1u) != 0 || steep) : nav_cl;
-                        if (ex || snav) cl = false;
-                        const bool sb = ((sub >> bit) & 1u) != 0;
-                        const bool bl = cl || (!ex && sb);
-                        *cell = static_cast<uint8_t>((cl ? kClosed : 0) | (bl ? kBlocked : 0) | (sb ? kSub : 0));
+                        const uint64_t m = 1ull << ((y & 7) * 8 + (x & 7));
+                        *cell = static_cast<uint8_t>(((cl_eff & m) ? kClosed : 0) | ((bl_all & m) ? kBlocked : 0) | ((sub & m) ? kSub : 0));
                     }
                 }
             }
@@ -3227,11 +3233,58 @@ inline bool NavGrid::find_path_tiles(float sx, float sz, float tx, float tz, Way
     int si = node_of(sx), sj = node_of(sz);
     const int si0 = si, sj0 = sj;
     if (!snap_tile(si, sj, sx, sz, tile_snap_reach(), open)) return false;
-    const bool start_moved = si != si0 || sj != sj0;
-    const uint32_t want = cached ? regions[at(si, sj)] : 0;
+    bool start_moved = si != si0 || sj != sj0;
+    uint32_t want = cached ? regions[at(si, sj)] : 0;
     const int gi0 = node_of(tx), gj0 = node_of(tz);
     int gi = gi0, gj = gj0;
     if (!snap_tile(gi, gj, tx, tz, tile_snap_reach(), open) && !want) return false;
+    // The start's node can lie in a pocket of open nodes that the goal's region does not reach: a unit on a navcell
+    // steep for the class is snapped to the one node its tiles leave open, and the goal then moves onto that node
+    // (MakeGoalReachable), so the path is the unit's own node (G198). 0 A.D. has no tile level: its start is the
+    // passable navcell nearest the unit (LongPathfinder.cpp:749-754), and that navcell reaches the goal. So the start
+    // moves to the nearest open node of the goal's region that the unit can walk straight to.
+    // The goal's region is the region of the open node nearest the goal, when the goal's own node is closed
+    // (a goal inside a structure's footprint, which snap_tile found no open node for within its reach).
+    const int reach = tile_snap_reach();
+    uint32_t goal_region = open(gi, gj) ? regions[at(gi, gj)] : 0;
+    if (want && !goal_region) {
+        float gbest = -1.0f;
+        for (int r = 1; r <= reach && gbest < 0.0f; ++r)
+            for (int dj = -r; dj <= r; ++dj)
+                for (int di = -r; di <= r; di += (dj == -r || dj == r || di == r) ? 1 : 2 * r) {
+                    const int i = gi0 + di, j = gj0 + dj;
+                    if (!open(i, j)) continue;
+                    const float ex = node_pos(i) - tx, ez = node_pos(j) - tz;
+                    const float d = ex * ex + ez * ez;
+                    if (gbest >= 0.0f && d >= gbest) continue;
+                    gbest = d;
+                    goal_region = regions[at(i, j)];
+                }
+    }
+    // Small units only: a large unit's first leg from a steep navcell crosses ground its class can't take, and
+    // the moved start stalls it short of the path's end (test_building_steering scenario 40, a walk past the edge).
+    if (cls == 0 && want && goal_region != 0 && goal_region != want) {
+        float best = -1.0f;
+        int bi = si, bj = sj;
+        for (int r = 1; r <= reach && best < 0; ++r)
+            for (int dj = -r; dj <= r; ++dj)
+                for (int di = -r; di <= r; di += (dj == -r || dj == r || di == r) ? 1 : 2 * r) {
+                    const int i = si + di, j = sj + dj;
+                    if (!open(i, j) || regions[at(i, j)] != goal_region) continue;
+                    const float ex = node_pos(i) - sx, ez = node_pos(j) - sz;
+                    const float d = ex * ex + ez * ez;
+                    if (best >= 0.0f && d >= best) continue;
+                    best = d;
+                    bi = i;
+                    bj = j;
+                }
+        if (best >= 0) {
+            si = bi;
+            sj = bj;
+            want = goal_region;
+            start_moved = true;
+        }
+    }
     if (want && (!open(gi, gj) || regions[at(gi, gj)] != want)) {
         int best_d = -1, bi = gi0, bj = gj0;
         auto consider = [&](int i, int j) {

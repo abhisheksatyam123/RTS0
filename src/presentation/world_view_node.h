@@ -366,6 +366,10 @@ private:
 	MeshInstance3D *terrain = nullptr;
 	Ref<PlaneMesh> plane_mesh;
 	Ref<ArrayMesh> terrain_array_mesh;
+	// Shadow-only proxy of the terrain at half resolution: the full grid casts half of the
+	// sun's shadow-pass triangles, and a 2x coarser caster gives the same shadows (n32: 131k -> 33k tris).
+	MeshInstance3D *terrain_shadow = nullptr;
+	Ref<ArrayMesh> terrain_shadow_mesh;
 
 	MeshInstance3D *water_mesh_node = nullptr;
 	Ref<PlaneMesh> water_mesh;
