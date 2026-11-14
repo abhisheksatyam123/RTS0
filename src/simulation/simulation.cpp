@@ -29145,12 +29145,12 @@ bool Simulation::petra_require_worker_transport(size_t i, uint16_t from_land, ui
 // lands with room for one more (at most 3 siege engines per plan, navalManager.js:379),
 // else nullptr for a new plan.
 PetraTransportPlan *Simulation::petra_transport_join(uint8_t owner, uint16_t from_land, uint16_t to_land, bool is_siege) {
-	PetraTransportPlan *best = nullptr;
+	// navalManager.js requireTransport: the first boarding plan of this crossing (plans.sort with a
+	// one-argument comparator leaves the order as it was), whether or not its ship has room. A
+	// full ship sends the unit to a new plan (splitTransport, via the caller's can_board check).
 	for (auto &tp : petra_transports_) {
 		if (tp.owner != owner || tp.state != PetraTransportPlan::BOARDING) continue;
 		if (petra_land_at(tp.pickup_x, tp.pickup_z) != from_land || petra_land_at(tp.drop_x, tp.drop_z) != to_land) continue;
-		// A plan still waiting for its ship takes anyone (needTransportShips).
-		if (tp.ship_id && tp.passenger_ids.size() >= (size_t)get_transport_capacity(tp.ship_id)) continue;
 		if (is_siege) {
 			int siege = 0;
 			for (uint32_t uid : tp.passenger_ids) {
@@ -29159,9 +29159,9 @@ PetraTransportPlan *Simulation::petra_transport_join(uint8_t owner, uint16_t fro
 			}
 			if (siege > 3) continue;
 		}
-		if (!best || tp.passenger_ids.size() < best->passenger_ids.size()) best = &tp;
+		return &tp;
 	}
-	return best;
+	return nullptr;
 }
 
 const PetraTransportPlan *Simulation::petra_transport_for(uint8_t owner) const {
@@ -35346,9 +35346,8 @@ uint32_t Simulation::petra_free_transport_ship(uint16_t sea, float x, float z) c
 		if (!units_.alive[i] || units_.team[i] != petra_pid_ || !petra_is_transport_ship(i)) continue;
 		if (sea && petra_ship_sea(i) != sea) continue;
 		if (petra_ship_in_plan(units_.id[i])) continue; // busy with another plan
-		// A warship in a defense army fights where the army is; it would never come to the
-		// boarding point (the plan waits for a free ship, needTransportShips).
-		if (petra_is_defender(units_.id[i])) continue;
+		// navalManager.js seaTransportShips takes every ship that can garrison, a warship in a
+		// defense army included (the two overlap, navalManager.js:52-53).
 		const float dx = units_.pos_x[i] - x, dz = units_.pos_z[i] - z;
 		const float d2 = dx * dx + dz * dz;
 		if (ship && d2 >= best_d2) continue;
