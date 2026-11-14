@@ -849,6 +849,9 @@ public:
 	// temperate_large_02 22 x 14 m (48), template_gaia_ruins 7 x 7 m. Mines block movement,
 	// pathfinding and foundations (template_gaia). False for any other supply.
 	bool mine_footprint(size_t r, nav::Footprint &f) const;
+	// A tree's or fruit bush's Obstruction/Static square (resource_block_half), which gather_in_reach
+	// measures from as 0.28's ResourceGatherer MaxDistance does; false for every other supply.
+	bool tree_footprint(size_t r, nav::Footprint &f) const;
 	// Half the width of any other supply's square foundation obstruction, in world units: a
 	// tree's or fruit's template Obstruction/Static (flora_obstruction_m), else 1.5 m.
 	float resource_block_half(size_t r) const;
@@ -2879,7 +2882,8 @@ private:
 	// 0 A.D.'s move to the target's range is done there.
 	bool walk_in_reach(size_t i, float x, float z) const;
 	// tick_gather's reach of unit i at (x, z) to resource r: 2.5 units from its centre (FISH_GATHER_REACH
-	// for fish), and for a mine, which no unit stands on, MINE_GATHER_REACH from its square.
+	// for fish, grain and meat), and for a mine or a tree or fruit bush, MINE_GATHER_REACH (2 m, 0.28's
+	// MaxDistance) from its square's edge, past the unit's crowd clearance (tree_footprint).
 	bool gather_in_reach(size_t i, size_t r, float x, float z) const;
 	bool gathering_mine(size_t i) const; // unit i is gathering from a mine (mine_footprint)
 	bool gather_mine_footprint(size_t i, nav::Footprint &m) const; // and that mine's footprint

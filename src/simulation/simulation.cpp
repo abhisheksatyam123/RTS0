@@ -4311,6 +4311,18 @@ float Simulation::resource_block_half(size_t r) const {
 	return 0.375f;
 }
 
+bool Simulation::tree_footprint(size_t r, nav::Footprint &f) const {
+	const uint8_t type = resources_.type[r], sub = resources_.subtype[r];
+	if (sub != RES_SUB_NONE || (type != RES_WOOD && type != RES_FOOD)) return false;
+	// Trees and fruit bushes are unrotated squares in 0 A.D. (template Obstruction/Static).
+	f.x = resources_.x[r];
+	f.z = resources_.z[r];
+	f.ux = 1.0f;
+	f.uz = 0.0f;
+	f.hu = f.hv = resource_block_half(r);
+	return true;
+}
+
 bool Simulation::mine_footprint(size_t r, nav::Footprint &f) const {
 	const uint8_t type = resources_.type[r], sub = resources_.subtype[r];
 	if ((type != RES_GOLD && type != RES_STONE) || (sub != RES_SUB_NONE && sub != RES_SUB_RUINS)) return false;
@@ -14159,8 +14171,8 @@ bool Simulation::task_range_goal(size_t i, nav::ShortPathGoal &g, uint32_t &buil
 		if (rit == res_id_to_idx_.end()) return false;
 		const size_t k = rit->second;
 		nav::Footprint m;
-		if (mine_footprint(k, m)) {
-			// gather_in_reach's band round the mine's square.
+		if (mine_footprint(k, m) || tree_footprint(k, m)) {
+			// gather_in_reach's band round the mine's (or tree's) square.
 			g.type = nav::ShortPathGoal::SQUARE;
 			g.center = nav::Vec2(m.x, m.z);
 			g.u = nav::footprint_u(m);
@@ -14812,7 +14824,7 @@ bool Simulation::gathering_mine(size_t i) const {
 
 bool Simulation::gather_in_reach(size_t i, size_t r, float x, float z) const {
 	nav::Footprint m;
-	if (mine_footprint(r, m)) {
+	if (mine_footprint(r, m) || tree_footprint(r, m)) {
 		const nav::Vec2 gap = nav::footprint_gap(m, x, z);
 		const float reach = unit_push_clearance(units_.unit_type[i]) + MINE_GATHER_REACH;
 		return gap.x * gap.x + gap.y * gap.y <= reach * reach;
