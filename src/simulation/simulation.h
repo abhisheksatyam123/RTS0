@@ -5012,8 +5012,8 @@ private:
 	std::vector<GatePassMemo> gate_pass_memo_;
 	nav::ObstacleGrid sep_grid_; // sep_obstacles_ by cell, rebuilt with it
 	// steer_obstacles_ by cell, rebuilt in move_units when they change, and the line test that
-	// looks only at those under the line. Unlike nav::line_blocked_by_buildings, that test skips only
-	// the squares holding the line's start (0.28's TestLine), not the whole line.
+	// looks only at those under the line. Like nav::line_blocked_by_buildings, it skips only the
+	// squares holding the line's start (0.28's TestLine), not the whole line.
 	nav::ObstacleGrid steer_grid_;
 	uint32_t steer_grid_key_ = 0;
 	float steer_grid_half_ = 0.0f;
