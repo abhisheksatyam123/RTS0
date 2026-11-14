@@ -9809,6 +9809,17 @@ bool Simulation::can_board(size_t transport_idx, size_t unit_idx) const {
 
 // GarrisonHolder.EjectOrKill on a holder killed out of the world (a loaded ram aboard a sinking
 // ship or inside a structure): its passengers cannot be ejected and die with it.
+// transportPlan.js resetUnit + ent.destroy(): a unit the plan gives up on is removed without a
+// death (no kill is credited and no corpse is left).
+void Simulation::petra_destroy_unit(uint32_t uid) {
+	const int32_t u = lookup_unit(uid);
+	if (u < 0 || !units_.alive[u]) return;
+	units_.hp[u] = 0.0f;
+	units_.alive[u] = 0;
+	units_.action_state[u] = ACTION_DYING;
+	units_.has_order[u] = 0;
+}
+
 void Simulation::kill_passengers_of(size_t holder) {
 	auto pit = transport_passengers_.find(units_.id[holder]);
 	if (pit == transport_passengers_.end()) return;
@@ -35866,7 +35877,8 @@ void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt, std::vec
 			for (uint32_t uid : tp.passenger_ids) {
 				const int32_t u = lookup_unit(uid);
 				keep.push_back(uid);
-				if (u < 0 || !units_.alive[u] || (on && std::find(on->begin(), on->end(), uid) != on->end())) continue;
+				if (u < 0 || !units_.alive[u]) continue;
+				if (on && std::find(on->begin(), on->end(), uid) != on->end()) continue;
 				const float sdx = units_.pos_x[u] - units_.pos_x[sidx], sdz = units_.pos_z[u] - units_.pos_z[sidx];
 				const float dist = std::sqrt(sdx * sdx + sdz * sdz);
 				PetraTransportPlan::BoardTry b{uid, units_.pos_x[u], units_.pos_z[u], 0, dist};
@@ -35884,8 +35896,10 @@ void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt, std::vec
 					b.tries = it->tries;
 					if (ship_ready) {
 						if (++b.tries > 5) {
+							// transportPlan.js onBoarding: "unit blocked, but no ways out of the trap ...
+							// destroy it" (resetUnit, then ent.destroy()); the plan goes on without it.
 							keep.pop_back();
-							if (units_.target_unit_id[u] == tp.ship_id) cmd_stop(&uid, 1);
+							petra_destroy_unit(uid);
 							continue;
 						}
 						if (b.tries > 1) {

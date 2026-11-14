@@ -1867,8 +1867,10 @@ static void test_petra_transport_trapped_passenger() {
 	}
 	const int32_t i = idx(s, penned);
 	const bool still_penned = i >= 0 && s.units().alive[i] && std::fabs(s.units().pos_x[i] - px) < r && std::fabs(s.units().pos_z[i] - pz) < r;
-	std::printf("Petra transport with a passenger penned in: sailed after %.0f s, the penned one left behind %s\n", sailed_at, still_penned ? "yes" : "no");
-	CHECK(still_penned);
+	// transportPlan.js onBoarding: the penned passenger is blocked past its fifth try and destroyed.
+	const bool destroyed = i < 0 || !s.units().alive[i];
+	std::printf("Petra transport with a passenger penned in: sailed after %.0f s, the penned one destroyed %s, still penned %s\n", sailed_at, destroyed ? "yes" : "no", still_penned ? "yes" : "no");
+	CHECK(destroyed);
 	CHECK(sailed_at >= 0.0f && sailed_at < 80.0f); // 120 s at the beach, plus the ship's approach, before
 }
 
