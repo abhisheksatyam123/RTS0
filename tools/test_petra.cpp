@@ -8652,6 +8652,32 @@ static void test_decay_garrison_from_attack() {
 	}
 }
 
+// headquarters.js updateTerritories: growth alone is not expansion. Only tiles a base newly takes count.
+static void test_territory_expansion() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	s->petra_pid_ = 1;
+	s->petra_update_tile_bases();
+	const std::vector<uint32_t> claimed = s->petra_tile_bases_.anchor;
+	size_t n_claimed = 0;
+	for (uint32_t a : claimed) n_claimed += a != 0;
+	// Case A: the same claims as last turn (growth in tile count would not do it): no expansion.
+	s->petra_room_.marks.assign(1, Simulation::PetraRoom::Mark{0, 1e9f});
+	s->petra_prospect_.active = false;
+	s->petra_territory_expansion(claimed, true);
+	CHECK(s->petra_room_.marks.size() == 1, "unchanged base claims keep the room marks");
+	CHECK(!s->petra_prospect_.active, "unchanged base claims do not prospect a market");
+	// Case B: nothing claimed last turn: every claimed owned land tile is expansion.
+	const std::vector<uint32_t> none(claimed.size(), 0);
+	s->petra_territory_expansion(none, true);
+	std::printf("  territory expansion: %zu claimed tiles this turn\n", n_claimed);
+	if (n_claimed > 0) CHECK(s->petra_room_.marks.empty(), "new base claims end the room marks");
+}
+
 // headquarters.js buildDefenses: the first sentry tower waits for fortStartTime + towerLapseTime
 // (180 + 360 s at defensive 0.5), the defenseBuilding plan holds one structure until it is paid for, and
 // the next stone tower waits (1 + 0.1 * towers) * towerLapseTime after the last one was queued.
@@ -11285,6 +11311,7 @@ int main(int argc, char **argv) {
 	RUN(test_unit_choice);
 	RUN(test_new_base_own_civ_cc);
 	RUN(test_build_defenses);
+	RUN(test_territory_expansion);
 	RUN(test_defensive_location);
 	RUN(test_raid_keeps_hunters);
 	RUN(test_raid_takes_siege);
