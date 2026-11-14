@@ -3255,7 +3255,9 @@ inline bool NavGrid::find_path_tiles(float sx, float sz, float tx, float tz, Way
                     goal_region = regions[at(i, j)];
                 }
     }
-    if (want && goal_region != 0 && goal_region != want) {
+    // Small units only: a large unit's first leg from a steep navcell crosses ground its class can't take, and
+    // the moved start stalls it short of the path's end (test_building_steering scenario 40, a walk past the edge).
+    if (cls == 0 && want && goal_region != 0 && goal_region != want) {
         float best = -1.0f;
         int bi = si, bj = sj;
         for (int r = 1; r <= reach && best < 0; ++r)
