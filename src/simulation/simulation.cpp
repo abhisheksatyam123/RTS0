@@ -31124,6 +31124,9 @@ bool Simulation::petra_find_economic_cc_location(uint8_t btype, uint8_t res, boo
 			out_z = z;
 		}
 	}
+	// headquarters.js findEconomicCCLocation ends with setMinimalTransportShips for the seas to
+	// our bases on other access lands, for any spot it returns (strategic fallback included).
+	if (found) petra_raise_sea_ships_to(out_x, out_z);
 	return found;
 }
 

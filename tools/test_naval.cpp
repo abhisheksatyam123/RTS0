@@ -3829,6 +3829,21 @@ static void test_strategic_cc_sea_ships() {
 	CHECK(wanted == 1);
 	s.petra_raise_sea_ships_to(fx, fz);
 	CHECK(PetraKept::at(s.petra_kept_.wanted_transport, sea_expected) == 1);
+
+	// findEconomicCCLocation ends the same way for any spot it returns: each sea to a base of ours
+	// on another access land is kept at 1 ship. Checked on whatever spot it finds (if any).
+	s.petra_kept_.wanted_transport.assign(s.petra_kept_.wanted_transport.size(), 0);
+	float ex = 0.0f, ez = 0.0f;
+	const bool econ = s.petra_find_economic_cc_location(BLD_TOWN_CENTER, RES_WOOD, false, ex, ez);
+	std::printf("Petra economic CC spot found: %s\n", econ ? "yes" : "no");
+	if (econ) {
+		const uint16_t to_access = s.petra_access_at(ex, ez);
+		for (const Simulation::PetraBase &b : s.petra_bases_) {
+			if (b.anchor_building_id == 0 || s.petra_access_at(b.x, b.z) == to_access) continue;
+			const uint16_t sea = topo.sea_between(s.petra_land_at(b.x, b.z), s.petra_land_at(ex, ez));
+			if (sea) CHECK(PetraKept::at(s.petra_kept_.wanted_transport, sea) >= 1);
+		}
+	}
 }
 
 int main() {
