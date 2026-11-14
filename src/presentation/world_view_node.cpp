@@ -3285,8 +3285,6 @@ MultiMesh *RtsoWorldView::crowd_mm(CrowdBatch &b, int clip, int phase) {
 		if (silhouettes_ && silhouette_mat_.is_valid()) b.mmi[clip][phase]->set_material_overlay(silhouette_mat_);
 		rtso::set_instance_param(b.mmi[clip][phase], "silhouette_radius", b.sil_radius);
 		add_child(b.mmi[clip][phase]);
-		// Pixel mode: units get a stronger owner tint (player_color.gdshader pixel_team_sat).
-		rtso::set_instance_param(b.mmi[clip][phase], "pixel_team_sat", 1.7f);
 		if (!unit_outline_mat_.is_valid()) {
 			Ref<Shader> osh = ResourceLoader::get_singleton()->load("res://shaders/unit_outline_pixel.gdshader");
 			if (osh.is_valid()) {
