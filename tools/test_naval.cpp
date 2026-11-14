@@ -1871,7 +1871,7 @@ static void test_petra_transport_trapped_passenger() {
 	const bool destroyed = i < 0 || !s.units().alive[i];
 	std::printf("Petra transport with a passenger penned in: sailed after %.0f s, the penned one destroyed %s, still penned %s\n", sailed_at, destroyed ? "yes" : "no", still_penned ? "yes" : "no");
 	CHECK(destroyed);
-	CHECK(sailed_at >= 0.0f && sailed_at < 80.0f); // the rest of the crew is aboard and sails once the penned one is gone
+	CHECK(sailed_at >= 0.0f && sailed_at < 80.0f); // 120 s at the beach, plus the ship's approach, before
 }
 
 // UnitAI Order.Garrison: a walker on its way to board a ship whose ship is sunk gives up the
