@@ -39126,7 +39126,6 @@ void Simulation::petra_reset_ai_state() {
 	petra_diplo_timer_ = 0.0f;
 	petra_diplo_ = PetraDiplomacy{};
 	petra_sent_diplo_ = PetraSentDiplomacy{};
-	ai_wonder_victory_timer_ = 0.0f;
 }
 
 void Simulation::petra_swap_next_plan() {
@@ -41379,12 +41378,16 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 	};
 	// The AI being run between ticks (PETRA_PLAYER) lives in the members, every other AI in its slot.
 #define RTSO_PETRA_IO_LIVE(m) field(s.m);
-	RTSO_PETRA_SLOT_FIELDS(RTSO_PETRA_IO_LIVE)
+	RTSO_PETRA_SLOT_FIELDS_HEAD(RTSO_PETRA_IO_LIVE)
+	if constexpr (Ar::loading) if (ar.version < Simulation::SAVE_VERSION_PETRA_NO_WONDER_TIMER) { float dead_wonder_timer = 0.0f; ar.pod(dead_wonder_timer); }
+	RTSO_PETRA_SLOT_FIELDS_TAIL(RTSO_PETRA_IO_LIVE)
 #undef RTSO_PETRA_IO_LIVE
 	io_vec(ar, s.petra_slots_, MAX_PLAYERS, [&](S::PetraSlot &slot) {
 		ar.pod(slot.initialized);
 #define RTSO_PETRA_IO_SLOT(m) field(slot.m);
-		RTSO_PETRA_SLOT_FIELDS(RTSO_PETRA_IO_SLOT)
+		RTSO_PETRA_SLOT_FIELDS_HEAD(RTSO_PETRA_IO_SLOT)
+		if constexpr (Ar::loading) if (ar.version < Simulation::SAVE_VERSION_PETRA_NO_WONDER_TIMER) { float dead_wonder_timer = 0.0f; ar.pod(dead_wonder_timer); }
+		RTSO_PETRA_SLOT_FIELDS_TAIL(RTSO_PETRA_IO_SLOT)
 #undef RTSO_PETRA_IO_SLOT
 	});
 	if constexpr (Ar::loading) {

@@ -200,7 +200,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 150; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 151; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_PETRA_NO_WONDER_TIMER = 151; // the dead ai_wonder_victory_timer_ (per AI slot and live) is gone: a float after petra_diplo_timer_ before v151
 	static constexpr uint32_t SAVE_VERSION_PETRA_QUEUE_FUNDING = 150; // queue.js funding: a queue's account cap adds 60% of its second plan and halves once the account covers the next plan (G158); the layout is unchanged, older saves have no second plan
 	static constexpr uint32_t SAVE_VERSION_PETRA_OVERSEAS_CLEARED = 149; // each Petra attack plan's overseas_cleared (attackPlan.js checkEvents)
 	static constexpr uint32_t SAVE_VERSION_PETRA_PLAN_QUEUES = 148; // per-plan train queues (attackPlan.js:221-223): 27 queues, one plan set per mustering plan
@@ -4102,7 +4103,6 @@ private:
 	float petra_defense_timer_ = 0.0f;
 	float petra_victory_timer_ = 0.0f;
 	float petra_diplo_timer_ = 0.0f;
-	float ai_wonder_victory_timer_ = 0.0f;
 	bool pick_petra_safe_staging(float base_x, float base_z, float target_x, float target_z, float &out_sx, float &out_sz) const;
 	// headquarters.js isDangerousLocation: near an army invading us or within `radius` of an
 	// enemy shooting structure's range.
@@ -4737,17 +4737,21 @@ private:
 	// Per-AI Petra state. The petra_* members above hold the state of the AI being
 	// run (PETRA_PLAYER between ticks); every other AI slot's state is parked here
 	// and swapped in while that AI thinks (0 A.D. runs one Petra instance per AI).
-#define RTSO_PETRA_SLOT_FIELDS(X) \
+#define RTSO_PETRA_SLOT_FIELDS_HEAD(X) \
 	X(petra_threat_map_) X(petra_strike_force_) X(petra_attack_plan_) X(petra_raid_plan_) \
 	X(petra_opening_step_) X(petra_opening_timer_) X(petra_defense_armies_) X(petra_emergency_) \
 	X(petra_queues_) X(petra_transports_) X(petra_defense_timer_) X(petra_victory_timer_) \
-	X(petra_diplo_timer_) X(ai_wonder_victory_timer_) X(petra_bases_) X(petra_fnd_watch_) \
+	X(petra_diplo_timer_)
+// Between the two halves: a save before SAVE_VERSION_PETRA_NO_WONDER_TIMER held one more float here.
+#define RTSO_PETRA_SLOT_FIELDS_TAIL(X) \
+	X(petra_bases_) X(petra_fnd_watch_) \
 	X(petra_timer_) X(petra_econ_timer_) X(petra_trade_timer_) X(petra_naval_timer_) \
 	X(petra_scout_timer_) X(petra_scout_unit_id_) X(petra_scout_angle_) X(petra_scout_radius_) \
 	X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_) \
 	X(petra_sent_diplo_) X(petra_started_attacks_) X(petra_defense_build_) X(petra_dropsite_check_) \
 	X(petra_failed_gather_) X(petra_hunt_search_) X(petra_base_dropsite_checks_) X(petra_approach_) X(petra_inaccessible_) \
 	X(petra_kept_) X(petra_move_to_gatherer_) X(petra_supply_) X(petra_room_) X(petra_prospect_) X(petra_route_cache_) X(petra_targeted_relics_) X(petra_tile_bases_) X(petra_defense_targets_) X(petra_queue_heads_) X(petra_ferried_guards_) X(petra_next_plan_) X(petra_ship_idle_) X(petra_holders_)
+#define RTSO_PETRA_SLOT_FIELDS(X) RTSO_PETRA_SLOT_FIELDS_HEAD(X) RTSO_PETRA_SLOT_FIELDS_TAIL(X)
 	struct PetraSlot {
 		bool initialized = false;
 #define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};
