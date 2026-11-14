@@ -2032,6 +2032,38 @@ static void test_transport_join_first_plan() {
 	CHECK(got == &s->petra_transports_[0], "the unit joins the first boarding plan of the crossing, whether or not it has room");
 }
 
+// transportPlan.js onBoarding: a passenger still blocked after its fifth boarding try ("no ways
+// out of the trap") is destroyed (resetUnit, then ent.destroy()) and the plan goes on without it.
+static void test_transport_blocked_passenger_destroyed() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_REGICIDE);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	float cx = 0.0f, cz = 0.0f;
+	for (const auto &b : s->buildings_) if (b.team == 1 && b.type == BLD_TOWN_CENTER) { cx = b.x; cz = b.z; }
+	const uint32_t ship = s->spawn_unit(cx, cz, 1, UNIT_TRIREME);
+	const uint32_t man = s->spawn_unit(cx + 30.0f, cz, 1, UNIT_SWORDSMAN); // out of loading reach: blocked
+	PetraTransportPlan tp;
+	tp.state = PetraTransportPlan::BOARDING;
+	tp.owner = 1;
+	tp.ship_id = ship;
+	tp.pickup_x = cx;
+	tp.pickup_z = cz;
+	tp.drop_x = cx + 60.0f;
+	tp.drop_z = cz;
+	tp.passenger_ids = {man};
+	std::vector<PetraReferry> referry;
+	for (int k = 0; k < 30 && tp.state == PetraTransportPlan::BOARDING; ++k) s->petra_step_transport(tp, 1.0f, referry);
+	const int32_t mi = s->lookup_unit(man);
+	const bool dead = mi < 0 || !s->units_.alive[mi];
+	std::printf("  a passenger that never gets aboard its ship at the beach: destroyed %d, left in the plan %zu\n",
+	            dead, tp.passenger_ids.size());
+	CHECK(dead, "a passenger blocked past its fifth try is destroyed");
+}
+
 // worker.js:325-345: a Petra builder that autocontinue sends from a finished house to a field
 // foundation is taken off it (fields are built by their farmers, buildAnyField); another
 // foundation nearby it does build.
@@ -11118,6 +11150,7 @@ int main(int argc, char **argv) {
 	RUN(test_garrison_attacked_full_by_slots);
 	RUN(test_garrison_emergency_unloads_first);
 	RUN(test_transport_ship_defender_pick);
+	RUN(test_transport_blocked_passenger_destroyed);
 	RUN(test_house_builder_skips_field);
 	RUN(test_one_base_a_turn);
 	RUN(test_no_room_only_once_funded);
