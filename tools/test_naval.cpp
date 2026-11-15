@@ -3785,6 +3785,67 @@ static void test_petra_cancel_clears_raid_target() {
 
 
 
+// findStrategicCCLocation's setMinimalTransportShips: a spot on another land that one sea joins
+// to a base of ours wants 1 ship on that sea; a spot on our own land does not.
+static void test_strategic_cc_sea_ships() {
+	static Simulation s;
+	fresh(s);
+	s.set_player_active(1, true, true);
+	const uint32_t tc_id = s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	Simulation::PetraBase pb;
+	pb.x = -30.0f; pb.z = 40.0f; pb.anchor_building_id = tc_id; pb.is_primary = true;
+	s.petra_bases_.push_back(pb);
+	s.petra_pid_ = 1;
+
+	Simulation::PetraNavalTopo topo;
+	s.petra_naval_topology(topo);
+	const uint16_t home = s.petra_land_at(pb.x, pb.z);
+	// Look for a spot on a land that the sea joins to ours (a sea between them, lands differing).
+	float fx = 0.0f, fz = 0.0f;
+	uint16_t sea_expected = 0;
+	bool have_far = false;
+	for (float z = -120.0f; z <= 120.0f && !have_far; z += 4.0f)
+		for (float x = -120.0f; x <= 120.0f && !have_far; x += 4.0f) {
+			const uint16_t l = s.petra_land_at(x, z);
+			if (!l || l == home) continue;
+			const uint16_t sea = topo.sea_between(home, l);
+			if (!sea) continue;
+			fx = x; fz = z; sea_expected = sea; have_far = true;
+		}
+	CHECK(have_far && sea_expected != 0);
+	if (!have_far) { std::printf("FAIL strategic: no land across a sea from home on this fixture\n"); return; }
+
+	// Our own land: nothing wanted.
+	s.petra_kept_.wanted_transport.assign(s.petra_kept_.wanted_transport.size(), 0);
+	s.petra_raise_sea_ships_to(pb.x + 8.0f, pb.z);
+	bool any = false;
+	for (uint8_t w : s.petra_kept_.wanted_transport) any |= w > 0;
+	CHECK(!any);
+
+	// The spot across the sea: 1 ship on that sea, kept (only raised).
+	s.petra_raise_sea_ships_to(fx, fz);
+	const int wanted = PetraKept::at(s.petra_kept_.wanted_transport, sea_expected);
+	std::printf("Petra strategic CC across sea %u: minimal transport ships %d\n", (unsigned)sea_expected, wanted);
+	CHECK(wanted == 1);
+	s.petra_raise_sea_ships_to(fx, fz);
+	CHECK(PetraKept::at(s.petra_kept_.wanted_transport, sea_expected) == 1);
+
+	// findEconomicCCLocation ends the same way for any spot it returns: each sea to a base of ours
+	// on another access land is kept at 1 ship. Checked on whatever spot it finds (if any).
+	s.petra_kept_.wanted_transport.assign(s.petra_kept_.wanted_transport.size(), 0);
+	float ex = 0.0f, ez = 0.0f;
+	const bool econ = s.petra_find_economic_cc_location(BLD_TOWN_CENTER, RES_WOOD, false, ex, ez);
+	std::printf("Petra economic CC spot found: %s\n", econ ? "yes" : "no");
+	if (econ) {
+		const uint16_t to_access = s.petra_access_at(ex, ez);
+		for (const Simulation::PetraBase &b : s.petra_bases_) {
+			if (b.anchor_building_id == 0 || s.petra_access_at(b.x, b.z) == to_access) continue;
+			const uint16_t sea = topo.sea_between(s.petra_land_at(b.x, b.z), s.petra_land_at(ex, ez));
+			if (sea) CHECK(PetraKept::at(s.petra_kept_.wanted_transport, sea) >= 1);
+		}
+	}
+}
+
 int main() {
 	test_ships_accelerate();
 	test_transport();
@@ -3865,6 +3926,7 @@ int main() {
 	test_gather_unreachable();
 	test_board_rules();
 	test_petra_multi_sea_queues();
+	test_strategic_cc_sea_ships();
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }
